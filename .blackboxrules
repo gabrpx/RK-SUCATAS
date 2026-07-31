@@ -1,0 +1,45 @@
+Seja direto e objetivo. Explique o que você está fazendo em no máximo 3 linhas de texto.
+Dentro do código, use comentários curtos em português explicando:
+- Pra que serve cada função
+- O que cada parâmetro faz
+- Por que cada bloco existe
+- Como as props são usadas
+
+Exemplo de comentário no código:
+// filtra itens por categoria e moto
+// reseta página para 1 após qualquer filtro
+// loading impede múltiplos cliques
+
+Não escreva longos textos explicativos fora do código.
+
+exemplo em código:
+'// StockFilters.tsx - Barra de busca + filtros do estoque
+
+interface StockFiltersProps {
+  theme: 'dark' | 'light';        // controle de tema escuro/claro
+  searchTerm: string;              // texto digitado na busca
+  setSearchTerm: (v: string) => void; // atualiza busca e re-renderiza
+  selectedCategory: string;        // filtro ativo de categoria
+  setSelectedCategory: (v: string) => void; // muda categoria e reseta página
+  selectedMoto: string;            // filtro ativo de modelo de moto
+  setSelectedMoto: (v: string) => void; // muda moto e reseta página
+  sortConfig: { key: string; direction: string }; // qual campo ordenar
+  setSortConfig: (v: any) => void; // altera ordenação
+  loading: boolean;                // impede ação durante carregamento
+  isRefreshing: boolean;           // estado específico do sync
+  onRefresh: () => void;           // dispara sincronização manual
+  onNewItem: () => void;           // abre modal de criação
+  readOnly: boolean;               // se true, esconde botão "Novo Item"
+  setCurrentPage: (page: number) => void; // reseta paginação após filtro
+}
+
+// handleFilterChange: aplica callback e volta p/ página 1
+const handleFilterChange = (callback: () => void) => {
+  callback();        // executa a mudança (ex: setSelectedCategory)
+  setCurrentPage(1); // volta p/ primeira página
+};
+
+// hasActiveFilters: mostra botão "Limpar" se algo foi filtrado
+const hasActiveFilters = searchTerm !== '' 
+  || selectedCategory !== 'Todas' 
+  || selectedMoto !== 'Todas';'

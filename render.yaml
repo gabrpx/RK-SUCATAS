@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: rk-sucatas-api
+    runtime: node
+    plan: free
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    envVars:
+      - key: NODE_VERSION
+        value: 22
+      - key: NODE_ENV
+        value: production
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ADMIN_SEED_PASSWORD
+        sync: false
+      - key: MELHOR_ENVIO_TOKEN
+        sync: false

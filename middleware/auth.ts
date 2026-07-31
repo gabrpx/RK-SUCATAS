@@ -1,0 +1,53 @@
+// Middleware de autenticação: valida o JWT emitido em POST /api/auth/login.
+// Substitui o esquema antigo (bearer com ADMIN_PASSWORD, que nunca verificava
+// o JWT de verdade e deixava passar sem token nenhum quando a env var não
+// estava configurada).
+import { Request, Response, NextFunction } from 'express';
+import jwt from 'jsonwebtoken';
+import dotenv from 'dotenv';
+import { requireEnv } from '../src/server/env.js';
+
+dotenv.config();
+
+const JWT_SECRET = requireEnv('JWT_SECRET');
+
+export interface UsuarioLogado {
+  id: number;
+  username: string;
+  role: string;
+}
+
+export interface AuthenticatedRequest extends Request {
+  usuario?: UsuarioLogado;
+}
+
+// Endereços de loopback (a própria máquina). Usamos req.socket.remoteAddress
+// (o endereço real da conexão TCP) em vez de req.ip — este último respeita o
+// header X-Forwarded-For (por causa do `trust proxy` em server.ts) e poderia,
+// em tese, ser forjado por quem está atrás do proxy. remoteAddress não dá
+// pra falsificar sem literalmente estar rodando na mesma máquina do servidor.
+const ENDERECOS_LOOPBACK = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
+
+export function autenticar(req: AuthenticatedRequest, res: Response, next: NextFunction) {
+  // Acesso via localhost pula o login — conveniência de desenvolvimento local.
+  // Nunca dispara em produção real: um servidor exposto na internet nunca vê
+  // uma conexão com remoteAddress de loopback vinda de fora da própria máquina.
+  if (ENDERECOS_LOOPBACK.includes(req.socket.remoteAddress || '')) {
+    req.usuario = { id: 0, username: 'localhost', role: 'admin' };
+    return next();
+  }
+
+  const authHeader = req.headers['authorization'];
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  if (!token) {
+    return res.status(401).json({ success: false, error: 'Token ausente' });
+  }
+
+  try {
+    req.usuario = jwt.verify(token, JWT_SECRET) as UsuarioLogado;
+    next();
+  } catch {
+    return res.status(401).json({ success: false, error: 'Token inválido ou expirado' });
+  }
+}
