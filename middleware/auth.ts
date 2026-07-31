@@ -1,7 +1,5 @@
-// Middleware de autenticação: valida o JWT emitido em POST /api/auth/login.
-// Substitui o esquema antigo (bearer com ADMIN_PASSWORD, que nunca verificava
-// o JWT de verdade e deixava passar sem token nenhum quando a env var não
-// estava configurada).
+// Middleware de autenticação: valida o JWT emitido em POST /api/auth/login
+// (login de admin por senha única, ver server.ts).
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import dotenv from 'dotenv';

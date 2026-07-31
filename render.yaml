@@ -16,7 +16,7 @@ services:
         sync: false
       - key: JWT_SECRET
         sync: false
-      - key: ADMIN_SEED_PASSWORD
+      - key: ADMIN_PASSWORD
         sync: false
       - key: MELHOR_ENVIO_TOKEN
         sync: false

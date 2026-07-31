@@ -9,10 +9,10 @@ Express fino (autenticação de staff + proxy do Melhor Envio + CRUD Supabase).
 1. Rode `supabase/schema.sql` no editor SQL do seu projeto Supabase (cria as
    tabelas `categorias`, `modelos_moto`, `estoque`, `vendas`, `caixa`).
 2. Copie `.env.example` para `.env` e preencha `SUPABASE_URL`,
-   `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET` e `MELHOR_ENVIO_TOKEN`.
+   `SUPABASE_SERVICE_ROLE_KEY`, `JWT_SECRET`, `ADMIN_PASSWORD` e
+   `MELHOR_ENVIO_TOKEN`.
 3. `npm install` e `npm run dev`.
-4. Login inicial: usuário `rksucatas` (senha definida em `server.ts`,
-   `seedAdminPadrao` — troque depois do primeiro acesso).
+4. Login: só a senha definida em `ADMIN_PASSWORD` (sem usuário/cadastro).
 
 ## 🌐 Deploy no Google Cloud Run
 

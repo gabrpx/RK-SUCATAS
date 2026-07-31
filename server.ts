@@ -9,8 +9,6 @@ import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
-import Database from 'better-sqlite3';
-import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
 
@@ -27,49 +25,15 @@ import { uploadRouter } from './src/server/routes/upload.js';
 
 dotenv.config();
 
-// ==================== AUTENTICAÇÃO LOCAL (SQLite) ====================
-// Login de staff (admin/gerente). Independente do Supabase — não há mais
-// conceito de "cliente"/catálogo público neste sistema.
-const dbPath = path.join(process.cwd(), 'database.sqlite');
-const db = new Database(dbPath);
-db.exec(`
-  CREATE TABLE IF NOT EXISTS local_users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT DEFAULT 'admin',
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
-`);
-
-// Cria o primeiro usuário admin só se ainda não existir nenhum. A senha vem
-// de ADMIN_SEED_PASSWORD (env var) — nunca hardcoded no código, já que este
-// repositório é compartilhado com a equipe. Depois do primeiro boot, essa
-// variável pode até ser removida: o seed só roda quando a tabela está vazia.
-async function seedAdminPadrao() {
-  const adminExists = db.prepare('SELECT id FROM local_users WHERE username = ?').get('rksucatas');
-  if (adminExists) return;
-
-  const senha = process.env.ADMIN_SEED_PASSWORD;
-  if (!senha) {
-    console.warn('⚠️ Nenhum usuário admin existe e ADMIN_SEED_PASSWORD não está definida. Configure essa variável e reinicie o servidor para criar o primeiro acesso.');
-    return;
-  }
-
-  const hash = await bcrypt.hash(senha, 10);
-  db.prepare('INSERT INTO local_users (username, password_hash, role) VALUES (?, ?, ?)').run('rksucatas', hash, 'admin');
-  console.log("✅ Usuário mestre 'rksucatas' criado com sucesso!");
-}
-
 async function startServer() {
   console.log('🌐 Validando variáveis de ambiente...');
-  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'MELHOR_ENVIO_TOKEN'].forEach((env) => {
+  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'ADMIN_PASSWORD', 'MELHOR_ENVIO_TOKEN'].forEach((env) => {
     if (!process.env[env]) console.warn(`⚠️ Variável de ambiente [${env}] não está definida!`);
     else console.log(`✅ [${env}] está presente.`);
   });
 
-  await seedAdminPadrao();
   const JWT_SECRET = requireEnv('JWT_SECRET');
+  const ADMIN_PASSWORD = requireEnv('ADMIN_PASSWORD');
 
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
@@ -110,20 +74,17 @@ async function startServer() {
 
   app.post('/api/auth/login', async (req, res) => {
     try {
-      const { username, password } = req.body || {};
-      if (!username || !password) {
-        return res.status(400).json({ success: false, error: 'Usuário e senha são obrigatórios' });
+      const { password } = req.body || {};
+      if (!password) {
+        return res.status(400).json({ success: false, error: 'Senha é obrigatória' });
       }
 
-      const cleanUser = String(username).trim().toLowerCase().replace(/\s+/g, '');
-      const user = db.prepare('SELECT * FROM local_users WHERE username = ?').get(cleanUser) as any;
-      if (!user) return res.status(401).json({ success: false, error: 'Usuário ou senha incorretos' });
+      if (password !== ADMIN_PASSWORD) {
+        return res.status(401).json({ success: false, error: 'Senha incorreta' });
+      }
 
-      const match = await bcrypt.compare(password, user.password_hash);
-      if (!match) return res.status(401).json({ success: false, error: 'Usuário ou senha incorretos' });
-
-      const token = jwt.sign({ id: user.id, username: user.username, role: user.role }, JWT_SECRET, { expiresIn: '7d' });
-      res.json({ success: true, token, user: { id: user.id, username: user.username, role: user.role } });
+      const token = jwt.sign({ id: 0, username: 'admin', role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ success: true, token, user: { id: 0, username: 'admin', role: 'admin' } });
     } catch (err: any) {
       console.error('Login Error:', err);
       res.status(500).json({ success: false, error: 'Erro interno no login' });

@@ -1,9 +1,9 @@
-// Tela de login: acesso restrito de staff (admin/gerente) via usuário/senha
-// local (SQLite + JWT, ver server.ts). Não há mais catálogo público nem
-// estatísticas pré-login — este é um sistema interno.
+// Tela de login: acesso restrito de admin via senha única (JWT, ver
+// server.ts). Não há mais catálogo público nem estatísticas pré-login —
+// este é um sistema interno.
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { Loader2, Wrench, Mail, KeyRound, Eye, EyeOff } from 'lucide-react';
+import { Loader2, Wrench, KeyRound, Eye, EyeOff } from 'lucide-react';
 import { fetchWithRetry, parseJson } from '../lib/apiClient';
 
 interface LoginProps {
@@ -13,14 +13,13 @@ interface LoginProps {
 export const Login = ({ onLogin }: LoginProps) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !password) {
-      setError('Preencha usuário e senha.');
+    if (!password) {
+      setError('Preencha a senha.');
       return;
     }
 
@@ -30,7 +29,7 @@ export const Login = ({ onLogin }: LoginProps) => {
 
       const response = await fetchWithRetry('/api/auth/login', {
         method: 'POST',
-        body: JSON.stringify({ username, password }),
+        body: JSON.stringify({ password }),
       });
       const data = await parseJson(response);
 
@@ -101,29 +100,13 @@ export const Login = ({ onLogin }: LoginProps) => {
 
           <form onSubmit={handleAuth} className="space-y-4">
             <div className="space-y-1.5">
-              <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider ml-1">Usuário</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <Mail className="h-4 w-4 text-zinc-500" />
-                </div>
-                <input
-                  type="text"
-                  required
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-zinc-950/50 border border-zinc-800 rounded-xl pl-10 pr-4 py-3 text-sm text-white placeholder-zinc-600 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/50 transition-all font-medium"
-                  placeholder="seu_usuario"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
               <label className="text-xs font-bold text-zinc-400 uppercase tracking-wider ml-1">Senha</label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <KeyRound className="h-4 w-4 text-zinc-500" />
                 </div>
                 <input
+                  autoFocus
                   type={showPassword ? 'text' : 'password'}
                   required
                   value={password}

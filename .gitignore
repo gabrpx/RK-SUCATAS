@@ -11,10 +11,6 @@ backup_ml_/
 .continue/
 .env
 
-# Banco local de autenticação (SQLite) — nunca deve ser versionado, recria
-# sozinho no primeiro boot via ADMIN_SEED_PASSWORD (ver server.ts).
-database.sqlite
-
 # Estado local da ferramenta de IA usada no desenvolvimento — específico de
 # cada máquina/sessão, não é configuração do projeto.
 .claude/
