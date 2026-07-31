@@ -2,6 +2,7 @@
 // pagamento) usadas pelos formulários de Estoque, Vendas e Caixa.
 import { useCallback, useEffect, useState } from 'react';
 import { categoriasApi, modelosMotoApi, formasPagamentoApi } from '../lib/catalogApi';
+import { getDescendantIds } from '../features/categorias/categoriaTree';
 import type { Categoria, ModeloMoto, FormaPagamento } from '../types/catalog';
 
 export function useCatalogos() {
@@ -28,15 +29,41 @@ export function useCatalogos() {
     carregar();
   }, [carregar]);
 
-  const criarCategoria = useCallback(async (nome: string) => {
-    const result = await categoriasApi.criar(nome);
-    if (result.success) setCategorias((prev) => [...prev, result.data].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')));
+  const criarCategoria = useCallback(async (nome: string, parent_id?: string | null) => {
+    const result = await categoriasApi.criar(nome, parent_id);
+    if (result.success) setCategorias((prev) => [...prev, result.data]);
     return result;
+  }, []);
+
+  const renomearCategoria = useCallback(async (id: string, nome: string) => {
+    const result = await categoriasApi.renomear(id, nome);
+    if (result.success) setCategorias((prev) => prev.map((c) => (c.id === id ? result.data : c)));
+    return result;
+  }, []);
+
+  const moverCategoria = useCallback(async (id: string, parent_id: string | null) => {
+    const result = await categoriasApi.mover(id, parent_id);
+    if (result.success) setCategorias((prev) => prev.map((c) => (c.id === id ? result.data : c)));
+    return result;
+  }, []);
+
+  // Persiste a nova ordem entre os irmãos (mesmo parent_id) — usado pelo drag-and-drop.
+  const reordenarCategorias = useCallback(async (idsNaNovaOrdem: string[]) => {
+    setCategorias((prev) => {
+      const posicao = new Map(idsNaNovaOrdem.map((id, index) => [id, index]));
+      return prev.map((c) => (posicao.has(c.id) ? { ...c, ordem: posicao.get(c.id)! } : c));
+    });
+    return categoriasApi.reordenar(idsNaNovaOrdem);
   }, []);
 
   const excluirCategoria = useCallback(async (id: string) => {
     const result = await categoriasApi.excluir(id);
-    if (result.success) setCategorias((prev) => prev.filter((c) => c.id !== id));
+    if (result.success) {
+      setCategorias((prev) => {
+        const idsRemovidos = new Set(getDescendantIds(id, prev));
+        return prev.filter((c) => !idsRemovidos.has(c.id));
+      });
+    }
     return result;
   }, []);
 
@@ -77,6 +104,9 @@ export function useCatalogos() {
     loading,
     recarregar: carregar,
     criarCategoria,
+    renomearCategoria,
+    moverCategoria,
+    reordenarCategorias,
     excluirCategoria,
     criarModelo,
     excluirModelo,

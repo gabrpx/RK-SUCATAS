@@ -30,9 +30,11 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { useDebounce } from '../../hooks/useDebounce';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { CatalogSelect } from '../../components/CatalogSelect';
+import { CategoriaCascadeSelect } from '../../components/CategoriaCascadeSelect';
 import { SkeletonRow } from '../../components/SkeletonRow';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
+import { getDescendantIds, getAncestorChain, buildTree } from '../categorias/categoriaTree';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
@@ -157,6 +159,20 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
     });
   }, [onRegisterActions, openEditModal, items]);
 
+  // Lista achatada em ordem de árvore (pai sempre logo antes dos filhos), pra
+  // indentar visualmente no dropdown de filtro sem espalhar irmãos por ordem alfabética.
+  const categoriasIndentadas = useMemo(() => {
+    const resultado: { id: string; nome: string; depth: number }[] = [];
+    const percorrer = (nodes: ReturnType<typeof buildTree>, depth: number) => {
+      nodes.forEach((n) => {
+        resultado.push({ id: n.id, nome: n.nome, depth });
+        percorrer(n.children, depth + 1);
+      });
+    };
+    percorrer(buildTree(categorias), 0);
+    return resultado;
+  }, [categorias]);
+
   const filtered = useMemo(() => {
     const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
     let result = items.filter((item) => {
@@ -169,7 +185,8 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
             item.categoria?.nome?.toLowerCase().includes(t) ||
             item.modelo_moto?.nome?.toLowerCase().includes(t)
         );
-      const matchesCategoria = categoriaFiltro === 'Todas' || item.categoria_id === categoriaFiltro;
+      const matchesCategoria =
+        categoriaFiltro === 'Todas' || (!!item.categoria_id && getDescendantIds(categoriaFiltro, categorias).includes(item.categoria_id));
       const matchesModelo = modeloFiltro === 'Todas' || item.modelo_moto_id === modeloFiltro;
       const matchesCondicao = condicaoFiltro === 'Todas' || item.condicao === condicaoFiltro;
       return matchesSearch && matchesCategoria && matchesModelo && matchesCondicao;
@@ -182,7 +199,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
       return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
     });
     return result;
-  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, condicaoFiltro, sortKey]);
+  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, condicaoFiltro, sortKey, categorias]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -313,7 +330,10 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
               icon={<Filter size={14} />}
               value={categoriaFiltro}
               onChange={setCategoriaFiltro}
-              options={[{ value: 'Todas', label: 'Todas categorias' }, ...categorias.map((c) => ({ value: c.id, label: c.nome }))]}
+              options={[
+                { value: 'Todas', label: 'Todas categorias' },
+                ...categoriasIndentadas.map((c) => ({ value: c.id, label: `${'　'.repeat(c.depth)}${c.depth > 0 ? '└ ' : ''}${c.nome}` })),
+              ]}
             />
             <CustomDropdown
               theme={theme}
@@ -462,7 +482,12 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                         </td>
                         <td className="px-3 py-2 text-xs font-medium">{item.nome}</td>
                         <td className="px-3 py-2 text-xs">
-                          <span className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', theme === 'dark' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-zinc-100 text-zinc-600')}>{item.categoria?.nome || '-'}</span>
+                          <span
+                            title={item.categoria_id ? getAncestorChain(item.categoria_id, categorias).map((c) => c.nome).join(' > ') : undefined}
+                            className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', theme === 'dark' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-zinc-100 text-zinc-600')}
+                          >
+                            {item.categoria?.nome || '-'}
+                          </span>
                         </td>
                         <td className="px-3 py-2 text-xs">
                           <span className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase border', theme === 'dark' ? 'bg-zinc-800 text-zinc-300 border-zinc-700' : 'bg-zinc-100 text-zinc-600 border-zinc-200')}>{item.modelo_moto?.nome || 'Universal'}</span>
@@ -560,7 +585,12 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                 <div className="p-3 md:p-4 flex flex-col flex-1">
                   <h4 className={cn('font-bold text-sm leading-tight line-clamp-2 mb-2', theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900')}>{item.nome}</h4>
                   <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-violet-500/10 text-violet-400 border-violet-500/20">{item.categoria?.nome || '-'}</span>
+                    <span
+                      title={item.categoria_id ? getAncestorChain(item.categoria_id, categorias).map((c) => c.nome).join(' > ') : undefined}
+                      className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-violet-500/10 text-violet-400 border-violet-500/20"
+                    >
+                      {item.categoria?.nome || '-'}
+                    </span>
                     <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-zinc-800 text-zinc-400 border-zinc-700">{item.modelo_moto?.nome || 'Universal'}</span>
                     <span className={cn('text-[9px] font-black uppercase px-2 py-0.5 rounded-full', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
                   </div>
@@ -672,16 +702,15 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className={labelClass}>Categoria *</label>
-                    <CatalogSelect
+                    <CategoriaCascadeSelect
                       theme={theme}
+                      categorias={categorias}
                       value={formData.categoria_id || ''}
                       onChange={(id) => {
                         setCategoriaAutoDetectada(false);
                         setFormData({ ...formData, categoria_id: id });
                       }}
-                      options={categorias}
                       onCreate={criarCategoria}
-                      placeholder="Selecione..."
                     />
                   </div>
                   <div>
@@ -803,7 +832,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
           <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
             <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
               <h3 className="text-lg font-black mb-4">Mudar categoria de {selectedIds.length} itens</h3>
-              <CatalogSelect theme={theme} value={bulkCategoriaId} onChange={setBulkCategoriaId} options={categorias} onCreate={criarCategoria} placeholder="Selecione a categoria..." />
+              <CategoriaCascadeSelect theme={theme} categorias={categorias} value={bulkCategoriaId} onChange={setBulkCategoriaId} onCreate={criarCategoria} />
               <div className="flex gap-3 mt-6">
                 <button onClick={() => setIsBulkCategoryOpen(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
                   Cancelar

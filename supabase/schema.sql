@@ -14,9 +14,19 @@
 -- -----------------------------------------------------------------------------
 create table categorias (
   id uuid primary key default gen_random_uuid(),
-  nome text not null unique,
-  criado_em timestamptz not null default now()
+  nome text not null,
+  parent_id uuid references categorias(id) on delete restrict,
+  ordem integer not null default 0,
+  criado_em timestamptz not null default now(),
+  constraint categorias_nao_e_pai_de_si_mesma check (id <> parent_id)
 );
+
+-- Nome único só dentro do mesmo nível (mesmo pai), não globalmente — permite
+-- por exemplo duas subcategorias "Dianteira" em ramos diferentes da árvore.
+create unique index categorias_parent_nome_uidx
+  on categorias (coalesce(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), nome);
+
+create index idx_categorias_parent on categorias(parent_id);
 
 create table modelos_moto (
   id uuid primary key default gen_random_uuid(),

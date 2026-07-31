@@ -2,6 +2,7 @@
 // palavra (ex: digitar "CDI Titan 150" bate com a categoria "CDI"). Não usa
 // substring puro pra evitar falso positivo tipo "Cor" dentro de "Correia".
 import type { Categoria } from '../../types/catalog';
+import { getDepth } from '../categorias/categoriaTree';
 
 function normalizar(texto: string): string {
   return (texto || '')
@@ -22,6 +23,7 @@ export function encontrarCategoriaPorNome(nomePeca: string, categorias: Categori
   });
 
   if (candidatas.length === 0) return undefined;
-  // Entre as que bateram, a mais específica (nome mais longo) vence.
-  return candidatas.sort((a, b) => b.nome.length - a.nome.length)[0];
+  // Entre as que bateram, a mais específica vence: primeiro por profundidade
+  // na árvore (ex: "Bloco do farol" vence "Farol"), depois por nome mais longo.
+  return candidatas.sort((a, b) => getDepth(b.id, categorias) - getDepth(a.id, categorias) || b.nome.length - a.nome.length)[0];
 }

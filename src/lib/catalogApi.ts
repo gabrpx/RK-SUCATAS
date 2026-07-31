@@ -12,7 +12,11 @@ interface ApiResult<T> {
 
 export const categoriasApi = {
   listar: () => api.get('/api/categorias') as Promise<ApiResult<Categoria[]>>,
-  criar: (nome: string) => api.post('/api/categorias', { nome }) as Promise<ApiResult<Categoria>>,
+  criar: (nome: string, parent_id?: string | null) =>
+    api.post('/api/categorias', { nome, parent_id: parent_id ?? null }) as Promise<ApiResult<Categoria>>,
+  renomear: (id: string, nome: string) => api.put(`/api/categorias/${id}`, { nome }) as Promise<ApiResult<Categoria>>,
+  mover: (id: string, parent_id: string | null) => api.put(`/api/categorias/${id}`, { parent_id }) as Promise<ApiResult<Categoria>>,
+  reordenar: (ids: string[]) => api.patch('/api/categorias/reordenar', { ids }) as Promise<ApiResult<null>>,
   excluir: (id: string) => api.delete(`/api/categorias/${id}`) as Promise<ApiResult<null>>,
 };
 

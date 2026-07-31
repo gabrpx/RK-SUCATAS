@@ -2,13 +2,25 @@
 // categorias de peça e formas de pagamento (criar, renomear quando aplicável,
 // excluir). Modelos de moto continuam com cadastro rápido embutido no
 // formulário de Estoque/Vendas — não precisam de uma tela dedicada por ora.
-import { Settings, Layers, Wallet } from 'lucide-react';
+import { Settings, Wallet } from 'lucide-react';
 import { cn } from '../../utils';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { ManageListSection } from './ManageListSection';
+import { CategoriaTreeManager } from './CategoriaTreeManager';
 
 export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
-  const { categorias, formasPagamento, criarCategoria, excluirCategoria, criarFormaPagamento, renomearFormaPagamento, excluirFormaPagamento } = useCatalogos();
+  const {
+    categorias,
+    formasPagamento,
+    criarCategoria,
+    renomearCategoria,
+    moverCategoria,
+    reordenarCategorias,
+    excluirCategoria,
+    criarFormaPagamento,
+    renomearFormaPagamento,
+    excluirFormaPagamento,
+  } = useCatalogos();
 
   return (
     <div className="space-y-6 pb-24 md:pb-6">
@@ -23,7 +35,15 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <ManageListSection theme={theme} titulo="Categorias de Peça" icone={Layers} itens={categorias} onCriar={criarCategoria} onExcluir={excluirCategoria} />
+        <CategoriaTreeManager
+          theme={theme}
+          categorias={categorias}
+          onCriar={criarCategoria}
+          onRenomear={renomearCategoria}
+          onMover={moverCategoria}
+          onReordenar={reordenarCategorias}
+          onExcluir={excluirCategoria}
+        />
         <ManageListSection
           theme={theme}
           titulo="Formas de Pagamento"

@@ -4,6 +4,8 @@
 export interface Categoria {
   id: string;
   nome: string;
+  parent_id: string | null;
+  ordem: number;
 }
 
 export interface ModeloMoto {
