@@ -3,10 +3,12 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { excluirImagemPorUrl } from '../../services/storageService.js';
+import { categoriaExigeNota } from '../../features/estoque/categoriaMotor.js';
+import type { Categoria } from '../../types/catalog.js';
 
 const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)';
 
-const CAMPOS_EDITAVEIS = ['nome', 'categoria_id', 'modelo_moto_id', 'condicao', 'ano', 'valor', 'quantidade', 'imagem_url', 'descricao', 'ativo'] as const;
+const CAMPOS_EDITAVEIS = ['nome', 'categoria_id', 'modelo_moto_id', 'condicao', 'nota_cadastro', 'ano', 'valor', 'quantidade', 'imagem_url', 'descricao', 'ativo'] as const;
 
 function montarPayload(body: any) {
   const payload: Record<string, any> = {};
@@ -16,6 +18,20 @@ function montarPayload(body: any) {
   if (payload.valor !== undefined) payload.valor = Number(payload.valor) || 0;
   if (payload.quantidade !== undefined) payload.quantidade = Math.max(0, Number(payload.quantidade) || 0);
   return payload;
+}
+
+// Peças de Motor (ou subcategoria dela) exigem informar se têm nota fiscal
+// pra cadastro — mesma regra de src/features/estoque/categoriaMotor.ts,
+// aplicada aqui pra não depender só da validação do frontend.
+async function validarNotaCadastro(supabase: SupabaseClient, categoriaId: string | null, notaCadastro: unknown): Promise<string | null> {
+  if (!categoriaId) return null;
+  const { data: categorias, error } = await supabase.from('categorias').select('id, nome, parent_id, ordem');
+  if (error) throw error;
+  if (!categoriaExigeNota(categoriaId, (categorias || []) as Categoria[])) return null;
+  if (notaCadastro !== 'com_nota' && notaCadastro !== 'sem_nota') {
+    return 'Para peças de Motor, selecione "Com nota pra cadastro" ou "Sem nota pra cadastro"';
+  }
+  return null;
 }
 
 export function estoqueRouter(supabase: SupabaseClient) {
@@ -50,7 +66,10 @@ export function estoqueRouter(supabase: SupabaseClient) {
         return res.status(400).json({ success: false, error: 'Condição deve ser "original" ou "paralela"' });
       }
 
-      const payload = { ...montarPayload(req.body), nome };
+      const payload: Record<string, any> = { ...montarPayload(req.body), nome };
+      const erroNota = await validarNotaCadastro(supabase, payload.categoria_id ?? null, payload.nota_cadastro);
+      if (erroNota) return res.status(400).json({ success: false, error: erroNota });
+
       const { data, error } = await supabase.from('estoque').insert([payload]).select(SELECT_COM_JOINS).single();
       if (error) throw error;
       res.json({ success: true, data });
@@ -70,6 +89,14 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (payload.imagem_url !== undefined) {
         const { data: atual } = await supabase.from('estoque').select('imagem_url').eq('id', req.params.id).single();
         if (atual && atual.imagem_url !== payload.imagem_url) imagemAntiga = atual.imagem_url;
+      }
+
+      if (payload.categoria_id !== undefined || payload.nota_cadastro !== undefined) {
+        const { data: atual } = await supabase.from('estoque').select('categoria_id, nota_cadastro').eq('id', req.params.id).single();
+        const categoriaId = payload.categoria_id !== undefined ? payload.categoria_id : atual?.categoria_id ?? null;
+        const notaCadastro = payload.nota_cadastro !== undefined ? payload.nota_cadastro : atual?.nota_cadastro ?? null;
+        const erroNota = await validarNotaCadastro(supabase, categoriaId, notaCadastro);
+        if (erroNota) return res.status(400).json({ success: false, error: erroNota });
       }
 
       const { data, error } = await supabase.from('estoque').update(payload).eq('id', req.params.id).select(SELECT_COM_JOINS).single();

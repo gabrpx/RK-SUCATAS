@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { Search, X, Package, Tag, Layers } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { cn, formatDateRelative, parseLocalDate } from '../utils';
+import { NotaCadastroBadge } from './NotaCadastroBadge';
 import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 
@@ -53,6 +54,7 @@ const EstoqueItemCard = ({ item, theme, onClick }: { item: Estoque; theme: strin
         <span className={cn('flex items-center gap-0.5 px-1 py-0.5 rounded text-[8px] font-bold', theme === 'dark' ? 'bg-amber-500/10 text-amber-400' : 'bg-amber-50 text-amber-600')}>
           <Package size={8} /> {item.quantidade} un
         </span>
+        <NotaCadastroBadge value={item.nota_cadastro} size="sm" />
       </div>
     </div>
     <p className="font-black text-emerald-500 text-xs [text-shadow:0_0_10px_rgba(16,185,129,0.5)]">

@@ -23,6 +23,7 @@ import {
   Table as TableIcon,
   Upload,
   ImageOff,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
@@ -32,8 +33,10 @@ import { CustomDropdown } from '../../components/CustomDropdown';
 import { MotoCascadeSelect } from '../../components/MotoCascadeSelect';
 import { CategoriaCascadeSelect } from '../../components/CategoriaCascadeSelect';
 import { SkeletonRow } from '../../components/SkeletonRow';
+import { NotaCadastroBadge } from '../../components/NotaCadastroBadge';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
+import { categoriaExigeNota } from './categoriaMotor';
 import { getDescendantIds, getAncestorChain, buildTree } from '../categorias/categoriaTree';
 import { getDescendantIds as getDescendantIdsMoto, getAncestorChain as getAncestorChainMoto, buildTree as buildTreeMoto } from '../motos/motoTree';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
@@ -42,11 +45,24 @@ const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style
 
 const CONDICAO_LABEL: Record<CondicaoPeca, string> = { original: 'Original', paralela: 'Paralela' };
 
+// Colunas da tabela desktop — as com `sortKey` viram cabeçalho clicável,
+// reaproveitando o mesmo state do dropdown de ordenação (não duplica lógica).
+const COLUNAS: { label: string; sortKey?: 'nome' | 'valor' | 'quantidade'; align?: 'right' }[] = [
+  { label: 'Peça', sortKey: 'nome' },
+  { label: 'Categoria' },
+  { label: 'Moto' },
+  { label: 'Condição' },
+  { label: 'Valor', sortKey: 'valor', align: 'right' },
+  { label: 'Qtd', sortKey: 'quantidade', align: 'right' },
+  { label: 'Ações', align: 'right' },
+];
+
 const EMPTY_FORM: EstoqueInput = {
   nome: '',
   categoria_id: '',
   modelo_moto_id: '',
   condicao: 'original',
+  nota_cadastro: null,
   ano: '',
   valor: 0,
   quantidade: 1,
@@ -94,6 +110,9 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
   const [isBulkCategoryOpen, setIsBulkCategoryOpen] = useState(false);
   const [bulkCategoriaId, setBulkCategoriaId] = useState('');
 
+  // Categoria Motor (ou subcategoria dela) exige informar nota fiscal pra cadastro.
+  const formExigeNota = useMemo(() => categoriaExigeNota(formData.categoria_id || null, categorias), [formData.categoria_id, categorias]);
+
   const openCreateModal = () => {
     setEditingItem(null);
     setFormData(EMPTY_FORM);
@@ -109,6 +128,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
       categoria_id: item.categoria_id || '',
       modelo_moto_id: item.modelo_moto_id || '',
       condicao: item.condicao,
+      nota_cadastro: item.nota_cadastro,
       ano: item.ano || '',
       valor: item.valor,
       quantidade: item.quantidade,
@@ -142,6 +162,14 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
       setIsUploadingImagem(false);
     }
   };
+
+  // Se a categoria deixa de ser Motor (troca manual ou volta ao padrão), o
+  // campo de nota deixa de fazer sentido — limpa pra não salvar valor obsoleto.
+  useEffect(() => {
+    if (!formExigeNota && formData.nota_cadastro) {
+      setFormData((prev) => ({ ...prev, nota_cadastro: null }));
+    }
+  }, [formExigeNota, formData.nota_cadastro]);
 
   useEffect(() => {
     if (pendingEditItem && setPendingEditItem) {
@@ -226,6 +254,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
   const handleSave = async () => {
     if (!formData.nome.trim()) return alert('Nome da peça é obrigatório');
     if (!formData.categoria_id) return alert('Selecione uma categoria');
+    if (formExigeNota && !formData.nota_cadastro) return alert('Para peças de Motor, selecione "Com nota pra cadastro" ou "Sem nota pra cadastro"');
 
     setIsSaving(true);
     const payload: EstoqueInput = {
@@ -457,11 +486,11 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
         </div>
 
         {viewMode === 'table' ? (
-          <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[1000px]">
-              <thead>
-                <tr className={cn(theme === 'dark' ? 'bg-zinc-800/30' : 'bg-zinc-50')}>
-                  <th className="px-3 py-2 w-10">
+          <div className="overflow-auto max-h-[65vh]">
+            <table className="w-full text-left border-collapse min-w-[860px]">
+              <thead className="sticky top-0 z-10">
+                <tr className={cn('border-b', theme === 'dark' ? 'bg-zinc-900/95 backdrop-blur-sm border-zinc-800' : 'bg-zinc-50/95 backdrop-blur-sm border-zinc-200')}>
+                  <th className="px-3 py-2.5 w-10">
                     <div
                       onClick={toggleSelectAll}
                       className={cn(
@@ -472,9 +501,24 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                       {selectedIds.length === paginated.length && paginated.length > 0 && <Check className="text-white" size={10} />}
                     </div>
                   </th>
-                  {['Peça', 'Categoria', 'Moto', 'Condição', 'Valor', 'Qtd', 'Ano', 'Código', 'Ações'].map((label) => (
-                    <th key={label} className="px-3 py-2 text-[9px] font-bold uppercase tracking-wider text-zinc-500">
-                      {label}
+                  {COLUNAS.map((col) => (
+                    <th key={col.label} className={cn('px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider text-zinc-500', col.align === 'right' && 'text-right')}>
+                      {col.sortKey ? (
+                        <button
+                          type="button"
+                          onClick={() => setSortKey(col.sortKey!)}
+                          className={cn(
+                            'inline-flex items-center gap-1 hover:text-violet-400 transition-colors',
+                            col.align === 'right' && 'flex-row-reverse',
+                            sortKey === col.sortKey && 'text-violet-400'
+                          )}
+                        >
+                          {col.label}
+                          <ChevronDown size={10} className={sortKey === col.sortKey ? 'opacity-100' : 'opacity-0'} />
+                        </button>
+                      ) : (
+                        col.label
+                      )}
                     </th>
                   ))}
                 </tr>
@@ -484,9 +528,20 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                   ? Array(8)
                       .fill(0)
                       .map((_, i) => <SkeletonRow key={i} theme={theme} />)
-                  : paginated.map((item) => (
-                      <tr key={item.id} onClick={() => onSelectItem(item)} className={cn('cursor-pointer group', selectedIds.includes(item.id) ? (theme === 'dark' ? 'bg-violet-500/10' : 'bg-violet-50') : theme === 'dark' ? 'hover:bg-zinc-800/20' : 'hover:bg-zinc-50')}>
-                        <td className="px-3 py-2">
+                  : paginated.map((item, index) => (
+                      <tr
+                        key={item.id}
+                        onClick={() => onSelectItem(item)}
+                        className={cn(
+                          'cursor-pointer group transition-colors',
+                          selectedIds.includes(item.id)
+                            ? theme === 'dark' ? 'bg-violet-500/10' : 'bg-violet-50'
+                            : index % 2 === 1
+                              ? theme === 'dark' ? 'bg-white/[0.02] hover:bg-zinc-800/30' : 'bg-zinc-50/70 hover:bg-zinc-100'
+                              : theme === 'dark' ? 'hover:bg-zinc-800/20' : 'hover:bg-zinc-50'
+                        )}
+                      >
+                        <td className="px-3 py-2.5">
                           <div
                             onClick={(e) => {
                               e.stopPropagation();
@@ -497,32 +552,58 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                             {selectedIds.includes(item.id) && <Check className="text-white" size={10} />}
                           </div>
                         </td>
-                        <td className="px-3 py-2 text-xs font-medium">{item.nome}</td>
-                        <td className="px-3 py-2 text-xs">
-                          <span
-                            title={item.categoria_id ? getAncestorChain(item.categoria_id, categorias).map((c) => c.nome).join(' > ') : undefined}
-                            className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', theme === 'dark' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-zinc-100 text-zinc-600')}
-                          >
-                            {item.categoria?.nome || '-'}
-                          </span>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center gap-2.5">
+                            <div className={cn('w-9 h-9 rounded-lg overflow-hidden shrink-0 flex items-center justify-center', theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-100')}>
+                              {item.imagem_url ? (
+                                <img loading="lazy" src={item.imagem_url} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                              ) : (
+                                <Package size={16} className="opacity-30" />
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <p className={cn('text-xs font-semibold truncate max-w-[240px]', theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900')}>{item.nome}</p>
+                              <p className="text-[10px] text-zinc-500 font-mono">{item.codigo}</p>
+                            </div>
+                          </div>
                         </td>
-                        <td className="px-3 py-2 text-xs">
+                        <td className="px-3 py-2.5 text-xs">
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <span
+                              title={item.categoria_id ? getAncestorChain(item.categoria_id, categorias).map((c) => c.nome).join(' > ') : undefined}
+                              className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', theme === 'dark' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-zinc-100 text-zinc-600')}
+                            >
+                              {item.categoria?.nome || '-'}
+                            </span>
+                            <NotaCadastroBadge value={item.nota_cadastro} size="sm" />
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5 text-xs">
                           <span
                             title={item.modelo_moto_id ? getAncestorChainMoto(item.modelo_moto_id, modelos).map((m) => m.nome).join(' > ') : undefined}
                             className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase border', theme === 'dark' ? 'bg-zinc-800 text-zinc-300 border-zinc-700' : 'bg-zinc-100 text-zinc-600 border-zinc-200')}
                           >
                             {item.modelo_moto?.nome || 'Universal'}
+                            {item.ano ? ` · ${item.ano}` : ''}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-xs">
+                        <td className="px-3 py-2.5 text-xs">
                           <span className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
                         </td>
-                        <td className="px-3 py-2 text-xs font-bold text-emerald-500">{formatCurrency(item.valor)}</td>
-                        <td className={cn('px-3 py-2 text-xs font-bold', item.quantidade === 0 && 'text-rose-500')}>{item.quantidade}</td>
-                        <td className="px-3 py-2 text-xs text-zinc-500">{item.ano || '-'}</td>
-                        <td className="px-3 py-2 text-[10px] text-zinc-500 font-mono">{item.codigo}</td>
-                        <td className="px-3 py-2">
-                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <td className="px-3 py-2.5 text-sm font-bold text-emerald-500 text-right tabular-nums">{formatCurrency(item.valor)}</td>
+                        <td className="px-3 py-2.5 text-right">
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1.5 text-xs font-bold tabular-nums',
+                              item.quantidade === 0 ? 'text-rose-500' : item.quantidade <= 2 ? 'text-amber-500' : theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
+                            )}
+                          >
+                            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', item.quantidade === 0 ? 'bg-rose-500' : item.quantidade <= 2 ? 'bg-amber-500' : 'bg-emerald-500')} />
+                            {item.quantidade}
+                          </span>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
@@ -620,6 +701,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                       {item.modelo_moto?.nome || 'Universal'}
                     </span>
                     <span className={cn('text-[9px] font-black uppercase px-2 py-0.5 rounded-full', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
+                    <NotaCadastroBadge value={item.nota_cadastro} size="sm" />
                   </div>
                   <div className="mt-auto pt-3 border-t border-zinc-800/20 flex items-center justify-between">
                     <span className="font-black text-emerald-500 text-sm">{formatCurrency(item.valor)}</span>
@@ -773,6 +855,28 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                     </button>
                   </div>
                 </div>
+
+                {formExigeNota && (
+                  <div>
+                    <label className={labelClass}>Nota fiscal pra cadastro *</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, nota_cadastro: 'com_nota' })}
+                        className={cn('py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all', formData.nota_cadastro === 'com_nota' ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-800 text-zinc-400')}
+                      >
+                        Com nota pra cadastro
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, nota_cadastro: 'sem_nota' })}
+                        className={cn('py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all', formData.nota_cadastro === 'sem_nota' ? 'bg-rose-500 border-rose-500 text-white' : 'border-zinc-800 text-zinc-400')}
+                      >
+                        Sem nota pra cadastro
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 <div className="grid grid-cols-3 gap-4">
                   <div>

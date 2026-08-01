@@ -50,6 +50,7 @@ import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
+import { NotaCadastroBadge } from './components/NotaCadastroBadge';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
@@ -222,9 +223,12 @@ function DetailModal({ item, onClose, theme, onEdit, onDelete }: { item: DetailI
           <div className="p-8 space-y-8">
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="px-3 py-1 bg-violet-500/10 text-violet-500 text-[10px] font-black uppercase tracking-widest rounded-full border border-violet-500/20">
-                  {venda ? 'Venda' : estoque?.categoria?.nome || 'Peça'}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="px-3 py-1 bg-violet-500/10 text-violet-500 text-[10px] font-black uppercase tracking-widest rounded-full border border-violet-500/20">
+                    {venda ? 'Venda' : estoque?.categoria?.nome || 'Peça'}
+                  </span>
+                  {estoque && <NotaCadastroBadge value={estoque.nota_cadastro} />}
+                </div>
                 {estoque?.codigo && <span className="text-zinc-500 text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
               </div>
               <h2 className={cn('text-3xl md:text-4xl font-black tracking-tight uppercase leading-none', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{titulo}</h2>

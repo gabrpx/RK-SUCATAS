@@ -69,6 +69,9 @@ create table estoque (
   categoria_id uuid references categorias(id),
   modelo_moto_id uuid references modelos_moto(id),
   condicao text not null check (condicao in ('original', 'paralela')),
+  -- Só se aplica (e é obrigatório) pra peças na categoria Motor ou subcategorias
+  -- dela; validado na aplicação, não aqui, já que a regra depende de outra tabela.
+  nota_cadastro text check (nota_cadastro in ('com_nota', 'sem_nota')),
   ano text,
   valor numeric(10,2) not null default 0,
   quantidade integer not null default 0 check (quantidade >= 0),
