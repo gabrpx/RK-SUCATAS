@@ -6,14 +6,14 @@
 // Por padrão toda a árvore começa recolhida (só as raízes aparecem) — o
 // usuário abre só o que precisa, em vez de receber a lista inteira já expandida.
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
-import { buildTree, getDescendantIds, getDepth, type CategoriaNode } from '../categorias/categoriaTree';
+import { buildTree, filterTree, getDescendantIds, getDepth, type CategoriaNode } from '../categorias/categoriaTree';
 import type { Categoria } from '../../types/catalog';
 
 type ApiResult = { success: boolean; error?: string };
@@ -34,6 +34,8 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erroCriar, setErroCriar] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortKey, setSortKey] = useState<'nome_asc' | 'nome_desc' | 'manual'>('nome_asc');
 
   // Guarda quem está ABERTO (não recolhido) — começa vazio, ou seja, tudo
   // recolhido por padrão até o usuário clicar pra expandir.
@@ -47,7 +49,35 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
   const [excluindo, setExcluindo] = useState(false);
   const [erroExclusao, setErroExclusao] = useState<string | null>(null);
 
-  const arvore = useMemo(() => buildTree(categorias), [categorias]);
+  const comparador = useMemo(() => {
+    if (sortKey === 'nome_asc') return (a: Categoria, b: Categoria) => a.nome.localeCompare(b.nome, 'pt');
+    if (sortKey === 'nome_desc') return (a: Categoria, b: Categoria) => b.nome.localeCompare(a.nome, 'pt');
+    return (a: Categoria, b: Categoria) => a.ordem - b.ordem;
+  }, [sortKey]);
+
+  const arvoreCompleta = useMemo(() => buildTree(categorias, comparador), [categorias, comparador]);
+  const arvore = useMemo(
+    () => (searchTerm.trim() ? filterTree(arvoreCompleta, searchTerm) : arvoreCompleta),
+    [arvoreCompleta, searchTerm]
+  );
+
+  // Enquanto a busca está ativa, força a exibição expandida dos ramos com
+  // resultado — sem sujar o estado real de expandido/recolhido, que volta a
+  // valer assim que a busca é limpa.
+  const idsExpandidosNaBusca = useMemo(() => {
+    if (!searchTerm.trim()) return null;
+    const ids = new Set<string>();
+    const percorrer = (nodes: CategoriaNode[]) => {
+      nodes.forEach((n) => {
+        if (n.children.length > 0) {
+          ids.add(n.id);
+          percorrer(n.children);
+        }
+      });
+    };
+    percorrer(arvore);
+    return ids;
+  }, [arvore, searchTerm]);
 
   const idsComFilhos = useMemo(() => {
     const comFilhos = new Set<string>();
@@ -100,7 +130,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
     return [{ value: ROOT_OPTION_VALUE, label: '— Categoria raiz —' }, ...opcoes];
   };
 
-  const totalRaizes = arvore.length;
+  const totalRaizes = arvoreCompleta.length;
   const borderGuia = theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200';
 
   return (
@@ -128,6 +158,34 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
       </div>
 
       <div className="p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+            <Search size={15} className="text-zinc-500 shrink-0" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar categoria..."
+              className="flex-1 py-2.5 bg-transparent outline-none text-sm"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <CustomDropdown
+            theme={theme}
+            icon={<ArrowDownAZ size={14} />}
+            value={sortKey}
+            onChange={(v) => setSortKey(v as typeof sortKey)}
+            options={[
+              { value: 'nome_asc', label: 'Ordem alfabética (A-Z)' },
+              { value: 'nome_desc', label: 'Ordem alfabética (Z-A)' },
+              { value: 'manual', label: 'Ordem manual (arrastar)' },
+            ]}
+          />
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             value={novoNome}
@@ -150,7 +208,9 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
         {erroCriar && <p className="text-xs text-rose-500">{erroCriar}</p>}
 
         {arvore.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">Nenhuma categoria cadastrada ainda.</p>
+          <p className="text-sm text-zinc-500 py-4 text-center">
+            {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma categoria cadastrada ainda.'}
+          </p>
         ) : (
           <div className="max-h-[30rem] overflow-y-auto pr-1">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -161,7 +221,8 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
                 h={{
                   theme,
                   borderGuia,
-                  expandidoIds,
+                  arrastavel: sortKey === 'manual',
+                  expandidoIds: idsExpandidosNaBusca ?? expandidoIds,
                   onToggleExpandido: (id) =>
                     setExpandidoIds((prev) => {
                       const next = new Set(prev);
@@ -267,6 +328,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
 interface ArvoreHandlers {
   theme: 'light' | 'dark';
   borderGuia: string;
+  arrastavel: boolean;
   expandidoIds: Set<string>;
   onToggleExpandido: (id: string) => void;
   editandoId: string | null;
@@ -327,10 +389,12 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
         )}
       >
         <button
-          {...attributes}
-          {...listeners}
-          className="p-1.5 text-zinc-500 cursor-grab active:cursor-grabbing shrink-0 touch-none"
-          title="Arrastar para reordenar"
+          {...(h.arrastavel ? { ...attributes, ...listeners } : {})}
+          className={cn(
+            'p-1.5 shrink-0 touch-none',
+            h.arrastavel ? 'text-zinc-500 cursor-grab active:cursor-grabbing' : 'text-zinc-500 opacity-40 cursor-not-allowed'
+          )}
+          title={h.arrastavel ? 'Arrastar para reordenar' : 'Disponível apenas em Ordem manual (arrastar)'}
         >
           <GripVertical size={14} />
         </button>

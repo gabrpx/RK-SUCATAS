@@ -9,7 +9,10 @@ export interface CategoriaNode extends Categoria {
   children: CategoriaNode[];
 }
 
-export function buildTree(categorias: Categoria[]): CategoriaNode[] {
+// `compare` decide a ordem dos irmãos em cada nível — default é a ordem
+// manual (drag-and-drop). Passe um comparador por nome pra ordenação
+// alfabética sem mexer no campo `ordem` persistido.
+export function buildTree(categorias: Categoria[], compare: (a: Categoria, b: Categoria) => number = (a, b) => a.ordem - b.ordem): CategoriaNode[] {
   const porId = new Map<string, CategoriaNode>();
   categorias.forEach((c) => porId.set(c.id, { ...c, children: [] }));
 
@@ -23,12 +26,43 @@ export function buildTree(categorias: Categoria[]): CategoriaNode[] {
   });
 
   const ordenarRecursivo = (nodes: CategoriaNode[]) => {
-    nodes.sort((a, b) => a.ordem - b.ordem);
+    nodes.sort(compare);
     nodes.forEach((n) => ordenarRecursivo(n.children));
   };
   ordenarRecursivo(raizes);
 
   return raizes;
+}
+
+function normalizarTexto(texto: string) {
+  return (texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
+
+// Filtra a árvore já montada por um termo de busca: se o nó bate, mantém ele
+// com a subárvore original inteira (busca "Farol" mostra tudo dentro de
+// Farol); se não bate, mantém só se algum descendente bater (preserva o
+// caminho até o resultado).
+export function filterTree(nodes: CategoriaNode[], termo: string): CategoriaNode[] {
+  const alvo = normalizarTexto(termo);
+  if (!alvo) return nodes;
+
+  const resultado: CategoriaNode[] = [];
+  for (const node of nodes) {
+    if (normalizarTexto(node.nome).includes(alvo)) {
+      resultado.push(node);
+      continue;
+    }
+    const filhosFiltrados = filterTree(node.children, termo);
+    if (filhosFiltrados.length > 0) {
+      resultado.push({ ...node, children: filhosFiltrados });
+    }
+  }
+  return resultado;
 }
 
 // Inclui o próprio id no resultado — usado tanto pro filtro de estoque

@@ -7,14 +7,14 @@
 // de uma vez só, e um campo "Ano" opcional em qualquer nó. Por padrão toda a
 // árvore começa recolhida (só as marcas aparecem).
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
-import { buildTree, getDescendantIds, getDepth, type ModeloMotoNode } from '../motos/motoTree';
+import { buildTree, filterTree, getDescendantIds, getDepth, type ModeloMotoNode } from '../motos/motoTree';
 import type { ModeloMoto } from '../../types/catalog';
 
 type ApiResult = { success: boolean; error?: string };
@@ -39,6 +39,8 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
   const [novoAnoMoto, setNovoAnoMoto] = useState('');
   const [criandoRapido, setCriandoRapido] = useState(false);
   const [erroRapido, setErroRapido] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortKey, setSortKey] = useState<'nome_asc' | 'nome_desc' | 'ano_desc' | 'ano_asc' | 'manual'>('nome_asc');
 
   // Guarda quem está ABERTO (não recolhido) — começa vazio, ou seja, tudo
   // recolhido por padrão até o usuário clicar pra expandir.
@@ -54,7 +56,46 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
   const [excluindo, setExcluindo] = useState(false);
   const [erroExclusao, setErroExclusao] = useState<string | null>(null);
 
-  const arvore = useMemo(() => buildTree(modelos), [modelos]);
+  const comparador = useMemo(() => {
+    const anoNum = (m: ModeloMoto) => (m.ano ? Number(m.ano) : null);
+    if (sortKey === 'nome_asc') return (a: ModeloMoto, b: ModeloMoto) => a.nome.localeCompare(b.nome, 'pt');
+    if (sortKey === 'nome_desc') return (a: ModeloMoto, b: ModeloMoto) => b.nome.localeCompare(a.nome, 'pt');
+    if (sortKey === 'ano_desc' || sortKey === 'ano_asc') {
+      return (a: ModeloMoto, b: ModeloMoto) => {
+        const av = anoNum(a);
+        const bv = anoNum(b);
+        if (av == null && bv == null) return a.nome.localeCompare(b.nome, 'pt');
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        return sortKey === 'ano_desc' ? bv - av : av - bv;
+      };
+    }
+    return (a: ModeloMoto, b: ModeloMoto) => a.ordem - b.ordem;
+  }, [sortKey]);
+
+  const arvoreCompleta = useMemo(() => buildTree(modelos, comparador), [modelos, comparador]);
+  const arvore = useMemo(
+    () => (searchTerm.trim() ? filterTree(arvoreCompleta, searchTerm) : arvoreCompleta),
+    [arvoreCompleta, searchTerm]
+  );
+
+  // Enquanto a busca está ativa, força a exibição expandida dos ramos com
+  // resultado — sem sujar o estado real de expandido/recolhido, que volta a
+  // valer assim que a busca é limpa.
+  const idsExpandidosNaBusca = useMemo(() => {
+    if (!searchTerm.trim()) return null;
+    const ids = new Set<string>();
+    const percorrer = (nodes: ModeloMotoNode[]) => {
+      nodes.forEach((n) => {
+        if (n.children.length > 0) {
+          ids.add(n.id);
+          percorrer(n.children);
+        }
+      });
+    };
+    percorrer(arvore);
+    return ids;
+  }, [arvore, searchTerm]);
 
   const idsComFilhos = useMemo(() => {
     const comFilhos = new Set<string>();
@@ -114,7 +155,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
     return [{ value: ROOT_OPTION_VALUE, label: '— Marca raiz —' }, ...opcoes];
   };
 
-  const totalRaizes = arvore.length;
+  const totalRaizes = arvoreCompleta.length;
   const borderGuia = theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200';
   const inputClass = cn(
     'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
@@ -146,6 +187,36 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
       </div>
 
       <div className="p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+            <Search size={15} className="text-zinc-500 shrink-0" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar moto (marca, modelo ou ano)..."
+              className="flex-1 py-2.5 bg-transparent outline-none text-sm"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <CustomDropdown
+            theme={theme}
+            icon={<ArrowDownAZ size={14} />}
+            value={sortKey}
+            onChange={(v) => setSortKey(v as typeof sortKey)}
+            options={[
+              { value: 'nome_asc', label: 'Ordem alfabética (A-Z)' },
+              { value: 'nome_desc', label: 'Ordem alfabética (Z-A)' },
+              { value: 'ano_desc', label: 'Ano (mais recente)' },
+              { value: 'ano_asc', label: 'Ano (mais antigo)' },
+              { value: 'manual', label: 'Ordem manual (arrastar)' },
+            ]}
+          />
+        </div>
+
         <div className={cn('rounded-2xl border p-4 space-y-2', theme === 'dark' ? 'border-zinc-800 bg-zinc-950/40' : 'border-zinc-100 bg-zinc-50')}>
           <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Nova moto</p>
           <div className="grid grid-cols-2 gap-2">
@@ -179,7 +250,9 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
         </div>
 
         {arvore.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">Nenhuma moto cadastrada ainda.</p>
+          <p className="text-sm text-zinc-500 py-4 text-center">
+            {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma moto cadastrada ainda.'}
+          </p>
         ) : (
           <div className="max-h-[30rem] overflow-y-auto pr-1">
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
@@ -190,7 +263,8 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
                 h={{
                   theme,
                   borderGuia,
-                  expandidoIds,
+                  arrastavel: sortKey === 'manual',
+                  expandidoIds: idsExpandidosNaBusca ?? expandidoIds,
                   onToggleExpandido: (id) =>
                     setExpandidoIds((prev) => {
                       const next = new Set(prev);
@@ -302,6 +376,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
 interface ArvoreHandlers {
   theme: 'light' | 'dark';
   borderGuia: string;
+  arrastavel: boolean;
   expandidoIds: Set<string>;
   onToggleExpandido: (id: string) => void;
   editandoId: string | null;
@@ -366,10 +441,12 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
         )}
       >
         <button
-          {...attributes}
-          {...listeners}
-          className="p-1.5 text-zinc-500 cursor-grab active:cursor-grabbing shrink-0 touch-none"
-          title="Arrastar para reordenar"
+          {...(h.arrastavel ? { ...attributes, ...listeners } : {})}
+          className={cn(
+            'p-1.5 shrink-0 touch-none',
+            h.arrastavel ? 'text-zinc-500 cursor-grab active:cursor-grabbing' : 'text-zinc-500 opacity-40 cursor-not-allowed'
+          )}
+          title={h.arrastavel ? 'Arrastar para reordenar' : 'Disponível apenas em Ordem manual (arrastar)'}
         >
           <GripVertical size={14} />
         </button>

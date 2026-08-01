@@ -10,7 +10,10 @@ export interface ModeloMotoNode extends ModeloMoto {
   children: ModeloMotoNode[];
 }
 
-export function buildTree(modelos: ModeloMoto[]): ModeloMotoNode[] {
+// `compare` decide a ordem dos irmãos em cada nível — default é a ordem
+// manual (drag-and-drop). Passe um comparador por nome/ano pra ordenação
+// alternativa sem mexer no campo `ordem` persistido.
+export function buildTree(modelos: ModeloMoto[], compare: (a: ModeloMoto, b: ModeloMoto) => number = (a, b) => a.ordem - b.ordem): ModeloMotoNode[] {
   const porId = new Map<string, ModeloMotoNode>();
   modelos.forEach((m) => porId.set(m.id, { ...m, children: [] }));
 
@@ -24,12 +27,44 @@ export function buildTree(modelos: ModeloMoto[]): ModeloMotoNode[] {
   });
 
   const ordenarRecursivo = (nodes: ModeloMotoNode[]) => {
-    nodes.sort((a, b) => a.ordem - b.ordem);
+    nodes.sort(compare);
     nodes.forEach((n) => ordenarRecursivo(n.children));
   };
   ordenarRecursivo(raizes);
 
   return raizes;
+}
+
+function normalizarTexto(texto: string) {
+  return (texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
+
+// Filtra a árvore já montada por um termo de busca (nome ou ano): se o nó
+// bate, mantém ele com a subárvore original inteira (busca "Honda" mostra
+// tudo dentro de Honda); se não bate, mantém só se algum descendente bater
+// (preserva o caminho até o resultado).
+export function filterTree(nodes: ModeloMotoNode[], termo: string): ModeloMotoNode[] {
+  const alvo = normalizarTexto(termo);
+  if (!alvo) return nodes;
+
+  const resultado: ModeloMotoNode[] = [];
+  for (const node of nodes) {
+    const bate = normalizarTexto(node.nome).includes(alvo) || (node.ano ? normalizarTexto(node.ano).includes(alvo) : false);
+    if (bate) {
+      resultado.push(node);
+      continue;
+    }
+    const filhosFiltrados = filterTree(node.children, termo);
+    if (filhosFiltrados.length > 0) {
+      resultado.push({ ...node, children: filhosFiltrados });
+    }
+  }
+  return resultado;
 }
 
 // Inclui o próprio id no resultado — usado tanto pro filtro de estoque

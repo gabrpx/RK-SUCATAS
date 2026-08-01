@@ -2,10 +2,20 @@
 // Pagamento na aba Configurações. Adicionar sempre disponível; renomear é
 // opcional (só Formas de Pagamento usa); excluir mostra confirmação e, se o
 // backend recusar (item em uso), exibe o motivo em vez de falhar silencioso.
-import { useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2 } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, Search, ArrowDownAZ } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils';
+import { CustomDropdown } from '../../components/CustomDropdown';
+
+function normalizarTexto(texto: string) {
+  return (texto || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/[^a-z0-9\s]/g, '')
+    .trim();
+}
 
 interface Item {
   id: string;
@@ -31,6 +41,14 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
   const [itemParaExcluir, setItemParaExcluir] = useState<Item | null>(null);
   const [excluindo, setExcluindo] = useState(false);
   const [erroExclusao, setErroExclusao] = useState<string | null>(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortKey, setSortKey] = useState<'nome_asc' | 'nome_desc'>('nome_asc');
+
+  const itensExibidos = useMemo(() => {
+    const alvo = normalizarTexto(searchTerm);
+    const filtrados = alvo ? itens.filter((item) => normalizarTexto(item.nome).includes(alvo)) : itens;
+    return [...filtrados].sort((a, b) => (sortKey === 'nome_asc' ? a.nome.localeCompare(b.nome, 'pt') : b.nome.localeCompare(a.nome, 'pt')));
+  }, [itens, searchTerm, sortKey]);
 
   const handleCriar = async () => {
     const nome = novoNome.trim();
@@ -84,6 +102,33 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
       </div>
 
       <div className="p-5 space-y-3">
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+            <Search size={15} className="text-zinc-500 shrink-0" />
+            <input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={`Buscar ${titulo.toLowerCase()}...`}
+              className="flex-1 py-2.5 bg-transparent outline-none text-sm"
+            />
+            {searchTerm && (
+              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+                <X size={13} />
+              </button>
+            )}
+          </div>
+          <CustomDropdown
+            theme={theme}
+            icon={<ArrowDownAZ size={14} />}
+            value={sortKey}
+            onChange={(v) => setSortKey(v as typeof sortKey)}
+            options={[
+              { value: 'nome_asc', label: 'Ordem alfabética (A-Z)' },
+              { value: 'nome_desc', label: 'Ordem alfabética (Z-A)' },
+            ]}
+          />
+        </div>
+
         <div className="flex items-center gap-2">
           <input
             value={novoNome}
@@ -105,11 +150,13 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
         </div>
         {erro && <p className="text-xs text-rose-500">{erro}</p>}
 
-        {itens.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">Nenhum item cadastrado ainda.</p>
+        {itensExibidos.length === 0 ? (
+          <p className="text-sm text-zinc-500 py-4 text-center">
+            {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhum item cadastrado ainda.'}
+          </p>
         ) : (
           <div className="space-y-1.5 max-h-[30rem] overflow-y-auto pr-1">
-            {itens.map((item) => (
+            {itensExibidos.map((item) => (
               <div
                 key={item.id}
                 className={cn('flex items-center justify-between gap-2 px-3 py-2 rounded-xl', theme === 'dark' ? 'hover:bg-zinc-800/40' : 'hover:bg-zinc-50')}
