@@ -25,6 +25,10 @@ export interface Estoque {
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;
+  // Link do anúncio publicado (Mercado Livre / Facebook Marketplace) — null
+  // quando a peça ainda não foi anunciada naquele canal.
+  anuncio_ml_url: string | null;
+  anuncio_fb_url: string | null;
   // Nomes das partes em que este item pode ser desmembrado na venda (ex:
   // ["Superior", "Inferior"]). null = item sempre vendido inteiro.
   componentes: string[] | null;
@@ -37,5 +41,18 @@ export interface Estoque {
 // Payload de criação/edição — o backend calcula id/codigo/timestamps.
 export type EstoqueInput = Pick<
   Estoque,
-  'nome' | 'categoria_id' | 'modelo_moto_id' | 'condicao' | 'nota_cadastro' | 'ano' | 'valor' | 'quantidade' | 'imagem_url' | 'descricao' | 'ativo' | 'componentes'
+  | 'nome'
+  | 'categoria_id'
+  | 'modelo_moto_id'
+  | 'condicao'
+  | 'nota_cadastro'
+  | 'ano'
+  | 'valor'
+  | 'quantidade'
+  | 'imagem_url'
+  | 'descricao'
+  | 'ativo'
+  | 'componentes'
+  | 'anuncio_ml_url'
+  | 'anuncio_fb_url'
 >;

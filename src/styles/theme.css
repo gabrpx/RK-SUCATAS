@@ -1,0 +1,80 @@
+/*
+ * Design tokens do sistema.
+ * Cor sempre carrega significado — nunca decorativa. Ver CLAUDE.md > Design system.
+ */
+
+:root {
+  /* Superfícies */
+  --surface-page: #0b0c11;
+  --surface-card: #131319;
+  --surface-raised: #15161d;
+  --surface-inset: #0e0f15;
+  --border-subtle: #1e2029;
+  --border-default: #232530;
+
+  /* Texto */
+  --text-primary: #f2f2f4;
+  --text-secondary: #c9cad1;
+  --text-muted: #8b8d99;
+  --text-faint: #6b6d79;
+
+  /* Cores semânticas */
+  --accent: #5b3df0;
+  --accent-soft-bg: #26215c;
+  --accent-soft-fg: #afa9ec;
+
+  --positive: #5dcaa5;
+  --positive-bg: #04342c;
+
+  --negative: #f0997b;
+  --negative-bg: #4a1b0c;
+
+  --warning: #ef9f27;
+  --warning-bg: #412402;
+
+  --danger: #f09595;
+  --danger-bg: #501313;
+
+  /* Raios */
+  --radius-card: 11px;
+  --radius-control: 8px;
+  --radius-badge: 5px;
+}
+
+/*
+ * Mapeamento para o Tailwind v4 (config CSS-first).
+ * Gera utilities como bg-surface-card, text-text-primary, rounded-card, etc.
+ */
+@theme inline {
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-inset: var(--surface-inset);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-soft-bg: var(--accent-soft-bg);
+  --color-accent-soft-fg: var(--accent-soft-fg);
+
+  --color-positive: var(--positive);
+  --color-positive-bg: var(--positive-bg);
+
+  --color-negative: var(--negative);
+  --color-negative-bg: var(--negative-bg);
+
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --radius-badge: var(--radius-badge);
+}

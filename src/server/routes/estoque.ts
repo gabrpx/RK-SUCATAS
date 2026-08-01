@@ -8,7 +8,22 @@ import type { Categoria } from '../../types/catalog.js';
 
 const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)';
 
-const CAMPOS_EDITAVEIS = ['nome', 'categoria_id', 'modelo_moto_id', 'condicao', 'nota_cadastro', 'ano', 'valor', 'quantidade', 'imagem_url', 'descricao', 'ativo', 'componentes'] as const;
+const CAMPOS_EDITAVEIS = [
+  'nome',
+  'categoria_id',
+  'modelo_moto_id',
+  'condicao',
+  'nota_cadastro',
+  'ano',
+  'valor',
+  'quantidade',
+  'imagem_url',
+  'descricao',
+  'ativo',
+  'componentes',
+  'anuncio_ml_url',
+  'anuncio_fb_url',
+] as const;
 
 function montarPayload(body: any) {
   const payload: Record<string, any> = {};

@@ -3,27 +3,19 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import {
-  Box,
   Package,
   Search,
   Filter,
   Bike,
-  ArrowDownAZ,
   RefreshCw,
   Plus,
-  Minus,
-  Layers,
-  Check,
-  Edit2,
-  Trash2,
   X,
   Loader2,
   AlertCircle,
-  LayoutGrid,
-  Table as TableIcon,
   Upload,
   ImageOff,
   ChevronDown,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
@@ -32,30 +24,24 @@ import { useDebounce } from '../../hooks/useDebounce';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { MotoCascadeSelect } from '../../components/MotoCascadeSelect';
 import { CategoriaCascadeSelect } from '../../components/CategoriaCascadeSelect';
-import { SkeletonRow } from '../../components/SkeletonRow';
-import { NotaCadastroBadge } from '../../components/NotaCadastroBadge';
+import { DataTable } from '../../components/ui/DataTable';
+import { StatusBadge } from '../../components/ui/StatusBadge';
+import { EmptyState } from '../../components/ui/EmptyState';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { categoriaExigeNota } from './categoriaMotor';
-import { getDescendantIds, getAncestorChain, buildTree } from '../categorias/categoriaTree';
-import { getDescendantIds as getDescendantIdsMoto, getAncestorChain as getAncestorChainMoto, buildTree as buildTreeMoto } from '../motos/motoTree';
+import { getDescendantIds, buildTree } from '../categorias/categoriaTree';
+import { getDescendantIds as getDescendantIdsMoto, buildTree as buildTreeMoto } from '../motos/motoTree';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
+import type { DataTableColumn } from '../../components/ui/DataTable';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
-const CONDICAO_LABEL: Record<CondicaoPeca, string> = { original: 'Original', paralela: 'Paralela' };
+const ITEMS_PER_PAGE = 25;
 
-// Colunas da tabela desktop — as com `sortKey` viram cabeçalho clicável,
-// reaproveitando o mesmo state do dropdown de ordenação (não duplica lógica).
-const COLUNAS: { label: string; sortKey?: 'nome' | 'valor' | 'quantidade'; align?: 'right' }[] = [
-  { label: 'Peça', sortKey: 'nome' },
-  { label: 'Categoria' },
-  { label: 'Moto' },
-  { label: 'Condição' },
-  { label: 'Valor', sortKey: 'valor', align: 'right' },
-  { label: 'Qtd', sortKey: 'quantidade', align: 'right' },
-  { label: 'Ações', align: 'right' },
-];
+// Mesmo critério usado no card de estoque baixo do Dashboard: item ainda tem
+// unidade (não é "esgotado"), mas está no fim.
+const isEstoqueBaixo = (item: Estoque) => item.quantidade > 0 && item.quantidade <= 2;
 
 const EMPTY_FORM: EstoqueInput = {
   nome: '',
@@ -70,15 +56,32 @@ const EMPTY_FORM: EstoqueInput = {
   descricao: '',
   ativo: true,
   componentes: null,
+  anuncio_ml_url: '',
+  anuncio_fb_url: '',
 };
 
-// Junta as partes já vendidas avulsas de todas as unidades incompletas de um
-// item, pra exibir num selo curto tipo "2 incompletas — falta: Inferior".
-function resumoIncompletas(item: Estoque): string | null {
-  if (!item.unidades_incompletas || item.unidades_incompletas.length === 0) return null;
-  const partes = Array.from(new Set(item.unidades_incompletas.flatMap((u) => u.faltando)));
-  const n = item.unidades_incompletas.length;
-  return `${n} ${n > 1 ? 'incompletas' : 'incompleta'} — falta: ${partes.join(', ')}`;
+// Badge quadrado de anúncio (ML/FB) — colorido e clicável quando o link
+// existe, esmaecido e inerte quando não existe. Nunca decorativo: a cor
+// (positive) sinaliza "publicado", não é escolha estética.
+function AnuncioBadge({ label, canal, url }: { label: string; canal: string; url: string | null | undefined }) {
+  const ativo = !!url;
+  return (
+    <button
+      type="button"
+      disabled={!ativo}
+      onClick={(e) => {
+        e.stopPropagation();
+        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+      }}
+      title={ativo ? `Ver anúncio no ${canal}` : `Sem anúncio no ${canal}`}
+      className={cn(
+        'size-6 rounded-badge text-[9px] font-bold flex items-center justify-center shrink-0 transition-opacity',
+        ativo ? 'bg-positive-bg text-positive hover:opacity-80 cursor-pointer' : 'bg-surface-inset text-text-faint cursor-default'
+      )}
+    >
+      {label}
+    </button>
+  );
 }
 
 interface EstoqueViewProps {
@@ -87,24 +90,25 @@ interface EstoqueViewProps {
   onRegisterActions?: (actions: { edit: (item: Estoque) => void; delete: (id: string) => void; focusSearch?: () => void }) => void;
   pendingEditItem?: Estoque | null;
   setPendingEditItem?: (item: Estoque | null) => void;
+  // Chega true quando outra tela (ex: AlertBar do Dashboard) navega pra cá
+  // pedindo pra já abrir com o filtro de estoque baixo ativo. Consumido uma
+  // única vez e resetado, mesmo padrão do pendingEditItem acima.
+  filtroEstoqueBaixoInicial?: boolean;
+  setFiltroEstoqueBaixoInicial?: (value: boolean) => void;
 }
 
-export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEditItem, setPendingEditItem }: EstoqueViewProps) {
+export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, setPendingEditItem, filtroEstoqueBaixoInicial, setFiltroEstoqueBaixoInicial }: EstoqueViewProps) {
   const { estoque: items, setEstoque, loading, refreshData } = useData();
   const { categorias, modelos, criarCategoria, criarNoMoto } = useCatalogos();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'card'>(window.innerWidth < 768 ? 'card' : 'table');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
   const [modeloFiltro, setModeloFiltro] = useState('Todas');
-  const [condicaoFiltro, setCondicaoFiltro] = useState<'Todas' | CondicaoPeca>('Todas');
-  const [sortKey, setSortKey] = useState<'criado_em' | 'valor' | 'nome' | 'quantidade'>('criado_em');
-
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [sortKey, setSortKey] = useState<'criado_em' | 'valor' | 'quantidade'>('criado_em');
+  const [soEstoqueBaixo, setSoEstoqueBaixo] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
-  const itemsPerPage = window.innerWidth < 768 ? 10 : 25;
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
@@ -117,9 +121,6 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
   const [novoComponente, setNovoComponente] = useState('');
 
   const [itemToDelete, setItemToDelete] = useState<Estoque | null>(null);
-  const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
-  const [isBulkCategoryOpen, setIsBulkCategoryOpen] = useState(false);
-  const [bulkCategoriaId, setBulkCategoriaId] = useState('');
 
   // Categoria Motor (ou subcategoria dela) exige informar nota fiscal pra cadastro.
   const formExigeNota = useMemo(() => categoriaExigeNota(formData.categoria_id || null, categorias), [formData.categoria_id, categorias]);
@@ -149,6 +150,8 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
       descricao: item.descricao || '',
       ativo: item.ativo,
       componentes: item.componentes,
+      anuncio_ml_url: item.anuncio_ml_url || '',
+      anuncio_fb_url: item.anuncio_fb_url || '',
     });
     setIsModalOpen(true);
   }, []);
@@ -193,6 +196,13 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
   }, [pendingEditItem, setPendingEditItem, openEditModal]);
 
   useEffect(() => {
+    if (filtroEstoqueBaixoInicial) {
+      setSoEstoqueBaixo(true);
+      setFiltroEstoqueBaixoInicial?.(false);
+    }
+  }, [filtroEstoqueBaixoInicial, setFiltroEstoqueBaixoInicial]);
+
+  useEffect(() => {
     onRegisterActions?.({
       edit: openEditModal,
       delete: (id: string) => {
@@ -228,6 +238,9 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
     return resultado;
   }, [modelos]);
 
+  const itensEstoqueBaixo = useMemo(() => items.filter(isEstoqueBaixo).length, [items]);
+  const valorTotalEstoque = useMemo(() => items.reduce((sum, item) => sum + Number(item.valor) * Number(item.quantidade), 0), [items]);
+
   const filtered = useMemo(() => {
     const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
     let result = items.filter((item) => {
@@ -244,26 +257,22 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
         categoriaFiltro === 'Todas' || (!!item.categoria_id && getDescendantIds(categoriaFiltro, categorias).includes(item.categoria_id));
       const matchesModelo =
         modeloFiltro === 'Todas' || (!!item.modelo_moto_id && getDescendantIdsMoto(modeloFiltro, modelos).includes(item.modelo_moto_id));
-      const matchesCondicao = condicaoFiltro === 'Todas' || item.condicao === condicaoFiltro;
-      return matchesSearch && matchesCategoria && matchesModelo && matchesCondicao;
+      const matchesEstoqueBaixo = !soEstoqueBaixo || isEstoqueBaixo(item);
+      return matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo;
     });
 
     result = [...result].sort((a, b) => {
-      if (sortKey === 'nome') return a.nome.localeCompare(b.nome, 'pt');
       if (sortKey === 'valor') return b.valor - a.valor;
       if (sortKey === 'quantidade') return b.quantidade - a.quantidade;
       return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
     });
     return result;
-  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, condicaoFiltro, sortKey, categorias, modelos]);
+  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, sortKey, categorias, modelos]);
 
-  const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
-  const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
+  const totalPaginas = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
+  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  useEffect(() => setCurrentPage(1), [debouncedSearch, categoriaFiltro, modeloFiltro, condicaoFiltro]);
-
-  const toggleSelect = (id: string) => setSelectedIds((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
-  const toggleSelectAll = () => setSelectedIds(selectedIds.length === paginated.length ? [] : paginated.map((i) => i.id));
+  useEffect(() => setCurrentPage(1), [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, sortKey]);
 
   const handleSave = async () => {
     if (!formData.nome.trim()) return alert('Nome da peça é obrigatório');
@@ -276,6 +285,8 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
       valor: Number(formData.valor) || 0,
       quantidade: Math.max(0, Number(formData.quantidade) || 0),
       modelo_moto_id: formData.modelo_moto_id || null,
+      anuncio_ml_url: formData.anuncio_ml_url?.trim() || null,
+      anuncio_fb_url: formData.anuncio_fb_url?.trim() || null,
     };
 
     try {
@@ -301,7 +312,6 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
     if (!itemToDelete) return;
     const id = itemToDelete.id;
     setEstoque((prev) => prev.filter((i) => i.id !== id));
-    setSelectedIds((prev) => prev.filter((i) => i !== id));
     setItemToDelete(null);
     try {
       const result = await estoqueApi.excluir(id);
@@ -312,456 +322,222 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
     }
   };
 
-  const handleBulkDelete = async () => {
-    const ids = [...selectedIds];
-    setIsBulkDeleteOpen(false);
-    setEstoque((prev) => prev.filter((i) => !ids.includes(i.id)));
-    setSelectedIds([]);
-    try {
-      const result = await estoqueApi.excluirEmLote(ids);
-      if (!result.success) throw new Error(result.error);
-    } catch (err: any) {
-      alert(err.message || 'Erro ao excluir itens');
-      refreshData();
-    }
-  };
+  const inputClass = 'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
+  const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
 
-  const handleBulkQuantidade = async (delta: number) => {
-    const ids = [...selectedIds];
-    setEstoque((prev) => prev.map((i) => (ids.includes(i.id) ? { ...i, quantidade: Math.max(0, i.quantidade + delta) } : i)));
-    try {
-      const result = await estoqueApi.ajustarQuantidadeEmLote(ids, delta);
-      if (!result.success) throw new Error(result.error);
-    } catch (err: any) {
-      alert(err.message || 'Erro ao ajustar quantidade');
-      refreshData();
-    }
-  };
+  // Cabeçalho clicável reaproveitado pelas colunas Valor/Qtd — mesmo state de
+  // ordenação da barra de filtros, só que acionável direto na tabela.
+  function SortableHeader({ label, ownKey, align }: { label: string; ownKey: typeof sortKey; align?: 'right' }) {
+    const ativo = sortKey === ownKey;
+    return (
+      <button
+        type="button"
+        onClick={() => setSortKey(ownKey)}
+        className={cn('inline-flex items-center gap-1 hover:text-accent-soft-fg transition-colors', align === 'right' && 'flex-row-reverse', ativo && 'text-accent-soft-fg')}
+      >
+        {label}
+        <ChevronDown size={10} className={ativo ? 'opacity-100' : 'opacity-0'} />
+      </button>
+    );
+  }
 
-  const handleBulkCategoria = async () => {
-    if (!bulkCategoriaId) return;
-    const ids = [...selectedIds];
-    setIsBulkCategoryOpen(false);
-    const categoria = categorias.find((c) => c.id === bulkCategoriaId);
-    setEstoque((prev) => prev.map((i) => (ids.includes(i.id) ? { ...i, categoria_id: bulkCategoriaId, categoria } : i)));
-    setSelectedIds([]);
-    setBulkCategoriaId('');
-    try {
-      const result = await estoqueApi.atualizarCategoriaEmLote(ids, bulkCategoriaId);
-      if (!result.success) throw new Error(result.error);
-    } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar categoria');
-      refreshData();
-    }
-  };
-
-  const inputClass = cn(
-    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
-  );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600');
+  const colunas: DataTableColumn<Estoque>[] = [
+    {
+      key: 'peca',
+      header: 'Peça',
+      render: (item) => (
+        <div className="flex items-center gap-2.5">
+          <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
+            {item.imagem_url ? (
+              <img loading="lazy" src={item.imagem_url} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            ) : (
+              <Package size={16} className="text-text-faint" />
+            )}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[12.5px] font-medium text-text-primary truncate max-w-[240px]">{item.nome}</p>
+            {isEstoqueBaixo(item) ? (
+              <p className="text-[11px] text-warning font-medium">Último em estoque</p>
+            ) : (
+              <p className="text-[11px] text-text-faint truncate">
+                {item.codigo} · {item.categoria?.nome || '-'}
+              </p>
+            )}
+          </div>
+        </div>
+      ),
+    },
+    {
+      key: 'moto',
+      header: 'Moto',
+      render: (item) => <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />,
+    },
+    {
+      key: 'anuncios',
+      header: 'Anúncios',
+      align: 'center',
+      width: '5.5rem',
+      render: (item) => (
+        <div className="flex items-center justify-center gap-1">
+          <AnuncioBadge label="ML" canal="Mercado Livre" url={item.anuncio_ml_url} />
+          <AnuncioBadge label="FB" canal="Facebook" url={item.anuncio_fb_url} />
+        </div>
+      ),
+    },
+    {
+      key: 'valor',
+      header: <SortableHeader label="Valor" ownKey="valor" align="right" />,
+      align: 'right',
+      render: (item) =>
+        item.valor > 0 ? (
+          <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+        ) : (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              openEditModal(item);
+            }}
+            className="text-sm font-medium text-danger underline underline-offset-2 hover:opacity-80"
+          >
+            Definir
+          </button>
+        ),
+    },
+    {
+      key: 'quantidade',
+      header: <SortableHeader label="Qtd" ownKey="quantidade" align="right" />,
+      align: 'right',
+      render: (item) => {
+        const tom = item.quantidade === 0 ? 'text-danger' : item.quantidade <= 2 ? 'text-warning' : 'text-positive';
+        const dot = item.quantidade === 0 ? 'bg-danger' : item.quantidade <= 2 ? 'bg-warning' : 'bg-positive';
+        return (
+          <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium tabular-nums', tom)}>
+            <span className={cn('size-1.5 rounded-full shrink-0', dot)} />
+            {item.quantidade}
+          </span>
+        );
+      },
+    },
+  ];
 
   return (
     <div className="space-y-4 pb-24 md:pb-6">
+      {/* Cabeçalho */}
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-medium text-text-primary">Estoque</h1>
+          <p className="text-sm text-text-faint mt-0.5">
+            {items.length} {items.length === 1 ? 'item' : 'itens'} · {formatCurrency(valorTotalEstoque)} em estoque
+          </p>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            onClick={async () => {
+              setIsRefreshing(true);
+              await refreshData();
+              setIsRefreshing(false);
+            }}
+            disabled={loading || isRefreshing}
+            className="h-10 px-4 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
+          >
+            <RefreshCw size={14} className={cn((loading || isRefreshing) && 'animate-spin')} />
+            <span className="hidden sm:inline">Sincronizar</span>
+          </button>
+          <button onClick={openCreateModal} className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90">
+            <Plus size={16} /> Nova peça
+          </button>
+        </div>
+      </div>
+
       {/* Filtros */}
       <div className="space-y-3">
-        <div className={cn('flex items-center gap-3 rounded-2xl border px-4', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-700' : 'bg-white border-zinc-200')}>
-          <Search size={18} className="text-zinc-500 shrink-0" />
+        <div className="flex items-center gap-3 rounded-control border border-border-default bg-surface-inset px-4">
+          <Search size={16} className="text-text-faint shrink-0" />
           <input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="Buscar peças por nome, código, categoria ou moto..."
-            className="flex-1 py-3.5 bg-transparent outline-none text-sm"
+            className="flex-1 py-3.5 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-faint"
           />
           {searchTerm && (
-            <button onClick={() => setSearchTerm('')} className="p-1.5 rounded-full hover:bg-zinc-800/50 text-zinc-500">
+            <button onClick={() => setSearchTerm('')} className="p-1.5 rounded-full hover:bg-surface-raised text-text-faint">
               <X size={14} />
             </button>
           )}
         </div>
 
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2">
-            <CustomDropdown
-              theme={theme}
-              icon={<Filter size={14} />}
-              value={categoriaFiltro}
-              onChange={setCategoriaFiltro}
-              options={[
-                { value: 'Todas', label: 'Todas categorias' },
-                ...categoriasIndentadas.map((c) => ({ value: c.id, label: `${'　'.repeat(c.depth)}${c.depth > 0 ? '└ ' : ''}${c.nome}` })),
-              ]}
-            />
-            <CustomDropdown
-              theme={theme}
-              icon={<Bike size={14} />}
-              value={modeloFiltro}
-              onChange={setModeloFiltro}
-              options={[
-                { value: 'Todas', label: 'Todos modelos' },
-                ...modelosIndentados.map((m) => ({ value: m.id, label: `${'　'.repeat(m.depth)}${m.depth > 0 ? '└ ' : ''}${m.nome}` })),
-              ]}
-            />
-            <CustomDropdown
-              theme={theme}
-              value={condicaoFiltro}
-              onChange={(v) => setCondicaoFiltro(v as 'Todas' | CondicaoPeca)}
-              options={[
-                { value: 'Todas', label: 'Original e Paralela' },
-                { value: 'original', label: 'Só Original' },
-                { value: 'paralela', label: 'Só Paralela' },
-              ]}
-            />
-            <CustomDropdown
-              theme={theme}
-              icon={<ArrowDownAZ size={14} />}
-              value={sortKey}
-              onChange={(v) => setSortKey(v as typeof sortKey)}
-              options={[
-                { value: 'criado_em', label: 'Mais recentes' },
-                { value: 'valor', label: 'Maior preço' },
-                { value: 'nome', label: 'Ordem alfabética' },
-                { value: 'quantidade', label: 'Mais em estoque' },
-              ]}
-            />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setViewMode((v) => (v === 'table' ? 'card' : 'table'))}
-              className={cn('h-10 w-10 rounded-xl border flex items-center justify-center transition-colors', theme === 'dark' ? 'border-zinc-800 text-zinc-400 hover:bg-zinc-800' : 'border-zinc-200 text-zinc-500 hover:bg-zinc-100')}
-              title="Alternar visualização"
-            >
-              {viewMode === 'table' ? <LayoutGrid size={16} /> : <TableIcon size={16} />}
-            </button>
-            <button
-              onClick={async () => {
-                setIsRefreshing(true);
-                await refreshData();
-                setIsRefreshing(false);
-              }}
-              disabled={loading || isRefreshing}
-              className={cn('h-10 px-4 rounded-xl border text-[11px] font-bold uppercase tracking-wider flex items-center gap-2', theme === 'dark' ? 'bg-zinc-800/50 border-zinc-700 text-zinc-300' : 'bg-zinc-50 border-zinc-200 text-zinc-600')}
-            >
-              <RefreshCw size={14} className={cn((loading || isRefreshing) && 'animate-spin')} />
-              <span className="hidden sm:inline">Sincronizar</span>
-            </button>
-            <button
-              onClick={openCreateModal}
-              className="h-10 px-5 rounded-xl bg-gradient-to-r from-violet-600 to-purple-600 text-white text-[11px] font-bold uppercase tracking-wider shadow-md flex items-center gap-2"
-            >
-              <Plus size={16} /> Novo Item
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Barra de ações em lote */}
-      <AnimatePresence>
-        {selectedIds.length > 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 20 }}
-            className={cn('fixed bottom-24 md:bottom-8 left-1/2 -translate-x-1/2 z-50 flex items-center gap-4 px-6 py-4 rounded-2xl shadow-2xl border backdrop-blur-xl', theme === 'dark' ? 'bg-zinc-900/90 border-zinc-800 text-white' : 'bg-white/90 border-zinc-200 text-zinc-900')}
+        <div className="flex flex-wrap items-center gap-2">
+          <CustomDropdown
+            theme="dark"
+            icon={<Filter size={14} />}
+            value={categoriaFiltro}
+            onChange={setCategoriaFiltro}
+            options={[
+              { value: 'Todas', label: 'Todas categorias' },
+              ...categoriasIndentadas.map((c) => ({ value: c.id, label: `${'　'.repeat(c.depth)}${c.depth > 0 ? '└ ' : ''}${c.nome}` })),
+            ]}
+          />
+          <CustomDropdown
+            theme="dark"
+            icon={<Bike size={14} />}
+            value={modeloFiltro}
+            onChange={setModeloFiltro}
+            options={[
+              { value: 'Todas', label: 'Todos modelos' },
+              ...modelosIndentados.map((m) => ({ value: m.id, label: `${'　'.repeat(m.depth)}${m.depth > 0 ? '└ ' : ''}${m.nome}` })),
+            ]}
+          />
+          <CustomDropdown
+            theme="dark"
+            value={sortKey}
+            onChange={(v) => setSortKey(v as typeof sortKey)}
+            options={[
+              { value: 'criado_em', label: 'Mais recentes' },
+              { value: 'valor', label: 'Maior preço' },
+              { value: 'quantidade', label: 'Mais em estoque' },
+            ]}
+          />
+          <button
+            onClick={() => setSoEstoqueBaixo((v) => !v)}
+            className={cn(
+              'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+              soEstoqueBaixo ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+            )}
           >
-            <span className="text-sm font-medium">{selectedIds.length} selecionado(s)</span>
-            <div className={cn('flex items-center gap-2 border-l pl-4', theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200')}>
-              <button onClick={() => handleBulkQuantidade(1)} className="p-2 rounded-lg text-emerald-400 hover:bg-zinc-800" title="Aumentar quantidade">
-                <Plus size={18} />
-              </button>
-              <button onClick={() => handleBulkQuantidade(-1)} className="p-2 rounded-lg text-rose-400 hover:bg-zinc-800" title="Diminuir quantidade">
-                <Minus size={18} />
-              </button>
-              <button onClick={() => setIsBulkCategoryOpen(true)} className="p-2 rounded-lg text-violet-400 hover:bg-zinc-800" title="Mudar categoria">
-                <Layers size={18} />
-              </button>
-              <button onClick={() => setIsBulkDeleteOpen(true)} className="p-2 rounded-lg text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10" title="Excluir selecionados">
-                <Trash2 size={18} />
-              </button>
-            </div>
-            <button onClick={() => setSelectedIds([])} className="text-xs text-zinc-500 hover:text-zinc-300">
-              Desmarcar
-            </button>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Lista */}
-      <div className={cn('border rounded-2xl overflow-hidden', theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/50' : 'bg-white border-zinc-200 shadow-sm')}>
-        <div className={cn('p-4 md:p-6 border-b flex items-center justify-between', theme === 'dark' ? 'border-zinc-800/50 bg-zinc-900/10' : 'border-zinc-100 bg-zinc-50/50')}>
-          <div className="flex items-center gap-3">
-            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center', theme === 'dark' ? 'bg-zinc-800 text-violet-400' : 'bg-white text-violet-600 border border-zinc-100')}>
-              <Box size={20} />
-            </div>
-            <h3 className={cn('text-lg font-bold tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Estoque de Peças</h3>
-          </div>
-          <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">{filtered.length} itens</span>
-        </div>
-
-        {viewMode === 'table' ? (
-          <div className="overflow-auto max-h-[65vh]">
-            <table className="w-full text-left border-collapse min-w-[860px]">
-              <thead className="sticky top-0 z-10">
-                <tr className={cn('border-b', theme === 'dark' ? 'bg-zinc-900/95 backdrop-blur-sm border-zinc-800' : 'bg-zinc-50/95 backdrop-blur-sm border-zinc-200')}>
-                  <th className="px-3 py-2.5 w-10">
-                    <div
-                      onClick={toggleSelectAll}
-                      className={cn(
-                        'w-4 h-4 rounded border flex items-center justify-center cursor-pointer',
-                        selectedIds.length === paginated.length && paginated.length > 0 ? 'bg-violet-600 border-violet-600' : theme === 'dark' ? 'border-zinc-700' : 'border-zinc-300'
-                      )}
-                    >
-                      {selectedIds.length === paginated.length && paginated.length > 0 && <Check className="text-white" size={10} />}
-                    </div>
-                  </th>
-                  {COLUNAS.map((col) => (
-                    <th key={col.label} className={cn('px-3 py-2.5 text-[9px] font-bold uppercase tracking-wider text-zinc-500', col.align === 'right' && 'text-right')}>
-                      {col.sortKey ? (
-                        <button
-                          type="button"
-                          onClick={() => setSortKey(col.sortKey!)}
-                          className={cn(
-                            'inline-flex items-center gap-1 hover:text-violet-400 transition-colors',
-                            col.align === 'right' && 'flex-row-reverse',
-                            sortKey === col.sortKey && 'text-violet-400'
-                          )}
-                        >
-                          {col.label}
-                          <ChevronDown size={10} className={sortKey === col.sortKey ? 'opacity-100' : 'opacity-0'} />
-                        </button>
-                      ) : (
-                        col.label
-                      )}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody className={cn('divide-y', theme === 'dark' ? 'divide-zinc-800/30' : 'divide-zinc-100')}>
-                {loading && items.length === 0
-                  ? Array(8)
-                      .fill(0)
-                      .map((_, i) => <SkeletonRow key={i} theme={theme} />)
-                  : paginated.map((item, index) => (
-                      <tr
-                        key={item.id}
-                        onClick={() => onSelectItem(item)}
-                        className={cn(
-                          'cursor-pointer group transition-colors',
-                          selectedIds.includes(item.id)
-                            ? theme === 'dark' ? 'bg-violet-500/10' : 'bg-violet-50'
-                            : index % 2 === 1
-                              ? theme === 'dark' ? 'bg-white/[0.02] hover:bg-zinc-800/30' : 'bg-zinc-50/70 hover:bg-zinc-100'
-                              : theme === 'dark' ? 'hover:bg-zinc-800/20' : 'hover:bg-zinc-50'
-                        )}
-                      >
-                        <td className="px-3 py-2.5">
-                          <div
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              toggleSelect(item.id);
-                            }}
-                            className={cn('w-4 h-4 rounded border flex items-center justify-center', selectedIds.includes(item.id) ? 'bg-violet-600 border-violet-600' : 'opacity-0 group-hover:opacity-100 border-zinc-700')}
-                          >
-                            {selectedIds.includes(item.id) && <Check className="text-white" size={10} />}
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center gap-2.5">
-                            <div className={cn('w-9 h-9 rounded-lg overflow-hidden shrink-0 flex items-center justify-center', theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-100')}>
-                              {item.imagem_url ? (
-                                <img loading="lazy" src={item.imagem_url} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                              ) : (
-                                <Package size={16} className="opacity-30" />
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <p className={cn('text-xs font-semibold truncate max-w-[240px]', theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900')}>{item.nome}</p>
-                              <p className="text-[10px] text-zinc-500 font-mono">{item.codigo}</p>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-xs">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span
-                              title={item.categoria_id ? getAncestorChain(item.categoria_id, categorias).map((c) => c.nome).join(' > ') : undefined}
-                              className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', theme === 'dark' ? 'bg-violet-500/10 text-violet-400 border border-violet-500/20' : 'bg-zinc-100 text-zinc-600')}
-                            >
-                              {item.categoria?.nome || '-'}
-                            </span>
-                            <NotaCadastroBadge value={item.nota_cadastro} size="sm" />
-                          </div>
-                        </td>
-                        <td className="px-3 py-2.5 text-xs">
-                          <span
-                            title={item.modelo_moto_id ? getAncestorChainMoto(item.modelo_moto_id, modelos).map((m) => m.nome).join(' > ') : undefined}
-                            className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase border', theme === 'dark' ? 'bg-zinc-800 text-zinc-300 border-zinc-700' : 'bg-zinc-100 text-zinc-600 border-zinc-200')}
-                          >
-                            {item.modelo_moto?.nome || 'Universal'}
-                            {item.ano ? ` · ${item.ano}` : ''}
-                          </span>
-                        </td>
-                        <td className="px-3 py-2.5 text-xs">
-                          <span className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
-                        </td>
-                        <td className="px-3 py-2.5 text-sm font-bold text-emerald-500 text-right tabular-nums">{formatCurrency(item.valor)}</td>
-                        <td className="px-3 py-2.5 text-right">
-                          <span
-                            className={cn(
-                              'inline-flex items-center gap-1.5 text-xs font-bold tabular-nums',
-                              item.quantidade === 0 ? 'text-rose-500' : item.quantidade <= 2 ? 'text-amber-500' : theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'
-                            )}
-                          >
-                            <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', item.quantidade === 0 ? 'bg-rose-500' : item.quantidade <= 2 ? 'bg-amber-500' : 'bg-emerald-500')} />
-                            {item.quantidade}
-                          </span>
-                          {resumoIncompletas(item) && (
-                            <div title={resumoIncompletas(item) || ''} className="mt-1 flex items-center justify-end gap-1 text-[9px] font-bold text-amber-500">
-                              <AlertCircle size={10} /> Incompleto
-                            </div>
-                          )}
-                        </td>
-                        <td className="px-3 py-2.5">
-                          <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                openEditModal(item);
-                              }}
-                              className={cn('p-2 rounded-lg', theme === 'dark' ? 'bg-violet-500/10 text-violet-400 hover:bg-violet-500/20' : 'text-zinc-400 hover:text-violet-600 hover:bg-violet-50')}
-                            >
-                              <Edit2 size={14} />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setItemToDelete(item);
-                              }}
-                              className={cn('p-2 rounded-lg', theme === 'dark' ? 'bg-rose-500/10 text-rose-400 hover:bg-rose-500/20' : 'text-zinc-400 hover:text-rose-600 hover:bg-rose-50')}
-                            >
-                              <Trash2 size={14} />
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <div className="p-3 md:p-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 md:gap-4">
-            {paginated.map((item) => (
-              <div
-                key={item.id}
-                onClick={() => onSelectItem(item)}
-                className={cn(
-                  'group relative flex flex-col rounded-2xl border cursor-pointer overflow-hidden transition-all hover:-translate-y-1 hover:shadow-xl',
-                  selectedIds.includes(item.id) ? (theme === 'dark' ? 'bg-violet-500/10 border-violet-500/50' : 'bg-violet-50 border-violet-300') : theme === 'dark' ? 'bg-zinc-900/60 border-zinc-800/80' : 'bg-white border-zinc-200'
-                )}
-              >
-                <div
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    toggleSelect(item.id);
-                  }}
-                  className={cn('absolute top-3 left-3 z-10 w-6 h-6 rounded-md border flex items-center justify-center', selectedIds.includes(item.id) ? 'bg-violet-600 border-violet-600' : 'opacity-0 group-hover:opacity-100 bg-zinc-900/80 border-zinc-600')}
-                >
-                  {selectedIds.includes(item.id) && <Check className="text-white" size={14} strokeWidth={3} />}
-                </div>
-                <div className="absolute top-3 right-3 z-10 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-all">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openEditModal(item);
-                    }}
-                    className="p-2 rounded-xl bg-zinc-900/90 text-violet-400 hover:bg-violet-500 hover:text-white shadow-lg"
-                  >
-                    <Edit2 size={14} />
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setItemToDelete(item);
-                    }}
-                    className="p-2 rounded-xl bg-zinc-900/90 text-rose-400 hover:bg-rose-500 hover:text-white shadow-lg"
-                  >
-                    <Trash2 size={14} />
-                  </button>
-                </div>
-
-                <div className={cn('relative aspect-video w-full overflow-hidden border-b', theme === 'dark' ? 'border-zinc-800/50 bg-zinc-950' : 'border-zinc-100 bg-zinc-50')}>
-                  {item.imagem_url ? (
-                    <img loading="lazy" src={item.imagem_url} alt={item.nome} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" referrerPolicy="no-referrer" />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center opacity-20">
-                      <Package size={48} />
-                    </div>
-                  )}
-                  <div className="absolute top-3 left-11 flex gap-2">
-                    <span className={cn('px-2 py-1 rounded-full text-[9px] font-black uppercase shadow-md', item.quantidade > 0 ? 'bg-emerald-500/90 text-white' : 'bg-rose-500/90 text-white')}>
-                      {item.quantidade > 0 ? `${item.quantidade} UN` : 'ESGOTADO'}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="p-3 md:p-4 flex flex-col flex-1">
-                  <h4 className={cn('font-bold text-sm leading-tight line-clamp-2 mb-2', theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900')}>{item.nome}</h4>
-                  <div className="flex flex-wrap items-center gap-1.5 mb-3">
-                    <span
-                      title={item.categoria_id ? getAncestorChain(item.categoria_id, categorias).map((c) => c.nome).join(' > ') : undefined}
-                      className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-violet-500/10 text-violet-400 border-violet-500/20"
-                    >
-                      {item.categoria?.nome || '-'}
-                    </span>
-                    <span
-                      title={item.modelo_moto_id ? getAncestorChainMoto(item.modelo_moto_id, modelos).map((m) => m.nome).join(' > ') : undefined}
-                      className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-zinc-800 text-zinc-400 border-zinc-700"
-                    >
-                      {item.modelo_moto?.nome || 'Universal'}
-                    </span>
-                    <span className={cn('text-[9px] font-black uppercase px-2 py-0.5 rounded-full', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
-                    <NotaCadastroBadge value={item.nota_cadastro} size="sm" />
-                    {resumoIncompletas(item) && (
-                      <span title={resumoIncompletas(item) || ''} className="flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
-                        <AlertCircle size={10} /> Incompleto
-                      </span>
-                    )}
-                  </div>
-                  <div className="mt-auto pt-3 border-t border-zinc-800/20 flex items-center justify-between">
-                    <span className="font-black text-emerald-500 text-sm">{formatCurrency(item.valor)}</span>
-                    <span className="text-[10px] text-zinc-500 font-mono">{item.codigo}</span>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {filtered.length === 0 && !loading && (
-          <div className="p-12 text-center text-zinc-500 flex flex-col items-center gap-3">
-            <Box size={48} strokeWidth={1} className="opacity-20" />
-            <p className="text-sm font-medium">{items.length === 0 ? 'Nenhuma peça cadastrada ainda.' : 'Nenhum item corresponde aos filtros aplicados.'}</p>
-          </div>
-        )}
-
-        {/* Paginação */}
-        <div className={cn('p-4 border-t flex flex-wrap items-center justify-between gap-4', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-200')}>
-          <span className="text-sm text-zinc-500">
-            {filtered.length === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1}-{Math.min(currentPage * itemsPerPage, filtered.length)} de {filtered.length}
-          </span>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setCurrentPage((p) => Math.max(1, p - 1))} disabled={currentPage === 1} className="px-3 py-1.5 border rounded-lg disabled:opacity-30 text-sm border-zinc-800">
-              Anterior
-            </button>
-            <span className="px-3 py-1.5 text-sm text-zinc-400">
-              Página {currentPage} de {totalPages}
-            </span>
-            <button onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} className="px-3 py-1.5 border rounded-lg disabled:opacity-30 text-sm border-zinc-800">
-              Próximo
-            </button>
-          </div>
+            Estoque baixo
+            <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soEstoqueBaixo ? 'bg-warning/20' : 'bg-surface-raised')}>{itensEstoqueBaixo}</span>
+            {soEstoqueBaixo && <X size={12} />}
+          </button>
         </div>
       </div>
+
+      {/* Tabela */}
+      <DataTable
+        colunas={colunas}
+        dados={loading && items.length === 0 ? [] : paginated}
+        getRowKey={(item) => item.id}
+        destaqueLinha={isEstoqueBaixo}
+        onRowClick={onSelectItem}
+        paginaAtual={currentPage}
+        totalPaginas={totalPaginas}
+        onMudarPagina={setCurrentPage}
+        emptyState={
+          loading && items.length === 0 ? (
+            <div className="py-12 flex items-center justify-center text-text-faint">
+              <Loader2 size={20} className="animate-spin" />
+            </div>
+          ) : (
+            <EmptyState
+              icone={Package}
+              mensagem={items.length === 0 ? 'Nenhuma peça cadastrada ainda.' : 'Nenhum item corresponde aos filtros aplicados.'}
+              acaoLabel={items.length === 0 ? 'Cadastrar peça' : undefined}
+              onAcao={items.length === 0 ? openCreateModal : undefined}
+            />
+          )
+        }
+      />
 
       {/* Modal criar/editar */}
       <AnimatePresence>
@@ -773,14 +549,14 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
               exit={{ y: '100%', opacity: 0 }}
               transition={{ type: 'spring', damping: 28, stiffness: 300 }}
               onClick={(e) => e.stopPropagation()}
-              className={cn('relative w-full max-w-2xl h-[90vh] md:h-auto md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-[2.5rem] md:rounded-[2.5rem]', theme === 'dark' ? 'bg-zinc-950 text-white' : 'bg-white text-zinc-900')}
+              className="relative w-full max-w-2xl h-[90vh] md:h-auto md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle"
             >
               <div className="md:hidden flex justify-center pt-4 pb-2">
-                <div className="w-12 h-1.5 rounded-full bg-zinc-800" />
+                <div className="w-12 h-1.5 rounded-full bg-border-default" />
               </div>
-              <div className={cn('flex items-center justify-between p-6 border-b', theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200')}>
-                <h2 className="text-xl font-black">{editingItem ? 'Editar Peça' : 'Nova Peça no Estoque'}</h2>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-full hover:bg-zinc-800/50 text-zinc-500">
+              <div className="flex items-center justify-between p-6 border-b border-border-subtle">
+                <h2 className="text-xl font-medium">{editingItem ? 'Editar peça' : 'Nova peça no estoque'}</h2>
+                <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-full hover:bg-surface-raised text-text-faint">
                   <X size={20} />
                 </button>
               </div>
@@ -789,22 +565,17 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                 <div>
                   <label className={labelClass}>Foto da peça</label>
                   <div className="flex items-center gap-4">
-                    <div className={cn('w-24 h-24 rounded-2xl border overflow-hidden shrink-0 flex items-center justify-center relative', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-zinc-50 border-zinc-200')}>
+                    <div className="w-24 h-24 rounded-card border overflow-hidden shrink-0 flex items-center justify-center relative bg-surface-inset border-border-default">
                       {isUploadingImagem ? (
-                        <Loader2 size={22} className="animate-spin text-violet-500" />
+                        <Loader2 size={22} className="animate-spin text-accent" />
                       ) : formData.imagem_url ? (
                         <img src={formData.imagem_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                       ) : (
-                        <ImageOff size={22} className="text-zinc-600" />
+                        <ImageOff size={22} className="text-text-faint" />
                       )}
                     </div>
                     <div className="flex-1 space-y-2">
-                      <label
-                        className={cn(
-                          'flex items-center justify-center gap-2 py-3 px-4 rounded-xl border-2 border-dashed cursor-pointer text-xs font-bold uppercase tracking-wider transition-colors',
-                          theme === 'dark' ? 'border-zinc-800 text-zinc-400 hover:border-violet-500/50 hover:text-violet-400' : 'border-zinc-300 text-zinc-500 hover:border-violet-400 hover:text-violet-600'
-                        )}
-                      >
+                      <label className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg">
                         <Upload size={14} />
                         {formData.imagem_url ? 'Trocar foto' : 'Anexar foto'}
                         <input
@@ -819,7 +590,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                         />
                       </label>
                       {formData.imagem_url && (
-                        <button type="button" onClick={() => setFormData((prev) => ({ ...prev, imagem_url: '' }))} className="text-xs text-rose-500 hover:underline">
+                        <button type="button" onClick={() => setFormData((prev) => ({ ...prev, imagem_url: '' }))} className="text-xs text-danger hover:underline">
                           Remover foto
                         </button>
                       )}
@@ -836,7 +607,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                   <div>
                     <label className={labelClass}>Categoria *</label>
                     <CategoriaCascadeSelect
-                      theme={theme}
+                      theme="dark"
                       categorias={categorias}
                       value={formData.categoria_id || ''}
                       onChange={(id) => {
@@ -849,7 +620,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                   <div>
                     <label className={labelClass}>Modelo de Moto</label>
                     <MotoCascadeSelect
-                      theme={theme}
+                      theme="dark"
                       modelos={modelos}
                       value={formData.modelo_moto_id || ''}
                       onChange={(id) => setFormData({ ...formData, modelo_moto_id: id })}
@@ -866,14 +637,20 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, condicao: 'original' })}
-                      className={cn('py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all', formData.condicao === 'original' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-800 text-zinc-400')}
+                      className={cn(
+                        'py-3 rounded-control font-semibold text-xs uppercase tracking-widest border transition-all',
+                        formData.condicao === 'original' ? 'bg-positive border-positive text-surface-page' : 'border-border-default text-text-muted'
+                      )}
                     >
                       Original
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData({ ...formData, condicao: 'paralela' })}
-                      className={cn('py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all', formData.condicao === 'paralela' ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-800 text-zinc-400')}
+                      className={cn(
+                        'py-3 rounded-control font-semibold text-xs uppercase tracking-widest border transition-all',
+                        formData.condicao === 'paralela' ? 'bg-warning border-warning text-surface-page' : 'border-border-default text-text-muted'
+                      )}
                     >
                       Paralela
                     </button>
@@ -887,14 +664,20 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, nota_cadastro: 'com_nota' })}
-                        className={cn('py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all', formData.nota_cadastro === 'com_nota' ? 'bg-sky-500 border-sky-500 text-white' : 'border-zinc-800 text-zinc-400')}
+                        className={cn(
+                          'py-3 rounded-control font-semibold text-xs uppercase tracking-widest border transition-all',
+                          formData.nota_cadastro === 'com_nota' ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted'
+                        )}
                       >
                         Com nota pra cadastro
                       </button>
                       <button
                         type="button"
                         onClick={() => setFormData({ ...formData, nota_cadastro: 'sem_nota' })}
-                        className={cn('py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all', formData.nota_cadastro === 'sem_nota' ? 'bg-rose-500 border-rose-500 text-white' : 'border-zinc-800 text-zinc-400')}
+                        className={cn(
+                          'py-3 rounded-control font-semibold text-xs uppercase tracking-widest border transition-all',
+                          formData.nota_cadastro === 'sem_nota' ? 'bg-danger border-danger text-surface-page' : 'border-border-default text-text-muted'
+                        )}
                       >
                         Sem nota pra cadastro
                       </button>
@@ -918,19 +701,52 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                 </div>
 
                 <div>
+                  <label className={labelClass}>Anúncios publicados (opcional)</label>
+                  <p className="text-xs text-text-faint mb-2">Cole o link do anúncio em cada canal — aparece como badge clicável na coluna "Anúncios" da tabela.</p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="relative">
+                      <input
+                        value={formData.anuncio_ml_url || ''}
+                        onChange={(e) => setFormData({ ...formData, anuncio_ml_url: e.target.value })}
+                        placeholder="Link no Mercado Livre"
+                        className={cn(inputClass, 'pr-9')}
+                      />
+                      {formData.anuncio_ml_url && (
+                        <a href={formData.anuncio_ml_url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-accent-soft-fg">
+                          <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
+                    <div className="relative">
+                      <input
+                        value={formData.anuncio_fb_url || ''}
+                        onChange={(e) => setFormData({ ...formData, anuncio_fb_url: e.target.value })}
+                        placeholder="Link no Facebook"
+                        className={cn(inputClass, 'pr-9')}
+                      />
+                      {formData.anuncio_fb_url && (
+                        <a href={formData.anuncio_fb_url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-accent-soft-fg">
+                          <ExternalLink size={14} />
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
                   <label className={labelClass}>Componentes (opcional)</label>
-                  <p className="text-xs text-zinc-500 mb-2">
+                  <p className="text-xs text-text-faint mb-2">
                     Se essa peça pode ser vendida em partes separadas (ex: "Mesa Completa" → Superior / Inferior), cadastre os nomes aqui. Na venda você poderá dar baixa de só uma parte, e o item fica sinalizado como incompleto.
                   </p>
                   {(formData.componentes || []).length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
                       {(formData.componentes || []).map((c, i) => (
-                        <span key={i} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold', theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700')}>
+                        <span key={i} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-surface-inset text-text-secondary">
                           {c}
                           <button
                             type="button"
                             onClick={() => setFormData((prev) => ({ ...prev, componentes: (prev.componentes || []).filter((_, idx) => idx !== i) }))}
-                            className="hover:text-rose-500"
+                            className="hover:text-danger"
                           >
                             <X size={12} />
                           </button>
@@ -962,11 +778,11 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                 </div>
               </div>
 
-              <div className={cn('p-6 border-t', theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200')}>
+              <div className="p-6 border-t border-border-subtle">
                 <button
                   onClick={handleSave}
                   disabled={isSaving || isUploadingImagem}
-                  className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+                  className="w-full bg-accent disabled:opacity-50 text-white py-4 rounded-control font-semibold text-xs uppercase tracking-[0.2em] shadow-sm flex items-center justify-center gap-2 hover:opacity-90"
                 >
                   {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar'}
                 </button>
@@ -976,62 +792,22 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
         )}
       </AnimatePresence>
 
-      {/* Confirmação de exclusão individual */}
+      {/* Confirmação de exclusão */}
       <AnimatePresence>
         {itemToDelete && (
           <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
-              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4">
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="w-full max-w-sm rounded-card border p-6 text-center bg-surface-page border-border-subtle">
+              <div className="w-16 h-16 rounded-full bg-danger-bg flex items-center justify-center text-danger mx-auto mb-4">
                 <AlertCircle size={28} />
               </div>
-              <h3 className="text-lg font-black mb-2">Excluir "{itemToDelete.nome}"?</h3>
-              <p className="text-sm text-zinc-500 mb-6">Essa ação não pode ser desfeita.</p>
+              <h3 className="text-lg font-medium mb-2">Excluir "{itemToDelete.nome}"?</h3>
+              <p className="text-sm text-text-faint mb-6">Essa ação não pode ser desfeita.</p>
               <div className="flex gap-3">
-                <button onClick={() => setItemToDelete(null)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
+                <button onClick={() => setItemToDelete(null)} className="flex-1 py-3 rounded-control font-medium text-sm bg-surface-inset text-text-secondary">
                   Cancelar
                 </button>
-                <button onClick={handleDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600">
+                <button onClick={handleDelete} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
                   Excluir
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Confirmação de exclusão em lote */}
-      <AnimatePresence>
-        {isBulkDeleteOpen && (
-          <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
-              <h3 className="text-lg font-black mb-2">Excluir {selectedIds.length} itens?</h3>
-              <p className="text-sm text-zinc-500 mb-6">Essa ação não pode ser desfeita.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setIsBulkDeleteOpen(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
-                  Cancelar
-                </button>
-                <button onClick={handleBulkDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600">
-                  Excluir
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
-
-      {/* Mudar categoria em lote */}
-      <AnimatePresence>
-        {isBulkCategoryOpen && (
-          <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
-              <h3 className="text-lg font-black mb-4">Mudar categoria de {selectedIds.length} itens</h3>
-              <CategoriaCascadeSelect theme={theme} categorias={categorias} value={bulkCategoriaId} onChange={setBulkCategoriaId} onCreate={criarCategoria} />
-              <div className="flex gap-3 mt-6">
-                <button onClick={() => setIsBulkCategoryOpen(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
-                  Cancelar
-                </button>
-                <button onClick={handleBulkCategoria} disabled={!bulkCategoriaId} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50">
-                  Aplicar
                 </button>
               </div>
             </motion.div>

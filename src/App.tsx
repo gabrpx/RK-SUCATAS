@@ -16,7 +16,7 @@ import {
   LayoutDashboard,
   Package,
   TrendingUp,
-  DollarSign,
+  Receipt,
   ShoppingCart,
   Wallet,
   Menu,
@@ -40,12 +40,12 @@ import {
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
 import { DataProvider } from './context/DataContext';
-import { BudgetModal } from './components/BudgetModal';
 import { GlobalSearch } from './components/GlobalSearch';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
+import { OrcamentosView } from './features/orcamentos/OrcamentosView';
 import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { DashboardView } from './features/dashboard/DashboardView';
@@ -55,8 +55,8 @@ import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'caixa' | 'frete' | 'configuracoes';
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'caixa', 'frete', 'configuracoes'];
+type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'configuracoes';
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'configuracoes'];
 
 function isVenda(item: DetailItem): item is Venda {
   return 'valor_total' in item;
@@ -336,7 +336,7 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
@@ -344,6 +344,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     return VALID_TABS.includes(path) ? path : 'dashboard';
   });
   const [pendingEditItem, setPendingEditItem] = useState<Estoque | null>(null);
+  const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
@@ -353,7 +354,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
   const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'dark');
 
@@ -380,9 +380,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   }, [theme]);
 
   useEffect(() => {
-    const shouldLock = isBudgetModalOpen || isLogoutModalOpen || !!selectedDetailItem;
+    const shouldLock = isLogoutModalOpen || !!selectedDetailItem;
     document.body.style.overflow = shouldLock ? 'hidden' : 'unset';
-  }, [isBudgetModalOpen, isLogoutModalOpen, selectedDetailItem]);
+  }, [isLogoutModalOpen, selectedDetailItem]);
 
   const itemActions = useMemo(() => {
     if (!selectedDetailItem) return { edit: undefined, delete: undefined };
@@ -435,6 +435,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             <SidebarItem icon={LayoutDashboard} label={isSidebarOpen ? 'Dashboard' : ''} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} theme={theme} />
             <SidebarItem icon={Package} label={isSidebarOpen ? 'Estoque' : ''} active={activeTab === 'estoque'} onClick={() => setActiveTab('estoque')} theme={theme} />
             <SidebarItem icon={ShoppingCart} label={isSidebarOpen ? 'Vendas' : ''} active={activeTab === 'vendas'} onClick={() => setActiveTab('vendas')} theme={theme} />
+            <SidebarItem icon={Receipt} label={isSidebarOpen ? 'Orçamentos' : ''} active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} theme={theme} />
             <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
             <SidebarItem icon={Truck} label={isSidebarOpen ? 'Frete' : ''} active={activeTab === 'frete'} onClick={() => setActiveTab('frete')} theme={theme} />
             <SidebarItem icon={Settings} label={isSidebarOpen ? 'Configurações' : ''} active={activeTab === 'configuracoes'} onClick={() => setActiveTab('configuracoes')} theme={theme} />
@@ -465,11 +466,30 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
               {activeTab === 'dashboard' ? (
-                <DashboardView theme={theme} onSelectItem={setSelectedDetailItem} onTabChange={(tab) => setActiveTab(tab as Tab)} />
+                <DashboardView
+                  theme={theme}
+                  onSelectItem={setSelectedDetailItem}
+                  onTabChange={(tab) => setActiveTab(tab as Tab)}
+                  onOpenSearch={() => setIsSearchOpen(true)}
+                  onNavigateEstoqueBaixo={() => {
+                    setActiveTab('estoque');
+                    setPendingEstoqueBaixo(true);
+                  }}
+                />
               ) : activeTab === 'estoque' ? (
-                <EstoqueView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setEstoqueActions} pendingEditItem={pendingEditItem} setPendingEditItem={setPendingEditItem} />
+                <EstoqueView
+                  theme={theme}
+                  onSelectItem={setSelectedDetailItem}
+                  onRegisterActions={setEstoqueActions}
+                  pendingEditItem={pendingEditItem}
+                  setPendingEditItem={setPendingEditItem}
+                  filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
+                  setFiltroEstoqueBaixoInicial={setPendingEstoqueBaixo}
+                />
               ) : activeTab === 'vendas' ? (
                 <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
+              ) : activeTab === 'orcamentos' ? (
+                <OrcamentosView theme={theme} />
               ) : activeTab === 'caixa' ? (
                 <CaixaView theme={theme} />
               ) : activeTab === 'frete' ? (
@@ -487,20 +507,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
           <GlobalSearch theme={theme} onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsBudgetModalOpen(true)}
-            className={cn('relative w-14 h-14 rounded-full flex items-center justify-center shadow-2xl border', theme === 'dark' ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700' : 'bg-white hover:bg-gray-50 border-zinc-200')}
-          >
-            <DollarSign className={cn('w-6 h-6', theme === 'dark' ? 'text-violet-400' : 'text-violet-600')} />
-          </motion.button>
         </div>
       )}
-
-      <BudgetModal isOpen={isBudgetModalOpen} onClose={() => setIsBudgetModalOpen(false)} theme={theme} />
 
       <AnimatePresence>
         {selectedDetailItem && <DetailModal item={selectedDetailItem} theme={theme} onClose={() => setSelectedDetailItem(null)} onEdit={itemActions.edit} onDelete={itemActions.delete} />}

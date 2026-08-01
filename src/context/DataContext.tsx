@@ -6,6 +6,7 @@ import { fetchWithRetry, parseJson } from '../lib/apiClient';
 import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 import type { CaixaEntry } from '../features/caixa/types';
+import type { Orcamento } from '../features/orcamentos/types';
 
 const CACHE_TIME_MS = 5 * 1000;
 const POLL_INTERVAL_MS = 10 * 1000;
@@ -14,10 +15,12 @@ interface DataContextValue {
   estoque: Estoque[];
   vendas: Venda[];
   caixa: CaixaEntry[];
+  orcamentos: Orcamento[];
   loading: boolean;
   setEstoque: React.Dispatch<React.SetStateAction<Estoque[]>>;
   setVendas: React.Dispatch<React.SetStateAction<Venda[]>>;
   setCaixa: React.Dispatch<React.SetStateAction<CaixaEntry[]>>;
+  setOrcamentos: React.Dispatch<React.SetStateAction<Orcamento[]>>;
   refreshData: () => Promise<void>;
   showSensitiveInfo: boolean;
   setShowSensitiveInfo: React.Dispatch<React.SetStateAction<boolean>>;
@@ -27,10 +30,12 @@ export const DataContext = createContext<DataContextValue>({
   estoque: [],
   vendas: [],
   caixa: [],
+  orcamentos: [],
   loading: false,
   setEstoque: () => {},
   setVendas: () => {},
   setCaixa: () => {},
+  setOrcamentos: () => {},
   refreshData: async () => {},
   showSensitiveInfo: true,
   setShowSensitiveInfo: () => {},
@@ -63,6 +68,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [estoque, setEstoque] = useState<Estoque[]>(() => readCache('rk_estoque', []));
   const [vendas, setVendas] = useState<Venda[]>(() => readCache('rk_vendas', []));
   const [caixa, setCaixa] = useState<CaixaEntry[]>(() => readCache('rk_caixa', []));
+  const [orcamentos, setOrcamentos] = useState<Orcamento[]>(() => readCache('rk_orcamentos', []));
   const [loading, setLoading] = useState(false);
   const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
   const lastFetchRef = useRef(0);
@@ -78,9 +84,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       fetchWithRetry('/api/estoque'),
       fetchWithRetry('/api/vendas'),
       fetchWithRetry('/api/caixa'),
+      fetchWithRetry('/api/orcamentos'),
     ]);
 
-    const [estoqueRes, vendasRes, caixaRes] = results;
+    const [estoqueRes, vendasRes, caixaRes, orcamentosRes] = results;
 
     if (estoqueRes.status === 'fulfilled') {
       try {
@@ -115,6 +122,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar caixa:', caixaRes.reason);
     }
 
+    if (orcamentosRes.status === 'fulfilled') {
+      try {
+        const data = await parseJson(orcamentosRes.value);
+        if (data.success) setOrcamentos(prev => applyIfChanged(prev, data.data, 'rk_orcamentos'));
+      } catch (e) {
+        console.error('Erro ao processar orçamentos:', e);
+      }
+    } else {
+      console.error('Erro ao buscar orçamentos:', orcamentosRes.reason);
+    }
+
     lastFetchRef.current = now;
     setLoading(false);
   };
@@ -133,10 +151,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         estoque,
         vendas,
         caixa,
+        orcamentos,
         loading,
         setEstoque,
         setVendas,
         setCaixa,
+        setOrcamentos,
         refreshData: () => loadData(true),
         showSensitiveInfo,
         setShowSensitiveInfo,

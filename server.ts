@@ -20,6 +20,7 @@ import { modelosMotoRouter } from './src/server/routes/modelosMoto.js';
 import { formasPagamentoRouter } from './src/server/routes/formasPagamento.js';
 import { estoqueRouter } from './src/server/routes/estoque.js';
 import { vendasRouter } from './src/server/routes/vendas.js';
+import { orcamentosRouter } from './src/server/routes/orcamentos.js';
 import { caixaRouter } from './src/server/routes/caixa.js';
 import { uploadRouter } from './src/server/routes/upload.js';
 
@@ -140,6 +141,7 @@ async function startServer() {
   app.use('/api/formas-pagamento', formasPagamentoRouter(supabase));
   app.use('/api/estoque', estoqueRouter(supabase));
   app.use('/api/vendas', vendasRouter(supabase));
+  app.use('/api/orcamentos', orcamentosRouter(supabase));
   app.use('/api/caixa', caixaRouter(supabase));
   app.use('/api/upload', uploadRouter());
 
