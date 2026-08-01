@@ -4,7 +4,7 @@ import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { excluirImagemPorUrl } from '../../services/storageService.js';
 
-const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, marca)';
+const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)';
 
 const CAMPOS_EDITAVEIS = ['nome', 'categoria_id', 'modelo_moto_id', 'condicao', 'ano', 'valor', 'quantidade', 'imagem_url', 'descricao', 'ativo'] as const;
 

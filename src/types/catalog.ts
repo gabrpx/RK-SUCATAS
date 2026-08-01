@@ -8,10 +8,15 @@ export interface Categoria {
   ordem: number;
 }
 
+// Árvore por parent_id: Marca (raiz) > Cilindrada (filho) > Modelo (neto,
+// com ano). Mesma lógica de Categoria — um item pode ser vinculado a
+// qualquer nível (só marca, marca+cilindrada, ou o modelo exato).
 export interface ModeloMoto {
   id: string;
   nome: string;
-  marca?: string | null;
+  parent_id: string | null;
+  ordem: number;
+  ano: string | null;
 }
 
 export interface FormaPagamento {

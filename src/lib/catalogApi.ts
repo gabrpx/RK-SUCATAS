@@ -22,8 +22,15 @@ export const categoriasApi = {
 
 export const modelosMotoApi = {
   listar: () => api.get('/api/modelos-moto') as Promise<ApiResult<ModeloMoto[]>>,
-  criar: (nome: string, marca?: string) =>
-    api.post('/api/modelos-moto', { nome, marca }) as Promise<ApiResult<ModeloMoto>>,
+  criar: (nome: string, parent_id?: string | null, ano?: string | null) =>
+    api.post('/api/modelos-moto', { nome, parent_id: parent_id ?? null, ano: ano ?? null }) as Promise<ApiResult<ModeloMoto>>,
+  rapido: (marca: string, cilindrada: string | null, nome: string, ano?: string | null) =>
+    api.post('/api/modelos-moto/rapido', { marca, cilindrada, nome, ano }) as Promise<
+      ApiResult<{ marca: ModeloMoto; cilindrada: ModeloMoto | null; moto: ModeloMoto }>
+    >,
+  renomear: (id: string, nome: string, ano?: string | null) => api.put(`/api/modelos-moto/${id}`, { nome, ano }) as Promise<ApiResult<ModeloMoto>>,
+  mover: (id: string, parent_id: string | null) => api.put(`/api/modelos-moto/${id}`, { parent_id }) as Promise<ApiResult<ModeloMoto>>,
+  reordenar: (ids: string[]) => api.patch('/api/modelos-moto/reordenar', { ids }) as Promise<ApiResult<null>>,
   excluir: (id: string) => api.delete(`/api/modelos-moto/${id}`) as Promise<ApiResult<null>>,
 };
 

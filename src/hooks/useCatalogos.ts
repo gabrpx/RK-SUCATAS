@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { categoriasApi, modelosMotoApi, formasPagamentoApi } from '../lib/catalogApi';
 import { getDescendantIds } from '../features/categorias/categoriaTree';
+import { getDescendantIds as getDescendantIdsMoto } from '../features/motos/motoTree';
 import type { Categoria, ModeloMoto, FormaPagamento } from '../types/catalog';
 
 export function useCatalogos() {
@@ -67,15 +68,58 @@ export function useCatalogos() {
     return result;
   }, []);
 
-  const criarModelo = useCallback(async (nome: string, marca?: string) => {
-    const result = await modelosMotoApi.criar(nome, marca);
-    if (result.success) setModelos((prev) => [...prev, result.data].sort((a, b) => a.nome.localeCompare(b.nome, 'pt')));
+  const criarNoMoto = useCallback(async (nome: string, parent_id?: string | null, ano?: string | null) => {
+    const result = await modelosMotoApi.criar(nome, parent_id, ano);
+    if (result.success) setModelos((prev) => [...prev, result.data]);
     return result;
   }, []);
 
-  const excluirModelo = useCallback(async (id: string) => {
+  // Atalho "Nova moto": acha-ou-cria marca + cilindrada e insere a moto, tudo
+  // num único envio. Faz upsert dos 3 nós retornados sem duplicar (marca e/ou
+  // cilindrada podem já existir e vir só reaproveitadas).
+  const criarMotoRapido = useCallback(async (marca: string, cilindrada: string | null, nome: string, ano?: string | null) => {
+    const result = await modelosMotoApi.rapido(marca, cilindrada, nome, ano);
+    if (result.success) {
+      const { marca: noMarca, cilindrada: noCilindrada, moto } = result.data;
+      const novosNos = [noMarca, noCilindrada, moto].filter((n): n is ModeloMoto => n !== null);
+      setModelos((prev) => {
+        const idsExistentes = new Set(prev.map((m) => m.id));
+        const atualizados = prev.map((m) => novosNos.find((n) => n.id === m.id) ?? m);
+        const inseridos = novosNos.filter((n) => !idsExistentes.has(n.id));
+        return [...atualizados, ...inseridos];
+      });
+    }
+    return result;
+  }, []);
+
+  const renomearMoto = useCallback(async (id: string, nome: string, ano?: string | null) => {
+    const result = await modelosMotoApi.renomear(id, nome, ano);
+    if (result.success) setModelos((prev) => prev.map((m) => (m.id === id ? result.data : m)));
+    return result;
+  }, []);
+
+  const moverMoto = useCallback(async (id: string, parent_id: string | null) => {
+    const result = await modelosMotoApi.mover(id, parent_id);
+    if (result.success) setModelos((prev) => prev.map((m) => (m.id === id ? result.data : m)));
+    return result;
+  }, []);
+
+  const reordenarMotos = useCallback(async (idsNaNovaOrdem: string[]) => {
+    setModelos((prev) => {
+      const posicao = new Map(idsNaNovaOrdem.map((id, index) => [id, index]));
+      return prev.map((m) => (posicao.has(m.id) ? { ...m, ordem: posicao.get(m.id)! } : m));
+    });
+    return modelosMotoApi.reordenar(idsNaNovaOrdem);
+  }, []);
+
+  const excluirMoto = useCallback(async (id: string) => {
     const result = await modelosMotoApi.excluir(id);
-    if (result.success) setModelos((prev) => prev.filter((m) => m.id !== id));
+    if (result.success) {
+      setModelos((prev) => {
+        const idsRemovidos = new Set(getDescendantIdsMoto(id, prev));
+        return prev.filter((m) => !idsRemovidos.has(m.id));
+      });
+    }
     return result;
   }, []);
 
@@ -108,8 +152,12 @@ export function useCatalogos() {
     moverCategoria,
     reordenarCategorias,
     excluirCategoria,
-    criarModelo,
-    excluirModelo,
+    criarNoMoto,
+    criarMotoRapido,
+    renomearMoto,
+    moverMoto,
+    reordenarMotos,
+    excluirMoto,
     criarFormaPagamento,
     renomearFormaPagamento,
     excluirFormaPagamento,

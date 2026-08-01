@@ -1,41 +1,44 @@
-// Seletor de categoria em cascata: um dropdown por nível da árvore. Escolher
-// uma categoria com filhos revela o próximo dropdown com as opções daquele
-// ramo; parar em qualquer nível é válido (categoria_id aceita qualquer
-// profundidade). Cada nível tem seu próprio "+ adicionar" embutido, criando
-// a subcategoria já dentro do pai daquele nível.
+// Seletor de modelo de moto em cascata: um dropdown por nível da árvore
+// (Marca > Cilindrada > Modelo, ou mais níveis se o usuário criou manualmente).
+// Escolher um nó com filhos revela o próximo dropdown; parar em qualquer
+// nível é válido (modelo_moto_id aceita qualquer profundidade — ex: "serve em
+// qualquer Honda 150"). Cada nível tem seu próprio "+ adicionar" embutido,
+// com um campo "Ano" opcional pra quando o nível sendo criado já é a moto
+// final. Espelha CategoriaCascadeSelect.tsx.
 import { useState } from 'react';
 import { Plus, Loader2, Check, X } from 'lucide-react';
 import { cn } from '../utils';
 import { CustomDropdown } from './CustomDropdown';
-import { getAncestorChain } from '../features/categorias/categoriaTree';
-import type { Categoria } from '../types/catalog';
+import { getAncestorChain } from '../features/motos/motoTree';
+import type { ModeloMoto } from '../types/catalog';
 
-interface CategoriaCascadeSelectProps {
+interface MotoCascadeSelectProps {
   theme: 'light' | 'dark';
-  categorias: Categoria[];
+  modelos: ModeloMoto[];
   value: string;
   onChange: (id: string) => void;
-  onCreate: (nome: string, parentId: string | null) => Promise<{ success: boolean; data?: Categoria; error?: string }>;
+  onCreate: (nome: string, parentId: string | null, ano: string | null) => Promise<{ success: boolean; data?: ModeloMoto; error?: string }>;
   allowEmpty?: boolean;
   emptyLabel?: string;
 }
 
 const EMPTY_VALUE = '';
 
-export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onCreate, allowEmpty, emptyLabel = 'Nenhuma' }: CategoriaCascadeSelectProps) {
+export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, allowEmpty, emptyLabel = 'Nenhum' }: MotoCascadeSelectProps) {
   const [adicionandoParentId, setAdicionandoParentId] = useState<string | null | undefined>(undefined);
   const [novoNome, setNovoNome] = useState('');
+  const [novoAno, setNovoAno] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const cadeia = value ? getAncestorChain(value, categorias) : [];
+  const cadeia = value ? getAncestorChain(value, modelos) : [];
 
-  const niveis: { parentId: string | null; opcoes: Categoria[]; valorSelecionado: string }[] = [];
+  const niveis: { parentId: string | null; opcoes: ModeloMoto[]; valorSelecionado: string }[] = [];
   let parentAtual: string | null = null;
   while (true) {
-    const opcoes = categorias.filter((c) => (c.parent_id ?? null) === parentAtual).sort((a, b) => a.ordem - b.ordem);
+    const opcoes = modelos.filter((m) => (m.parent_id ?? null) === parentAtual).sort((a, b) => a.ordem - b.ordem);
     if (opcoes.length === 0) break;
-    const selecionadoNesteNivel = cadeia.find((c) => (c.parent_id ?? null) === parentAtual);
+    const selecionadoNesteNivel = cadeia.find((m) => (m.parent_id ?? null) === parentAtual);
     niveis.push({ parentId: parentAtual, opcoes, valorSelecionado: selecionadoNesteNivel?.id ?? EMPTY_VALUE });
     if (!selecionadoNesteNivel) break;
     parentAtual = selecionadoNesteNivel.id;
@@ -46,19 +49,20 @@ export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onC
     if (!nome || adicionandoParentId === undefined) return;
     setSalvando(true);
     setErro(null);
-    const result = await onCreate(nome, adicionandoParentId);
+    const result = await onCreate(nome, adicionandoParentId, novoAno.trim() || null);
     setSalvando(false);
     if (result.success && result.data) {
       onChange(result.data.id);
       setAdicionandoParentId(undefined);
       setNovoNome('');
+      setNovoAno('');
     } else {
       setErro(result.error || 'Erro ao criar');
     }
   };
 
   if (niveis.length === 0) {
-    // Nenhuma categoria cadastrada ainda — mesmo assim precisa dar pra criar a primeira.
+    // Nenhuma moto cadastrada ainda — mesmo assim precisa dar pra criar a primeira (a marca).
     niveis.push({ parentId: null, opcoes: [], valorSelecionado: EMPTY_VALUE });
   }
 
@@ -74,18 +78,19 @@ export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onC
             onChange={onChange}
             options={[
               ...(index === 0 && allowEmpty ? [{ value: EMPTY_VALUE, label: emptyLabel }] : []),
-              ...nivel.opcoes.map((o) => ({ value: o.id, label: o.nome })),
+              ...nivel.opcoes.map((o) => ({ value: o.id, label: o.ano ? `${o.nome} (${o.ano})` : o.nome })),
             ]}
-            placeholder={index === 0 ? 'Selecione a categoria...' : 'Selecione a subcategoria...'}
+            placeholder={index === 0 ? 'Selecione a marca...' : 'Selecione...'}
           />
           <button
             type="button"
             onClick={() => {
               setAdicionandoParentId(nivel.parentId);
               setNovoNome('');
+              setNovoAno('');
               setErro(null);
             }}
-            title="Adicionar nesta categoria"
+            title={index === 0 ? 'Adicionar marca' : 'Adicionar neste nível'}
             className={cn(
               'p-2.5 rounded-xl border transition-colors shrink-0',
               theme === 'dark' ? 'border-zinc-800 text-zinc-400 hover:text-violet-400 hover:border-violet-500/50' : 'border-zinc-200 text-zinc-500 hover:text-violet-600 hover:border-violet-300'
@@ -109,9 +114,25 @@ export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onC
               }
               if (e.key === 'Escape') setAdicionandoParentId(undefined);
             }}
-            placeholder="Nome da nova categoria/subcategoria..."
+            placeholder="Nome (marca, cilindrada ou moto)..."
             className={cn(
               'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
+              theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400 text-zinc-900'
+            )}
+          />
+          <input
+            value={novoAno}
+            onChange={(e) => setNovoAno(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                handleCreate();
+              }
+              if (e.key === 'Escape') setAdicionandoParentId(undefined);
+            }}
+            placeholder="Ano (opcional)"
+            className={cn(
+              'w-24 border rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-violet-500/50 shrink-0',
               theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400 text-zinc-900'
             )}
           />

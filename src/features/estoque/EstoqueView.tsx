@@ -29,12 +29,13 @@ import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { useDebounce } from '../../hooks/useDebounce';
 import { CustomDropdown } from '../../components/CustomDropdown';
-import { CatalogSelect } from '../../components/CatalogSelect';
+import { MotoCascadeSelect } from '../../components/MotoCascadeSelect';
 import { CategoriaCascadeSelect } from '../../components/CategoriaCascadeSelect';
 import { SkeletonRow } from '../../components/SkeletonRow';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { getDescendantIds, getAncestorChain, buildTree } from '../categorias/categoriaTree';
+import { getDescendantIds as getDescendantIdsMoto, getAncestorChain as getAncestorChainMoto, buildTree as buildTreeMoto } from '../motos/motoTree';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
@@ -64,7 +65,7 @@ interface EstoqueViewProps {
 
 export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEditItem, setPendingEditItem }: EstoqueViewProps) {
   const { estoque: items, setEstoque, loading, refreshData } = useData();
-  const { categorias, modelos, criarCategoria, criarModelo } = useCatalogos();
+  const { categorias, modelos, criarCategoria, criarNoMoto } = useCatalogos();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'card'>(window.innerWidth < 768 ? 'card' : 'table');
@@ -173,6 +174,18 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
     return resultado;
   }, [categorias]);
 
+  const modelosIndentados = useMemo(() => {
+    const resultado: { id: string; nome: string; depth: number }[] = [];
+    const percorrer = (nodes: ReturnType<typeof buildTreeMoto>, depth: number) => {
+      nodes.forEach((n) => {
+        resultado.push({ id: n.id, nome: n.ano ? `${n.nome} (${n.ano})` : n.nome, depth });
+        percorrer(n.children, depth + 1);
+      });
+    };
+    percorrer(buildTreeMoto(modelos), 0);
+    return resultado;
+  }, [modelos]);
+
   const filtered = useMemo(() => {
     const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
     let result = items.filter((item) => {
@@ -187,7 +200,8 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
         );
       const matchesCategoria =
         categoriaFiltro === 'Todas' || (!!item.categoria_id && getDescendantIds(categoriaFiltro, categorias).includes(item.categoria_id));
-      const matchesModelo = modeloFiltro === 'Todas' || item.modelo_moto_id === modeloFiltro;
+      const matchesModelo =
+        modeloFiltro === 'Todas' || (!!item.modelo_moto_id && getDescendantIdsMoto(modeloFiltro, modelos).includes(item.modelo_moto_id));
       const matchesCondicao = condicaoFiltro === 'Todas' || item.condicao === condicaoFiltro;
       return matchesSearch && matchesCategoria && matchesModelo && matchesCondicao;
     });
@@ -199,7 +213,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
       return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
     });
     return result;
-  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, condicaoFiltro, sortKey, categorias]);
+  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, condicaoFiltro, sortKey, categorias, modelos]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / itemsPerPage));
   const paginated = filtered.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
@@ -340,7 +354,10 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
               icon={<Bike size={14} />}
               value={modeloFiltro}
               onChange={setModeloFiltro}
-              options={[{ value: 'Todas', label: 'Todos modelos' }, ...modelos.map((m) => ({ value: m.id, label: m.nome }))]}
+              options={[
+                { value: 'Todas', label: 'Todos modelos' },
+                ...modelosIndentados.map((m) => ({ value: m.id, label: `${'　'.repeat(m.depth)}${m.depth > 0 ? '└ ' : ''}${m.nome}` })),
+              ]}
             />
             <CustomDropdown
               theme={theme}
@@ -490,7 +507,12 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                           </span>
                         </td>
                         <td className="px-3 py-2 text-xs">
-                          <span className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase border', theme === 'dark' ? 'bg-zinc-800 text-zinc-300 border-zinc-700' : 'bg-zinc-100 text-zinc-600 border-zinc-200')}>{item.modelo_moto?.nome || 'Universal'}</span>
+                          <span
+                            title={item.modelo_moto_id ? getAncestorChainMoto(item.modelo_moto_id, modelos).map((m) => m.nome).join(' > ') : undefined}
+                            className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase border', theme === 'dark' ? 'bg-zinc-800 text-zinc-300 border-zinc-700' : 'bg-zinc-100 text-zinc-600 border-zinc-200')}
+                          >
+                            {item.modelo_moto?.nome || 'Universal'}
+                          </span>
                         </td>
                         <td className="px-3 py-2 text-xs">
                           <span className={cn('px-2 py-1 rounded-lg text-[10px] font-bold uppercase', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
@@ -591,7 +613,12 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                     >
                       {item.categoria?.nome || '-'}
                     </span>
-                    <span className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-zinc-800 text-zinc-400 border-zinc-700">{item.modelo_moto?.nome || 'Universal'}</span>
+                    <span
+                      title={item.modelo_moto_id ? getAncestorChainMoto(item.modelo_moto_id, modelos).map((m) => m.nome).join(' > ') : undefined}
+                      className="text-[9px] font-black uppercase px-2 py-0.5 rounded-full border bg-zinc-800 text-zinc-400 border-zinc-700"
+                    >
+                      {item.modelo_moto?.nome || 'Universal'}
+                    </span>
                     <span className={cn('text-[9px] font-black uppercase px-2 py-0.5 rounded-full', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
                   </div>
                   <div className="mt-auto pt-3 border-t border-zinc-800/20 flex items-center justify-between">
@@ -715,15 +742,14 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                   </div>
                   <div>
                     <label className={labelClass}>Modelo de Moto</label>
-                    <CatalogSelect
+                    <MotoCascadeSelect
                       theme={theme}
+                      modelos={modelos}
                       value={formData.modelo_moto_id || ''}
                       onChange={(id) => setFormData({ ...formData, modelo_moto_id: id })}
-                      options={modelos}
-                      onCreate={criarModelo}
+                      onCreate={criarNoMoto}
                       allowEmpty
                       emptyLabel="Universal / não se aplica"
-                      placeholder="Selecione..."
                     />
                   </div>
                 </div>

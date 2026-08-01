@@ -28,12 +28,23 @@ create unique index categorias_parent_nome_uidx
 
 create index idx_categorias_parent on categorias(parent_id);
 
+-- Árvore por parent_id (mesmo formato de `categorias`): Marca (raiz) >
+-- Cilindrada (filho) > Modelo (neto, com ano). estoque/vendas.modelo_moto_id
+-- pode apontar pra um nó em qualquer profundidade dessa árvore.
 create table modelos_moto (
   id uuid primary key default gen_random_uuid(),
-  nome text not null unique,
-  marca text,
-  criado_em timestamptz not null default now()
+  nome text not null,
+  parent_id uuid references modelos_moto(id) on delete restrict,
+  ordem integer not null default 0,
+  ano text,
+  criado_em timestamptz not null default now(),
+  constraint modelos_moto_nao_e_pai_de_si_mesma check (id <> parent_id)
 );
+
+create unique index modelos_moto_parent_nome_uidx
+  on modelos_moto (coalesce(parent_id, '00000000-0000-0000-0000-000000000000'::uuid), nome);
+
+create index idx_modelos_moto_parent on modelos_moto(parent_id);
 
 create table formas_pagamento (
   id uuid primary key default gen_random_uuid(),

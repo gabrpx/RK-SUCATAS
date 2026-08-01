@@ -7,16 +7,24 @@ import { cn } from '../../utils';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { ManageListSection } from './ManageListSection';
 import { CategoriaTreeManager } from './CategoriaTreeManager';
+import { MotoTreeManager } from './MotoTreeManager';
 
 export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
   const {
     categorias,
+    modelos,
     formasPagamento,
     criarCategoria,
     renomearCategoria,
     moverCategoria,
     reordenarCategorias,
     excluirCategoria,
+    criarNoMoto,
+    criarMotoRapido,
+    renomearMoto,
+    moverMoto,
+    reordenarMotos,
+    excluirMoto,
     criarFormaPagamento,
     renomearFormaPagamento,
     excluirFormaPagamento,
@@ -30,7 +38,7 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
         </div>
         <div>
           <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Configurações</h2>
-          <p className="text-sm text-zinc-500">Categorias e formas de pagamento do sistema</p>
+          <p className="text-sm text-zinc-500">Categorias, motos e formas de pagamento do sistema</p>
         </div>
       </div>
 
@@ -43,6 +51,16 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
           onMover={moverCategoria}
           onReordenar={reordenarCategorias}
           onExcluir={excluirCategoria}
+        />
+        <MotoTreeManager
+          theme={theme}
+          modelos={modelos}
+          onCriar={criarNoMoto}
+          onCriarRapido={criarMotoRapido}
+          onRenomear={renomearMoto}
+          onMover={moverMoto}
+          onReordenar={reordenarMotos}
+          onExcluir={excluirMoto}
         />
         <ManageListSection
           theme={theme}
