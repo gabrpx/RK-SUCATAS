@@ -2,12 +2,19 @@
 // categorias de peça e formas de pagamento (criar, renomear quando aplicável,
 // excluir). Modelos de moto continuam com cadastro rápido embutido no
 // formulário de Estoque/Vendas — não precisam de uma tela dedicada por ora.
-import { Settings, Wallet } from 'lucide-react';
+// Layout em abas: cada seção ocupa a largura toda em vez de disputar espaço
+// num grid apertado — reduz a poluição visual de ter três painéis densos
+// (árvores de categoria/moto com drag handle + 4 ícones por linha) abertos
+// ao mesmo tempo.
+import { useState } from 'react';
+import { Settings, Layers, Bike, Wallet } from 'lucide-react';
 import { cn } from '../../utils';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { ManageListSection } from './ManageListSection';
 import { CategoriaTreeManager } from './CategoriaTreeManager';
 import { MotoTreeManager } from './MotoTreeManager';
+
+type Aba = 'categorias' | 'motos' | 'pagamento';
 
 export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
   const {
@@ -30,6 +37,14 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
     excluirFormaPagamento,
   } = useCatalogos();
 
+  const [aba, setAba] = useState<Aba>('categorias');
+
+  const abas: { id: Aba; label: string; icone: typeof Layers; total: number }[] = [
+    { id: 'categorias', label: 'Categorias de Peça', icone: Layers, total: categorias.length },
+    { id: 'motos', label: 'Motos', icone: Bike, total: modelos.length },
+    { id: 'pagamento', label: 'Formas de Pagamento', icone: Wallet, total: formasPagamento.length },
+  ];
+
   return (
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex items-center gap-4">
@@ -42,7 +57,44 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div
+        className={cn(
+          'flex items-center gap-1 p-1.5 rounded-2xl border overflow-x-auto',
+          theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-zinc-100/70 border-zinc-200'
+        )}
+      >
+        {abas.map((item) => {
+          const Icone = item.icone;
+          const ativo = aba === item.id;
+          return (
+            <button
+              key={item.id}
+              onClick={() => setAba(item.id)}
+              className={cn(
+                'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shrink-0',
+                ativo
+                  ? 'bg-violet-600 text-white shadow-sm'
+                  : theme === 'dark'
+                  ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                  : 'text-zinc-500 hover:text-zinc-800 hover:bg-white'
+              )}
+            >
+              <Icone size={16} />
+              {item.label}
+              <span
+                className={cn(
+                  'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                  ativo ? 'bg-white/20 text-white' : theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                )}
+              >
+                {item.total}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {aba === 'categorias' && (
         <CategoriaTreeManager
           theme={theme}
           categorias={categorias}
@@ -52,6 +104,8 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
           onReordenar={reordenarCategorias}
           onExcluir={excluirCategoria}
         />
+      )}
+      {aba === 'motos' && (
         <MotoTreeManager
           theme={theme}
           modelos={modelos}
@@ -62,6 +116,8 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
           onReordenar={reordenarMotos}
           onExcluir={excluirMoto}
         />
+      )}
+      {aba === 'pagamento' && (
         <ManageListSection
           theme={theme}
           titulo="Formas de Pagamento"
@@ -71,7 +127,7 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
           onRenomear={renomearFormaPagamento}
           onExcluir={excluirFormaPagamento}
         />
-      </div>
+      )}
     </div>
   );
 }

@@ -108,7 +108,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
         {itens.length === 0 ? (
           <p className="text-sm text-zinc-500 py-4 text-center">Nenhum item cadastrado ainda.</p>
         ) : (
-          <div className="space-y-1.5 max-h-80 overflow-y-auto pr-1">
+          <div className="space-y-1.5 max-h-[30rem] overflow-y-auto pr-1">
             {itens.map((item) => (
               <div
                 key={item.id}
