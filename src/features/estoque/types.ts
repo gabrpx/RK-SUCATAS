@@ -25,10 +25,17 @@ export interface Estoque {
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;
+  // Nomes das partes em que este item pode ser desmembrado na venda (ex:
+  // ["Superior", "Inferior"]). null = item sempre vendido inteiro.
+  componentes: string[] | null;
+  // Unidades em estoque que já perderam alguma parte (vendida avulsa) — cada
+  // entrada é 1 unidade física e o que já falta nela. Gerido pelo backend
+  // via registrar_venda/cancelar_venda, nunca editado direto pelo formulário.
+  unidades_incompletas: { faltando: string[] }[];
 }
 
 // Payload de criação/edição — o backend calcula id/codigo/timestamps.
 export type EstoqueInput = Pick<
   Estoque,
-  'nome' | 'categoria_id' | 'modelo_moto_id' | 'condicao' | 'nota_cadastro' | 'ano' | 'valor' | 'quantidade' | 'imagem_url' | 'descricao' | 'ativo'
+  'nome' | 'categoria_id' | 'modelo_moto_id' | 'condicao' | 'nota_cadastro' | 'ano' | 'valor' | 'quantidade' | 'imagem_url' | 'descricao' | 'ativo' | 'componentes'
 >;

@@ -13,6 +13,9 @@ export interface Venda {
   modelo_moto?: ModeloMoto | null;
   cliente_nome: string | null;
   observacoes: string | null;
+  // Nome da parte vendida avulsa (ex: "Inferior"), quando a venda não é do
+  // item inteiro — ver estoque.componentes / estoque.unidades_incompletas.
+  componente_vendido: string | null;
   data: string;
   criado_em: string;
 }
@@ -28,4 +31,7 @@ export interface VendaInput {
   cliente_nome?: string | null;
   observacoes?: string | null;
   data?: string;
+  // Quando informado, vende só essa parte do item (não desconta a unidade
+  // inteira) — precisa estar em estoque.componentes do item selecionado.
+  componente?: string | null;
 }

@@ -8,7 +8,7 @@ import type { Categoria } from '../../types/catalog.js';
 
 const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)';
 
-const CAMPOS_EDITAVEIS = ['nome', 'categoria_id', 'modelo_moto_id', 'condicao', 'nota_cadastro', 'ano', 'valor', 'quantidade', 'imagem_url', 'descricao', 'ativo'] as const;
+const CAMPOS_EDITAVEIS = ['nome', 'categoria_id', 'modelo_moto_id', 'condicao', 'nota_cadastro', 'ano', 'valor', 'quantidade', 'imagem_url', 'descricao', 'ativo', 'componentes'] as const;
 
 function montarPayload(body: any) {
   const payload: Record<string, any> = {};
@@ -17,6 +17,12 @@ function montarPayload(body: any) {
   }
   if (payload.valor !== undefined) payload.valor = Number(payload.valor) || 0;
   if (payload.quantidade !== undefined) payload.quantidade = Math.max(0, Number(payload.quantidade) || 0);
+  // Lista de nomes de partes em que o item pode ser desmembrado na venda —
+  // null quando vazia, pra "item comum" continuar sem nenhum campo extra.
+  if (payload.componentes !== undefined) {
+    const lista = Array.isArray(payload.componentes) ? payload.componentes.map((c: any) => String(c).trim()).filter(Boolean) : [];
+    payload.componentes = lista.length > 0 ? lista : null;
+  }
   return payload;
 }
 

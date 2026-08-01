@@ -214,6 +214,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
   const { formasPagamento } = useCatalogos();
   const [busca, setBusca] = useState('');
   const [itemSelecionado, setItemSelecionado] = useState<Estoque | null>(null);
+  const [componenteSelecionado, setComponenteSelecionado] = useState<string | null>(null);
   const [quantidade, setQuantidade] = useState('1');
   const [valorUnitario, setValorUnitario] = useState('');
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
@@ -232,6 +233,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
   const reset = useCallback(() => {
     setBusca('');
     setItemSelecionado(null);
+    setComponenteSelecionado(null);
     setQuantidade('1');
     setValorUnitario('');
     setFormaPagamentoId('');
@@ -247,15 +249,24 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
 
   const selecionarItem = (item: Estoque) => {
     setItemSelecionado(item);
+    setComponenteSelecionado(null);
     setValorUnitario(String(item.valor));
     setBusca('');
   };
 
+  const selecionarComponente = (nome: string | null) => {
+    setComponenteSelecionado(nome);
+    setQuantidade('1');
+    // Preço de uma parte avulsa costuma ser diferente do item inteiro — não
+    // arrasta o valor do item, pra forçar digitar o valor certo.
+    setValorUnitario(nome ? '' : String(itemSelecionado?.valor ?? 0));
+  };
+
   const handleSubmit = async () => {
     if (!itemSelecionado) return;
-    const qtd = Number(quantidade);
+    const qtd = componenteSelecionado ? 1 : Number(quantidade);
     if (!qtd || qtd <= 0) return alert('Quantidade inválida');
-    if (qtd > itemSelecionado.quantidade) return alert(`Só há ${itemSelecionado.quantidade} unidade(s) em estoque`);
+    if (!componenteSelecionado && qtd > itemSelecionado.quantidade) return alert(`Só há ${itemSelecionado.quantidade} unidade(s) em estoque`);
     if (!formaPagamentoId) return alert('Selecione a forma de pagamento');
 
     setSaving(true);
@@ -269,6 +280,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
         cliente_nome: clienteNome || null,
         observacoes: observacoes || null,
         data,
+        componente: componenteSelecionado,
       });
       if (!result.success) throw new Error(result.error);
       // Registrar mexe em vendas + estoque + caixa — resincroniza tudo de uma vez.
@@ -342,6 +354,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
                 <p className="font-bold text-sm truncate">{itemSelecionado.nome}</p>
                 <p className="text-xs text-zinc-500">
                   {itemSelecionado.codigo} · {itemSelecionado.quantidade} disponíveis
+                  {itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && ' · peça composta'}
                 </p>
               </div>
               <button onClick={() => setItemSelecionado(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
@@ -350,12 +363,50 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
             </div>
           )}
 
+          {itemSelecionado && itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && (
+            <div>
+              <label className={labelClass}>O que está sendo vendido?</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => selecionarComponente(null)}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componenteSelecionado ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                >
+                  Item completo
+                </button>
+                {itemSelecionado.componentes.map((c) => (
+                  <button
+                    key={c}
+                    type="button"
+                    onClick={() => selecionarComponente(c)}
+                    className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componenteSelecionado === c ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                  >
+                    Só: {c}
+                  </button>
+                ))}
+              </div>
+              {componenteSelecionado && (
+                <p className="text-xs text-amber-500 mt-2">
+                  Vai vender só "{componenteSelecionado}" — o item some incompleto do estoque até o resto ser vendido também.
+                </p>
+              )}
+            </div>
+          )}
+
           {itemSelecionado && (
             <>
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Quantidade</label>
-                  <input type="number" min="1" max={itemSelecionado.quantidade} value={quantidade} onChange={(e) => setQuantidade(e.target.value)} className={inputClass} />
+                  <input
+                    type="number"
+                    min="1"
+                    max={componenteSelecionado ? 1 : itemSelecionado.quantidade}
+                    value={quantidade}
+                    disabled={!!componenteSelecionado}
+                    onChange={(e) => setQuantidade(e.target.value)}
+                    className={cn(inputClass, componenteSelecionado && 'opacity-50')}
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>Valor unitário (R$)</label>

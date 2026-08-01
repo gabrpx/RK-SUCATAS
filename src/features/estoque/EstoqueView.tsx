@@ -69,7 +69,17 @@ const EMPTY_FORM: EstoqueInput = {
   imagem_url: '',
   descricao: '',
   ativo: true,
+  componentes: null,
 };
+
+// Junta as partes já vendidas avulsas de todas as unidades incompletas de um
+// item, pra exibir num selo curto tipo "2 incompletas — falta: Inferior".
+function resumoIncompletas(item: Estoque): string | null {
+  if (!item.unidades_incompletas || item.unidades_incompletas.length === 0) return null;
+  const partes = Array.from(new Set(item.unidades_incompletas.flatMap((u) => u.faltando)));
+  const n = item.unidades_incompletas.length;
+  return `${n} ${n > 1 ? 'incompletas' : 'incompleta'} — falta: ${partes.join(', ')}`;
+}
 
 interface EstoqueViewProps {
   theme: 'light' | 'dark';
@@ -104,6 +114,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
   // Enquanto true, a categoria é escolhida automaticamente com base no nome
   // digitado. Vira false assim que o usuário mexe manualmente no dropdown.
   const [categoriaAutoDetectada, setCategoriaAutoDetectada] = useState(true);
+  const [novoComponente, setNovoComponente] = useState('');
 
   const [itemToDelete, setItemToDelete] = useState<Estoque | null>(null);
   const [isBulkDeleteOpen, setIsBulkDeleteOpen] = useState(false);
@@ -117,12 +128,14 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
     setEditingItem(null);
     setFormData(EMPTY_FORM);
     setCategoriaAutoDetectada(true);
+    setNovoComponente('');
     setIsModalOpen(true);
   };
 
   const openEditModal = useCallback((item: Estoque) => {
     setEditingItem(item);
     setCategoriaAutoDetectada(false);
+    setNovoComponente('');
     setFormData({
       nome: item.nome,
       categoria_id: item.categoria_id || '',
@@ -135,6 +148,7 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
       imagem_url: item.imagem_url || '',
       descricao: item.descricao || '',
       ativo: item.ativo,
+      componentes: item.componentes,
     });
     setIsModalOpen(true);
   }, []);
@@ -601,6 +615,11 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                             <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', item.quantidade === 0 ? 'bg-rose-500' : item.quantidade <= 2 ? 'bg-amber-500' : 'bg-emerald-500')} />
                             {item.quantidade}
                           </span>
+                          {resumoIncompletas(item) && (
+                            <div title={resumoIncompletas(item) || ''} className="mt-1 flex items-center justify-end gap-1 text-[9px] font-bold text-amber-500">
+                              <AlertCircle size={10} /> Incompleto
+                            </div>
+                          )}
                         </td>
                         <td className="px-3 py-2.5">
                           <div className="flex items-center justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -702,6 +721,11 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                     </span>
                     <span className={cn('text-[9px] font-black uppercase px-2 py-0.5 rounded-full', item.condicao === 'original' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-amber-500/10 text-amber-500')}>{CONDICAO_LABEL[item.condicao]}</span>
                     <NotaCadastroBadge value={item.nota_cadastro} size="sm" />
+                    {resumoIncompletas(item) && (
+                      <span title={resumoIncompletas(item) || ''} className="flex items-center gap-1 text-[9px] font-black uppercase px-2 py-0.5 rounded-full bg-amber-500/10 text-amber-500 border border-amber-500/20">
+                        <AlertCircle size={10} /> Incompleto
+                      </span>
+                    )}
                   </div>
                   <div className="mt-auto pt-3 border-t border-zinc-800/20 flex items-center justify-between">
                     <span className="font-black text-emerald-500 text-sm">{formatCurrency(item.valor)}</span>
@@ -891,6 +915,45 @@ export function EstoqueView({ theme, onSelectItem, onRegisterActions, pendingEdi
                     <label className={labelClass}>Ano</label>
                     <input value={formData.ano || ''} onChange={(e) => setFormData({ ...formData, ano: e.target.value })} placeholder="2020" className={inputClass} />
                   </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Componentes (opcional)</label>
+                  <p className="text-xs text-zinc-500 mb-2">
+                    Se essa peça pode ser vendida em partes separadas (ex: "Mesa Completa" → Superior / Inferior), cadastre os nomes aqui. Na venda você poderá dar baixa de só uma parte, e o item fica sinalizado como incompleto.
+                  </p>
+                  {(formData.componentes || []).length > 0 && (
+                    <div className="flex flex-wrap gap-2 mb-2">
+                      {(formData.componentes || []).map((c, i) => (
+                        <span key={i} className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold', theme === 'dark' ? 'bg-zinc-800 text-zinc-200' : 'bg-zinc-100 text-zinc-700')}>
+                          {c}
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, componentes: (prev.componentes || []).filter((_, idx) => idx !== i) }))}
+                            className="hover:text-rose-500"
+                          >
+                            <X size={12} />
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                  <input
+                    value={novoComponente}
+                    onChange={(e) => setNovoComponente(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const nomeParte = novoComponente.trim();
+                        if (nomeParte && !(formData.componentes || []).includes(nomeParte)) {
+                          setFormData((prev) => ({ ...prev, componentes: [...(prev.componentes || []), nomeParte] }));
+                        }
+                        setNovoComponente('');
+                      }
+                    }}
+                    placeholder="Ex: Inferior — Enter pra adicionar"
+                    className={inputClass}
+                  />
                 </div>
 
                 <div>

@@ -23,7 +23,7 @@ export function vendasRouter(supabase: SupabaseClient) {
 
   router.post('/', async (req, res) => {
     try {
-      const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, observacoes, data } = req.body || {};
+      const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, observacoes, data, componente } = req.body || {};
 
       if (!estoque_id) return res.status(400).json({ success: false, error: 'estoque_id é obrigatório' });
       if (!quantidade || Number(quantidade) <= 0) return res.status(400).json({ success: false, error: 'Quantidade inválida' });
@@ -41,6 +41,9 @@ export function vendasRouter(supabase: SupabaseClient) {
         p_cliente_nome: cliente_nome || null,
         p_observacoes: observacoes || null,
         p_data: data || null,
+        // Nome de uma parte cadastrada em estoque.componentes — quando
+        // informado, dá baixa só nela (ver comentário em registrar_venda).
+        p_componente: componente || null,
       });
 
       if (error) throw error;
