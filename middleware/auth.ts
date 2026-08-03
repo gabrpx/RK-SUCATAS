@@ -27,27 +27,32 @@ export interface AuthenticatedRequest extends Request {
 const ENDERECOS_LOOPBACK = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
 
 export function autenticar(req: AuthenticatedRequest, res: Response, next: NextFunction) {
-  // Acesso via localhost pula o login — conveniência de desenvolvimento local.
-  // Nunca dispara em produção real: um servidor exposto na internet nunca vê
-  // uma conexão com remoteAddress de loopback vinda de fora da própria máquina.
+  const authHeader = req.headers['authorization'];
+  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
+
+  // Token real sempre tem prioridade sobre o bypass de loopback — assim, uma
+  // vez logado localmente como um usuário específico, a API respeita esse
+  // usuário/papel em vez de forçar admin. Sem isso, testar outra conta em
+  // localhost era impossível: toda chamada de API voltava a virar admin.
+  if (token) {
+    try {
+      req.usuario = jwt.verify(token, JWT_SECRET) as UsuarioLogado;
+      return next();
+    } catch {
+      return res.status(401).json({ success: false, error: 'Token inválido ou expirado' });
+    }
+  }
+
+  // Sem token: acesso via localhost pula o login — conveniência de
+  // desenvolvimento local. Nunca dispara em produção real: um servidor
+  // exposto na internet nunca vê uma conexão com remoteAddress de loopback
+  // vinda de fora da própria máquina.
   if (ENDERECOS_LOOPBACK.includes(req.socket.remoteAddress || '')) {
     req.usuario = { id: '00000000-0000-0000-0000-000000000000', username: 'localhost', role: 'admin' };
     return next();
   }
 
-  const authHeader = req.headers['authorization'];
-  const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-
-  if (!token) {
-    return res.status(401).json({ success: false, error: 'Token ausente' });
-  }
-
-  try {
-    req.usuario = jwt.verify(token, JWT_SECRET) as UsuarioLogado;
-    next();
-  } catch {
-    return res.status(401).json({ success: false, error: 'Token inválido ou expirado' });
-  }
+  return res.status(401).json({ success: false, error: 'Token ausente' });
 }
 
 // Gate por papel: usar depois de `autenticar` (precisa de req.usuario já

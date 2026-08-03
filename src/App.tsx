@@ -87,12 +87,20 @@ function isVenda(item: DetailItem): item is Venda {
 // realmente carregou.
 const IS_LOCALHOST = ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
+// Uma vez que alguém desloga explicitamente em localhost, o bypass acima para
+// de reautenticar sozinho nesta aba/sessão — senão o logout nunca "pega" (o
+// reload volta a cair no bypass e reloga como admin na hora). Fica em
+// sessionStorage de propósito: reseta ao fechar a aba, então não altera o
+// fluxo padrão de dev em sessões novas, só depois de um logout explícito.
+const FORCE_REAL_AUTH_KEY = 'rk_force_real_auth';
+
 export default function App() {
   const [isUserAuthenticated, setIsUserAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
     const checkAuthStatus = () => {
-      if (IS_LOCALHOST) {
+      const forcarAuthReal = sessionStorage.getItem(FORCE_REAL_AUTH_KEY) === '1';
+      if (IS_LOCALHOST && !forcarAuthReal) {
         setIsUserAuthenticated(true);
         if (window.location.pathname === '/' || window.location.pathname.toLowerCase() === '/login') {
           window.history.replaceState(null, '', '/dashboard');
@@ -122,6 +130,7 @@ export default function App() {
   }, []);
 
   const handleLogout = () => {
+    sessionStorage.setItem(FORCE_REAL_AUTH_KEY, '1');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_role');
     localStorage.removeItem('user_name');
