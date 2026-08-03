@@ -1,4 +1,5 @@
 import type { Categoria, ModeloMoto } from '../../types/catalog';
+import type { PromocaoAtiva } from '../promocoes/types';
 
 // Peça original (retirada de moto sucateada na loja) vs paralela (compatível de terceiros).
 export type CondicaoPeca = 'original' | 'paralela';
@@ -64,6 +65,11 @@ export interface Estoque {
   // Fichas de unidades físicas com avaria/observação (join do backend).
   // Ausente em payloads antigos em cache — sempre tratar como opcional.
   unidades?: EstoqueUnidade[];
+  // Promoção vigente agora, já com o valor calculado — null quando não há
+  // desconto ativo. Calculado pelo backend a cada consulta, ver
+  // src/server/routes/estoque.ts > anexarPromocoes. Ausente em payloads
+  // antigos em cache — sempre tratar como opcional/null.
+  promocao_ativa?: PromocaoAtiva | null;
 }
 
 // Payload de criação/edição — o backend calcula id/codigo/timestamps.

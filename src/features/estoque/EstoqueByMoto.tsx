@@ -15,7 +15,7 @@ import { Fragment, useMemo, useState } from 'react';
 import { Search, Bike, ArrowLeft, Layers } from 'lucide-react';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { EmptyState } from '../../components/ui/EmptyState';
-import { getAncestorChain, getDepth, getDescendantIds } from '../motos/motoTree';
+import { getAncestorChain, getDepth, getDescendantIds, extrairAnoOrdenavel } from '../motos/motoTree';
 import { MotoCard } from './MotoCard';
 import type { ModeloMoto } from '../../types/catalog';
 import type { Estoque } from './types';
@@ -95,6 +95,18 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
     return mapa;
   }, [items]);
 
+  // Foto de capa de um grupo: sempre a da variação de ano mais recente (ex:
+  // entre Carburada/Mix/Injetada, usa a foto da Injetada) — é a versão mais
+  // atual do modelo e a mais provável de já ter foto cadastrada. Sem ano em
+  // nenhuma variação, cai pra ordem de cadastro; sem foto na escolhida, o
+  // card mostra o ícone padrão (não busca foto de outra variação).
+  const capaDoGrupo = (id: string) => {
+    const filhos = filhosPorPai.get(id) ?? [];
+    if (filhos.length === 0) return null;
+    const maisNova = filhos.slice().sort((a, b) => (extrairAnoOrdenavel(b.ano) ?? -Infinity) - (extrairAnoOrdenavel(a.ano) ?? -Infinity))[0];
+    return maisNova.imagem_url;
+  };
+
   // Peças de um grupo somam as de todas as variações abaixo dele — quem olha
   // o card de "CG 150" quer saber quantas peças existem no total, não achar
   // que não tem nenhuma só porque elas estão nas variações.
@@ -173,8 +185,8 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
 
         <div className="flex items-center gap-3">
           <div className="size-11 rounded-control overflow-hidden shrink-0 bg-surface-inset flex items-center justify-center">
-            {grupoAberto.imagem_url ? (
-              <img src={grupoAberto.imagem_url} alt={grupoAberto.nome} className="w-full h-full object-cover" />
+            {capaDoGrupo(grupoAberto.id) ? (
+              <img src={capaDoGrupo(grupoAberto.id)!} alt={grupoAberto.nome} className="w-full h-full object-cover" />
             ) : (
               <Bike size={18} className="text-text-faint" />
             )}
@@ -196,7 +208,7 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
                 nome={filho.nome}
                 ano={filho.ano}
                 breadcrumb=""
-                imagemUrl={filho.imagem_url || grupoAberto.imagem_url}
+                imagemUrl={filho.imagem_url || capaDoGrupo(grupoAberto.id)}
                 quantidadePecas={contarComDescendentes(filho.id)}
                 quantidadeVariacoes={(filhosPorPai.get(filho.id) ?? []).length}
                 onClick={() => handleClicarCard(filho.id)}
@@ -260,7 +272,7 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
                 nome={card.nome}
                 ano={card.ano}
                 breadcrumb={breadcrumb}
-                imagemUrl={card.imagem_url}
+                imagemUrl={grupo ? capaDoGrupo(card.id) : card.imagem_url}
                 quantidadePecas={grupo ? contarComDescendentes(card.id) : contagemPorModelo.get(card.id) ?? 0}
                 quantidadeVariacoes={grupo ? filhos.length : 0}
                 onClick={() => handleClicarCard(card.id)}

@@ -21,6 +21,7 @@ import { categoriasRouter } from './src/server/routes/categorias.js';
 import { modelosMotoRouter } from './src/server/routes/modelosMoto.js';
 import { formasPagamentoRouter } from './src/server/routes/formasPagamento.js';
 import { estoqueRouter } from './src/server/routes/estoque.js';
+import { promocoesRouter } from './src/server/routes/promocoes.js';
 import { vendasRouter } from './src/server/routes/vendas.js';
 import { orcamentosRouter } from './src/server/routes/orcamentos.js';
 import { caixaRouter } from './src/server/routes/caixa.js';
@@ -234,6 +235,7 @@ async function startServer() {
   app.use('/api/modelos-moto', autorizar('admin', 'equipe'), modelosMotoRouter(supabase));
   app.use('/api/formas-pagamento', autorizar('admin', 'equipe'), formasPagamentoRouter(supabase));
   app.use('/api/estoque', estoqueRouter(supabase));
+  app.use('/api/promocoes', autorizar('admin', 'equipe'), promocoesRouter(supabase));
   app.use('/api/vendas', autorizar('admin', 'equipe'), vendasRouter(supabase));
   app.use('/api/orcamentos', autorizar('admin', 'equipe'), orcamentosRouter(supabase));
   app.use('/api/caixa', autorizar('admin', 'equipe'), caixaRouter(supabase));

@@ -57,6 +57,7 @@ import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
 import { UnidadesAvaria } from './features/estoque/UnidadesAvaria';
 import { contarAvarias } from './features/estoque/valorEstoque';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
+import { PromocaoBadge } from './features/promocoes/PromocaoBadge';
 import { TAB_ROLES } from './constants/roles';
 import type { Role } from './constants/roles';
 import type { Estoque } from './features/estoque/types';
@@ -308,7 +309,17 @@ function DetailModal({
                 {estoque?.codigo && <span className="text-zinc-500 text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
               </div>
               <h2 className={cn('text-3xl md:text-4xl font-black tracking-tight uppercase leading-none', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{titulo}</h2>
-              <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(valor)}</div>
+              {estoque?.promocao_ativa ? (
+                <div className="flex items-end gap-3 flex-wrap">
+                  <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(estoque.promocao_ativa.valor_promocional)}</div>
+                  <div className="flex flex-col gap-1 pb-1">
+                    <span className="text-base font-bold text-zinc-500 line-through">{formatCurrency(valor)}</span>
+                    <PromocaoBadge promocao={estoque.promocao_ativa} />
+                  </div>
+                </div>
+              ) : (
+                <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(valor)}</div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">

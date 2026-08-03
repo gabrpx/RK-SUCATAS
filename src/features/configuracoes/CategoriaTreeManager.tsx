@@ -13,7 +13,8 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
-import { buildTree, filterTree, getDescendantIds, getDepth, type CategoriaNode } from '../categorias/categoriaTree';
+import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
+import { buildTree, filterTree, getDescendantIds, type CategoriaNode } from '../categorias/categoriaTree';
 import type { Categoria } from '../../types/catalog';
 
 type ApiResult = { success: boolean; error?: string };
@@ -122,12 +123,11 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
     setCriando(false);
   };
 
-  const opcoesParaMover = (idExcluido: string) => {
+  // Nós elegíveis como novo pai — exclui a própria categoria e toda a
+  // subárvore dela (não dá pra mover uma categoria pra dentro dela mesma).
+  const nosParaMover = (idExcluido: string): TreeDropdownNode[] => {
     const bloqueados = new Set(getDescendantIds(idExcluido, categorias));
-    const opcoes = categorias
-      .filter((c) => !bloqueados.has(c.id))
-      .map((c) => ({ value: c.id, label: `${'　'.repeat(getDepth(c.id, categorias))}${getDepth(c.id, categorias) > 0 ? '└ ' : ''}${c.nome}` }));
-    return [{ value: ROOT_OPTION_VALUE, label: '— Categoria raiz —' }, ...opcoes];
+    return categorias.filter((c) => !bloqueados.has(c.id)).map((c) => ({ id: c.id, nome: c.nome, parent_id: c.parent_id, ordem: c.ordem }));
   };
 
   const totalRaizes = arvoreCompleta.length;
@@ -260,7 +260,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
                   },
                   movendoId,
                   setMovendoId,
-                  opcoesParaMover,
+                  nosParaMover,
                   onMover: async (id, parentId) => {
                     await onMover(id, parentId);
                     setMovendoId(null);
@@ -345,7 +345,7 @@ interface ArvoreHandlers {
   onCriarSub: (parentId: string) => void;
   movendoId: string | null;
   setMovendoId: (id: string | null) => void;
-  opcoesParaMover: (id: string) => { value: string; label: string }[];
+  nosParaMover: (id: string) => TreeDropdownNode[];
   onMover: (id: string, parentId: string | null) => void;
   onPedirExclusao: (node: Categoria) => void;
 }
@@ -431,13 +431,14 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
             </>
           ) : h.movendoId === node.id ? (
             <>
-              <CustomDropdown
-                theme={theme}
+              <TreeDropdown
                 variant="form"
                 className="flex-1"
-                options={h.opcoesParaMover(node.id)}
+                nodes={h.nosParaMover(node.id)}
                 value={node.parent_id ?? ROOT_OPTION_VALUE}
                 onChange={(value) => h.onMover(node.id, value === ROOT_OPTION_VALUE ? null : value)}
+                emptyOption={{ value: ROOT_OPTION_VALUE, label: '— Categoria raiz —' }}
+                searchPlaceholder="Buscar categoria..."
               />
               <button onClick={() => h.setMovendoId(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
                 <X size={14} />

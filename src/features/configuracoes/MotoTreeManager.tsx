@@ -18,9 +18,10 @@ import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } 
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
+import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import { comprimirImagem } from '../../utils/comprimirImagem';
 import { uploadImagemModeloMoto } from '../motos/api';
-import { buildTree, filterTree, getDescendantIds, getDepth, type ModeloMotoNode } from '../motos/motoTree';
+import { buildTree, filterTree, getDescendantIds, extrairAnoOrdenavel, type ModeloMotoNode } from '../motos/motoTree';
 import type { ModeloMoto } from '../../types/catalog';
 
 type ApiResult = { success: boolean; error?: string };
@@ -66,12 +67,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
   const [erroExclusao, setErroExclusao] = useState<string | null>(null);
 
   const comparador = useMemo(() => {
-    // `ano` aceita período ("2004-2008") além de ano único — pra ordenar,
-    // extrai só o primeiro número (ano de início da faixa).
-    const anoNum = (m: ModeloMoto) => {
-      const match = m.ano?.match(/\d+/);
-      return match ? Number(match[0]) : null;
-    };
+    const anoNum = (m: ModeloMoto) => extrairAnoOrdenavel(m.ano);
     if (sortKey === 'nome_asc') return (a: ModeloMoto, b: ModeloMoto) => a.nome.localeCompare(b.nome, 'pt');
     if (sortKey === 'nome_desc') return (a: ModeloMoto, b: ModeloMoto) => b.nome.localeCompare(a.nome, 'pt');
     if (sortKey === 'ano_desc' || sortKey === 'ano_asc') {
@@ -175,12 +171,13 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
     }
   };
 
-  const opcoesParaMover = (idExcluido: string) => {
+  // Nós elegíveis como novo pai — exclui o próprio nó e toda a subárvore dele
+  // (não dá pra mover um modelo pra dentro dele mesmo).
+  const nosParaMover = (idExcluido: string): TreeDropdownNode[] => {
     const bloqueados = new Set(getDescendantIds(idExcluido, modelos));
-    const opcoes = modelos
+    return modelos
       .filter((m) => !bloqueados.has(m.id))
-      .map((m) => ({ value: m.id, label: `${'　'.repeat(getDepth(m.id, modelos))}${getDepth(m.id, modelos) > 0 ? '└ ' : ''}${m.nome}` }));
-    return [{ value: ROOT_OPTION_VALUE, label: '— Marca raiz —' }, ...opcoes];
+      .map((m) => ({ id: m.id, nome: m.nome, parent_id: m.parent_id, ordem: m.ordem, secundario: m.ano }));
   };
 
   const totalRaizes = arvoreCompleta.length;
@@ -347,7 +344,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
                   },
                   movendoId,
                   setMovendoId,
-                  opcoesParaMover,
+                  nosParaMover,
                   onMover: async (id, parentId) => {
                     await onMover(id, parentId);
                     setMovendoId(null);
@@ -440,7 +437,7 @@ interface ArvoreHandlers {
   onCriarSub: (parentId: string) => void;
   movendoId: string | null;
   setMovendoId: (id: string | null) => void;
-  opcoesParaMover: (id: string) => { value: string; label: string }[];
+  nosParaMover: (id: string) => TreeDropdownNode[];
   onMover: (id: string, parentId: string | null) => void;
   onPedirExclusao: (node: ModeloMoto) => void;
 }
@@ -565,13 +562,14 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
             </>
           ) : h.movendoId === node.id ? (
             <>
-              <CustomDropdown
-                theme={theme}
+              <TreeDropdown
                 variant="form"
                 className="flex-1"
-                options={h.opcoesParaMover(node.id)}
+                nodes={h.nosParaMover(node.id)}
                 value={node.parent_id ?? ROOT_OPTION_VALUE}
                 onChange={(value) => h.onMover(node.id, value === ROOT_OPTION_VALUE ? null : value)}
+                emptyOption={{ value: ROOT_OPTION_VALUE, label: '— Marca raiz —' }}
+                searchPlaceholder="Buscar moto..."
               />
               <button onClick={() => h.setMovendoId(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
                 <X size={14} />

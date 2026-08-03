@@ -11,6 +11,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { vendasApi } from './api';
+import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import type { Venda } from './types';
 import type { Estoque } from '../estoque/types';
 
@@ -251,7 +252,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
   const selecionarItem = (item: Estoque) => {
     setItemSelecionado(item);
     setComponenteSelecionado(null);
-    setValorUnitario(String(item.valor));
+    setValorUnitario(String(item.promocao_ativa?.valor_promocional ?? item.valor));
     setBusca('');
   };
 
@@ -260,7 +261,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
     setQuantidade('1');
     // Preço de uma parte avulsa costuma ser diferente do item inteiro — não
     // arrasta o valor do item, pra forçar digitar o valor certo.
-    setValorUnitario(nome ? '' : String(itemSelecionado?.valor ?? 0));
+    setValorUnitario(nome ? '' : String(itemSelecionado?.promocao_ativa?.valor_promocional ?? itemSelecionado?.valor ?? 0));
   };
 
   const handleSubmit = async () => {
@@ -344,7 +345,14 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
                           {item.codigo} · {item.quantidade} em estoque
                         </p>
                       </div>
-                      <span className="font-bold text-emerald-500 shrink-0">{formatCurrency(item.valor)}</span>
+                      {item.promocao_ativa ? (
+                        <div className="flex flex-col items-end shrink-0">
+                          <span className="text-[11px] text-zinc-500 line-through">{formatCurrency(item.valor)}</span>
+                          <span className="font-bold text-emerald-500">{formatCurrency(item.promocao_ativa.valor_promocional)}</span>
+                        </div>
+                      ) : (
+                        <span className="font-bold text-emerald-500 shrink-0">{formatCurrency(item.valor)}</span>
+                      )}
                     </button>
                   ))}
                 </div>
@@ -359,6 +367,11 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
                   {itemSelecionado.codigo} · {itemSelecionado.quantidade} disponíveis
                   {itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && ' · peça composta'}
                 </p>
+                {itemSelecionado.promocao_ativa && (
+                  <div className="mt-1.5">
+                    <PromocaoBadge promocao={itemSelecionado.promocao_ativa} />
+                  </div>
+                )}
               </div>
               <button onClick={() => setItemSelecionado(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
                 <Edit2 size={14} />

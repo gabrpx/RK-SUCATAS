@@ -44,10 +44,12 @@ import { gerarCsvEstoque } from './planilha';
 import { ImportarPlanilhaModal } from './ImportarPlanilhaModal';
 import { EstoqueByMoto } from './EstoqueByMoto';
 import { CondicaoNotaBadge } from './CondicaoNotaBadge';
+import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import { baixarCsv } from '../../utils/csv';
 import { aviso } from '../../components/ui/toast';
-import { getDescendantIds, buildTree } from '../categorias/categoriaTree';
-import { getDescendantIds as getDescendantIdsMoto, buildTree as buildTreeMoto } from '../motos/motoTree';
+import { getDescendantIds } from '../categorias/categoriaTree';
+import { getDescendantIds as getDescendantIdsMoto } from '../motos/motoTree';
+import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 import type { DataTableColumn } from '../../components/ui/DataTable';
 
@@ -287,31 +289,16 @@ export function EstoqueView({
     });
   }, [onRegisterActions, openEditModal, items, readOnly]);
 
-  // Lista achatada em ordem de árvore (pai sempre logo antes dos filhos), pra
-  // indentar visualmente no dropdown de filtro sem espalhar irmãos por ordem alfabética.
-  const categoriasIndentadas = useMemo(() => {
-    const resultado: { id: string; nome: string; depth: number }[] = [];
-    const percorrer = (nodes: ReturnType<typeof buildTree>, depth: number) => {
-      nodes.forEach((n) => {
-        resultado.push({ id: n.id, nome: n.nome, depth });
-        percorrer(n.children, depth + 1);
-      });
-    };
-    percorrer(buildTree(categorias), 0);
-    return resultado;
-  }, [categorias]);
-
-  const modelosIndentados = useMemo(() => {
-    const resultado: { id: string; nome: string; depth: number }[] = [];
-    const percorrer = (nodes: ReturnType<typeof buildTreeMoto>, depth: number) => {
-      nodes.forEach((n) => {
-        resultado.push({ id: n.id, nome: n.ano ? `${n.nome} (${n.ano})` : n.nome, depth });
-        percorrer(n.children, depth + 1);
-      });
-    };
-    percorrer(buildTreeMoto(modelos), 0);
-    return resultado;
-  }, [modelos]);
+  // Dados crus da árvore, no formato genérico que o TreeDropdown espera —
+  // ver src/components/TreeDropdown.tsx.
+  const categoriaNodes = useMemo<TreeDropdownNode[]>(
+    () => categorias.map((c) => ({ id: c.id, nome: c.nome, parent_id: c.parent_id, ordem: c.ordem })),
+    [categorias]
+  );
+  const modeloNodes = useMemo<TreeDropdownNode[]>(
+    () => modelos.map((m) => ({ id: m.id, nome: m.nome, parent_id: m.parent_id, ordem: m.ordem, secundario: m.ano })),
+    [modelos]
+  );
 
   const itensEstoqueBaixo = useMemo(() => items.filter(isEstoqueBaixo).length, [items]);
   // Soma respeitando preço próprio de unidade avariada (ver valorEstoque.ts) —
@@ -553,7 +540,15 @@ export function EstoqueView({
       render: (item) =>
         item.valor > 0 ? (
           <div className="flex flex-col items-end">
-            <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+            {item.promocao_ativa ? (
+              <>
+                <span className="text-[11px] text-text-faint line-through tabular-nums">{formatCurrency(item.valor)}</span>
+                <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.promocao_ativa.valor_promocional)}</span>
+                <PromocaoBadge promocao={item.promocao_ativa} className="mt-0.5" />
+              </>
+            ) : (
+              <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+            )}
             {/* Alguma unidade tem preço próprio: mostra o total real da linha,
                 senão o valor daria a entender preço × quantidade. */}
             {(item.unidades ?? []).some((u) => u.valor !== null && u.valor !== undefined) && (
@@ -638,7 +633,14 @@ export function EstoqueView({
               {item.quantidade} un.
             </span>
             {item.valor > 0 ? (
-              <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+              item.promocao_ativa ? (
+                <div className="flex flex-col items-end">
+                  <span className="text-[11px] text-text-faint line-through tabular-nums">{formatCurrency(item.valor)}</span>
+                  <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.promocao_ativa.valor_promocional)}</span>
+                </div>
+              ) : (
+                <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+              )
             ) : readOnly ? (
               <span className="text-sm font-medium text-danger">{formatCurrency(item.valor)}</span>
             ) : (
@@ -796,25 +798,23 @@ export function EstoqueView({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <CustomDropdown
-                theme="dark"
+              <TreeDropdown
                 icon={<Filter size={14} />}
                 value={categoriaFiltro}
                 onChange={setCategoriaFiltro}
-                options={[
-                  { value: 'Todas', label: 'Todas categorias' },
-                  ...categoriasIndentadas.map((c) => ({ value: c.id, label: `${'　'.repeat(c.depth)}${c.depth > 0 ? '└ ' : ''}${c.nome}` })),
-                ]}
+                nodes={categoriaNodes}
+                emptyOption={{ value: 'Todas', label: 'Todas categorias' }}
+                searchPlaceholder="Buscar categoria..."
+                emptyMessage="Nenhuma categoria encontrada."
               />
-              <CustomDropdown
-                theme="dark"
+              <TreeDropdown
                 icon={<Bike size={14} />}
                 value={modeloFiltro}
                 onChange={setModeloFiltro}
-                options={[
-                  { value: 'Todas', label: 'Todos modelos' },
-                  ...modelosIndentados.map((m) => ({ value: m.id, label: `${'　'.repeat(m.depth)}${m.depth > 0 ? '└ ' : ''}${m.nome}` })),
-                ]}
+                nodes={modeloNodes}
+                emptyOption={{ value: 'Todas', label: 'Todos modelos' }}
+                searchPlaceholder="Buscar moto..."
+                emptyMessage="Nenhuma moto encontrada."
               />
               <CustomDropdown
                 theme="dark"

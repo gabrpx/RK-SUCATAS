@@ -7,15 +7,16 @@
 // (árvores de categoria/moto com drag handle + 4 ícones por linha) abertos
 // ao mesmo tempo.
 import { useState } from 'react';
-import { Settings, Layers, Bike, Wallet, Users } from 'lucide-react';
+import { Settings, Layers, Bike, Wallet, Users, Tag } from 'lucide-react';
 import { cn } from '../../utils';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { ManageListSection } from './ManageListSection';
 import { CategoriaTreeManager } from './CategoriaTreeManager';
 import { MotoTreeManager } from './MotoTreeManager';
 import { UsuariosView } from '../usuarios/UsuariosView';
+import { PromocoesView } from '../promocoes/PromocoesView';
 
-type Aba = 'categorias' | 'motos' | 'pagamento' | 'usuarios';
+type Aba = 'categorias' | 'motos' | 'pagamento' | 'promocoes' | 'usuarios';
 
 export function ConfiguracoesView({ theme, userRole }: { theme: 'light' | 'dark'; userRole?: string }) {
   const {
@@ -44,6 +45,7 @@ export function ConfiguracoesView({ theme, userRole }: { theme: 'light' | 'dark'
     { id: 'categorias', label: 'Categorias de Peça', icone: Layers, total: categorias.length },
     { id: 'motos', label: 'Motos', icone: Bike, total: modelos.length },
     { id: 'pagamento', label: 'Formas de Pagamento', icone: Wallet, total: formasPagamento.length },
+    { id: 'promocoes', label: 'Promoções', icone: Tag },
     ...(userRole === 'admin' ? [{ id: 'usuarios' as Aba, label: 'Usuários', icone: Users }] : []),
   ];
 
@@ -132,6 +134,7 @@ export function ConfiguracoesView({ theme, userRole }: { theme: 'light' | 'dark'
           onExcluir={excluirFormaPagamento}
         />
       )}
+      {aba === 'promocoes' && <PromocoesView />}
       {aba === 'usuarios' && userRole === 'admin' && <UsuariosView />}
     </div>
   );
