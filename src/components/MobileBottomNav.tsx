@@ -6,6 +6,7 @@ import {
   Wallet,
   Truck,
   Settings,
+  ClipboardList,
   MoreHorizontal,
   X
 } from 'lucide-react';
@@ -13,6 +14,7 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { TAB_ROLES } from '../constants/roles';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -20,16 +22,17 @@ function cn(...inputs: ClassValue[]) {
 
 export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMoreOpen, setIsMoreOpen }: any) => {
   const allItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Início', roles: ['admin', 'gerente'] },
-    { id: 'estoque', icon: Package, label: 'Estoque', roles: ['admin', 'gerente'] },
-    { id: 'vendas', icon: ShoppingCart, label: 'Vendas', roles: ['admin', 'gerente'] },
-    { id: 'caixa', icon: Wallet, label: 'Caixa', roles: ['admin', 'gerente'] },
-    { id: 'frete', icon: Truck, label: 'Frete', roles: ['admin', 'gerente'] },
-    { id: 'configuracoes', icon: Settings, label: 'Config', roles: ['admin', 'gerente'] },
+    { id: 'dashboard', icon: LayoutDashboard, label: 'Início', roles: TAB_ROLES.dashboard },
+    { id: 'estoque', icon: Package, label: 'Estoque', roles: TAB_ROLES.estoque },
+    { id: 'vendas', icon: ShoppingCart, label: 'Vendas', roles: TAB_ROLES.vendas },
+    { id: 'caixa', icon: Wallet, label: 'Caixa', roles: TAB_ROLES.caixa },
+    { id: 'tarefas', icon: ClipboardList, label: 'Tarefas', roles: TAB_ROLES.tarefas },
+    { id: 'frete', icon: Truck, label: 'Frete', roles: TAB_ROLES.frete },
+    { id: 'configuracoes', icon: Settings, label: 'Config', roles: TAB_ROLES.configuracoes },
     // No fim de propósito: só os 4 primeiros ficam na barra principal (ver
     // comentário acima) — Orçamentos é ferramenta de pré-venda, de uso menos
     // frequente que Caixa, então tolera bem ficar dentro de "Mais".
-    { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: ['admin', 'gerente'] },
+    { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: TAB_ROLES.orcamentos },
   ];
 
   const allowedItems = allItems.filter(item => item.roles.includes(userRole));

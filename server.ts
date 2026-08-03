@@ -4,15 +4,17 @@
 // src/server/routes/*, este arquivo só monta o app e aplica os middlewares.
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import cookieParser from 'cookie-parser';
 import { createServer as createViteServer } from 'vite';
 import path from 'path';
 import dotenv from 'dotenv';
 import { createServer } from 'http';
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcryptjs';
 import axios from 'axios';
 
-import { autenticar } from './middleware/auth.js';
+import { autenticar, autorizar, type AuthenticatedRequest } from './middleware/auth.js';
 import { supabase } from './services/supabaseClient.js';
 import { requireEnv } from './src/server/env.js';
 import { categoriasRouter } from './src/server/routes/categorias.js';
@@ -23,6 +25,9 @@ import { vendasRouter } from './src/server/routes/vendas.js';
 import { orcamentosRouter } from './src/server/routes/orcamentos.js';
 import { caixaRouter } from './src/server/routes/caixa.js';
 import { uploadRouter } from './src/server/routes/upload.js';
+import { usuariosRouter } from './src/server/routes/usuarios.js';
+import { tarefasRouter } from './src/server/routes/tarefas.js';
+import { EXECUTORES_TAREFA } from './src/constants/roles.js';
 
 dotenv.config();
 
@@ -51,7 +56,13 @@ async function startServer() {
         if (!origin) return callback(null, true);
         const isAllowed = allowedOrigins.some((allowed) => origin === allowed || origin.startsWith(allowed));
         if (!isAllowed) console.log(`⚠️ Origin não permitida pelo CORS: ${origin}`);
-        callback(null, true);
+        // Só libera o Access-Control-Allow-Origin pra quem está na lista —
+        // antes disso ficava sempre true (chamava callback(null,true)
+        // mesmo com isAllowed=false), então a lista de origens permitidas
+        // não bloqueava nada de verdade. Requisições same-origin (o app
+        // web servido por este mesmo Express) não são afetadas — CORS só
+        // entra em jogo pra chamadas cross-origin.
+        callback(null, isAllowed);
       },
       credentials: true,
       methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
@@ -68,24 +79,74 @@ async function startServer() {
     next();
   });
 
+  // Bootstrap: se a tabela `usuarios` ainda estiver vazia (primeira vez que
+  // esta migração roda em produção), cria o admin inicial usando a senha
+  // única antiga (ADMIN_PASSWORD) como senha dele. A partir daí ADMIN_PASSWORD
+  // só serve pra esse bootstrap — o login de verdade passa a ser por
+  // usuário+senha individuais (tabela usuarios). Idempotente: só insere
+  // quando a tabela está vazia.
+  const { count: totalUsuarios, error: erroContagemUsuarios } = await supabase
+    .from('usuarios')
+    .select('id', { count: 'exact', head: true });
+
+  if (erroContagemUsuarios) {
+    console.warn('⚠️ Não foi possível checar a tabela usuarios (rodou a migration_011?):', erroContagemUsuarios.message);
+  } else if (totalUsuarios === 0) {
+    const senhaHash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
+    const { error: erroBootstrap } = await supabase
+      .from('usuarios')
+      .insert({ username: 'ayrton', nome_exibicao: 'Ayrton', senha_hash: senhaHash, role: 'admin' });
+    if (erroBootstrap) {
+      console.error('❌ Falha ao criar usuário admin de bootstrap:', erroBootstrap.message);
+    } else {
+      console.log('👤 Bootstrap: usuário admin "ayrton" criado a partir de ADMIN_PASSWORD');
+    }
+  }
+
   // ==================== ROTAS PÚBLICAS ====================
   app.get('/api/health', (_req, res) => {
     res.json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  app.post('/api/auth/login', async (req, res) => {
+  // 10 tentativas a cada 15min por IP — impede força bruta de senha sem
+  // atrapalhar o uso normal (uma pessoa errando a senha algumas vezes).
+  const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    limit: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, error: 'Muitas tentativas de login. Tente novamente em alguns minutos.' },
+  });
+
+  app.post('/api/auth/login', loginLimiter, async (req, res) => {
     try {
-      const { password } = req.body || {};
-      if (!password) {
-        return res.status(400).json({ success: false, error: 'Senha é obrigatória' });
+      const { username, password } = req.body || {};
+      if (!username || !password) {
+        return res.status(400).json({ success: false, error: 'Usuário e senha são obrigatórios' });
       }
 
-      if (password !== ADMIN_PASSWORD) {
-        return res.status(401).json({ success: false, error: 'Senha incorreta' });
+      const ERRO_GENERICO = 'Usuário ou senha incorretos';
+
+      const { data: usuario, error: erroBusca } = await supabase
+        .from('usuarios')
+        .select('id, username, nome_exibicao, senha_hash, role, ativo')
+        .eq('username', String(username).trim().toLowerCase())
+        .eq('ativo', true)
+        .maybeSingle();
+
+      if (erroBusca) throw erroBusca;
+      if (!usuario) {
+        return res.status(401).json({ success: false, error: ERRO_GENERICO });
       }
 
-      const token = jwt.sign({ id: 0, username: 'admin', role: 'admin' }, JWT_SECRET, { expiresIn: '7d' });
-      res.json({ success: true, token, user: { id: 0, username: 'admin', role: 'admin' } });
+      const senhaConfere = bcrypt.compareSync(password, usuario.senha_hash);
+      if (!senhaConfere) {
+        return res.status(401).json({ success: false, error: ERRO_GENERICO });
+      }
+
+      const payload = { id: usuario.id, username: usuario.username, role: usuario.role };
+      const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
+      res.json({ success: true, token, user: { ...payload, nome_exibicao: usuario.nome_exibicao } });
     } catch (err: any) {
       console.error('Login Error:', err);
       res.status(500).json({ success: false, error: 'Erro interno no login' });
@@ -95,7 +156,37 @@ async function startServer() {
   // ==================== A PARTIR DAQUI, TUDO EXIGE JWT VÁLIDO ====================
   app.use('/api', autenticar);
 
-  app.post('/api/frete/calculate', async (req, res) => {
+  // Exceção ao gate de /api/usuarios (admin-only, montado mais abaixo): todo
+  // usuário autenticado precisa poder registrar o próprio token de push.
+  app.post('/api/usuarios/me/push-token', async (req: AuthenticatedRequest, res) => {
+    try {
+      const { token } = req.body || {};
+      if (!token) return res.status(400).json({ success: false, error: 'Token é obrigatório' });
+      const { error } = await supabase.from('usuarios').update({ push_token: token }).eq('id', req.usuario!.id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error('Erro ao salvar push token:', err);
+      res.status(500).json({ success: false, error: 'Erro ao salvar token' });
+    }
+  });
+
+  // Lista enxuta (id + nome) de quem pode receber tarefa, pro <select> de
+  // responsável na tela de Tarefas — admin/equipe precisam disso pra criar
+  // tarefas, mas não têm acesso ao resto de /api/usuarios (admin-only).
+  // Inclui todo cargo "executor" (EXECUTORES_TAREFA: mandados + mecanico).
+  app.get('/api/usuarios/responsaveis-tarefa', autorizar('admin', 'equipe'), async (_req, res) => {
+    try {
+      const { data, error } = await supabase.from('usuarios').select('id, nome_exibicao').in('role', EXECUTORES_TAREFA).eq('ativo', true).order('nome_exibicao');
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (err: any) {
+      console.error('Erro ao listar usuários responsáveis por tarefa:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
+  app.post('/api/frete/calculate', autorizar('admin', 'equipe'), async (req, res) => {
     try {
       const { cep_origem, cep_destino, peso, largura, altura, comprimento } = req.body || {};
       const token = process.env.MELHOR_ENVIO_TOKEN;
@@ -136,14 +227,19 @@ async function startServer() {
   });
 
   // ==================== ROTAS DE DOMÍNIO (Supabase) ====================
-  app.use('/api/categorias', categoriasRouter(supabase));
-  app.use('/api/modelos-moto', modelosMotoRouter(supabase));
-  app.use('/api/formas-pagamento', formasPagamentoRouter(supabase));
+  // estoque e tarefas fazem seu próprio gate de papel por rota/método (Eloisa
+  // lê estoque mas não escreve; tarefas varia por dono) — o resto é bloco
+  // fechado pra admin+equipe, e usuarios é admin-only.
+  app.use('/api/categorias', autorizar('admin', 'equipe'), categoriasRouter(supabase));
+  app.use('/api/modelos-moto', autorizar('admin', 'equipe'), modelosMotoRouter(supabase));
+  app.use('/api/formas-pagamento', autorizar('admin', 'equipe'), formasPagamentoRouter(supabase));
   app.use('/api/estoque', estoqueRouter(supabase));
-  app.use('/api/vendas', vendasRouter(supabase));
-  app.use('/api/orcamentos', orcamentosRouter(supabase));
-  app.use('/api/caixa', caixaRouter(supabase));
-  app.use('/api/upload', uploadRouter());
+  app.use('/api/vendas', autorizar('admin', 'equipe'), vendasRouter(supabase));
+  app.use('/api/orcamentos', autorizar('admin', 'equipe'), orcamentosRouter(supabase));
+  app.use('/api/caixa', autorizar('admin', 'equipe'), caixaRouter(supabase));
+  app.use('/api/upload', autorizar('admin', 'equipe'), uploadRouter());
+  app.use('/api/tarefas', tarefasRouter(supabase));
+  app.use('/api/usuarios', autorizar('admin'), usuariosRouter(supabase));
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {

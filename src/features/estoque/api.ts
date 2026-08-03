@@ -1,7 +1,7 @@
 // Chamadas HTTP do módulo de Estoque. Fino de propósito: cada função mapeia
 // 1:1 pra uma rota do backend (src/server/routes/estoque.ts).
 import { api } from '../../utils/api';
-import type { Estoque, EstoqueInput } from './types';
+import type { Estoque, EstoqueInput, EstoqueUnidade, EstoqueUnidadeInput } from './types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -23,6 +23,16 @@ export const estoqueApi = {
     api.post('/api/estoque/bulk-update-categoria', { ids, categoria_id }) as Promise<ApiResult<null>>,
   ajustarQuantidadeEmLote: (ids: string[], delta: number) =>
     api.post('/api/estoque/bulk-update-quantidade', { ids, delta }) as Promise<ApiResult<null>>,
+
+  // Fichas de unidade física com avaria — aninhadas no item porque não
+  // existem fora dele (ver migration_014).
+  listarUnidades: (estoqueId: string) => api.get(`/api/estoque/${estoqueId}/unidades`) as Promise<ApiResult<EstoqueUnidade[]>>,
+  criarUnidade: (estoqueId: string, payload: EstoqueUnidadeInput) =>
+    api.post(`/api/estoque/${estoqueId}/unidades`, payload) as Promise<ApiResult<EstoqueUnidade>>,
+  atualizarUnidade: (estoqueId: string, unidadeId: string, payload: Partial<EstoqueUnidadeInput>) =>
+    api.patch(`/api/estoque/${estoqueId}/unidades/${unidadeId}`, payload) as Promise<ApiResult<EstoqueUnidade>>,
+  excluirUnidade: (estoqueId: string, unidadeId: string) =>
+    api.delete(`/api/estoque/${estoqueId}/unidades/${unidadeId}`) as Promise<ApiResult<null>>,
 };
 
 // Upload de imagem é multipart — não passa pelo helper `api` (que força

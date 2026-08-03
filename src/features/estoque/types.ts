@@ -7,6 +7,26 @@ export type CondicaoPeca = 'original' | 'paralela';
 // dela — ver src/features/estoque/categoriaMotor.ts.
 export type NotaCadastro = 'com_nota' | 'sem_nota';
 
+// Ficha de uma unidade física específica dentro da mesma linha de estoque —
+// ver supabase/migration_014_unidades_avaria.sql. Só existe pra unidade que
+// tem algo diferente das outras (5 TBI iguais, 1 amassado = 1 ficha só).
+export interface EstoqueUnidade {
+  id: string;
+  estoque_id: string;
+  /** Como a loja chama essa unidade: "A amassada", "Sem bico injetor" */
+  apelido: string | null;
+  avaria: boolean;
+  avaria_descricao: string | null;
+  /** Fotos do defeito — separadas da imagem_url, que mostra a peça boa */
+  fotos: string[];
+  /** null = vale o preço normal da peça; preenchido = preço só desta unidade */
+  valor: number | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor'>;
+
 export interface Estoque {
   id: string;
   codigo: string;
@@ -36,6 +56,9 @@ export interface Estoque {
   // entrada é 1 unidade física e o que já falta nela. Gerido pelo backend
   // via registrar_venda/cancelar_venda, nunca editado direto pelo formulário.
   unidades_incompletas: { faltando: string[] }[];
+  // Fichas de unidades físicas com avaria/observação (join do backend).
+  // Ausente em payloads antigos em cache — sempre tratar como opcional.
+  unidades?: EstoqueUnidade[];
 }
 
 // Payload de criação/edição — o backend calcula id/codigo/timestamps.

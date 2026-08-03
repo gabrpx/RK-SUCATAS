@@ -3,6 +3,8 @@
 // instantaneamente na próxima abertura, e faz polling silencioso a cada 10s.
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { fetchWithRetry, parseJson } from '../lib/apiClient';
+import { EXECUTORES_TAREFA } from '../constants/roles';
+import type { Role } from '../constants/roles';
 import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 import type { CaixaEntry } from '../features/caixa/types';
@@ -78,13 +80,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (!force && !silent && now - lastFetchRef.current < CACHE_TIME_MS && estoque.length > 0) {
       return;
     }
+
+    // Cargos "executores" (EXECUTORES_TAREFA: mandados/Pitoco, mecanico/Itinho)
+    // não têm permissão pra nenhum destes quatro endpoints — a aba deles
+    // (Tarefas) busca os próprios dados via useTarefas, não via este contexto.
+    // Sem isso, o app ficaria repetindo requisições que sempre voltam 403 a
+    // cada poll.
+    const role = localStorage.getItem('user_role') as Role | null;
+    if (role && EXECUTORES_TAREFA.includes(role)) {
+      setLoading(false);
+      return;
+    }
+    // 'estoque_leitura' (Eloisa) só pode ler estoque — os outros três
+    // endpoints são bloqueados no backend pra esse papel, então nem tenta.
+    const podeVendasCaixaOrcamentos = role !== 'estoque_leitura';
+
     if (!silent) setLoading(true);
 
     const results = await Promise.allSettled([
       fetchWithRetry('/api/estoque'),
-      fetchWithRetry('/api/vendas'),
-      fetchWithRetry('/api/caixa'),
-      fetchWithRetry('/api/orcamentos'),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/vendas') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
     ]);
 
     const [estoqueRes, vendasRes, caixaRes, orcamentosRes] = results;
@@ -100,36 +117,36 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar estoque:', estoqueRes.reason);
     }
 
-    if (vendasRes.status === 'fulfilled') {
+    if (vendasRes.status === 'fulfilled' && vendasRes.value) {
       try {
         const data = await parseJson(vendasRes.value);
         if (data.success) setVendas(prev => applyIfChanged(prev, data.data, 'rk_vendas'));
       } catch (e) {
         console.error('Erro ao processar vendas:', e);
       }
-    } else {
+    } else if (vendasRes.status === 'rejected') {
       console.error('Erro ao buscar vendas:', vendasRes.reason);
     }
 
-    if (caixaRes.status === 'fulfilled') {
+    if (caixaRes.status === 'fulfilled' && caixaRes.value) {
       try {
         const data = await parseJson(caixaRes.value);
         if (data.success) setCaixa(prev => applyIfChanged(prev, data.data, 'rk_caixa'));
       } catch (e) {
         console.error('Erro ao processar caixa:', e);
       }
-    } else {
+    } else if (caixaRes.status === 'rejected') {
       console.error('Erro ao buscar caixa:', caixaRes.reason);
     }
 
-    if (orcamentosRes.status === 'fulfilled') {
+    if (orcamentosRes.status === 'fulfilled' && orcamentosRes.value) {
       try {
         const data = await parseJson(orcamentosRes.value);
         if (data.success) setOrcamentos(prev => applyIfChanged(prev, data.data, 'rk_orcamentos'));
       } catch (e) {
         console.error('Erro ao processar orçamentos:', e);
       }
-    } else {
+    } else if (orcamentosRes.status === 'rejected') {
       console.error('Erro ao buscar orçamentos:', orcamentosRes.reason);
     }
 

@@ -1,7 +1,7 @@
 // Aba Estoque: catálogo de peças com categoria/modelo de moto (tabelas de
 // apoio, com criação rápida inline) e condição Original/Paralela.
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence } from 'motion/react';
 import {
   Package,
   Search,
@@ -12,10 +12,15 @@ import {
   X,
   Loader2,
   AlertCircle,
+  AlertTriangle,
   Upload,
+  Camera,
   ImageOff,
   ChevronDown,
   ExternalLink,
+  FileSpreadsheet,
+  Download,
+  Pencil,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
@@ -27,9 +32,17 @@ import { CategoriaCascadeSelect } from '../../components/CategoriaCascadeSelect'
 import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal, ModalSection } from '../../components/ui/Modal';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { categoriaExigeNota } from './categoriaMotor';
+import { comprimirImagem, formatarBytes } from './comprimirImagem';
+import { detectarDuplicatas } from './detectarDuplicata';
+import { calcularResumoDoDia } from './resumoDoDia';
+import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, temAvaria } from './valorEstoque';
+import { gerarCsvEstoque } from './planilha';
+import { ImportarPlanilhaModal } from './ImportarPlanilhaModal';
+import { baixarCsv } from '../../utils/csv';
 import { getDescendantIds, buildTree } from '../categorias/categoriaTree';
 import { getDescendantIds as getDescendantIdsMoto, buildTree as buildTreeMoto } from '../motos/motoTree';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
@@ -95,9 +108,19 @@ interface EstoqueViewProps {
   // única vez e resetado, mesmo padrão do pendingEditItem acima.
   filtroEstoqueBaixoInicial?: boolean;
   setFiltroEstoqueBaixoInicial?: (value: boolean) => void;
+  // Papel 'estoque_leitura' (Eloisa): só consulta, sem criar/editar/excluir.
+  readOnly?: boolean;
 }
 
-export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, setPendingEditItem, filtroEstoqueBaixoInicial, setFiltroEstoqueBaixoInicial }: EstoqueViewProps) {
+export function EstoqueView({
+  onSelectItem,
+  onRegisterActions,
+  pendingEditItem,
+  setPendingEditItem,
+  filtroEstoqueBaixoInicial,
+  setFiltroEstoqueBaixoInicial,
+  readOnly = false,
+}: EstoqueViewProps) {
   const { estoque: items, setEstoque, loading, refreshData } = useData();
   const { categorias, modelos, criarCategoria, criarNoMoto } = useCatalogos();
 
@@ -108,6 +131,10 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
   const [modeloFiltro, setModeloFiltro] = useState('Todas');
   const [sortKey, setSortKey] = useState<'criado_em' | 'valor' | 'quantidade'>('criado_em');
   const [soEstoqueBaixo, setSoEstoqueBaixo] = useState(false);
+  // Peça cadastrada às pressas costuma ficar sem preço — este filtro é como
+  // se volta nelas depois pra fechar o valor do estoque.
+  const [soSemPreco, setSoSemPreco] = useState(false);
+  const [soComAvaria, setSoComAvaria] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -121,6 +148,17 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
   const [novoComponente, setNovoComponente] = useState('');
 
   const [itemToDelete, setItemToDelete] = useState<Estoque | null>(null);
+  const [isImportOpen, setIsImportOpen] = useState(false);
+  // Quantas peças saíram deste modal sem ele fechar — feedback do
+  // "salvar e cadastrar próxima" durante a catalogação em massa.
+  const [salvasEmSequencia, setSalvasEmSequencia] = useState(0);
+  // Quanto a foto encolheu no celular antes de subir; some no próximo upload.
+  const [resumoCompressao, setResumoCompressao] = useState<string | null>(null);
+  const inputCameraRef = useRef<HTMLInputElement>(null);
+  const inputGaleriaRef = useRef<HTMLInputElement>(null);
+  // Foco volta pro nome a cada peça salva em sequência: é sempre o primeiro
+  // campo a preencher e evita ter que buscar o cursor com a mão.
+  const inputNomeRef = useRef<HTMLInputElement>(null);
 
   // Categoria Motor (ou subcategoria dela) exige informar nota fiscal pra cadastro.
   const formExigeNota = useMemo(() => categoriaExigeNota(formData.categoria_id || null, categorias), [formData.categoria_id, categorias]);
@@ -130,6 +168,8 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
     setFormData(EMPTY_FORM);
     setCategoriaAutoDetectada(true);
     setNovoComponente('');
+    setResumoCompressao(null);
+    setSalvasEmSequencia(0);
     setIsModalOpen(true);
   };
 
@@ -137,6 +177,8 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
     setEditingItem(item);
     setCategoriaAutoDetectada(false);
     setNovoComponente('');
+    setResumoCompressao(null);
+    setSalvasEmSequencia(0);
     setFormData({
       nome: item.nome,
       categoria_id: item.categoria_id || '',
@@ -169,10 +211,15 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
 
   const handleUploadImagem = async (file: File) => {
     setIsUploadingImagem(true);
+    setResumoCompressao(null);
     try {
-      const result = await uploadImagemEstoque(file);
+      // Foto de câmera passa fácil dos 5MB aceitos pelo backend — encolher
+      // aqui evita erro no meio do cadastro e acelera o envio na loja.
+      const { arquivo, comprimido, bytesAntes, bytesDepois } = await comprimirImagem(file);
+      const result = await uploadImagemEstoque(arquivo);
       if (!result.success || !result.url) throw new Error(result.error || 'Falha no upload');
       setFormData((prev) => ({ ...prev, imagem_url: result.url! }));
+      if (comprimido) setResumoCompressao(`Foto otimizada: ${formatarBytes(bytesAntes)} → ${formatarBytes(bytesDepois)}`);
     } catch (err: any) {
       alert(err.message || 'Erro ao enviar imagem');
     } finally {
@@ -203,6 +250,11 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
   }, [filtroEstoqueBaixoInicial, setFiltroEstoqueBaixoInicial]);
 
   useEffect(() => {
+    // Em modo leitura (Eloisa) não registra edit/delete — o DetailModal
+    // compartilhado (App.tsx) só mostra os botões de Editar/Excluir quando
+    // essas ações existem, então não registrar já cobre o clique vindo da
+    // busca global e do dashboard, não só desta tela.
+    if (readOnly) return;
     onRegisterActions?.({
       edit: openEditModal,
       delete: (id: string) => {
@@ -210,7 +262,7 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
         if (item) setItemToDelete(item);
       },
     });
-  }, [onRegisterActions, openEditModal, items]);
+  }, [onRegisterActions, openEditModal, items, readOnly]);
 
   // Lista achatada em ordem de árvore (pai sempre logo antes dos filhos), pra
   // indentar visualmente no dropdown de filtro sem espalhar irmãos por ordem alfabética.
@@ -239,7 +291,18 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
   }, [modelos]);
 
   const itensEstoqueBaixo = useMemo(() => items.filter(isEstoqueBaixo).length, [items]);
-  const valorTotalEstoque = useMemo(() => items.reduce((sum, item) => sum + Number(item.valor) * Number(item.quantidade), 0), [items]);
+  // Soma respeitando preço próprio de unidade avariada (ver valorEstoque.ts) —
+  // multiplicar preço × quantidade mentiria quando o TBI amassado sai mais barato.
+  const valorTotalEstoque = useMemo(() => somarValorEstoque(items), [items]);
+  const itensComAvaria = useMemo(() => items.filter(temAvaria).length, [items]);
+  const resumoDoDia = useMemo(() => calcularResumoDoDia(items), [items]);
+
+  // Peças já cadastradas parecidas com o nome sendo digitado. Só avisa — quem
+  // está cadastrando decide se é a mesma peça ou não.
+  const duplicatas = useMemo(() => {
+    if (!isModalOpen) return [];
+    return detectarDuplicatas(formData.nome, items, { ignorarId: editingItem?.id ?? null, categoriaId: formData.categoria_id });
+  }, [isModalOpen, formData.nome, formData.categoria_id, items, editingItem]);
 
   const filtered = useMemo(() => {
     const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
@@ -258,7 +321,9 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
       const matchesModelo =
         modeloFiltro === 'Todas' || (!!item.modelo_moto_id && getDescendantIdsMoto(modeloFiltro, modelos).includes(item.modelo_moto_id));
       const matchesEstoqueBaixo = !soEstoqueBaixo || isEstoqueBaixo(item);
-      return matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo;
+      const matchesSemPreco = !soSemPreco || !(Number(item.valor) > 0);
+      const matchesAvaria = !soComAvaria || temAvaria(item);
+      return matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo && matchesSemPreco && matchesAvaria;
     });
 
     result = [...result].sort((a, b) => {
@@ -267,14 +332,18 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
       return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
     });
     return result;
-  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, sortKey, categorias, modelos]);
+  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, sortKey, categorias, modelos]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  useEffect(() => setCurrentPage(1), [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, sortKey]);
+  useEffect(() => setCurrentPage(1), [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, sortKey]);
 
-  const handleSave = async () => {
+  // `continuar` = fluxo "salvar e cadastrar próxima": persiste e já devolve o
+  // formulário limpo pro próximo item, sem fechar o modal. Categoria, moto,
+  // condição e ano ficam preenchidos porque peça costuma sair em lote da
+  // mesma moto — é o que corta mais tempo na catalogação em massa.
+  const handleSave = async (continuar = false) => {
     if (!formData.nome.trim()) return alert('Nome da peça é obrigatório');
     if (!formData.categoria_id) return alert('Selecione uma categoria');
     if (formExigeNota && !formData.nota_cadastro) return alert('Para peças de Motor, selecione "Com nota pra cadastro" ou "Sem nota pra cadastro"');
@@ -298,6 +367,24 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
         const result = await estoqueApi.criar(payload);
         if (!result.success) throw new Error(result.error);
         setEstoque((prev) => [result.data, ...prev]);
+
+        if (continuar) {
+          setFormData({
+            ...EMPTY_FORM,
+            categoria_id: formData.categoria_id,
+            modelo_moto_id: formData.modelo_moto_id,
+            condicao: formData.condicao,
+            ano: formData.ano,
+          });
+          setNovoComponente('');
+          setResumoCompressao(null);
+          setSalvasEmSequencia((n) => n + 1);
+          // Não mexe em categoriaAutoDetectada de propósito: se a categoria
+          // vinha sendo detectada pelo nome, continua detectando; se foi
+          // escolhida na mão, a escolha permanece valendo.
+          setTimeout(() => inputNomeRef.current?.focus(), 0);
+          return;
+        }
       }
       setIsModalOpen(false);
       setEditingItem(null);
@@ -320,6 +407,14 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
       alert(err.message || 'Erro ao excluir item');
       refreshData();
     }
+  };
+
+  // Backup do estoque em CSV. Exporta o que está filtrado na tela (ou tudo,
+  // quando não há filtro) — o mesmo recorte que a pessoa está vendo.
+  const exportarCsv = () => {
+    const dados = filtered.length > 0 ? filtered : items;
+    const carimbo = new Date().toISOString().slice(0, 10);
+    baixarCsv(`estoque-rk-${carimbo}.csv`, gerarCsvEstoque(dados, categorias));
   };
 
   const inputClass = 'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
@@ -355,7 +450,20 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-[12.5px] font-medium text-text-primary truncate max-w-[240px]">{item.nome}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[12.5px] font-medium text-text-primary truncate max-w-[240px]">{item.nome}</p>
+              {/* Unidade avariada não vira linha separada — o aviso vive aqui,
+                  e o detalhe mostra qual unidade é. */}
+              {temAvaria(item) && (
+                <span
+                  title={`${contarAvarias(item)} unidade(s) com avaria`}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
+                >
+                  <AlertTriangle size={9} />
+                  {contarAvarias(item)}
+                </span>
+              )}
+            </div>
             {isEstoqueBaixo(item) ? (
               <p className="text-[11px] text-warning font-medium">Último em estoque</p>
             ) : (
@@ -390,7 +498,16 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
       align: 'right',
       render: (item) =>
         item.valor > 0 ? (
-          <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+          <div className="flex flex-col items-end">
+            <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+            {/* Alguma unidade tem preço próprio: mostra o total real da linha,
+                senão o valor daria a entender preço × quantidade. */}
+            {(item.unidades ?? []).some((u) => u.valor !== null && u.valor !== undefined) && (
+              <span className="text-[10px] text-accent-soft-fg tabular-nums">total {formatCurrency(valorTotalItem(item))}</span>
+            )}
+          </div>
+        ) : readOnly ? (
+          <span className="text-sm font-medium text-danger">{formatCurrency(item.valor)}</span>
         ) : (
           <button
             type="button"
@@ -440,16 +557,67 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
               setIsRefreshing(false);
             }}
             disabled={loading || isRefreshing}
-            className="h-10 px-4 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50"
+            title="Sincronizar"
+            className="h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:text-text-primary"
           >
             <RefreshCw size={14} className={cn((loading || isRefreshing) && 'animate-spin')} />
-            <span className="hidden sm:inline">Sincronizar</span>
+            <span className="hidden lg:inline">Sincronizar</span>
           </button>
-          <button onClick={openCreateModal} className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90">
-            <Plus size={16} /> Nova peça
+          <button
+            onClick={exportarCsv}
+            disabled={items.length === 0}
+            title="Exportar estoque em CSV (backup)"
+            className="h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:text-text-primary"
+          >
+            <Download size={14} />
+            <span className="hidden lg:inline">Exportar</span>
           </button>
+          {!readOnly && (
+            <>
+              <button
+                onClick={() => setIsImportOpen(true)}
+                title="Importar peças de uma planilha"
+                className="h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 hover:text-text-primary"
+              >
+                <FileSpreadsheet size={14} />
+                <span className="hidden lg:inline">Importar</span>
+              </button>
+              <button onClick={openCreateModal} className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90">
+                <Plus size={16} /> Nova peça
+              </button>
+            </>
+          )}
         </div>
       </div>
+
+      {/* Conferência do dia — some quando nada foi cadastrado hoje, pra não
+          ocupar espaço fora do dia de catalogação. */}
+      {resumoDoDia.itens > 0 && (
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-card border border-border-subtle bg-surface-card px-4 py-3">
+          <div>
+            <p className="text-[20px] font-medium text-text-primary leading-none tabular-nums">{resumoDoDia.itens}</p>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-faint mt-1.5">
+              {resumoDoDia.itens === 1 ? 'peça cadastrada hoje' : 'peças cadastradas hoje'}
+            </p>
+          </div>
+          <div className="h-8 w-px bg-border-subtle hidden sm:block" />
+          <div>
+            <p className="text-[20px] font-medium text-text-primary leading-none tabular-nums">{formatCurrency(resumoDoDia.valorTotal)}</p>
+            <p className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-faint mt-1.5">somados hoje</p>
+          </div>
+          {resumoDoDia.semValor > 0 && (
+            <button
+              onClick={() => setSoSemPreco(true)}
+              className="ml-auto flex items-center gap-2 rounded-control bg-warning-bg px-3 py-2 text-warning hover:opacity-80 transition-opacity"
+            >
+              <AlertTriangle size={14} className="shrink-0" />
+              <span className="text-xs font-medium">
+                {resumoDoDia.semValor} sem preço — revisar
+              </span>
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Filtros */}
       <div className="space-y-3">
@@ -510,6 +678,29 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
             <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soEstoqueBaixo ? 'bg-warning/20' : 'bg-surface-raised')}>{itensEstoqueBaixo}</span>
             {soEstoqueBaixo && <X size={12} />}
           </button>
+          <button
+            onClick={() => setSoSemPreco((v) => !v)}
+            className={cn(
+              'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+              soSemPreco ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+            )}
+          >
+            Sem preço
+            {soSemPreco && <X size={12} />}
+          </button>
+          {(itensComAvaria > 0 || soComAvaria) && (
+            <button
+              onClick={() => setSoComAvaria((v) => !v)}
+              className={cn(
+                'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+                soComAvaria ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+              )}
+            >
+              Com avaria
+              <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soComAvaria ? 'bg-warning/20' : 'bg-surface-raised')}>{itensComAvaria}</span>
+              {soComAvaria && <X size={12} />}
+            </button>
+          )}
         </div>
       </div>
 
@@ -532,8 +723,8 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
             <EmptyState
               icone={Package}
               mensagem={items.length === 0 ? 'Nenhuma peça cadastrada ainda.' : 'Nenhum item corresponde aos filtros aplicados.'}
-              acaoLabel={items.length === 0 ? 'Cadastrar peça' : undefined}
-              onAcao={items.length === 0 ? openCreateModal : undefined}
+              acaoLabel={items.length === 0 && !readOnly ? 'Cadastrar peça' : undefined}
+              onAcao={items.length === 0 && !readOnly ? openCreateModal : undefined}
             />
           )
         }
@@ -542,65 +733,89 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
       {/* Modal criar/editar */}
       <AnimatePresence>
         {isModalOpen && (
-          <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setIsModalOpen(false)}>
-            <motion.div
-              initial={{ y: '100%', opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: '100%', opacity: 0 }}
-              transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-              onClick={(e) => e.stopPropagation()}
-              className="relative w-full max-w-2xl h-[90vh] md:h-auto md:max-h-[85vh] flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle"
-            >
-              <div className="md:hidden flex justify-center pt-4 pb-2">
-                <div className="w-12 h-1.5 rounded-full bg-border-default" />
-              </div>
-              <div className="flex items-center justify-between p-6 border-b border-border-subtle">
-                <h2 className="text-xl font-medium">{editingItem ? 'Editar peça' : 'Nova peça no estoque'}</h2>
-                <button onClick={() => setIsModalOpen(false)} className="p-2 rounded-full hover:bg-surface-raised text-text-faint">
-                  <X size={20} />
+          <Modal
+            aberto={isModalOpen}
+            onFechar={() => setIsModalOpen(false)}
+            titulo={editingItem ? 'Editar peça' : 'Nova peça no estoque'}
+            subtitulo={
+              editingItem
+                ? editingItem.codigo
+                : salvasEmSequencia > 0
+                ? `${salvasEmSequencia} ${salvasEmSequencia === 1 ? 'peça cadastrada' : 'peças cadastradas'} nesta sequência`
+                : 'Categoria, moto e condição ficam guardadas pra próxima peça'
+            }
+            icone={Package}
+            tamanho="lg"
+            rodape={
+              editingItem ? (
+                <button
+                  onClick={() => handleSave(false)}
+                  disabled={isSaving || isUploadingImagem}
+                  className="w-full h-12 rounded-control bg-accent text-white font-semibold text-xs uppercase tracking-[0.2em] shadow-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar alterações'}
                 </button>
-              </div>
-
-              <div className="flex-1 overflow-y-auto p-6 space-y-4">
-                <div>
-                  <label className={labelClass}>Foto da peça</label>
-                  <div className="flex items-center gap-4">
-                    <div className="w-24 h-24 rounded-card border overflow-hidden shrink-0 flex items-center justify-center relative bg-surface-inset border-border-default">
-                      {isUploadingImagem ? (
-                        <Loader2 size={22} className="animate-spin text-accent" />
-                      ) : formData.imagem_url ? (
-                        <img src={formData.imagem_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      ) : (
-                        <ImageOff size={22} className="text-text-faint" />
-                      )}
-                    </div>
-                    <div className="flex-1 space-y-2">
-                      <label className="flex items-center justify-center gap-2 py-3 px-4 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg">
-                        <Upload size={14} />
-                        {formData.imagem_url ? 'Trocar foto' : 'Anexar foto'}
-                        <input
-                          type="file"
-                          accept="image/jpeg,image/png,image/webp,image/gif"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) handleUploadImagem(file);
-                            e.target.value = '';
-                          }}
-                        />
-                      </label>
-                      {formData.imagem_url && (
-                        <button type="button" onClick={() => setFormData((prev) => ({ ...prev, imagem_url: '' }))} className="text-xs text-danger hover:underline">
-                          Remover foto
-                        </button>
-                      )}
-                    </div>
-                  </div>
+              ) : (
+                <div className="flex flex-col-reverse sm:flex-row gap-3">
+                  <button
+                    onClick={() => handleSave(false)}
+                    disabled={isSaving || isUploadingImagem}
+                    className="sm:flex-1 h-12 rounded-control border border-border-default text-text-secondary font-semibold text-xs uppercase tracking-wider hover:bg-surface-raised disabled:opacity-50"
+                  >
+                    Salvar e fechar
+                  </button>
+                  {/* Ação principal do dia de catalogação: é ela que mantém o
+                      ritmo peça a peça, então fica com o único accent da tela. */}
+                  <button
+                    onClick={() => handleSave(true)}
+                    disabled={isSaving || isUploadingImagem}
+                    className="sm:flex-[1.4] h-12 rounded-control bg-accent text-white font-semibold text-xs uppercase tracking-wider shadow-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
+                  >
+                    {isSaving ? <Loader2 size={18} className="animate-spin" /> : <><Plus size={15} /> Salvar e cadastrar próxima</>}
+                  </button>
                 </div>
-
+              )
+            }
+          >
+            <>
+              <ModalSection titulo="Identificação">
                 <div>
                   <label className={labelClass}>Nome da peça *</label>
-                  <input value={formData.nome} onChange={(e) => setFormData({ ...formData, nome: e.target.value })} placeholder="Ex: CDI Titan 150" className={inputClass} />
+                  <input
+                    ref={inputNomeRef}
+                    value={formData.nome}
+                    onChange={(e) => setFormData({ ...formData, nome: e.target.value })}
+                    placeholder="Ex: CDI Titan 150"
+                    className={inputClass}
+                  />
+                  {duplicatas.length > 0 && (
+                    <div className="mt-2 rounded-control border border-warning/25 bg-warning-bg/40 p-3 space-y-2">
+                      <p className="text-xs font-medium text-warning flex items-center gap-1.5">
+                        <AlertTriangle size={13} className="shrink-0" />
+                        {duplicatas[0].grau === 'exata' ? 'Essa peça já parece estar cadastrada' : 'Peça parecida já cadastrada'}
+                      </p>
+                      {duplicatas.map((dup) => (
+                        <div key={dup.item.id} className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs text-text-primary truncate">{dup.item.nome}</p>
+                            <p className="text-[11px] text-text-faint">
+                              {dup.item.codigo} · {dup.item.quantidade} em estoque
+                              {dup.item.categoria?.nome ? ` · ${dup.item.categoria.nome}` : ''}
+                            </p>
+                          </div>
+                          {/* Sem esta ação o aviso seria só ruído: normalmente o
+                              certo é somar quantidade na peça que já existe. */}
+                          <button
+                            type="button"
+                            onClick={() => openEditModal(dup.item)}
+                            className="shrink-0 flex items-center gap-1.5 rounded-control border border-warning/30 px-2.5 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-warning hover:bg-warning/10"
+                          >
+                            <Pencil size={12} /> Abrir
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -684,15 +899,34 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
                     </div>
                   </div>
                 )}
+              </ModalSection>
 
+              <ModalSection titulo="Preço e estoque">
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className={labelClass}>Valor (R$)</label>
-                    <input type="number" min="0" step="0.01" value={formData.valor} onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })} className={inputClass} />
+                    {/* inputMode decimal abre o teclado numérico do celular —
+                        o tipo continua number pra manter os controles no desktop. */}
+                    <input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      inputMode="decimal"
+                      value={formData.valor}
+                      onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
+                      className={inputClass}
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Quantidade</label>
-                    <input type="number" min="0" value={formData.quantidade} onChange={(e) => setFormData({ ...formData, quantidade: Number(e.target.value) })} className={inputClass} />
+                    <input
+                      type="number"
+                      min="0"
+                      inputMode="numeric"
+                      value={formData.quantidade}
+                      onChange={(e) => setFormData({ ...formData, quantidade: Number(e.target.value) })}
+                      className={inputClass}
+                    />
                   </div>
                   <div>
                     <label className={labelClass}>Ano</label>
@@ -700,9 +934,88 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
                   </div>
                 </div>
 
+                {/* Total já somado: é aqui que um zero a mais no valor salta
+                    aos olhos, antes de virar linha no estoque. */}
+                {Number(formData.valor) > 0 && Number(formData.quantidade) > 1 && (
+                  <p className="text-xs text-text-faint">
+                    {formData.quantidade} × {formatCurrency(Number(formData.valor))} ={' '}
+                    <span className="text-text-secondary font-medium">{formatCurrency(Number(formData.valor) * Number(formData.quantidade))}</span> nesta linha
+                  </p>
+                )}
+              </ModalSection>
+
+              <ModalSection titulo="Foto">
+                <div className="flex items-center gap-4">
+                  <div className="w-24 h-24 rounded-card border overflow-hidden shrink-0 flex items-center justify-center relative bg-surface-inset border-border-default">
+                    {isUploadingImagem ? (
+                      <Loader2 size={22} className="animate-spin text-accent" />
+                    ) : formData.imagem_url ? (
+                      <img src={formData.imagem_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    ) : (
+                      <ImageOff size={22} className="text-text-faint" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2 min-w-0">
+                    <div className="flex gap-2">
+                      {/* Câmera separada da galeria: no celular abre direto a
+                          câmera (um toque a menos por peça) sem tirar a opção
+                          de escolher uma foto já salva. Escondida no desktop,
+                          onde `capture` não significa nada. */}
+                      <button
+                        type="button"
+                        onClick={() => inputCameraRef.current?.click()}
+                        className="md:hidden flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg"
+                      >
+                        <Camera size={14} /> Câmera
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => inputGaleriaRef.current?.click()}
+                        className="flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg"
+                      >
+                        <Upload size={14} />
+                        <span className="md:hidden">Galeria</span>
+                        <span className="hidden md:inline">{formData.imagem_url ? 'Trocar foto' : 'Anexar foto'}</span>
+                      </button>
+                    </div>
+                    <input
+                      ref={inputCameraRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      capture="environment"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadImagem(file);
+                        e.target.value = '';
+                      }}
+                    />
+                    <input
+                      ref={inputGaleriaRef}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,image/gif"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) handleUploadImagem(file);
+                        e.target.value = '';
+                      }}
+                    />
+                    {resumoCompressao && <p className="text-[11px] text-positive">{resumoCompressao}</p>}
+                    {formData.imagem_url && (
+                      <button type="button" onClick={() => setFormData((prev) => ({ ...prev, imagem_url: '' }))} className="text-xs text-danger hover:underline">
+                        Remover foto
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </ModalSection>
+
+              <ModalSection
+                titulo="Anúncios publicados"
+                descricao='Cole o link do anúncio em cada canal — aparece como badge clicável na coluna "Anúncios" da tabela.'
+              >
                 <div>
-                  <label className={labelClass}>Anúncios publicados (opcional)</label>
-                  <p className="text-xs text-text-faint mb-2">Cole o link do anúncio em cada canal — aparece como badge clicável na coluna "Anúncios" da tabela.</p>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div className="relative">
                       <input
@@ -732,12 +1045,13 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
                     </div>
                   </div>
                 </div>
+              </ModalSection>
 
+              <ModalSection
+                titulo="Venda em partes"
+                descricao='Se essa peça pode ser vendida em partes separadas (ex: "Mesa Completa" → Superior / Inferior), cadastre os nomes aqui. Na venda você poderá dar baixa de só uma parte, e o item fica sinalizado como incompleto.'
+              >
                 <div>
-                  <label className={labelClass}>Componentes (opcional)</label>
-                  <p className="text-xs text-text-faint mb-2">
-                    Se essa peça pode ser vendida em partes separadas (ex: "Mesa Completa" → Superior / Inferior), cadastre os nomes aqui. Na venda você poderá dar baixa de só uma parte, e o item fica sinalizado como incompleto.
-                  </p>
                   {(formData.componentes || []).length > 0 && (
                     <div className="flex flex-wrap gap-2 mb-2">
                       {(formData.componentes || []).map((c, i) => (
@@ -771,49 +1085,67 @@ export function EstoqueView({ onSelectItem, onRegisterActions, pendingEditItem, 
                     className={inputClass}
                   />
                 </div>
+              </ModalSection>
 
-                <div>
-                  <label className={labelClass}>Descrição</label>
-                  <textarea value={formData.descricao || ''} onChange={(e) => setFormData({ ...formData, descricao: e.target.value })} rows={3} className={inputClass} />
-                </div>
-              </div>
-
-              <div className="p-6 border-t border-border-subtle">
-                <button
-                  onClick={handleSave}
-                  disabled={isSaving || isUploadingImagem}
-                  className="w-full bg-accent disabled:opacity-50 text-white py-4 rounded-control font-semibold text-xs uppercase tracking-[0.2em] shadow-sm flex items-center justify-center gap-2 hover:opacity-90"
-                >
-                  {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar'}
-                </button>
-              </div>
-            </motion.div>
-          </div>
+              <ModalSection titulo="Descrição">
+                <textarea
+                  value={formData.descricao || ''}
+                  onChange={(e) => setFormData({ ...formData, descricao: e.target.value })}
+                  rows={3}
+                  placeholder="Estado da peça, detalhes de compatibilidade, observações..."
+                  className={cn(inputClass, 'resize-none')}
+                />
+              </ModalSection>
+            </>
+          </Modal>
         )}
       </AnimatePresence>
 
       {/* Confirmação de exclusão */}
       <AnimatePresence>
         {itemToDelete && (
-          <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className="w-full max-w-sm rounded-card border p-6 text-center bg-surface-page border-border-subtle">
-              <div className="w-16 h-16 rounded-full bg-danger-bg flex items-center justify-center text-danger mx-auto mb-4">
-                <AlertCircle size={28} />
-              </div>
-              <h3 className="text-lg font-medium mb-2">Excluir "{itemToDelete.nome}"?</h3>
-              <p className="text-sm text-text-faint mb-6">Essa ação não pode ser desfeita.</p>
+          <Modal
+            aberto={!!itemToDelete}
+            onFechar={() => setItemToDelete(null)}
+            titulo="Excluir peça?"
+            subtitulo={itemToDelete.codigo}
+            icone={AlertCircle}
+            tamanho="sm"
+            rodape={
               <div className="flex gap-3">
-                <button onClick={() => setItemToDelete(null)} className="flex-1 py-3 rounded-control font-medium text-sm bg-surface-inset text-text-secondary">
+                <button
+                  onClick={() => setItemToDelete(null)}
+                  className="flex-1 h-11 rounded-control border border-border-default font-medium text-sm text-text-secondary hover:bg-surface-raised"
+                >
                   Cancelar
                 </button>
-                <button onClick={handleDelete} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+                <button onClick={handleDelete} className="flex-1 h-11 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
                   Excluir
                 </button>
               </div>
-            </motion.div>
-          </div>
+            }
+          >
+            <p className="text-sm text-text-secondary">
+              <span className="text-text-primary font-medium">{itemToDelete.nome}</span> vai sair do estoque junto com a foto. Essa ação não pode ser desfeita.
+            </p>
+            {itemToDelete.quantidade > 0 && (
+              <p className="text-sm text-warning mt-3">
+                Ainda {itemToDelete.quantidade === 1 ? 'há 1 unidade' : `há ${itemToDelete.quantidade} unidades`} em estoque
+                {Number(itemToDelete.valor) > 0 && <> ({formatCurrency(Number(itemToDelete.valor) * itemToDelete.quantidade)})</>}.
+              </p>
+            )}
+          </Modal>
         )}
       </AnimatePresence>
+
+      <ImportarPlanilhaModal
+        aberto={isImportOpen}
+        onFechar={() => setIsImportOpen(false)}
+        categorias={categorias}
+        modelos={modelos}
+        criarCategoria={criarCategoria}
+        onImportado={refreshData}
+      />
     </div>
   );
 }

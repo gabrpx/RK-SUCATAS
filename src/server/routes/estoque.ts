@@ -5,8 +5,47 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { excluirImagemPorUrl } from '../../services/storageService.js';
 import { categoriaExigeNota } from '../../features/estoque/categoriaMotor.js';
 import type { Categoria } from '../../types/catalog.js';
+import { autorizar } from '../../../middleware/auth.js';
+
+// GET fica aberto pra Eloisa (estoque_leitura, só consulta); toda escrita
+// (criar/editar/excluir/ações em massa) é admin/equipe only.
+const LEITURA = autorizar('admin', 'equipe', 'estoque_leitura');
+const ESCRITA = autorizar('admin', 'equipe');
 
 const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)';
+
+// As fichas de unidade (migration_014) vêm numa consulta separada, e não como
+// join no select acima, de propósito: enquanto a migração não roda em
+// produção a tabela não existe, e um join pra tabela inexistente derruba a
+// listagem inteira do estoque. Assim a aba continua funcionando normalmente
+// e as avarias simplesmente aparecem vazias até a migração ser aplicada.
+async function anexarUnidades(supabase: SupabaseClient, itens: any[] | null): Promise<any[]> {
+  const lista = itens ?? [];
+  if (lista.length === 0) return lista;
+
+  // Sem filtro por id: a tabela só tem linha pra unidade sinalizada, então é
+  // pequena por construção — e evita montar um `in(...)` com milhares de ids.
+  const { data, error } = await supabase.from('estoque_unidades').select('*');
+
+  if (error) {
+    // 42P01 = tabela não existe; PGRST205 = PostgREST ainda não a conhece.
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      console.warn('⚠️ Tabela estoque_unidades ausente — rode supabase/migration_014_unidades_avaria.sql pra habilitar as avarias.');
+    } else {
+      console.error('Erro ao buscar unidades de estoque:', error);
+    }
+    return lista.map((item) => ({ ...item, unidades: [] }));
+  }
+
+  const porEstoque = new Map<string, any[]>();
+  for (const unidade of data ?? []) {
+    const atual = porEstoque.get(unidade.estoque_id) ?? [];
+    atual.push(unidade);
+    porEstoque.set(unidade.estoque_id, atual);
+  }
+
+  return lista.map((item) => ({ ...item, unidades: porEstoque.get(item.id) ?? [] }));
+}
 
 const CAMPOS_EDITAVEIS = [
   'nome',
@@ -58,28 +97,29 @@ async function validarNotaCadastro(supabase: SupabaseClient, categoriaId: string
 export function estoqueRouter(supabase: SupabaseClient) {
   const router = Router();
 
-  router.get('/', async (_req, res) => {
+  router.get('/', LEITURA, async (_req, res) => {
     try {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).order('criado_em', { ascending: false });
       if (error) throw error;
-      res.json({ success: true, data });
+      res.json({ success: true, data: await anexarUnidades(supabase, data) });
     } catch (error: any) {
       console.error('Erro ao listar estoque:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
-  router.get('/:id', async (req, res) => {
+  router.get('/:id', LEITURA, async (req, res) => {
     try {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).eq('id', req.params.id).single();
       if (error) throw error;
-      res.json({ success: true, data });
+      const [comUnidades] = await anexarUnidades(supabase, [data]);
+      res.json({ success: true, data: comUnidades });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
     }
   });
 
-  router.post('/', async (req, res) => {
+  router.post('/', ESCRITA, async (req, res) => {
     try {
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome da peça é obrigatório' });
@@ -93,7 +133,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
       const { data, error } = await supabase.from('estoque').insert([payload]).select(SELECT_COM_JOINS).single();
       if (error) throw error;
-      res.json({ success: true, data });
+      res.json({ success: true, data: { ...data, unidades: [] } });
     } catch (error: any) {
       console.error('Erro ao criar item de estoque:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -125,19 +165,22 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
       if (imagemAntiga) excluirImagemPorUrl(imagemAntiga).catch((e) => console.error('Erro ao limpar imagem antiga:', e));
 
-      res.json({ success: true, data });
+      // Sem isso o item volta pro frontend sem as fichas de unidade e o aviso
+      // de avaria some da lista até o próximo refresh.
+      const [comUnidades] = await anexarUnidades(supabase, [data]);
+      res.json({ success: true, data: comUnidades });
     } catch (error: any) {
       console.error('Erro ao atualizar item de estoque:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   };
 
-  router.put('/:id', atualizarItem);
+  router.put('/:id', ESCRITA, atualizarItem);
   // PATCH usa a mesma lógica do PUT — a diferença semântica (parcial vs total)
   // já é garantida por montarPayload só incluir os campos enviados.
-  router.patch('/:id', atualizarItem);
+  router.patch('/:id', ESCRITA, atualizarItem);
 
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', ESCRITA, async (req, res) => {
     try {
       const { data: item } = await supabase.from('estoque').select('imagem_url').eq('id', req.params.id).single();
       const { error } = await supabase.from('estoque').delete().eq('id', req.params.id);
@@ -152,7 +195,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/bulk-delete', async (req, res) => {
+  router.post('/bulk-delete', ESCRITA, async (req, res) => {
     try {
       const ids: string[] = req.body?.ids || [];
       if (!Array.isArray(ids) || ids.length === 0) {
@@ -173,7 +216,123 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/bulk-update-categoria', async (req, res) => {
+  // ==========================================================================
+  // Unidades físicas com avaria (ver supabase/migration_014_unidades_avaria.sql)
+  // ==========================================================================
+  // Aninhadas no item porque uma ficha de unidade não existe fora dele. As
+  // rotas têm dois segmentos, então nunca colidem com GET/PUT/DELETE '/:id'.
+
+  function montarPayloadUnidade(body: any) {
+    const payload: Record<string, any> = {};
+    if (body?.apelido !== undefined) payload.apelido = String(body.apelido).trim() || null;
+    if (body?.avaria !== undefined) payload.avaria = Boolean(body.avaria);
+    if (body?.avaria_descricao !== undefined) payload.avaria_descricao = String(body.avaria_descricao).trim() || null;
+    if (body?.fotos !== undefined) {
+      payload.fotos = Array.isArray(body.fotos) ? body.fotos.map((f: any) => String(f)).filter(Boolean) : [];
+    }
+    // Distingue "não mandou o campo" de "mandou vazio pra voltar ao preço da
+    // peça" — null aqui significa herdar estoque.valor, não zero.
+    if (body?.valor !== undefined) {
+      const numero = body.valor === null || body.valor === '' ? null : Number(body.valor);
+      payload.valor = numero === null || Number.isNaN(numero) ? null : Math.max(0, numero);
+    }
+    return payload;
+  }
+
+  router.get('/:id/unidades', LEITURA, async (req, res) => {
+    try {
+      const { data, error } = await supabase.from('estoque_unidades').select('*').eq('estoque_id', req.params.id).order('criado_em');
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao listar unidades:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/:id/unidades', ESCRITA, async (req, res) => {
+    try {
+      const { data: item, error: erroItem } = await supabase.from('estoque').select('id, quantidade').eq('id', req.params.id).maybeSingle();
+      if (erroItem) throw erroItem;
+      if (!item) return res.status(404).json({ success: false, error: 'Peça não encontrada' });
+
+      // Não faz sentido ter mais fichas de unidade do que unidades físicas —
+      // seriam fichas de peças que não estão mais na loja.
+      const { count, error: erroContagem } = await supabase
+        .from('estoque_unidades')
+        .select('id', { count: 'exact', head: true })
+        .eq('estoque_id', req.params.id);
+      if (erroContagem) throw erroContagem;
+
+      if ((count ?? 0) >= item.quantidade) {
+        return res.status(400).json({
+          success: false,
+          error: `Esta peça tem ${item.quantidade} unidade(s) em estoque e já ${count} ficha(s) cadastrada(s). Aumente a quantidade ou revise as fichas existentes.`,
+        });
+      }
+
+      const payload = { ...montarPayloadUnidade(req.body), estoque_id: req.params.id };
+      const { data, error } = await supabase.from('estoque_unidades').insert(payload).select('*').single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao criar unidade:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id/unidades/:unidadeId', ESCRITA, async (req, res) => {
+    try {
+      const payload = montarPayloadUnidade(req.body);
+
+      // Foto removida da ficha some do Storage também — mesma regra que o
+      // item usa pra imagem_url, pra não acumular arquivo órfão.
+      let fotosRemovidas: string[] = [];
+      if (payload.fotos !== undefined) {
+        const { data: atual } = await supabase.from('estoque_unidades').select('fotos').eq('id', req.params.unidadeId).single();
+        const antigas: string[] = atual?.fotos ?? [];
+        fotosRemovidas = antigas.filter((url) => !payload.fotos.includes(url));
+      }
+
+      const { data, error } = await supabase
+        .from('estoque_unidades')
+        .update(payload)
+        .eq('id', req.params.unidadeId)
+        .eq('estoque_id', req.params.id)
+        .select('*')
+        .single();
+      if (error) throw error;
+
+      for (const url of fotosRemovidas) {
+        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar foto de avaria:', e));
+      }
+
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao atualizar unidade:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.delete('/:id/unidades/:unidadeId', ESCRITA, async (req, res) => {
+    try {
+      const { data: unidade } = await supabase.from('estoque_unidades').select('fotos').eq('id', req.params.unidadeId).single();
+
+      const { error } = await supabase.from('estoque_unidades').delete().eq('id', req.params.unidadeId).eq('estoque_id', req.params.id);
+      if (error) throw error;
+
+      for (const url of unidade?.fotos ?? []) {
+        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar foto de avaria:', e));
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao excluir unidade:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/bulk-update-categoria', ESCRITA, async (req, res) => {
     try {
       const ids: string[] = req.body?.ids || [];
       const categoria_id: string = req.body?.categoria_id;
@@ -191,7 +350,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   // Ajuste relativo de quantidade (delta pode ser negativo), usado pelos
   // botões +1/-1 em lote na UI.
-  router.post('/bulk-update-quantidade', async (req, res) => {
+  router.post('/bulk-update-quantidade', ESCRITA, async (req, res) => {
     try {
       const ids: string[] = req.body?.ids || [];
       const delta: number = Number(req.body?.delta) || 0;

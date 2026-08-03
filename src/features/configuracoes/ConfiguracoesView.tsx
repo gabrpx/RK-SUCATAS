@@ -7,16 +7,17 @@
 // (árvores de categoria/moto com drag handle + 4 ícones por linha) abertos
 // ao mesmo tempo.
 import { useState } from 'react';
-import { Settings, Layers, Bike, Wallet } from 'lucide-react';
+import { Settings, Layers, Bike, Wallet, Users } from 'lucide-react';
 import { cn } from '../../utils';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { ManageListSection } from './ManageListSection';
 import { CategoriaTreeManager } from './CategoriaTreeManager';
 import { MotoTreeManager } from './MotoTreeManager';
+import { UsuariosView } from '../usuarios/UsuariosView';
 
-type Aba = 'categorias' | 'motos' | 'pagamento';
+type Aba = 'categorias' | 'motos' | 'pagamento' | 'usuarios';
 
-export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
+export function ConfiguracoesView({ theme, userRole }: { theme: 'light' | 'dark'; userRole?: string }) {
   const {
     categorias,
     modelos,
@@ -39,10 +40,11 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
 
   const [aba, setAba] = useState<Aba>('categorias');
 
-  const abas: { id: Aba; label: string; icone: typeof Layers; total: number }[] = [
+  const abas: { id: Aba; label: string; icone: typeof Layers; total?: number }[] = [
     { id: 'categorias', label: 'Categorias de Peça', icone: Layers, total: categorias.length },
     { id: 'motos', label: 'Motos', icone: Bike, total: modelos.length },
     { id: 'pagamento', label: 'Formas de Pagamento', icone: Wallet, total: formasPagamento.length },
+    ...(userRole === 'admin' ? [{ id: 'usuarios' as Aba, label: 'Usuários', icone: Users }] : []),
   ];
 
   return (
@@ -81,14 +83,16 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
             >
               <Icone size={16} />
               {item.label}
-              <span
-                className={cn(
-                  'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                  ativo ? 'bg-white/20 text-white' : theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
-                )}
-              >
-                {item.total}
-              </span>
+              {item.total !== undefined && (
+                <span
+                  className={cn(
+                    'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                    ativo ? 'bg-white/20 text-white' : theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                  )}
+                >
+                  {item.total}
+                </span>
+              )}
             </button>
           );
         })}
@@ -128,6 +132,7 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
           onExcluir={excluirFormaPagamento}
         />
       )}
+      {aba === 'usuarios' && userRole === 'admin' && <UsuariosView />}
     </div>
   );
 }

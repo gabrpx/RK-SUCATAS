@@ -10,7 +10,7 @@ dotenv.config();
 const JWT_SECRET = requireEnv('JWT_SECRET');
 
 export interface UsuarioLogado {
-  id: number;
+  id: string;
   username: string;
   role: string;
 }
@@ -31,7 +31,7 @@ export function autenticar(req: AuthenticatedRequest, res: Response, next: NextF
   // Nunca dispara em produção real: um servidor exposto na internet nunca vê
   // uma conexão com remoteAddress de loopback vinda de fora da própria máquina.
   if (ENDERECOS_LOOPBACK.includes(req.socket.remoteAddress || '')) {
-    req.usuario = { id: 0, username: 'localhost', role: 'admin' };
+    req.usuario = { id: '00000000-0000-0000-0000-000000000000', username: 'localhost', role: 'admin' };
     return next();
   }
 
@@ -48,4 +48,15 @@ export function autenticar(req: AuthenticatedRequest, res: Response, next: NextF
   } catch {
     return res.status(401).json({ success: false, error: 'Token inválido ou expirado' });
   }
+}
+
+// Gate por papel: usar depois de `autenticar` (precisa de req.usuario já
+// preenchido). Ex.: router.post('/', autorizar('admin', 'equipe'), handler).
+export function autorizar(...rolesPermitidas: string[]) {
+  return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
+    if (!req.usuario || !rolesPermitidas.includes(req.usuario.role)) {
+      return res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
+    }
+    next();
+  };
 }

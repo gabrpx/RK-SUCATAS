@@ -36,10 +36,11 @@ import {
   FileText,
   LogOut,
   Settings,
+  ClipboardList,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
-import { DataProvider } from './context/DataContext';
+import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Login } from './components/Login';
@@ -50,13 +51,24 @@ import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
+import { TarefasView } from './features/tarefas/TarefasView';
+import { UnidadesAvaria } from './features/estoque/UnidadesAvaria';
+import { contarAvarias } from './features/estoque/valorEstoque';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
+import { TAB_ROLES } from './constants/roles';
+import type { Role } from './constants/roles';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'configuracoes';
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'configuracoes'];
+type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'configuracoes' | 'tarefas';
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'configuracoes', 'tarefas'];
+
+// Primeira aba visível pra cada papel — usada como fallback quando a URL
+// pede uma aba que o papel logado não pode ver.
+function primeiraAbaPermitida(role: Role): Tab {
+  return VALID_TABS.find((tab) => TAB_ROLES[tab].includes(role)) as Tab;
+}
 
 function isVenda(item: DetailItem): item is Venda {
   return 'valor_total' in item;
@@ -110,6 +122,7 @@ export default function App() {
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_role');
     localStorage.removeItem('user_name');
+    localStorage.removeItem('user_id');
     setIsUserAuthenticated(false);
     window.location.href = '/login';
   };
@@ -174,7 +187,23 @@ const DetailItemBox = ({ label, value, icon: Icon, theme }: { label: string; val
   </div>
 );
 
-function DetailModal({ item, onClose, theme, onEdit, onDelete }: { item: DetailItem; onClose: () => void; theme: 'light' | 'dark'; onEdit?: (item: DetailItem) => void; onDelete?: (id: string) => void }) {
+function DetailModal({
+  item,
+  onClose,
+  theme,
+  onEdit,
+  onDelete,
+  readOnly,
+  onAlterado,
+}: {
+  item: DetailItem;
+  onClose: () => void;
+  theme: 'light' | 'dark';
+  onEdit?: (item: DetailItem) => void;
+  onDelete?: (id: string) => void;
+  readOnly?: boolean;
+  onAlterado?: () => void;
+}) {
   useEffect(() => {
     document.body.style.overflow = 'hidden';
     return () => {
@@ -238,7 +267,12 @@ function DetailModal({ item, onClose, theme, onEdit, onDelete }: { item: DetailI
             <div className="grid grid-cols-2 gap-4">
               {estoque && (
                 <>
-                  <DetailItemBox label="Quantidade" value={estoque.quantidade} icon={Package} theme={theme} />
+                  <DetailItemBox
+                    label="Quantidade"
+                    value={contarAvarias(estoque) > 0 ? `${estoque.quantidade} · ${contarAvarias(estoque)} c/ avaria` : estoque.quantidade}
+                    icon={Package}
+                    theme={theme}
+                  />
                   <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} theme={theme} />
                   <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} theme={theme} />
                   <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} theme={theme} />
@@ -262,6 +296,10 @@ function DetailModal({ item, onClose, theme, onEdit, onDelete }: { item: DetailI
                 <p className={cn('text-sm leading-relaxed', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600')}>{estoque?.descricao || venda?.observacoes}</p>
               </div>
             )}
+
+            {/* Unidades físicas com avaria: mesma peça, uma linha só no
+                estoque, mas cada unidade diferente ganha ficha e foto. */}
+            {estoque && <UnidadesAvaria item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
 
             <div className="flex flex-col gap-3 pt-4">
               <button onClick={handleWhatsAppShare} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3">
@@ -336,12 +374,29 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações', tarefas: 'Tarefas' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
+  // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
+  // fichas de unidade (badge de avaria e valor total dependem disso).
+  const { refreshData } = useData();
+
+  // IS_LOCALHOST pula o login (ver comentário acima) e nunca grava user_role
+  // no localStorage — nesse caso replica o mesmo 'admin' que o backend
+  // atribui via bypass de loopback. Fora do localhost, checkAuthStatus só
+  // autentica com token E role presentes, então este branch não deveria ser
+  // alcançável — mas se o storage for corrompido/alterado em runtime, cai no
+  // papel menos privilegiado em vez de assumir admin.
+  const userRole = ((localStorage.getItem('user_role') as Role) || (IS_LOCALHOST ? 'admin' : 'estoque_leitura')) as Role;
+
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
-    return VALID_TABS.includes(path) ? path : 'dashboard';
+    const abaValida = VALID_TABS.includes(path);
+    if (abaValida && TAB_ROLES[path].includes(userRole)) return path;
+    // Aba inexistente OU papel sem permissão pra ela: cai na primeira aba
+    // que o papel logado pode ver, em vez de sempre tentar 'dashboard'
+    // (que Eloisa/mandados/mecanico não conseguem ver).
+    return primeiraAbaPermitida(userRole);
   });
   const [pendingEditItem, setPendingEditItem] = useState<Estoque | null>(null);
   const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
@@ -432,13 +487,30 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <nav className="flex-1 space-y-2">
-            <SidebarItem icon={LayoutDashboard} label={isSidebarOpen ? 'Dashboard' : ''} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} theme={theme} />
-            <SidebarItem icon={Package} label={isSidebarOpen ? 'Estoque' : ''} active={activeTab === 'estoque'} onClick={() => setActiveTab('estoque')} theme={theme} />
-            <SidebarItem icon={ShoppingCart} label={isSidebarOpen ? 'Vendas' : ''} active={activeTab === 'vendas'} onClick={() => setActiveTab('vendas')} theme={theme} />
-            <SidebarItem icon={Receipt} label={isSidebarOpen ? 'Orçamentos' : ''} active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} theme={theme} />
-            <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
-            <SidebarItem icon={Truck} label={isSidebarOpen ? 'Frete' : ''} active={activeTab === 'frete'} onClick={() => setActiveTab('frete')} theme={theme} />
-            <SidebarItem icon={Settings} label={isSidebarOpen ? 'Configurações' : ''} active={activeTab === 'configuracoes'} onClick={() => setActiveTab('configuracoes')} theme={theme} />
+            {TAB_ROLES.dashboard.includes(userRole) && (
+              <SidebarItem icon={LayoutDashboard} label={isSidebarOpen ? 'Dashboard' : ''} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} theme={theme} />
+            )}
+            {TAB_ROLES.estoque.includes(userRole) && (
+              <SidebarItem icon={Package} label={isSidebarOpen ? 'Estoque' : ''} active={activeTab === 'estoque'} onClick={() => setActiveTab('estoque')} theme={theme} />
+            )}
+            {TAB_ROLES.vendas.includes(userRole) && (
+              <SidebarItem icon={ShoppingCart} label={isSidebarOpen ? 'Vendas' : ''} active={activeTab === 'vendas'} onClick={() => setActiveTab('vendas')} theme={theme} />
+            )}
+            {TAB_ROLES.orcamentos.includes(userRole) && (
+              <SidebarItem icon={Receipt} label={isSidebarOpen ? 'Orçamentos' : ''} active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} theme={theme} />
+            )}
+            {TAB_ROLES.caixa.includes(userRole) && (
+              <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
+            )}
+            {TAB_ROLES.frete.includes(userRole) && (
+              <SidebarItem icon={Truck} label={isSidebarOpen ? 'Frete' : ''} active={activeTab === 'frete'} onClick={() => setActiveTab('frete')} theme={theme} />
+            )}
+            {TAB_ROLES.tarefas.includes(userRole) && (
+              <SidebarItem icon={ClipboardList} label={isSidebarOpen ? 'Tarefas' : ''} active={activeTab === 'tarefas'} onClick={() => setActiveTab('tarefas')} theme={theme} />
+            )}
+            {TAB_ROLES.configuracoes.includes(userRole) && (
+              <SidebarItem icon={Settings} label={isSidebarOpen ? 'Configurações' : ''} active={activeTab === 'configuracoes'} onClick={() => setActiveTab('configuracoes')} theme={theme} />
+            )}
             <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} theme={theme} className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600" />
           </nav>
 
@@ -485,6 +557,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   setPendingEditItem={setPendingEditItem}
                   filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
                   setFiltroEstoqueBaixoInicial={setPendingEstoqueBaixo}
+                  readOnly={userRole === 'estoque_leitura'}
                 />
               ) : activeTab === 'vendas' ? (
                 <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
@@ -494,15 +567,17 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 <CaixaView theme={theme} />
               ) : activeTab === 'frete' ? (
                 <FreteView theme={theme} />
+              ) : activeTab === 'tarefas' ? (
+                <TarefasView userRole={userRole} />
               ) : (
-                <ConfiguracoesView theme={theme} />
+                <ConfiguracoesView theme={theme} userRole={userRole} />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRole="admin" isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} />
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRole={userRole} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} />
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
@@ -511,7 +586,17 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       )}
 
       <AnimatePresence>
-        {selectedDetailItem && <DetailModal item={selectedDetailItem} theme={theme} onClose={() => setSelectedDetailItem(null)} onEdit={itemActions.edit} onDelete={itemActions.delete} />}
+        {selectedDetailItem && (
+          <DetailModal
+            item={selectedDetailItem}
+            theme={theme}
+            onClose={() => setSelectedDetailItem(null)}
+            onEdit={itemActions.edit}
+            onDelete={itemActions.delete}
+            readOnly={userRole === 'estoque_leitura'}
+            onAlterado={refreshData}
+          />
+        )}
       </AnimatePresence>
 
       <AnimatePresence>{isLogoutModalOpen && <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} theme={theme} />}</AnimatePresence>
