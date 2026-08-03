@@ -63,6 +63,11 @@ export function usuariosRouter(supabase: SupabaseClient) {
   router.patch('/:id', async (req: AuthenticatedRequest, res) => {
     try {
       const payload: Record<string, any> = {};
+      if (req.body?.username !== undefined) {
+        const username = String(req.body.username).trim().toLowerCase();
+        if (!username) return res.status(400).json({ success: false, error: 'Usuário não pode ficar em branco' });
+        payload.username = username;
+      }
       if (req.body?.nome_exibicao !== undefined) payload.nome_exibicao = String(req.body.nome_exibicao).trim();
       if (req.body?.role !== undefined) {
         if (!ALL_ROLES.includes(req.body.role)) return res.status(400).json({ success: false, error: 'Papel inválido' });
@@ -70,13 +75,41 @@ export function usuariosRouter(supabase: SupabaseClient) {
       }
       if (req.body?.ativo !== undefined) payload.ativo = Boolean(req.body.ativo);
 
+      const { data: atual, error: erroAtual } = await supabase.from('usuarios').select('id, role, ativo').eq('id', req.params.id).maybeSingle();
+      if (erroAtual) throw erroAtual;
+      if (!atual) return res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+
+      const vaiDesativar = payload.ativo === false;
+      const vaiTirarDeAdmin = payload.role !== undefined && payload.role !== 'admin';
+
       const alvoEhEuMesmo = req.usuario?.id === req.params.id;
-      if (alvoEhEuMesmo && (payload.ativo === false || (payload.role !== undefined && payload.role !== 'admin'))) {
+      if (alvoEhEuMesmo && (vaiDesativar || vaiTirarDeAdmin)) {
         return res.status(400).json({ success: false, error: 'Não é possível remover seu próprio acesso de administrador' });
       }
 
+      // Além de não poder se auto-rebaixar (checagem acima), ninguém pode
+      // deixar o sistema sem NENHUM admin ativo, mesmo mexendo na conta de
+      // outra pessoa — senão perde-se o acesso pra gerenciar usuários.
+      if (atual.role === 'admin' && atual.ativo && (vaiDesativar || vaiTirarDeAdmin)) {
+        const { count, error: erroContagem } = await supabase
+          .from('usuarios')
+          .select('id', { count: 'exact', head: true })
+          .eq('role', 'admin')
+          .eq('ativo', true)
+          .neq('id', req.params.id);
+        if (erroContagem) throw erroContagem;
+        if (!count) {
+          return res.status(400).json({ success: false, error: 'Não é possível remover o último administrador ativo do sistema' });
+        }
+      }
+
       const { data, error } = await supabase.from('usuarios').update(payload).eq('id', req.params.id).select(SELECT_SEM_SENHA).single();
-      if (error) throw error;
+      if (error) {
+        if (error.code === '23505') {
+          return res.status(409).json({ success: false, error: 'Já existe um usuário com esse username' });
+        }
+        throw error;
+      }
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao atualizar usuário:', error);

@@ -80,6 +80,7 @@ const EMPTY_FORM: EstoqueInput = {
   componentes: null,
   anuncio_ml_url: '',
   anuncio_fb_url: '',
+  modelo_moto_compativel_ids: [],
 };
 
 // Badge quadrado de anúncio (ML/FB) — colorido e clicável quando o link
@@ -156,6 +157,10 @@ export function EstoqueView({
   // digitado. Vira false assim que o usuário mexe manualmente no dropdown.
   const [categoriaAutoDetectada, setCategoriaAutoDetectada] = useState(true);
   const [novoComponente, setNovoComponente] = useState('');
+  // Controle do bloco "também serve em": enquanto true, mostra o
+  // MotoCascadeSelect temporário pra escolher o próximo modelo compatível.
+  const [adicionandoCompativel, setAdicionandoCompativel] = useState(false);
+  const [compatTempId, setCompatTempId] = useState('');
 
   const [itemToDelete, setItemToDelete] = useState<Estoque | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -178,6 +183,8 @@ export function EstoqueView({
     setFormData(EMPTY_FORM);
     setCategoriaAutoDetectada(true);
     setNovoComponente('');
+    setAdicionandoCompativel(false);
+    setCompatTempId('');
     setResumoCompressao(null);
     setSalvasEmSequencia(0);
     setIsModalOpen(true);
@@ -187,6 +194,8 @@ export function EstoqueView({
     setEditingItem(item);
     setCategoriaAutoDetectada(false);
     setNovoComponente('');
+    setAdicionandoCompativel(false);
+    setCompatTempId('');
     setResumoCompressao(null);
     setSalvasEmSequencia(0);
     setFormData({
@@ -205,6 +214,7 @@ export function EstoqueView({
       componentes: item.componentes,
       anuncio_ml_url: item.anuncio_ml_url || '',
       anuncio_fb_url: item.anuncio_fb_url || '',
+      modelo_moto_compativel_ids: (item.modelos_compativeis ?? []).map((m) => m.id),
     });
     setIsModalOpen(true);
   }, []);
@@ -324,12 +334,15 @@ export function EstoqueView({
             item.nome.toLowerCase().includes(t) ||
             item.codigo?.toLowerCase().includes(t) ||
             item.categoria?.nome?.toLowerCase().includes(t) ||
-            item.modelo_moto?.nome?.toLowerCase().includes(t)
+            item.modelo_moto?.nome?.toLowerCase().includes(t) ||
+            item.modelos_compativeis?.some((m) => m.nome.toLowerCase().includes(t))
         );
       const matchesCategoria =
         categoriaFiltro === 'Todas' || (!!item.categoria_id && getDescendantIds(categoriaFiltro, categorias).includes(item.categoria_id));
       const matchesModelo =
-        modeloFiltro === 'Todas' || (!!item.modelo_moto_id && getDescendantIdsMoto(modeloFiltro, modelos).includes(item.modelo_moto_id));
+        modeloFiltro === 'Todas' ||
+        (!!item.modelo_moto_id && getDescendantIdsMoto(modeloFiltro, modelos).includes(item.modelo_moto_id)) ||
+        !!item.modelos_compativeis?.some((m) => getDescendantIdsMoto(modeloFiltro, modelos).includes(m.id));
       const matchesEstoqueBaixo = !soEstoqueBaixo || isEstoqueBaixo(item);
       const matchesSemPreco = !soSemPreco || !(Number(item.valor) > 0);
       const matchesAvaria = !soComAvaria || temAvaria(item);
@@ -368,6 +381,9 @@ export function EstoqueView({
       modelo_moto_id: formData.modelo_moto_id || null,
       anuncio_ml_url: formData.anuncio_ml_url?.trim() || null,
       anuncio_fb_url: formData.anuncio_fb_url?.trim() || null,
+      // Proteção redundante à validação de UI: nunca manda o principal
+      // também como "compatível" (o backend já dedupe, mas evita o roundtrip).
+      modelo_moto_compativel_ids: formData.modelo_moto_compativel_ids.filter((id) => id !== formData.modelo_moto_id),
     };
 
     try {
@@ -390,8 +406,11 @@ export function EstoqueView({
             modelo_moto_id: formData.modelo_moto_id,
             condicao: formData.condicao,
             ano: formData.ano,
+            modelo_moto_compativel_ids: formData.modelo_moto_compativel_ids,
           });
           setNovoComponente('');
+          setAdicionandoCompativel(false);
+          setCompatTempId('');
           setResumoCompressao(null);
           setSalvasEmSequencia((n) => n + 1);
           // Não mexe em categoriaAutoDetectada de propósito: se a categoria
@@ -1000,13 +1019,93 @@ export function EstoqueView({
                       theme="dark"
                       modelos={modelos}
                       value={formData.modelo_moto_id || ''}
-                      onChange={(id) => setFormData({ ...formData, modelo_moto_id: id })}
+                      onChange={(id) =>
+                        setFormData({
+                          ...formData,
+                          modelo_moto_id: id,
+                          modelo_moto_compativel_ids: formData.modelo_moto_compativel_ids.filter((cid) => cid !== id),
+                        })
+                      }
                       onCreate={criarNoMoto}
                       allowEmpty
                       emptyLabel="Universal / não se aplica"
                     />
                   </div>
                 </div>
+
+                {formData.modelo_moto_id && (
+                  <div>
+                    <label className={labelClass}>Também serve em (opcional)</label>
+                    <p className="text-xs text-text-faint mb-2">
+                      Pra peças que servem em mais de um modelo/ano — ex: lanterna que serve tanto na CG 150 quanto na CG 125 Fan.
+                    </p>
+                    {formData.modelo_moto_compativel_ids.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {formData.modelo_moto_compativel_ids.map((id) => {
+                          const m = modelos.find((mm) => mm.id === id);
+                          if (!m) return null;
+                          return (
+                            <span key={id} className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-surface-inset text-text-secondary">
+                              {m.ano ? `${m.nome} (${m.ano})` : m.nome}
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setFormData((prev) => ({
+                                    ...prev,
+                                    modelo_moto_compativel_ids: prev.modelo_moto_compativel_ids.filter((cid) => cid !== id),
+                                  }))
+                                }
+                                className="hover:text-danger"
+                              >
+                                <X size={12} />
+                              </button>
+                            </span>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {adicionandoCompativel ? (
+                      <div className="space-y-2">
+                        <MotoCascadeSelect theme="dark" modelos={modelos} value={compatTempId} onChange={setCompatTempId} onCreate={criarNoMoto} />
+                        <div className="flex gap-2">
+                          <button
+                            type="button"
+                            disabled={!compatTempId || compatTempId === formData.modelo_moto_id || formData.modelo_moto_compativel_ids.includes(compatTempId)}
+                            onClick={() => {
+                              setFormData((prev) => ({
+                                ...prev,
+                                modelo_moto_compativel_ids: [...prev.modelo_moto_compativel_ids, compatTempId],
+                              }));
+                              setAdicionandoCompativel(false);
+                              setCompatTempId('');
+                            }}
+                            className="flex-1 py-2 rounded-control bg-emerald-500 text-white text-xs font-semibold uppercase tracking-wider hover:bg-emerald-600 disabled:opacity-50"
+                          >
+                            Adicionar
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setAdicionandoCompativel(false);
+                              setCompatTempId('');
+                            }}
+                            className="px-4 py-2 rounded-control border border-border-default text-text-muted text-xs font-semibold uppercase tracking-wider"
+                          >
+                            Cancelar
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setAdicionandoCompativel(true)}
+                        className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-text-muted hover:text-text-primary"
+                      >
+                        <Plus size={14} /> Adicionar modelo compatível
+                      </button>
+                    )}
+                  </div>
+                )}
 
                 <div>
                   <label className={labelClass}>Condição *</label>

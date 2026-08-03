@@ -227,6 +227,9 @@ export function linhaParaEstoqueInput(linha: LinhaImportacao): EstoqueInput {
     componentes: null,
     anuncio_ml_url: null,
     anuncio_fb_url: null,
+    // Importação em massa não tem coluna pra modelos compatíveis — dá pra
+    // adicionar depois editando a peça.
+    modelo_moto_compativel_ids: [],
   };
 }
 

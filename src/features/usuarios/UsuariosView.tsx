@@ -47,6 +47,7 @@ export function UsuariosView() {
 
   const [redefinindoSenhaDe, setRedefinindoSenhaDe] = useState<Usuario | null>(null);
   const [novaSenha, setNovaSenha] = useState('');
+  const [desativando, setDesativando] = useState<Usuario | null>(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -82,16 +83,20 @@ export function UsuariosView() {
 
   const salvar = async () => {
     setErroForm(null);
+    if (!form.username.trim()) {
+      setErroForm('Usuário não pode ficar em branco.');
+      return;
+    }
     if (!editando) {
-      if (!form.username.trim() || !form.nome_exibicao.trim() || form.password.length < 6) {
-        setErroForm('Preencha usuário, nome e uma senha com pelo menos 6 caracteres.');
+      if (!form.nome_exibicao.trim() || form.password.length < 6) {
+        setErroForm('Preencha nome e uma senha com pelo menos 6 caracteres.');
         return;
       }
     }
     setSalvando(true);
     try {
       const result = editando
-        ? await usuariosApi.atualizar(editando.id, { nome_exibicao: form.nome_exibicao, role: form.role })
+        ? await usuariosApi.atualizar(editando.id, { username: form.username.trim(), nome_exibicao: form.nome_exibicao, role: form.role })
         : await usuariosApi.criar(form);
       if (!result.success) throw new Error(result.error);
       setIsFormOpen(false);
@@ -111,6 +116,15 @@ export function UsuariosView() {
     } catch (err: any) {
       aviso.falha(err, 'Erro ao atualizar usuário');
     }
+  };
+
+  // Reativar é inofensivo e reversível na hora — só desativar (bloqueia o
+  // login de alguém) passa por confirmação, mesmo padrão do modal de excluir
+  // tarefa em TarefasView.tsx.
+  const confirmarDesativacao = async () => {
+    if (!desativando) return;
+    await alternarAtivo(desativando);
+    setDesativando(null);
   };
 
   const confirmarRedefinicao = async () => {
@@ -179,7 +193,7 @@ export function UsuariosView() {
           {u.id !== meuId && (
             <button
               type="button"
-              onClick={() => alternarAtivo(u)}
+              onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
               title={u.ativo ? 'Desativar' : 'Reativar'}
               className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', u.ativo ? 'text-danger' : 'text-positive')}
             >
@@ -223,7 +237,7 @@ export function UsuariosView() {
           {u.id !== meuId && (
             <button
               type="button"
-              onClick={() => alternarAtivo(u)}
+              onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
               title={u.ativo ? 'Desativar' : 'Reativar'}
               className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', u.ativo ? 'text-danger' : 'text-positive')}
             >
@@ -283,18 +297,16 @@ export function UsuariosView() {
             <div className="p-6 space-y-4">
               {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
 
-              {!editando && (
-                <div>
-                  <label className={labelClass}>Usuário</label>
-                  <input
-                    value={form.username}
-                    onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.toLowerCase().trim() }))}
-                    className={inputClass}
-                    placeholder="ex: ryan"
-                    autoCapitalize="none"
-                  />
-                </div>
-              )}
+              <div>
+                <label className={labelClass}>Usuário</label>
+                <input
+                  value={form.username}
+                  onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.toLowerCase().trim() }))}
+                  className={inputClass}
+                  placeholder="ex: ryan"
+                  autoCapitalize="none"
+                />
+              </div>
               <div>
                 <label className={labelClass}>Nome de exibição</label>
                 <input
@@ -382,6 +394,23 @@ export function UsuariosView() {
               </button>
               <button onClick={confirmarRedefinicao} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90">
                 Confirmar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {desativando && (
+        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setDesativando(null)}>
+          <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-sm flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle p-6 space-y-4">
+            <h2 className="text-lg font-medium">Desativar {desativando.nome_exibicao}?</h2>
+            <p className="text-sm text-text-secondary">A conta @{desativando.username} não vai conseguir mais entrar no sistema até ser reativada.</p>
+            <div className="flex gap-3">
+              <button onClick={() => setDesativando(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+                Cancelar
+              </button>
+              <button onClick={confirmarDesativacao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+                Desativar
               </button>
             </div>
           </div>

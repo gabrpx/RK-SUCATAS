@@ -191,18 +191,25 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
       const modelos = await listarTodos();
       const idsDaSubarvore = getDescendantIds(id, modelos);
 
-      const [{ count: countEstoque, error: erroEstoque }, { count: countVendas, error: erroVendas }] = await Promise.all([
+      const [{ count: countEstoque, error: erroEstoque }, { count: countVendas, error: erroVendas }, { count: countCompativel, error: erroCompativel }] = await Promise.all([
         supabase.from('estoque').select('id', { count: 'exact', head: true }).in('modelo_moto_id', idsDaSubarvore),
         supabase.from('vendas').select('id', { count: 'exact', head: true }).in('modelo_moto_id', idsDaSubarvore),
+        // migration_019: modelo também pode estar em uso só como "também serve
+        // em" de alguma peça, sem ser o modelo_moto_id principal dela.
+        supabase.from('estoque_modelos_compativeis').select('estoque_id', { count: 'exact', head: true }).in('modelo_moto_id', idsDaSubarvore),
       ]);
       if (erroEstoque) throw erroEstoque;
       if (erroVendas) throw erroVendas;
+      // Tabela pode não existir ainda (migration_019 não rodada) — degrada
+      // graciosamente pra 0 em vez de derrubar a exclusão inteira.
+      if (erroCompativel && erroCompativel.code !== '42P01' && erroCompativel.code !== 'PGRST205') throw erroCompativel;
 
-      const total = (countEstoque || 0) + (countVendas || 0);
+      const total = (countEstoque || 0) + (countVendas || 0) + (countCompativel || 0);
       if (total > 0) {
+        const sufixoCompativel = countCompativel ? ` (${countCompativel} delas só como "também serve em")` : '';
         return res.status(409).json({
           success: false,
-          error: `Não é possível excluir: existem ${countEstoque || 0} peça(s) e ${countVendas || 0} venda(s) usando este modelo ou seus sub-níveis.`,
+          error: `Não é possível excluir: existem ${(countEstoque || 0) + (countCompativel || 0)} peça(s)${sufixoCompativel} e ${countVendas || 0} venda(s) usando este modelo ou seus sub-níveis.`,
         });
       }
 

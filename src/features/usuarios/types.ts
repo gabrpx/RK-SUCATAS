@@ -20,6 +20,7 @@ export interface UsuarioInput {
 }
 
 export interface UsuarioUpdateInput {
+  username?: string;
   nome_exibicao?: string;
   role?: Role;
   ativo?: boolean;

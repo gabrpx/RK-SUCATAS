@@ -158,6 +158,35 @@ export function tarefasRouter(supabase: SupabaseClient) {
     }
   });
 
+  // Reverte uma conclusão feita sem querer — mesma regra de quem pode
+  // concluir (admin/equipe de qualquer tarefa, ou o próprio executor
+  // atribuído), já que reabrir é só o inverso da mesma ação.
+  router.patch('/:id/reabrir', async (req: AuthenticatedRequest, res) => {
+    try {
+      const role = req.usuario?.role;
+      const { data: tarefa, error: erroBusca } = await supabase.from('tarefas').select('id, atribuido_para').eq('id', req.params.id).maybeSingle();
+      if (erroBusca) throw erroBusca;
+      if (!tarefa) return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
+
+      const podeReabrir = role === 'admin' || role === 'equipe' || (EXECUTORES_TAREFA.includes(role as Role) && tarefa.atribuido_para === req.usuario!.id);
+      if (!podeReabrir) {
+        return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode reabri-la' });
+      }
+
+      const { data, error } = await supabase
+        .from('tarefas')
+        .update({ status: 'pendente', concluida_em: null })
+        .eq('id', req.params.id)
+        .select(SELECT_COM_JOINS)
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao reabrir tarefa:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   router.delete('/:id', async (req: AuthenticatedRequest, res) => {
     try {
       const tarefa = await carregarTarefaEditavel(req, res);

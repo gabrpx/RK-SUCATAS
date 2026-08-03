@@ -3,7 +3,7 @@
 // próprias. Um componente só, dois modos de renderização por papel — ver
 // App.tsx (TAB_ROLES) pra quem enxerga esta aba.
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2 } from 'lucide-react';
 import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
@@ -169,6 +169,7 @@ function VisaoCriador({
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState<Tarefa | null>(null);
+  const [alterandoStatus, setAlterandoStatus] = useState<string | null>(null);
 
   useEffect(() => {
     tarefasApi.listarResponsaveisPossiveis().then((r) => {
@@ -218,6 +219,23 @@ function VisaoCriador({
     }
   };
 
+  // Admin/equipe podem dar baixa (ou reverter) em qualquer tarefa, não só na
+  // que criaram — mesma regra do backend (ver podeConcluir em
+  // src/server/routes/tarefas.ts), diferente de podeEditar acima, que é
+  // restrito ao criador quando o papel é equipe.
+  const alternarStatus = async (tarefa: Tarefa) => {
+    setAlterandoStatus(tarefa.id);
+    try {
+      const result = tarefa.status === 'concluida' ? await tarefasApi.reabrir(tarefa.id) : await tarefasApi.concluir(tarefa.id);
+      if (!result.success) throw new Error(result.error);
+      refetch();
+    } catch (err: any) {
+      aviso.falha(err, tarefa.status === 'concluida' ? 'Erro ao reabrir tarefa' : 'Erro ao concluir tarefa');
+    } finally {
+      setAlterandoStatus(null);
+    }
+  };
+
   const confirmarExclusao = async () => {
     if (!excluindo) return;
     try {
@@ -261,17 +279,32 @@ function VisaoCriador({
       key: 'acoes',
       header: 'Ações',
       align: 'right',
-      render: (t) =>
-        podeEditar(t) ? (
-          <div className="flex items-center justify-end gap-1">
-            <button type="button" onClick={() => abrirEditar(t)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
-              <Pencil size={14} />
-            </button>
-            <button type="button" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
-              <Trash2 size={14} />
-            </button>
-          </div>
-        ) : null,
+      render: (t) => (
+        <div className="flex items-center justify-end gap-1">
+          <button
+            type="button"
+            onClick={() => alternarStatus(t)}
+            disabled={alterandoStatus === t.id}
+            title={t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
+            className={cn(
+              'size-7 flex items-center justify-center rounded-control hover:bg-surface-raised disabled:opacity-50',
+              t.status === 'concluida' ? 'text-text-muted hover:text-text-primary' : 'text-positive'
+            )}
+          >
+            {alterandoStatus === t.id ? <Loader2 size={14} className="animate-spin" /> : t.status === 'concluida' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
+          </button>
+          {podeEditar(t) && (
+            <>
+              <button type="button" onClick={() => abrirEditar(t)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
+                <Pencil size={14} />
+              </button>
+              <button type="button" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
+                <Trash2 size={14} />
+              </button>
+            </>
+          )}
+        </div>
+      ),
     },
   ];
 
@@ -284,16 +317,30 @@ function VisaoCriador({
             <p className="text-sm font-medium text-text-primary truncate">{t.titulo}</p>
             {t.descricao && <p className="text-xs text-text-faint line-clamp-1">{t.descricao}</p>}
           </div>
-          {podeEditar(t) && (
-            <div className="flex items-center gap-1 shrink-0">
-              <button type="button" onClick={() => abrirEditar(t)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
-                <Pencil size={14} />
-              </button>
-              <button type="button" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
-                <Trash2 size={14} />
-              </button>
-            </div>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              type="button"
+              onClick={() => alternarStatus(t)}
+              disabled={alterandoStatus === t.id}
+              title={t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
+              className={cn(
+                'size-7 flex items-center justify-center rounded-control hover:bg-surface-raised disabled:opacity-50',
+                t.status === 'concluida' ? 'text-text-muted hover:text-text-primary' : 'text-positive'
+              )}
+            >
+              {alterandoStatus === t.id ? <Loader2 size={14} className="animate-spin" /> : t.status === 'concluida' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
+            </button>
+            {podeEditar(t) && (
+              <>
+                <button type="button" onClick={() => abrirEditar(t)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
+                  <Pencil size={14} />
+                </button>
+                <button type="button" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
+                  <Trash2 size={14} />
+                </button>
+              </>
+            )}
+          </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap mt-2">
           {t.status === 'concluida' ? (

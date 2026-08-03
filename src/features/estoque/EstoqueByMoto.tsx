@@ -86,11 +86,16 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
     [modelos, filhosPorPai, idsComFilhos, porId]
   );
 
+  // Conta a peça em todo modelo que ela atende — o principal E os marcados
+  // como "também serve em" (migration_019) — pra uma lanterna que serve na
+  // CG 150 e na CG 125 Fan aparecer nos dois cards, não só no principal.
   const contagemPorModelo = useMemo(() => {
     const mapa = new Map<string, number>();
     items.forEach((item) => {
-      if (!item.modelo_moto_id) return;
-      mapa.set(item.modelo_moto_id, (mapa.get(item.modelo_moto_id) ?? 0) + 1);
+      const ids = new Set<string>();
+      if (item.modelo_moto_id) ids.add(item.modelo_moto_id);
+      item.modelos_compativeis?.forEach((m) => ids.add(m.id));
+      ids.forEach((id) => mapa.set(id, (mapa.get(id) ?? 0) + 1));
     });
     return mapa;
   }, [items]);

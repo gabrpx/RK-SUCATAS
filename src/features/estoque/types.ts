@@ -36,6 +36,11 @@ export interface Estoque {
   categoria?: Categoria | null; // populado pelo backend via join, quando disponível
   modelo_moto_id: string | null;
   modelo_moto?: ModeloMoto | null;
+  // Modelos SECUNDÁRIOS (além do principal acima) em que a mesma peça física
+  // também serve — ex: lanterna que serve na CG 150 e na CG 125 Fan. Populado
+  // pelo backend via join em estoque_modelos_compativeis (migration_019).
+  // Ausente em payloads antigos em cache — sempre tratar como opcional.
+  modelos_compativeis?: ModeloMoto[];
   condicao: CondicaoPeca;
   // Estado físico da peça (1 = ruim, 10 = perfeita) — independente de
   // `condicao` acima, que é sobre origem (original/paralela), não estado.
@@ -90,4 +95,9 @@ export type EstoqueInput = Pick<
   | 'componentes'
   | 'anuncio_ml_url'
   | 'anuncio_fb_url'
->;
+> & {
+  // Ids dos modelos secundários — não é campo direto de `Estoque` (que expõe
+  // os objetos já resolvidos em `modelos_compativeis`), é derivado na leitura
+  // e enviado como lista de ids na escrita.
+  modelo_moto_compativel_ids: string[];
+};

@@ -15,7 +15,11 @@ import { autorizar } from '../../../middleware/auth.js';
 const LEITURA = autorizar('admin', 'equipe', 'estoque_leitura');
 const ESCRITA = autorizar('admin', 'equipe');
 
-const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)';
+// !estoque_modelo_moto_id_fkey desambigua explicitamente a FK: desde a
+// migration_019, `estoque_modelos_compativeis` criou um caminho N:N implícito
+// entre estoque e modelos_moto, e sem isso o PostgREST não sabe se o embed
+// quer o modelo principal (FK direta) ou os compatíveis (via tabela ponte).
+const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto!estoque_modelo_moto_id_fkey(id, nome, ano)';
 
 // As fichas de unidade (migration_014) vêm numa consulta separada, e não como
 // join no select acima, de propósito: enquanto a migração não roda em
@@ -48,6 +52,64 @@ async function anexarUnidades(supabase: SupabaseClient, itens: any[] | null): Pr
   }
 
   return lista.map((item) => ({ ...item, unidades: porEstoque.get(item.id) ?? [] }));
+}
+
+// Modelos SECUNDÁRIOS de uma peça (migration_019) — além do principal em
+// `modelo_moto_id`, pra peça que serve em mais de um modelo/ano (ex: lanterna
+// que serve tanto na CG 150 quanto na CG 125 Fan). Mesma degradação graciosa
+// de anexarUnidades: enquanto a migration_019 não roda em produção, a tabela
+// não existe e o estoque continua funcionando normalmente, só sem compatibilidade.
+async function anexarCompatibilidades(supabase: SupabaseClient, itens: any[]): Promise<any[]> {
+  if (itens.length === 0) return itens;
+
+  const { data, error } = await supabase.from('estoque_modelos_compativeis').select('estoque_id, modelo_moto:modelos_moto(id, nome, ano)');
+
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      console.warn('⚠️ Tabela estoque_modelos_compativeis ausente — rode supabase/migration_019_compatibilidade_pecas.sql pra habilitar compatibilidade entre modelos.');
+    } else {
+      console.error('Erro ao buscar compatibilidades de estoque:', error);
+    }
+    return itens.map((item) => ({ ...item, modelos_compativeis: [] }));
+  }
+
+  const porEstoque = new Map<string, any[]>();
+  for (const linha of data ?? []) {
+    if (!linha.modelo_moto) continue;
+    const atual = porEstoque.get(linha.estoque_id) ?? [];
+    atual.push(linha.modelo_moto);
+    porEstoque.set(linha.estoque_id, atual);
+  }
+
+  return itens.map((item) => ({ ...item, modelos_compativeis: porEstoque.get(item.id) ?? [] }));
+}
+
+// Sincroniza `estoque_modelos_compativeis` por delete-then-insert: mais simples
+// que diffar, e a lista é sempre pequena (poucos modelos por peça). Ignorada
+// quando o campo não veio no body (ex: PATCH que não mexe em compatibilidade).
+async function sincronizarCompatibilidades(supabase: SupabaseClient, estoqueId: string, ids: unknown): Promise<string | null> {
+  if (!Array.isArray(ids)) return null;
+
+  const { data: atual } = await supabase.from('estoque').select('modelo_moto_id').eq('id', estoqueId).single();
+  const principal = atual?.modelo_moto_id ?? null;
+  const idsLimpos = Array.from(new Set(ids.map((id) => String(id)).filter((id) => id && id !== principal)));
+
+  const { error: erroDelete } = await supabase.from('estoque_modelos_compativeis').delete().eq('estoque_id', estoqueId);
+  if (erroDelete) {
+    if (erroDelete.code === '42P01' || erroDelete.code === 'PGRST205') return null;
+    return erroDelete.message;
+  }
+
+  if (idsLimpos.length === 0) return null;
+
+  const { error: erroInsert } = await supabase
+    .from('estoque_modelos_compativeis')
+    .insert(idsLimpos.map((modelo_moto_id) => ({ estoque_id: estoqueId, modelo_moto_id })));
+  if (erroInsert) {
+    if (erroInsert.code === '23503') return 'Um dos modelos compatíveis selecionados não existe mais.';
+    return erroInsert.message;
+  }
+  return null;
 }
 
 // Precisão da promoção quando mais de uma bate no mesmo item: peça
@@ -214,7 +276,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).order('criado_em', { ascending: false });
       if (error) throw error;
       const comUnidades = await anexarUnidades(supabase, data);
-      res.json({ success: true, data: await anexarPromocoes(supabase, comUnidades) });
+      const comCompatibilidades = await anexarCompatibilidades(supabase, comUnidades);
+      res.json({ success: true, data: await anexarPromocoes(supabase, comCompatibilidades) });
     } catch (error: any) {
       console.error('Erro ao listar estoque:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -226,7 +289,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).eq('id', req.params.id).single();
       if (error) throw error;
       const [comUnidades] = await anexarUnidades(supabase, [data]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comUnidades]);
+      const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comCompatibilidades]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
@@ -247,7 +311,12 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
       const { data, error } = await supabase.from('estoque').insert([payload]).select(SELECT_COM_JOINS).single();
       if (error) throw error;
-      const [comPromocao] = await anexarPromocoes(supabase, [{ ...data, unidades: [] }]);
+
+      const erroCompat = await sincronizarCompatibilidades(supabase, data.id, req.body?.modelo_moto_compativel_ids);
+      if (erroCompat) return res.status(400).json({ success: false, error: erroCompat });
+
+      const [comCompatibilidades] = await anexarCompatibilidades(supabase, [{ ...data, unidades: [] }]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comCompatibilidades]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       console.error('Erro ao criar item de estoque:', error);
@@ -280,6 +349,9 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const { data, error } = await supabase.from('estoque').update(payload).eq('id', req.params.id).select(SELECT_COM_JOINS).single();
       if (error) throw error;
 
+      const erroCompat = await sincronizarCompatibilidades(supabase, req.params.id, req.body?.modelo_moto_compativel_ids);
+      if (erroCompat) return res.status(400).json({ success: false, error: erroCompat });
+
       for (const url of imagensRemovidas) {
         excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar imagem antiga:', e));
       }
@@ -287,7 +359,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       // Sem isso o item volta pro frontend sem as fichas de unidade e o aviso
       // de avaria some da lista até o próximo refresh.
       const [comUnidades] = await anexarUnidades(supabase, [data]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comUnidades]);
+      const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comCompatibilidades]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       console.error('Erro ao atualizar item de estoque:', error);
