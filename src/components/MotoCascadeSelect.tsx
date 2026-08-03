@@ -1,10 +1,14 @@
 // Seletor de modelo de moto em cascata: um dropdown por nível da árvore
-// (Marca > Cilindrada > Modelo, ou mais níveis se o usuário criou manualmente).
-// Escolher um nó com filhos revela o próximo dropdown; parar em qualquer
-// nível é válido (modelo_moto_id aceita qualquer profundidade — ex: "serve em
+// (Marca > Cilindrada > Modelo > Variação por ano, ou mais níveis se o
+// usuário criou manualmente). Escolher um nó com filhos revela o próximo
+// dropdown — se o modelo tiver variações cadastradas (carburada/mix/injetada
+// etc.), esse próximo dropdown aparece sozinho, sem nada especial aqui: é a
+// mesma árvore genérica de MotoTreeManager.tsx. Parar em qualquer nível é
+// válido (modelo_moto_id aceita qualquer profundidade — ex: "serve em
 // qualquer Honda 150"). Cada nível tem seu próprio "+ adicionar" embutido,
-// com um campo "Ano" opcional pra quando o nível sendo criado já é a moto
-// final. Espelha CategoriaCascadeSelect.tsx.
+// com um campo "Ano" opcional (aceita período, ex: "2004-2008") pra quando o
+// nível sendo criado já é a moto final ou uma variação dela. Espelha
+// CategoriaCascadeSelect.tsx.
 import { useState } from 'react';
 import { Plus, Loader2, Check, X } from 'lucide-react';
 import { cn } from '../utils';
@@ -114,7 +118,7 @@ export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, a
               }
               if (e.key === 'Escape') setAdicionandoParentId(undefined);
             }}
-            placeholder="Nome (marca, cilindrada ou moto)..."
+            placeholder="Nome (marca, cilindrada, modelo ou variação)..."
             className={cn(
               'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
               theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400 text-zinc-900'
@@ -130,7 +134,7 @@ export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, a
               }
               if (e.key === 'Escape') setAdicionandoParentId(undefined);
             }}
-            placeholder="Ano (opcional)"
+            placeholder="Ano (opcional, ex: 2004-2008)"
             className={cn(
               'w-24 border rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-violet-500/50 shrink-0',
               theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400 text-zinc-900'

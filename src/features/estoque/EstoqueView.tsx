@@ -36,12 +36,14 @@ import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { categoriaExigeNota } from './categoriaMotor';
 import { comprimirImagem, formatarBytes } from '../../utils/comprimirImagem';
+import { tomCondicaoNota } from './condicaoNota';
 import { detectarDuplicatas } from './detectarDuplicata';
 import { calcularResumoDoDia } from './resumoDoDia';
 import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, temAvaria } from './valorEstoque';
 import { gerarCsvEstoque } from './planilha';
 import { ImportarPlanilhaModal } from './ImportarPlanilhaModal';
 import { EstoqueByMoto } from './EstoqueByMoto';
+import { CondicaoNotaBadge } from './CondicaoNotaBadge';
 import { baixarCsv } from '../../utils/csv';
 import { aviso } from '../../components/ui/toast';
 import { getDescendantIds, buildTree } from '../categorias/categoriaTree';
@@ -65,6 +67,7 @@ const EMPTY_FORM: EstoqueInput = {
   categoria_id: '',
   modelo_moto_id: '',
   condicao: 'original',
+  condicao_nota: null,
   nota_cadastro: null,
   ano: '',
   valor: 0,
@@ -189,6 +192,7 @@ export function EstoqueView({
       categoria_id: item.categoria_id || '',
       modelo_moto_id: item.modelo_moto_id || '',
       condicao: item.condicao,
+      condicao_nota: item.condicao_nota,
       nota_cadastro: item.nota_cadastro,
       ano: item.ano || '',
       valor: item.valor,
@@ -501,6 +505,7 @@ export function EstoqueView({
           <div className="min-w-0">
             <div className="flex items-center gap-1.5">
               <p className="text-[12.5px] font-medium text-text-primary truncate max-w-[240px]">{item.nome}</p>
+              <CondicaoNotaBadge nota={item.condicao_nota} />
               {/* Unidade avariada não vira linha separada — o aviso vive aqui,
                   e o detalhe mostra qual unidade é. */}
               {temAvaria(item) && (
@@ -604,6 +609,7 @@ export function EstoqueView({
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium text-text-primary truncate">{item.nome}</p>
+            <CondicaoNotaBadge nota={item.condicao_nota} />
             {temAvaria(item) && (
               <span
                 title={`${contarAvarias(item)} unidade(s) com avaria`}
@@ -1028,6 +1034,47 @@ export function EstoqueView({
                   </div>
                 </div>
 
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className={cn(labelClass, 'mb-0')}>Nota de condição (estado físico)</label>
+                    {formData.condicao_nota != null && (
+                      <button
+                        type="button"
+                        onClick={() => setFormData({ ...formData, condicao_nota: null })}
+                        className="text-[11px] font-medium text-text-faint hover:text-text-secondary"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
+                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
+                      const selecionado = formData.condicao_nota === n;
+                      const tom = tomCondicaoNota(n);
+                      return (
+                        <button
+                          key={n}
+                          type="button"
+                          onClick={() => setFormData({ ...formData, condicao_nota: n })}
+                          className={cn(
+                            'py-2 rounded-control font-semibold text-xs border transition-all tabular-nums',
+                            selecionado
+                              ? tom === 'danger'
+                                ? 'bg-danger border-danger text-surface-page'
+                                : tom === 'warning'
+                                ? 'bg-warning border-warning text-surface-page'
+                                : 'bg-positive border-positive text-surface-page'
+                              : 'border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg'
+                          )}
+                        >
+                          {n}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-text-faint mt-1.5">Opcional — 1 é estado ruim, 10 é como nova.</p>
+                </div>
+
                 {formExigeNota && (
                   <div>
                     <label className={labelClass}>Nota fiscal pra cadastro *</label>
@@ -1085,8 +1132,14 @@ export function EstoqueView({
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Ano</label>
-                    <input value={formData.ano || ''} onChange={(e) => setFormData({ ...formData, ano: e.target.value })} placeholder="2020" className={inputClass} />
+                    <label className={labelClass}>Ano compatível</label>
+                    <input
+                      value={formData.ano || ''}
+                      onChange={(e) => setFormData({ ...formData, ano: e.target.value })}
+                      placeholder="2020 ou 2004-2008"
+                      title="Ano único ou período dentro da variação escolhida acima"
+                      className={inputClass}
+                    />
                   </div>
                 </div>
 

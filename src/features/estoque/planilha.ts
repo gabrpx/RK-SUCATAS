@@ -25,6 +25,7 @@ const SINONIMOS: Record<string, string[]> = {
   categoria: ['categoria', 'tipo de peca', 'grupo'],
   modelo: ['modelo', 'moto', 'modelo moto', 'modelo de moto', 'veiculo'],
   condicao: ['condicao', 'original ou paralela', 'origem'],
+  condicaoNota: ['nota de condicao', 'condicao nota', 'estado fisico', 'estado'],
   valor: ['valor', 'preco', 'preco unitario', 'valor unitario', 'preco de venda'],
   quantidade: ['quantidade', 'qtd', 'qtde', 'estoque'],
   ano: ['ano'],
@@ -86,6 +87,7 @@ export interface LinhaImportacao {
   modeloTexto: string;
   modeloMotoId: string | null;
   condicao: CondicaoPeca;
+  condicaoNota: number | null;
   notaCadastro: NotaCadastro | null;
   valor: number;
   quantidade: number;
@@ -152,6 +154,16 @@ export function lerPlanilhaEstoque(textoCsv: string, categorias: Categoria[], mo
       avisos.push(`Condição "${celula(linhaBruta, 'condicao')}" não reconhecida — vai entrar como Original`);
     }
 
+    // Aceita "8", "8/10" (como sai no export) ou "8 de 10" — só o primeiro
+    // número importa, e fora de 1-10 vira aviso em vez de bloquear a linha.
+    const condicaoNotaTexto = celula(linhaBruta, 'condicaoNota');
+    let condicaoNota: number | null = null;
+    if (condicaoNotaTexto) {
+      const numero = Number(condicaoNotaTexto.match(/\d+/)?.[0]);
+      if (Number.isFinite(numero) && numero >= 1 && numero <= 10) condicaoNota = numero;
+      else avisos.push(`Nota de condição "${condicaoNotaTexto}" fora de 1-10 — entra sem avaliação`);
+    }
+
     const valorTexto = celula(linhaBruta, 'valor');
     const valorParseado = parseNumeroBr(valorTexto);
     const valor = valorParseado ?? 0;
@@ -184,6 +196,7 @@ export function lerPlanilhaEstoque(textoCsv: string, categorias: Categoria[], mo
       modeloTexto,
       modeloMotoId: modelo?.id ?? null,
       condicao,
+      condicaoNota,
       notaCadastro,
       valor,
       quantidade,
@@ -203,6 +216,7 @@ export function linhaParaEstoqueInput(linha: LinhaImportacao): EstoqueInput {
     categoria_id: linha.categoriaId,
     modelo_moto_id: linha.modeloMotoId,
     condicao: linha.condicao,
+    condicao_nota: linha.condicaoNota,
     nota_cadastro: linha.notaCadastro,
     ano: linha.ano,
     valor: linha.valor,
@@ -227,6 +241,7 @@ const CABECALHO_EXPORT = [
   'Caminho da categoria',
   'Moto',
   'Condição',
+  'Nota de condição',
   'Nota',
   'Ano',
   'Valor',
@@ -264,6 +279,7 @@ export function gerarCsvEstoque(items: Estoque[], categorias: Categoria[]): stri
       caminho,
       item.modelo_moto?.nome ?? '',
       item.condicao === 'original' ? 'Original' : 'Paralela',
+      item.condicao_nota != null ? `${item.condicao_nota}/10` : '',
       item.nota_cadastro === 'com_nota' ? 'Com nota' : item.nota_cadastro === 'sem_nota' ? 'Sem nota' : '',
       item.ano ?? '',
       numeroBr(item.valor),

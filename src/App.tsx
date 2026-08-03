@@ -36,6 +36,7 @@ import {
   LogOut,
   Settings,
   ClipboardList,
+  Gauge,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -321,6 +322,7 @@ function DetailModal({
                   />
                   <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} theme={theme} />
                   <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} theme={theme} />
+                  {estoque.condicao_nota != null && <DetailItemBox label="Estado físico" value={`${estoque.condicao_nota}/10`} icon={Gauge} theme={theme} />}
                   <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} theme={theme} />
                 </>
               )}

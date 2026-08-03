@@ -36,6 +36,10 @@ export interface Estoque {
   modelo_moto_id: string | null;
   modelo_moto?: ModeloMoto | null;
   condicao: CondicaoPeca;
+  // Estado físico da peça (1 = ruim, 10 = perfeita) — independente de
+  // `condicao` acima, que é sobre origem (original/paralela), não estado.
+  // null = não avaliada.
+  condicao_nota: number | null;
   nota_cadastro: NotaCadastro | null;
   ano: string | null;
   valor: number;
@@ -69,6 +73,7 @@ export type EstoqueInput = Pick<
   | 'categoria_id'
   | 'modelo_moto_id'
   | 'condicao'
+  | 'condicao_nota'
   | 'nota_cadastro'
   | 'ano'
   | 'valor'

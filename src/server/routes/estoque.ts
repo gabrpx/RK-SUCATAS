@@ -52,6 +52,7 @@ const CAMPOS_EDITAVEIS = [
   'categoria_id',
   'modelo_moto_id',
   'condicao',
+  'condicao_nota',
   'nota_cadastro',
   'ano',
   'valor',
@@ -71,6 +72,10 @@ function montarPayload(body: any) {
   }
   if (payload.valor !== undefined) payload.valor = Number(payload.valor) || 0;
   if (payload.quantidade !== undefined) payload.quantidade = Math.max(0, Number(payload.quantidade) || 0);
+  if (payload.condicao_nota !== undefined) {
+    const nota = payload.condicao_nota === null || payload.condicao_nota === '' ? null : Number(payload.condicao_nota);
+    payload.condicao_nota = nota === null || !Number.isFinite(nota) ? null : Math.min(10, Math.max(1, Math.round(nota)));
+  }
   if (payload.imagens !== undefined) {
     payload.imagens = Array.isArray(payload.imagens) ? payload.imagens.map((u: any) => String(u)).filter(Boolean) : [];
   }

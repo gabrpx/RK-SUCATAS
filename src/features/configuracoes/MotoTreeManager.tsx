@@ -1,11 +1,15 @@
 // Gerenciamento de modelos de moto em árvore (profundidade livre: Marca >
-// Cilindrada > Modelo, mas dá pra ir além manualmente): criar raiz e
-// sub-nível em qualquer lugar, renomear, mover pra outro pai, excluir
-// (avisando quando a subárvore inteira será removida junto) e reordenar
-// irmãos via drag-and-drop (mouse e touch). Espelha CategoriaTreeManager.tsx,
-// com um bloco extra no topo ("Nova moto") que cria marca+cilindrada+modelo
-// de uma vez só, e um campo "Ano" opcional em qualquer nó. Por padrão toda a
-// árvore começa recolhida (só as marcas aparecem).
+// Cilindrada > Modelo > Variação por ano, e dá pra ir além manualmente):
+// criar raiz e sub-nível em qualquer lugar, renomear, mover pra outro pai,
+// excluir (avisando quando a subárvore inteira será removida junto) e
+// reordenar irmãos via drag-and-drop (mouse e touch). Espelha
+// CategoriaTreeManager.tsx, com um bloco extra no topo ("Nova moto") que cria
+// marca+cilindrada+modelo de uma vez só, e um campo "Ano" opcional em
+// qualquer nó (aceita período em texto livre, ex: "2004-2008"). Motos com
+// carburador/mix/injeção diferentes por ano viram sub-níveis do modelo base
+// (ver dica no bloco "Nova moto") — a visualização "Por Moto" do Estoque
+// (EstoqueByMoto.tsx) mostra essas variações como cards ao clicar no modelo.
+// Por padrão toda a árvore começa recolhida (só as marcas aparecem).
 import React, { useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, Camera, ImageOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -62,7 +66,12 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
   const [erroExclusao, setErroExclusao] = useState<string | null>(null);
 
   const comparador = useMemo(() => {
-    const anoNum = (m: ModeloMoto) => (m.ano ? Number(m.ano) : null);
+    // `ano` aceita período ("2004-2008") além de ano único — pra ordenar,
+    // extrai só o primeiro número (ano de início da faixa).
+    const anoNum = (m: ModeloMoto) => {
+      const match = m.ano?.match(/\d+/);
+      return match ? Number(match[0]) : null;
+    };
     if (sortKey === 'nome_asc') return (a: ModeloMoto, b: ModeloMoto) => a.nome.localeCompare(b.nome, 'pt');
     if (sortKey === 'nome_desc') return (a: ModeloMoto, b: ModeloMoto) => b.nome.localeCompare(a.nome, 'pt');
     if (sortKey === 'ano_desc' || sortKey === 'ano_asc') {
@@ -266,6 +275,10 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
             </button>
           </div>
           {erroRapido && <p className="text-xs text-rose-500">{erroRapido}</p>}
+          <p className="text-[11px] text-zinc-500 leading-relaxed">
+            Moto com versões diferentes por ano (ex: carburada, mix, injetada)? Cadastre o modelo base aqui (sem ano) e depois clique no{' '}
+            <Plus size={11} className="inline -mt-0.5" /> dele pra adicionar cada versão como sub-nível, com nome ("Carburada") e período ("2004-2008") no campo Ano.
+          </p>
         </div>
 
         <input ref={inputImagemRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleSelecionarImagem} />
@@ -512,6 +525,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   if (e.key === 'Escape') h.onCancelarEdicao();
                 }}
                 placeholder="Ano"
+                title="Ano único (2015) ou período (2004-2008)"
                 className={cn(
                   'w-16 border rounded-lg py-1.5 px-2 text-sm outline-none shrink-0',
                   theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
@@ -619,7 +633,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 if (e.key === 'Enter') h.onCriarSub(node.id);
                 if (e.key === 'Escape') h.onCancelarSub();
               }}
-              placeholder="Nome do sub-nível..."
+              placeholder='Nome do sub-nível... (ex: "Carburada")'
               className={cn(
                 'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
                 theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
@@ -633,6 +647,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 if (e.key === 'Escape') h.onCancelarSub();
               }}
               placeholder="Ano"
+              title="Ano único (2015) ou período (2004-2008)"
               className={cn(
                 'w-16 border rounded-lg py-1.5 px-2 text-sm outline-none shrink-0',
                 theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
