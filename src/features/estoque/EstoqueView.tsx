@@ -15,7 +15,6 @@ import {
   AlertTriangle,
   Upload,
   Camera,
-  ImageOff,
   ChevronDown,
   ExternalLink,
   FileSpreadsheet,
@@ -36,12 +35,13 @@ import { Modal, ModalSection } from '../../components/ui/Modal';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { categoriaExigeNota } from './categoriaMotor';
-import { comprimirImagem, formatarBytes } from './comprimirImagem';
+import { comprimirImagem, formatarBytes } from '../../utils/comprimirImagem';
 import { detectarDuplicatas } from './detectarDuplicata';
 import { calcularResumoDoDia } from './resumoDoDia';
 import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, temAvaria } from './valorEstoque';
 import { gerarCsvEstoque } from './planilha';
 import { ImportarPlanilhaModal } from './ImportarPlanilhaModal';
+import { EstoqueByMoto } from './EstoqueByMoto';
 import { baixarCsv } from '../../utils/csv';
 import { aviso } from '../../components/ui/toast';
 import { getDescendantIds, buildTree } from '../categorias/categoriaTree';
@@ -69,7 +69,7 @@ const EMPTY_FORM: EstoqueInput = {
   ano: '',
   valor: 0,
   quantidade: 1,
-  imagem_url: '',
+  imagens: [],
   descricao: '',
   ativo: true,
   componentes: null,
@@ -129,6 +129,7 @@ export function EstoqueView({
   const { categorias, modelos, criarCategoria, criarNoMoto } = useCatalogos();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto'>('lista');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
@@ -192,7 +193,7 @@ export function EstoqueView({
       ano: item.ano || '',
       valor: item.valor,
       quantidade: item.quantidade,
-      imagem_url: item.imagem_url || '',
+      imagens: item.imagens ?? [],
       descricao: item.descricao || '',
       ativo: item.ativo,
       componentes: item.componentes,
@@ -213,17 +214,31 @@ export function EstoqueView({
     }
   }, [formData.nome, categorias, editingItem, categoriaAutoDetectada]);
 
-  const handleUploadImagem = async (file: File) => {
+  // Envia uma ou várias fotos de uma vez e ACRESCENTA à galeria (não
+  // substitui) — mesmo padrão de UnidadesAvaria.tsx `enviarFotos`.
+  const handleUploadImagem = async (files: FileList) => {
     setIsUploadingImagem(true);
     setResumoCompressao(null);
     try {
-      // Foto de câmera passa fácil dos 5MB aceitos pelo backend — encolher
-      // aqui evita erro no meio do cadastro e acelera o envio na loja.
-      const { arquivo, comprimido, bytesAntes, bytesDepois } = await comprimirImagem(file);
-      const result = await uploadImagemEstoque(arquivo);
-      if (!result.success || !result.url) throw new Error(result.error || 'Falha no upload');
-      setFormData((prev) => ({ ...prev, imagem_url: result.url! }));
-      if (comprimido) setResumoCompressao(`Foto otimizada: ${formatarBytes(bytesAntes)} → ${formatarBytes(bytesDepois)}`);
+      const novas: string[] = [];
+      let bytesAntesTotal = 0;
+      let bytesDepoisTotal = 0;
+      let algumaComprimida = false;
+      for (const file of Array.from(files)) {
+        // Foto de câmera passa fácil dos 5MB aceitos pelo backend — encolher
+        // aqui evita erro no meio do cadastro e acelera o envio na loja.
+        const { arquivo, comprimido, bytesAntes, bytesDepois } = await comprimirImagem(file);
+        const result = await uploadImagemEstoque(arquivo);
+        if (!result.success || !result.url) throw new Error(result.error || 'Falha no upload');
+        novas.push(result.url);
+        if (comprimido) {
+          algumaComprimida = true;
+          bytesAntesTotal += bytesAntes;
+          bytesDepoisTotal += bytesDepois;
+        }
+      }
+      setFormData((prev) => ({ ...prev, imagens: [...prev.imagens, ...novas] }));
+      if (algumaComprimida) setResumoCompressao(`Fotos otimizadas: ${formatarBytes(bytesAntesTotal)} → ${formatarBytes(bytesDepoisTotal)}`);
     } catch (err) {
       aviso.falha(err, 'Erro ao enviar imagem');
     } finally {
@@ -477,8 +492,8 @@ export function EstoqueView({
       render: (item) => (
         <div className="flex items-center gap-2.5">
           <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
-            {item.imagem_url ? (
-              <img loading="lazy" src={item.imagem_url} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            {item.imagens[0] ? (
+              <img loading="lazy" src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               <Package size={16} className="text-text-faint" />
             )}
@@ -572,6 +587,72 @@ export function EstoqueView({
     },
   ];
 
+  // Mesmas colunas acima, empilhadas verticalmente — usado pelo DataTable
+  // abaixo de `md`, onde a tabela só rolaria horizontalmente.
+  function renderMobileCard(item: Estoque) {
+    const tomQtd = item.quantidade === 0 ? 'text-danger' : item.quantidade <= 2 ? 'text-warning' : 'text-positive';
+    const dotQtd = item.quantidade === 0 ? 'bg-danger' : item.quantidade <= 2 ? 'bg-warning' : 'bg-positive';
+    return (
+      <div className="flex items-start gap-3">
+        <div className="size-11 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
+          {item.imagens[0] ? (
+            <img loading="lazy" src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+          ) : (
+            <Package size={18} className="text-text-faint" />
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-center gap-1.5">
+            <p className="text-sm font-medium text-text-primary truncate">{item.nome}</p>
+            {temAvaria(item) && (
+              <span
+                title={`${contarAvarias(item)} unidade(s) com avaria`}
+                className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
+              >
+                <AlertTriangle size={9} />
+                {contarAvarias(item)}
+              </span>
+            )}
+          </div>
+          {isEstoqueBaixo(item) ? (
+            <p className="text-[11px] text-warning font-medium">Último em estoque</p>
+          ) : (
+            <p className="text-[11px] text-text-faint truncate">
+              {item.codigo} · {item.categoria?.nome || '-'}
+            </p>
+          )}
+          <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+            <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />
+            <AnuncioBadge label="ML" canal="Mercado Livre" url={item.anuncio_ml_url} />
+            <AnuncioBadge label="FB" canal="Facebook" url={item.anuncio_fb_url} />
+          </div>
+          <div className="flex items-center justify-between gap-2 mt-2">
+            <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium tabular-nums', tomQtd)}>
+              <span className={cn('size-1.5 rounded-full shrink-0', dotQtd)} />
+              {item.quantidade} un.
+            </span>
+            {item.valor > 0 ? (
+              <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+            ) : readOnly ? (
+              <span className="text-sm font-medium text-danger">{formatCurrency(item.valor)}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openEditModal(item);
+                }}
+                className="text-sm font-medium text-danger underline underline-offset-2"
+              >
+                Definir preço
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-24 md:pb-6">
       {/* Cabeçalho */}
@@ -653,105 +734,144 @@ export function EstoqueView({
         </div>
       )}
 
-      {/* Filtros */}
-      <div className="space-y-3">
-        <div className="flex items-center gap-3 rounded-control border border-border-default bg-surface-inset px-4">
-          <Search size={16} className="text-text-faint shrink-0" />
-          <input
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar peças por nome, código, categoria ou moto..."
-            className="flex-1 py-3.5 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-faint"
-          />
-          {searchTerm && (
-            <button onClick={() => setSearchTerm('')} className="p-1.5 rounded-full hover:bg-surface-raised text-text-faint">
-              <X size={14} />
-            </button>
+      {/* Alternância Lista / Por Moto */}
+      <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
+        <button
+          type="button"
+          onClick={() => setVisualizacao('lista')}
+          className={cn(
+            'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
+            visualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
           )}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-2">
-          <CustomDropdown
-            theme="dark"
-            icon={<Filter size={14} />}
-            value={categoriaFiltro}
-            onChange={setCategoriaFiltro}
-            options={[
-              { value: 'Todas', label: 'Todas categorias' },
-              ...categoriasIndentadas.map((c) => ({ value: c.id, label: `${'　'.repeat(c.depth)}${c.depth > 0 ? '└ ' : ''}${c.nome}` })),
-            ]}
-          />
-          <CustomDropdown
-            theme="dark"
-            icon={<Bike size={14} />}
-            value={modeloFiltro}
-            onChange={setModeloFiltro}
-            options={[
-              { value: 'Todas', label: 'Todos modelos' },
-              ...modelosIndentados.map((m) => ({ value: m.id, label: `${'　'.repeat(m.depth)}${m.depth > 0 ? '└ ' : ''}${m.nome}` })),
-            ]}
-          />
-          <CustomDropdown
-            theme="dark"
-            value={sortKey}
-            onChange={(v) => setSortKey(v as typeof sortKey)}
-            options={[
-              { value: 'criado_em', label: 'Mais recentes' },
-              { value: 'valor', label: 'Maior preço' },
-              { value: 'quantidade', label: 'Mais em estoque' },
-            ]}
-          />
-          <button
-            onClick={() => setSoEstoqueBaixo((v) => !v)}
-            className={cn(
-              'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-              soEstoqueBaixo ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-            )}
-          >
-            Estoque baixo
-            <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soEstoqueBaixo ? 'bg-warning/20' : 'bg-surface-raised')}>{itensEstoqueBaixo}</span>
-            {soEstoqueBaixo && <X size={12} />}
-          </button>
-          <button
-            onClick={() => setSoSemPreco((v) => !v)}
-            className={cn(
-              'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-              soSemPreco ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-            )}
-          >
-            Sem preço
-            {soSemPreco && <X size={12} />}
-          </button>
-          {(itensComAvaria > 0 || soComAvaria) && (
-            <button
-              onClick={() => setSoComAvaria((v) => !v)}
-              className={cn(
-                'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                soComAvaria ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-              )}
-            >
-              Com avaria
-              <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soComAvaria ? 'bg-warning/20' : 'bg-surface-raised')}>{itensComAvaria}</span>
-              {soComAvaria && <X size={12} />}
-            </button>
+        >
+          Lista
+        </button>
+        <button
+          type="button"
+          onClick={() => setVisualizacao('por_moto')}
+          className={cn(
+            'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+            visualizacao === 'por_moto' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
           )}
-        </div>
+        >
+          <Bike size={13} /> Por moto
+        </button>
       </div>
 
-      {/* Tabela */}
-      <DataTable
-        colunas={colunas}
-        dados={loading && items.length === 0 ? [] : paginated}
-        getRowKey={(item) => item.id}
-        destaqueLinha={isEstoqueBaixo}
-        onRowClick={onSelectItem}
-        paginaAtual={currentPage}
-        totalPaginas={totalPaginas}
-        onMudarPagina={setCurrentPage}
-        emptyState={
-          loading && items.length === 0 ? (
-            <div className="py-12 flex items-center justify-center text-text-faint">
-              <Loader2 size={20} className="animate-spin" />
+      {visualizacao === 'por_moto' ? (
+        <EstoqueByMoto
+          theme="dark"
+          modelos={modelos}
+          items={items}
+          onSelecionarModelo={(modeloId) => {
+            setModeloFiltro(modeloId);
+            setCategoriaFiltro('Todas');
+            setSearchTerm('');
+            setVisualizacao('lista');
+          }}
+        />
+      ) : (
+        <>
+          {/* Filtros */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 rounded-control border border-border-default bg-surface-inset px-4">
+              <Search size={16} className="text-text-faint shrink-0" />
+              <input
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Buscar peças por nome, código, categoria ou moto..."
+                className="flex-1 py-3.5 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-faint"
+              />
+              {searchTerm && (
+                <button onClick={() => setSearchTerm('')} className="p-1.5 rounded-full hover:bg-surface-raised text-text-faint">
+                  <X size={14} />
+                </button>
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <CustomDropdown
+                theme="dark"
+                icon={<Filter size={14} />}
+                value={categoriaFiltro}
+                onChange={setCategoriaFiltro}
+                options={[
+                  { value: 'Todas', label: 'Todas categorias' },
+                  ...categoriasIndentadas.map((c) => ({ value: c.id, label: `${'　'.repeat(c.depth)}${c.depth > 0 ? '└ ' : ''}${c.nome}` })),
+                ]}
+              />
+              <CustomDropdown
+                theme="dark"
+                icon={<Bike size={14} />}
+                value={modeloFiltro}
+                onChange={setModeloFiltro}
+                options={[
+                  { value: 'Todas', label: 'Todos modelos' },
+                  ...modelosIndentados.map((m) => ({ value: m.id, label: `${'　'.repeat(m.depth)}${m.depth > 0 ? '└ ' : ''}${m.nome}` })),
+                ]}
+              />
+              <CustomDropdown
+                theme="dark"
+                value={sortKey}
+                onChange={(v) => setSortKey(v as typeof sortKey)}
+                options={[
+                  { value: 'criado_em', label: 'Mais recentes' },
+                  { value: 'valor', label: 'Maior preço' },
+                  { value: 'quantidade', label: 'Mais em estoque' },
+                ]}
+              />
+              <button
+                onClick={() => setSoEstoqueBaixo((v) => !v)}
+                className={cn(
+                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+                  soEstoqueBaixo ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                )}
+              >
+                Estoque baixo
+                <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soEstoqueBaixo ? 'bg-warning/20' : 'bg-surface-raised')}>{itensEstoqueBaixo}</span>
+                {soEstoqueBaixo && <X size={12} />}
+              </button>
+              <button
+                onClick={() => setSoSemPreco((v) => !v)}
+                className={cn(
+                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+                  soSemPreco ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                )}
+              >
+                Sem preço
+                {soSemPreco && <X size={12} />}
+              </button>
+              {(itensComAvaria > 0 || soComAvaria) && (
+                <button
+                  onClick={() => setSoComAvaria((v) => !v)}
+                  className={cn(
+                    'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+                    soComAvaria ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                  )}
+                >
+                  Com avaria
+                  <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soComAvaria ? 'bg-warning/20' : 'bg-surface-raised')}>{itensComAvaria}</span>
+                  {soComAvaria && <X size={12} />}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Tabela */}
+          <DataTable
+            colunas={colunas}
+            dados={loading && items.length === 0 ? [] : paginated}
+            getRowKey={(item) => item.id}
+            destaqueLinha={isEstoqueBaixo}
+            onRowClick={onSelectItem}
+            renderMobileCard={renderMobileCard}
+            paginaAtual={currentPage}
+            totalPaginas={totalPaginas}
+            onMudarPagina={setCurrentPage}
+            emptyState={
+              loading && items.length === 0 ? (
+                <div className="py-12 flex items-center justify-center text-text-faint">
+                  <Loader2 size={20} className="animate-spin" />
             </div>
           ) : (
             <EmptyState
@@ -762,7 +882,9 @@ export function EstoqueView({
             />
           )
         }
-      />
+          />
+        </>
+      )}
 
       {/* Modal criar/editar */}
       <AnimatePresence>
@@ -978,70 +1100,80 @@ export function EstoqueView({
                 )}
               </ModalSection>
 
-              <ModalSection titulo="Foto">
-                <div className="flex items-center gap-4">
-                  <div className="w-24 h-24 rounded-card border overflow-hidden shrink-0 flex items-center justify-center relative bg-surface-inset border-border-default">
-                    {isUploadingImagem ? (
-                      <Loader2 size={22} className="animate-spin text-accent" />
-                    ) : formData.imagem_url ? (
-                      <img src={formData.imagem_url} alt="Preview" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                    ) : (
-                      <ImageOff size={22} className="text-text-faint" />
-                    )}
-                  </div>
-                  <div className="flex-1 space-y-2 min-w-0">
-                    <div className="flex gap-2">
-                      {/* Câmera separada da galeria: no celular abre direto a
-                          câmera (um toque a menos por peça) sem tirar a opção
-                          de escolher uma foto já salva. Escondida no desktop,
-                          onde `capture` não significa nada. */}
-                      <button
-                        type="button"
-                        onClick={() => inputCameraRef.current?.click()}
-                        className="md:hidden flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg"
-                      >
-                        <Camera size={14} /> Câmera
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => inputGaleriaRef.current?.click()}
-                        className="flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg"
-                      >
-                        <Upload size={14} />
-                        <span className="md:hidden">Galeria</span>
-                        <span className="hidden md:inline">{formData.imagem_url ? 'Trocar foto' : 'Anexar foto'}</span>
-                      </button>
+              <ModalSection titulo="Fotos">
+                <div className="space-y-3">
+                  <p className="text-xs text-text-faint">A primeira foto é a capa mostrada na lista. Pode anexar mais de uma.</p>
+
+                  {formData.imagens.length > 0 && (
+                    <div className="flex flex-wrap gap-2">
+                      {formData.imagens.map((url, i) => (
+                        <div key={url} className="relative size-20 rounded-control overflow-hidden border border-border-default">
+                          <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                          {i === 0 && (
+                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] font-semibold uppercase tracking-wide text-center py-0.5">Capa</span>
+                          )}
+                          <button
+                            type="button"
+                            onClick={() => setFormData((prev) => ({ ...prev, imagens: prev.imagens.filter((u) => u !== url) }))}
+                            title="Remover foto"
+                            className="absolute top-1 right-1 size-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-danger"
+                          >
+                            <X size={12} />
+                          </button>
+                        </div>
+                      ))}
                     </div>
-                    <input
-                      ref={inputCameraRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      capture="environment"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadImagem(file);
-                        e.target.value = '';
-                      }}
-                    />
-                    <input
-                      ref={inputGaleriaRef}
-                      type="file"
-                      accept="image/jpeg,image/png,image/webp,image/gif"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) handleUploadImagem(file);
-                        e.target.value = '';
-                      }}
-                    />
-                    {resumoCompressao && <p className="text-[11px] text-positive">{resumoCompressao}</p>}
-                    {formData.imagem_url && (
-                      <button type="button" onClick={() => setFormData((prev) => ({ ...prev, imagem_url: '' }))} className="text-xs text-danger hover:underline">
-                        Remover foto
-                      </button>
-                    )}
+                  )}
+
+                  <div className="flex gap-2">
+                    {/* Câmera separada da galeria: no celular abre direto a
+                        câmera (um toque a menos por peça) sem tirar a opção
+                        de escolher fotos já salvas. Escondida no desktop,
+                        onde `capture` não significa nada. */}
+                    <button
+                      type="button"
+                      onClick={() => inputCameraRef.current?.click()}
+                      disabled={isUploadingImagem}
+                      className="md:hidden flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
+                    >
+                      {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} Câmera
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => inputGaleriaRef.current?.click()}
+                      disabled={isUploadingImagem}
+                      className="flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
+                    >
+                      {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                      <span className="md:hidden">{isUploadingImagem ? 'Enviando...' : 'Galeria'}</span>
+                      <span className="hidden md:inline">
+                        {isUploadingImagem ? 'Enviando...' : formData.imagens.length > 0 ? 'Adicionar mais fotos' : 'Anexar fotos'}
+                      </span>
+                    </button>
                   </div>
+                  <input
+                    ref={inputCameraRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    capture="environment"
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.length) handleUploadImagem(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                  <input
+                    ref={inputGaleriaRef}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    multiple
+                    className="hidden"
+                    onChange={(e) => {
+                      if (e.target.files?.length) handleUploadImagem(e.target.files);
+                      e.target.value = '';
+                    }}
+                  />
+                  {resumoCompressao && <p className="text-[11px] text-positive">{resumoCompressao}</p>}
                 </div>
               </ModalSection>
 

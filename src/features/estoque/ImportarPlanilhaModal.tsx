@@ -324,7 +324,30 @@ export function ImportarPlanilhaModal({ aberto, onFechar, categorias, modelos, c
           )}
 
           <div className="border border-border-subtle rounded-card overflow-hidden">
-            <div className="overflow-x-auto max-h-72 overflow-y-auto">
+            <div className="md:hidden divide-y divide-border-subtle max-h-72 overflow-y-auto">
+              {leitura.linhas.slice(0, MAXIMO_LINHAS_RENDERIZADAS).map((linha) => {
+                const temErro = linha.erros.length > 0;
+                return (
+                  <div key={linha.numeroLinha} className={cn('px-3 py-2.5 text-xs', temErro && 'bg-danger-bg/20')}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-text-faint tabular-nums">#{linha.numeroLinha}</span>
+                      <span className="text-text-secondary tabular-nums">
+                        {formatCurrency(linha.valor)} · {linha.quantidade} un.
+                      </span>
+                    </div>
+                    <p className="text-text-primary mt-0.5">{linha.nome || <span className="text-text-faint italic">sem nome</span>}</p>
+                    <p className="text-text-secondary text-[11px] mt-0.5">{linha.categoriaTexto}</p>
+                    {(temErro || linha.avisos.length > 0) && (
+                      <p className={cn('mt-1 text-[11px]', temErro ? 'text-danger' : 'text-warning')}>
+                        {temErro ? linha.erros.join(' · ') : linha.avisos.join(' · ')}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="hidden md:block overflow-x-auto max-h-72 overflow-y-auto">
               <table className="w-full text-xs">
                 <thead className="bg-surface-inset sticky top-0">
                   <tr className="text-left text-text-muted">

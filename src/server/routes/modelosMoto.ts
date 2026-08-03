@@ -61,6 +61,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
       if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
       const parent_id = req.body?.parent_id || null;
       const ano = req.body?.ano ? String(req.body.ano).trim() : null;
+      const imagem_url = req.body?.imagem_url ? String(req.body.imagem_url).trim() : null;
 
       // Novo nó entra no fim da lista de irmãos, não disputando ordem=0 com um já existente.
       let query = supabase.from('modelos_moto').select('id', { count: 'exact', head: true });
@@ -69,7 +70,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
 
       const { data, error } = await supabase
         .from('modelos_moto')
-        .insert([{ nome, parent_id, ano, ordem: totalIrmaos ?? 0 }])
+        .insert([{ nome, parent_id, ano, imagem_url, ordem: totalIrmaos ?? 0 }])
         .select()
         .single();
       if (error) {
@@ -93,6 +94,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
       const cilindradaNome = req.body?.cilindrada ? String(req.body.cilindrada).trim() : '';
       const nome = String(req.body?.nome || '').trim();
       const ano = req.body?.ano ? String(req.body.ano).trim() : null;
+      const imagem_url = req.body?.imagem_url ? String(req.body.imagem_url).trim() : null;
 
       if (!marcaNome) return res.status(400).json({ success: false, error: 'Marca é obrigatória' });
       if (!nome) return res.status(400).json({ success: false, error: 'Nome do modelo é obrigatório' });
@@ -105,7 +107,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
 
       const { data: moto, error } = await supabase
         .from('modelos_moto')
-        .insert([{ nome, parent_id: parentDaMoto, ano, ordem: totalIrmaos.count ?? 0 }])
+        .insert([{ nome, parent_id: parentDaMoto, ano, imagem_url, ordem: totalIrmaos.count ?? 0 }])
         .select()
         .single();
       if (error) {
@@ -122,7 +124,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
   router.put('/:id', async (req, res) => {
     try {
       const { id } = req.params;
-      const atualizacao: Partial<Pick<ModeloMoto, 'nome' | 'parent_id' | 'ano'>> = {};
+      const atualizacao: Partial<Pick<ModeloMoto, 'nome' | 'parent_id' | 'ano' | 'imagem_url'>> = {};
 
       if (req.body?.nome !== undefined) {
         const nome = String(req.body.nome).trim();
@@ -132,6 +134,10 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
 
       if (req.body?.ano !== undefined) {
         atualizacao.ano = req.body.ano ? String(req.body.ano).trim() : null;
+      }
+
+      if (req.body?.imagem_url !== undefined) {
+        atualizacao.imagem_url = req.body.imagem_url ? String(req.body.imagem_url).trim() : null;
       }
 
       if (req.body?.parent_id !== undefined) {

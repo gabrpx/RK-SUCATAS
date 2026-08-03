@@ -5,6 +5,9 @@
 //
 // Nunca lança: se qualquer etapa falhar (codec exótico, canvas bloqueado,
 // navegador antigo), devolve o arquivo original e deixa o backend decidir.
+//
+// Compartilhado entre peças (estoque) e fotos de modelo de moto — dois
+// consumidores reais, por isso mora em utils em vez de dentro de uma feature.
 
 const DIMENSAO_MAXIMA = 1600; // px no maior lado — sobra pra zoom na peça
 const QUALIDADE_JPEG = 0.82;

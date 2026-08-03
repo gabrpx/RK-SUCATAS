@@ -17,6 +17,7 @@ export interface ModeloMoto {
   parent_id: string | null;
   ordem: number;
   ano: string | null;
+  imagem_url: string | null;
 }
 
 export interface FormaPagamento {

@@ -191,6 +191,50 @@ export function UsuariosView() {
     },
   ];
 
+  // Mesmas colunas acima, empilhadas — usado pelo DataTable abaixo de `md`.
+  function renderMobileCard(u: Usuario) {
+    return (
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-text-primary truncate">{u.nome_exibicao}</p>
+          <p className="text-xs text-text-faint">@{u.username}</p>
+          <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
+            <StatusBadge texto={ROLE_LABEL[u.role]} tom={ROLE_TOM[u.role]} />
+            <StatusBadge texto={u.ativo ? 'Ativo' : 'Inativo'} tom="positive" ativo={u.ativo} />
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            type="button"
+            onClick={() => abrirEditar(u)}
+            title="Editar"
+            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary"
+          >
+            <Pencil size={14} />
+          </button>
+          <button
+            type="button"
+            onClick={() => setRedefinindoSenhaDe(u)}
+            title="Redefinir senha"
+            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary"
+          >
+            <KeyRound size={14} />
+          </button>
+          {u.id !== meuId && (
+            <button
+              type="button"
+              onClick={() => alternarAtivo(u)}
+              title={u.ativo ? 'Desativar' : 'Reativar'}
+              className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', u.ativo ? 'text-danger' : 'text-positive')}
+            >
+              {u.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
@@ -212,6 +256,7 @@ export function UsuariosView() {
         colunas={colunas}
         dados={loading ? [] : usuarios}
         getRowKey={(u) => u.id}
+        renderMobileCard={renderMobileCard}
         paginaAtual={1}
         totalPaginas={1}
         onMudarPagina={() => {}}

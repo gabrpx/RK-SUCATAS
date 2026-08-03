@@ -6,14 +6,16 @@
 // com um bloco extra no topo ("Nova moto") que cria marca+cilindrada+modelo
 // de uma vez só, e um campo "Ano" opcional em qualquer nó. Por padrão toda a
 // árvore começa recolhida (só as marcas aparecem).
-import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, Camera, ImageOff } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
+import { comprimirImagem } from '../../utils/comprimirImagem';
+import { uploadImagemModeloMoto } from '../motos/api';
 import { buildTree, filterTree, getDescendantIds, getDepth, type ModeloMotoNode } from '../motos/motoTree';
 import type { ModeloMoto } from '../../types/catalog';
 
@@ -24,7 +26,7 @@ interface MotoTreeManagerProps {
   modelos: ModeloMoto[];
   onCriar: (nome: string, parentId?: string | null, ano?: string | null) => Promise<ApiResult>;
   onCriarRapido: (marca: string, cilindrada: string | null, nome: string, ano?: string | null) => Promise<ApiResult>;
-  onRenomear: (id: string, nome: string, ano?: string | null) => Promise<ApiResult>;
+  onRenomear: (id: string, nome: string, ano?: string | null, imagemUrl?: string | null) => Promise<ApiResult>;
   onMover: (id: string, parentId: string | null) => Promise<ApiResult>;
   onReordenar: (ids: string[]) => Promise<ApiResult>;
   onExcluir: (id: string) => Promise<ApiResult>;
@@ -48,6 +50,9 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [nomeEditado, setNomeEditado] = useState('');
   const [anoEditado, setAnoEditado] = useState('');
+  const [imagemEditada, setImagemEditada] = useState<string | null>(null);
+  const [uploadandoImagem, setUploadandoImagem] = useState(false);
+  const inputImagemRef = useRef<HTMLInputElement>(null);
   const [adicionandoSubDe, setAdicionandoSubDe] = useState<string | null>(null);
   const [novoSubNome, setNovoSubNome] = useState('');
   const [novoSubAno, setNovoSubAno] = useState('');
@@ -127,6 +132,20 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
     const newIndex = irmaos.indexOf(String(over.id));
     if (oldIndex === -1 || newIndex === -1) return;
     onReordenar(arrayMove(irmaos, oldIndex, newIndex));
+  };
+
+  const handleSelecionarImagem = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploadandoImagem(true);
+    try {
+      const { arquivo } = await comprimirImagem(file);
+      const result = await uploadImagemModeloMoto(arquivo);
+      if (result.success && result.url) setImagemEditada(result.url);
+    } finally {
+      setUploadandoImagem(false);
+    }
   };
 
   const handleCriarRapido = async () => {
@@ -249,6 +268,8 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
           {erroRapido && <p className="text-xs text-rose-500">{erroRapido}</p>}
         </div>
 
+        <input ref={inputImagemRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleSelecionarImagem} />
+
         {arvore.length === 0 ? (
           <p className="text-sm text-zinc-500 py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma moto cadastrada ainda.'}
@@ -276,16 +297,21 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
                   setNomeEditado,
                   anoEditado,
                   setAnoEditado,
+                  imagemEditada,
+                  uploadandoImagem,
+                  onEscolherImagem: () => inputImagemRef.current?.click(),
+                  onRemoverImagem: () => setImagemEditada(null),
                   onIniciarEdicao: (node) => {
                     setEditandoId(node.id);
                     setNomeEditado(node.nome);
                     setAnoEditado(node.ano || '');
+                    setImagemEditada(node.imagem_url || null);
                   },
                   onCancelarEdicao: () => setEditandoId(null),
                   onSalvarEdicao: async (id) => {
                     const nome = nomeEditado.trim();
                     if (!nome) return;
-                    const result = await onRenomear(id, nome, anoEditado.trim() || null);
+                    const result = await onRenomear(id, nome, anoEditado.trim() || null, imagemEditada);
                     if (result.success) setEditandoId(null);
                   },
                   adicionandoSubDe,
@@ -384,6 +410,10 @@ interface ArvoreHandlers {
   setNomeEditado: (v: string) => void;
   anoEditado: string;
   setAnoEditado: (v: string) => void;
+  imagemEditada: string | null;
+  uploadandoImagem: boolean;
+  onEscolherImagem: () => void;
+  onRemoverImagem: () => void;
   onIniciarEdicao: (node: ModeloMoto) => void;
   onCancelarEdicao: () => void;
   onSalvarEdicao: (id: string) => void;
@@ -487,6 +517,31 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
                 )}
               />
+              {!temFilhos && (
+                <button
+                  type="button"
+                  onClick={h.onEscolherImagem}
+                  disabled={h.uploadandoImagem}
+                  title={h.imagemEditada ? 'Trocar foto' : 'Adicionar foto'}
+                  className={cn(
+                    'size-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border',
+                    theme === 'dark' ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'
+                  )}
+                >
+                  {h.uploadandoImagem ? (
+                    <Loader2 size={13} className="animate-spin text-zinc-500" />
+                  ) : h.imagemEditada ? (
+                    <img src={h.imagemEditada} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <Camera size={14} className="text-zinc-500" />
+                  )}
+                </button>
+              )}
+              {!temFilhos && h.imagemEditada && (
+                <button onClick={h.onRemoverImagem} className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 shrink-0" title="Remover foto">
+                  <ImageOff size={13} />
+                </button>
+              )}
               <button onClick={() => h.onSalvarEdicao(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
                 <Check size={14} />
               </button>

@@ -32,6 +32,13 @@ export interface DataTableProps<T> {
   onRowClick?: (item: T) => void;
   emptyState?: React.ReactNode;
 
+  /**
+   * Card empilhado pra telas abaixo de `md`, onde a tabela só rolaria
+   * horizontalmente. Quando ausente, mantém a tabela em qualquer largura
+   * (comportamento anterior, sem fallback).
+   */
+  renderMobileCard?: (item: T) => React.ReactNode;
+
   // Paginação real: o componente não faz slice sozinho porque quem busca os
   // dados (API ou memo local) já deveria entregar só a página atual — isso
   // evita reprocessar/ordenar N itens no cliente à toa.
@@ -47,6 +54,7 @@ export function DataTable<T>({
   destaqueLinha,
   onRowClick,
   emptyState,
+  renderMobileCard,
   paginaAtual,
   totalPaginas,
   onMudarPagina,
@@ -56,7 +64,7 @@ export function DataTable<T>({
 
   return (
     <div className="bg-surface-card border border-border-subtle rounded-card overflow-hidden">
-      <div className="overflow-x-auto">
+      <div className={cn('overflow-x-auto', renderMobileCard && 'hidden md:block')}>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border-default">
@@ -108,6 +116,33 @@ export function DataTable<T>({
           </tbody>
         </table>
       </div>
+
+      {renderMobileCard && (
+        <div className="md:hidden">
+          {dados.length === 0 ? (
+            emptyState
+          ) : (
+            <div className="divide-y divide-border-subtle">
+              {dados.map((item) => {
+                const emAlerta = destaqueLinha?.(item) ?? false;
+                return (
+                  <div
+                    key={getRowKey(item)}
+                    onClick={onRowClick ? () => onRowClick(item) : undefined}
+                    className={cn(
+                      'border-l-2 px-3 py-3',
+                      emAlerta ? 'border-l-warning' : 'border-l-transparent',
+                      onRowClick && 'cursor-pointer hover:bg-surface-raised'
+                    )}
+                  >
+                    {renderMobileCard(item)}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {totalPaginas > 1 && (
         <div className="flex items-center justify-between px-3 py-2.5 border-t border-border-subtle">

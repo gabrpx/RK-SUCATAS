@@ -5,11 +5,12 @@
 // Só existe ficha pra unidade que tem algo diferente. Peça com 5 unidades e 2
 // avariadas tem 2 fichas; as outras três não precisam de registro nenhum.
 import { useEffect, useState } from 'react';
-import { AlertTriangle, Plus, Pencil, Trash2, Camera, Upload, X, Loader2, ImageOff, ChevronLeft, ChevronRight } from 'lucide-react';
+import { AlertTriangle, Plus, Pencil, Trash2, Camera, Upload, X, Loader2 } from 'lucide-react';
 import { cn } from '../../utils';
 import { Modal } from '../../components/ui/Modal';
+import { VisualizadorFotos } from '../../components/ui/VisualizadorFotos';
 import { estoqueApi, uploadImagemEstoque } from './api';
-import { comprimirImagem } from './comprimirImagem';
+import { comprimirImagem } from '../../utils/comprimirImagem';
 import { unidadesExcedentes } from './valorEstoque';
 import type { Estoque, EstoqueUnidade, EstoqueUnidadeInput } from './types';
 
@@ -394,81 +395,8 @@ export function UnidadesAvaria({ item, readOnly = false, onAlterado }: UnidadesA
           indice={visualizando.indice}
           onTrocar={(indice) => setVisualizando((v) => (v ? { ...v, indice } : v))}
           onFechar={() => setVisualizando(null)}
+          legenda="Avaria"
         />
-      )}
-    </div>
-  );
-}
-
-// Visualizador simples de foto em tela cheia. Existe porque avaria só se
-// entende vendo de perto — miniatura de 56px não resolve. Navega por seta no
-// desktop e por toque nas laterais no celular.
-function VisualizadorFotos({
-  fotos,
-  indice,
-  onTrocar,
-  onFechar,
-}: {
-  fotos: string[];
-  indice: number;
-  onTrocar: (indice: number) => void;
-  onFechar: () => void;
-}) {
-  useEffect(() => {
-    const aoTeclar = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onFechar();
-      if (e.key === 'ArrowRight') onTrocar((indice + 1) % fotos.length);
-      if (e.key === 'ArrowLeft') onTrocar((indice - 1 + fotos.length) % fotos.length);
-    };
-    window.addEventListener('keydown', aoTeclar);
-    return () => window.removeEventListener('keydown', aoTeclar);
-  }, [indice, fotos.length, onTrocar, onFechar]);
-
-  return (
-    <div className="fixed inset-0 z-[4000] bg-black/95 flex items-center justify-center" onClick={onFechar} role="presentation">
-      <button
-        type="button"
-        onClick={onFechar}
-        aria-label="Fechar"
-        className="absolute top-4 right-4 size-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
-      >
-        <X size={20} />
-      </button>
-
-      {fotos[indice] ? (
-        <img src={fotos[indice]} alt={`Avaria ${indice + 1}`} className="max-w-full max-h-full object-contain" referrerPolicy="no-referrer" onClick={(e) => e.stopPropagation()} />
-      ) : (
-        <ImageOff size={48} className="text-white/30" />
-      )}
-
-      {fotos.length > 1 && (
-        <>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onTrocar((indice - 1 + fotos.length) % fotos.length);
-            }}
-            aria-label="Foto anterior"
-            className="absolute left-2 top-1/2 -translate-y-1/2 size-12 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
-          >
-            <ChevronLeft size={22} />
-          </button>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              onTrocar((indice + 1) % fotos.length);
-            }}
-            aria-label="Próxima foto"
-            className="absolute right-2 top-1/2 -translate-y-1/2 size-12 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
-          >
-            <ChevronRight size={22} />
-          </button>
-          <span className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs text-white tabular-nums">
-            {indice + 1} / {fotos.length}
-          </span>
-        </>
       )}
     </div>
   );

@@ -275,6 +275,41 @@ function VisaoCriador({
     },
   ];
 
+  // Mesmas colunas acima, empilhadas — usado pelo DataTable abaixo de `md`.
+  function renderMobileCard(t: Tarefa) {
+    return (
+      <div>
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-primary truncate">{t.titulo}</p>
+            {t.descricao && <p className="text-xs text-text-faint line-clamp-1">{t.descricao}</p>}
+          </div>
+          {podeEditar(t) && (
+            <div className="flex items-center gap-1 shrink-0">
+              <button type="button" onClick={() => abrirEditar(t)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
+                <Pencil size={14} />
+              </button>
+              <button type="button" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
+                <Trash2 size={14} />
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="flex items-center gap-2 flex-wrap mt-2">
+          {t.status === 'concluida' ? (
+            <StatusBadge texto="Concluída" tom="positive" />
+          ) : estaVencida(t) ? (
+            <StatusBadge texto="Atrasada" tom="danger" />
+          ) : (
+            <StatusBadge texto="Pendente" tom="warning" />
+          )}
+          <span className="text-xs text-text-faint">{t.atribuido?.nome_exibicao || '—'}</span>
+          {t.prazo && <span className={cn('text-xs', estaVencida(t) ? 'text-danger font-medium' : 'text-text-faint')}>{formatarPrazo(t.prazo)}</span>}
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4 pb-24 md:pb-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -318,6 +353,7 @@ function VisaoCriador({
         dados={loading ? [] : filtradas}
         getRowKey={(t) => t.id}
         destaqueLinha={estaVencida}
+        renderMobileCard={renderMobileCard}
         paginaAtual={1}
         totalPaginas={1}
         onMudarPagina={() => {}}

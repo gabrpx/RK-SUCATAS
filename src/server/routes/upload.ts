@@ -1,5 +1,7 @@
 // Upload de imagem de peça: recebe multipart/form-data, manda pro Supabase
-// Storage e devolve a URL pública já pronta pra salvar em estoque.imagem_url.
+// Storage e devolve a URL pública já pronta pra salvar em estoque.imagens (ou
+// modelos_moto.imagem_url, estoque_unidades.fotos — endpoint genérico, um
+// arquivo por chamada; quem precisa de várias imagens chama em loop).
 import { Router } from 'express';
 import multer from 'multer';
 import { uploadImagem } from '../../services/storageService.js';

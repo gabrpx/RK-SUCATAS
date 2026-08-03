@@ -17,7 +17,7 @@ export interface EstoqueUnidade {
   apelido: string | null;
   avaria: boolean;
   avaria_descricao: string | null;
-  /** Fotos do defeito — separadas da imagem_url, que mostra a peça boa */
+  /** Fotos do defeito — separadas de estoque.imagens, que mostra a peça boa */
   fotos: string[];
   /** null = vale o preço normal da peça; preenchido = preço só desta unidade */
   valor: number | null;
@@ -40,7 +40,8 @@ export interface Estoque {
   ano: string | null;
   valor: number;
   quantidade: number;
-  imagem_url: string | null;
+  // Fotos da peça, em ordem — a primeira é a capa mostrada nas listagens.
+  imagens: string[];
   descricao: string | null;
   ativo: boolean;
   criado_em: string;
@@ -72,7 +73,7 @@ export type EstoqueInput = Pick<
   | 'ano'
   | 'valor'
   | 'quantidade'
-  | 'imagem_url'
+  | 'imagens'
   | 'descricao'
   | 'ativo'
   | 'componentes'

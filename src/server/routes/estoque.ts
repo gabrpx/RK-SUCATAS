@@ -56,7 +56,7 @@ const CAMPOS_EDITAVEIS = [
   'ano',
   'valor',
   'quantidade',
-  'imagem_url',
+  'imagens',
   'descricao',
   'ativo',
   'componentes',
@@ -71,6 +71,9 @@ function montarPayload(body: any) {
   }
   if (payload.valor !== undefined) payload.valor = Number(payload.valor) || 0;
   if (payload.quantidade !== undefined) payload.quantidade = Math.max(0, Number(payload.quantidade) || 0);
+  if (payload.imagens !== undefined) {
+    payload.imagens = Array.isArray(payload.imagens) ? payload.imagens.map((u: any) => String(u)).filter(Boolean) : [];
+  }
   // Lista de nomes de partes em que o item pode ser desmembrado na venda —
   // null quando vazia, pra "item comum" continuar sem nenhum campo extra.
   if (payload.componentes !== undefined) {
@@ -140,16 +143,18 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  // Compartilhado por PUT/PATCH: se imagem_url está mudando, apaga a imagem
-  // antiga do Storage depois de confirmar a troca — nunca deixa órfã.
+  // Compartilhado por PUT/PATCH: fotos removidas da galeria saem do Storage
+  // depois de confirmar a troca — nunca deixa arquivo órfão (mesma lógica já
+  // usada pelas fotos de unidade, ver montarPayloadUnidade abaixo).
   const atualizarItem = async (req: any, res: any) => {
     try {
       const payload = montarPayload(req.body);
-      let imagemAntiga: string | null = null;
+      let imagensRemovidas: string[] = [];
 
-      if (payload.imagem_url !== undefined) {
-        const { data: atual } = await supabase.from('estoque').select('imagem_url').eq('id', req.params.id).single();
-        if (atual && atual.imagem_url !== payload.imagem_url) imagemAntiga = atual.imagem_url;
+      if (payload.imagens !== undefined) {
+        const { data: atual } = await supabase.from('estoque').select('imagens').eq('id', req.params.id).single();
+        const antigas: string[] = atual?.imagens ?? [];
+        imagensRemovidas = antigas.filter((url) => !payload.imagens.includes(url));
       }
 
       if (payload.categoria_id !== undefined || payload.nota_cadastro !== undefined) {
@@ -163,7 +168,9 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const { data, error } = await supabase.from('estoque').update(payload).eq('id', req.params.id).select(SELECT_COM_JOINS).single();
       if (error) throw error;
 
-      if (imagemAntiga) excluirImagemPorUrl(imagemAntiga).catch((e) => console.error('Erro ao limpar imagem antiga:', e));
+      for (const url of imagensRemovidas) {
+        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar imagem antiga:', e));
+      }
 
       // Sem isso o item volta pro frontend sem as fichas de unidade e o aviso
       // de avaria some da lista até o próximo refresh.
@@ -182,11 +189,13 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   router.delete('/:id', ESCRITA, async (req, res) => {
     try {
-      const { data: item } = await supabase.from('estoque').select('imagem_url').eq('id', req.params.id).single();
+      const { data: item } = await supabase.from('estoque').select('imagens').eq('id', req.params.id).single();
       const { error } = await supabase.from('estoque').delete().eq('id', req.params.id);
       if (error) throw error;
 
-      if (item?.imagem_url) excluirImagemPorUrl(item.imagem_url).catch((e) => console.error('Erro ao limpar imagem:', e));
+      for (const url of item?.imagens ?? []) {
+        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar imagem:', e));
+      }
 
       res.json({ success: true });
     } catch (error: any) {
@@ -201,12 +210,14 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (!Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ success: false, error: 'ids inválidos' });
       }
-      const { data: itens } = await supabase.from('estoque').select('imagem_url').in('id', ids);
+      const { data: itens } = await supabase.from('estoque').select('imagens').in('id', ids);
       const { error } = await supabase.from('estoque').delete().in('id', ids);
       if (error) throw error;
 
       for (const item of itens || []) {
-        if (item.imagem_url) excluirImagemPorUrl(item.imagem_url).catch((e) => console.error('Erro ao limpar imagem:', e));
+        for (const url of item.imagens ?? []) {
+          excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar imagem:', e));
+        }
       }
 
       res.json({ success: true });
@@ -286,7 +297,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const payload = montarPayloadUnidade(req.body);
 
       // Foto removida da ficha some do Storage também — mesma regra que o
-      // item usa pra imagem_url, pra não acumular arquivo órfão.
+      // item usa pra imagens, pra não acumular arquivo órfão.
       let fotosRemovidas: string[] = [];
       if (payload.fotos !== undefined) {
         const { data: atual } = await supabase.from('estoque_unidades').select('fotos').eq('id', req.params.unidadeId).single();

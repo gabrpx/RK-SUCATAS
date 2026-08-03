@@ -67,7 +67,7 @@ function readCache<T>(cacheKey: string, fallback: T): T {
 }
 
 export function DataProvider({ children }: { children: React.ReactNode }) {
-  const [estoque, setEstoque] = useState<Estoque[]>(() => readCache('rk_estoque', []));
+  const [estoque, setEstoque] = useState<Estoque[]>(() => readCache('rk_estoque_v2', []));
   const [vendas, setVendas] = useState<Venda[]>(() => readCache('rk_vendas', []));
   const [caixa, setCaixa] = useState<CaixaEntry[]>(() => readCache('rk_caixa', []));
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>(() => readCache('rk_orcamentos', []));
@@ -109,7 +109,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (estoqueRes.status === 'fulfilled') {
       try {
         const data = await parseJson(estoqueRes.value);
-        if (data.success) setEstoque(prev => applyIfChanged(prev, data.data, 'rk_estoque'));
+        if (data.success) setEstoque(prev => applyIfChanged(prev, data.data, 'rk_estoque_v2'));
       } catch (e) {
         console.error('Erro ao processar estoque:', e);
       }

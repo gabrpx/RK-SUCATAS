@@ -207,7 +207,7 @@ export function linhaParaEstoqueInput(linha: LinhaImportacao): EstoqueInput {
     ano: linha.ano,
     valor: linha.valor,
     quantidade: linha.quantidade,
-    imagem_url: '',
+    imagens: [],
     descricao: linha.descricao,
     ativo: true,
     componentes: null,

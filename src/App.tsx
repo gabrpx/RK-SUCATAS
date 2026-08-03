@@ -19,7 +19,6 @@ import {
   Receipt,
   ShoppingCart,
   Wallet,
-  Menu,
   X,
   ChevronRight,
   ChevronLeft,
@@ -53,6 +52,7 @@ import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
 import { TarefasView } from './features/tarefas/TarefasView';
 import { Toaster } from './components/ui/toast';
+import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
 import { UnidadesAvaria } from './features/estoque/UnidadesAvaria';
 import { contarAvarias } from './features/estoque/valorEstoque';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
@@ -217,6 +217,15 @@ function DetailModal({
 
   const venda = isVenda(item) ? item : null;
   const estoque = !venda ? (item as Estoque) : null;
+  const imagens = estoque?.imagens ?? [];
+  const [indiceImagem, setIndiceImagem] = useState(0);
+  const [fotoCheiaAberta, setFotoCheiaAberta] = useState(false);
+
+  // Troca de item (ex: clicar em outro card sem fechar o modal) reinicia a
+  // galeria pra capa, em vez de manter o índice do item anterior.
+  useEffect(() => {
+    setIndiceImagem(0);
+  }, [estoque?.id]);
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -230,7 +239,6 @@ function DetailModal({
 
   const titulo = venda ? venda.nome_item : estoque!.nome;
   const valor = venda ? venda.valor_total : estoque!.valor;
-  const imagem = estoque?.imagem_url;
 
   return (
     <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -250,8 +258,42 @@ function DetailModal({
 
         <div className="flex-1 overflow-y-auto scrollbar-hide">
           <div className="relative aspect-[4/3] w-full bg-zinc-950 overflow-hidden flex items-center justify-center">
-            {imagem ? <img src={imagem} className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <Package size={64} strokeWidth={1} className="opacity-10 text-zinc-700" />}
+            {imagens[indiceImagem] ? (
+              <button type="button" onClick={() => setFotoCheiaAberta(true)} className="w-full h-full cursor-zoom-in">
+                <img src={imagens[indiceImagem]} className="w-full h-full object-contain" referrerPolicy="no-referrer" alt={titulo} />
+              </button>
+            ) : (
+              <Package size={64} strokeWidth={1} className="opacity-10 text-zinc-700" />
+            )}
+            {imagens.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {imagens.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setIndiceImagem(i)}
+                    aria-label={`Foto ${i + 1}`}
+                    className={cn('size-1.5 rounded-full transition-colors', i === indiceImagem ? 'bg-white' : 'bg-white/30')}
+                  />
+                ))}
+              </div>
+            )}
           </div>
+
+          {imagens.length > 1 && (
+            <div className="flex gap-2 px-8 pt-4 overflow-x-auto scrollbar-hide">
+              {imagens.map((url, i) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setIndiceImagem(i)}
+                  className={cn('size-14 rounded-xl overflow-hidden border-2 shrink-0 transition-colors', i === indiceImagem ? 'border-violet-500' : 'border-transparent')}
+                >
+                  <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={`${titulo} ${i + 1}`} />
+                </button>
+              ))}
+            </div>
+          )}
 
           <div className="p-8 space-y-8">
             <div className="space-y-4">
@@ -343,6 +385,10 @@ function DetailModal({
           </div>
         </div>
       </motion.div>
+
+      {fotoCheiaAberta && imagens.length > 0 && (
+        <VisualizadorFotos fotos={imagens} indice={indiceImagem} onTrocar={setIndiceImagem} onFechar={() => setFotoCheiaAberta(false)} />
+      )}
     </div>
   );
 }
@@ -529,9 +575,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-64' : 'md:ml-20')}>
         <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', theme === 'dark' ? 'bg-zinc-950/40 border-zinc-800/50' : 'bg-white/50 border-zinc-200')}>
           <div className="flex items-center gap-2 md:gap-4">
-            <button onClick={() => setIsSidebarOpen((v) => !v)} className="md:hidden p-2 rounded-lg text-zinc-400 hover:bg-zinc-800/50">
-              <Menu size={20} />
-            </button>
             <h2 className={cn('text-base md:text-lg font-semibold capitalize', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{TAB_LABELS[activeTab]}</h2>
           </div>
           <button onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} className={cn('p-2 rounded-lg transition-all', theme === 'dark' ? 'hover:bg-zinc-800 text-amber-400' : 'hover:bg-zinc-100 text-violet-600')}>
