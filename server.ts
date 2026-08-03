@@ -96,7 +96,7 @@ async function startServer() {
     const senhaHash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
     const { error: erroBootstrap } = await supabase
       .from('usuarios')
-      .insert({ username: 'ayrton', nome_exibicao: 'Ayrton', senha_hash: senhaHash, role: 'admin' });
+      .insert({ username: 'ayrton', nome_exibicao: 'Ayrton', senha_hash: senhaHash, roles: ['admin'] });
     if (erroBootstrap) {
       console.error('❌ Falha ao criar usuário admin de bootstrap:', erroBootstrap.message);
     } else {
@@ -130,7 +130,7 @@ async function startServer() {
 
       const { data: usuario, error: erroBusca } = await supabase
         .from('usuarios')
-        .select('id, username, nome_exibicao, senha_hash, role, ativo')
+        .select('id, username, nome_exibicao, senha_hash, roles, ativo')
         .eq('username', String(username).trim().toLowerCase())
         .eq('ativo', true)
         .maybeSingle();
@@ -145,7 +145,7 @@ async function startServer() {
         return res.status(401).json({ success: false, error: ERRO_GENERICO });
       }
 
-      const payload = { id: usuario.id, username: usuario.username, role: usuario.role };
+      const payload = { id: usuario.id, username: usuario.username, roles: usuario.roles };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
       res.json({ success: true, token, user: { ...payload, nome_exibicao: usuario.nome_exibicao } });
     } catch (err: any) {
@@ -178,7 +178,7 @@ async function startServer() {
   // Inclui todo cargo "executor" (EXECUTORES_TAREFA: mandados + mecanico).
   app.get('/api/usuarios/responsaveis-tarefa', autorizar('admin', 'equipe'), async (_req, res) => {
     try {
-      const { data, error } = await supabase.from('usuarios').select('id, nome_exibicao').in('role', EXECUTORES_TAREFA).eq('ativo', true).order('nome_exibicao');
+      const { data, error } = await supabase.from('usuarios').select('id, nome_exibicao').overlaps('roles', EXECUTORES_TAREFA).eq('ativo', true).order('nome_exibicao');
       if (error) throw error;
       res.json({ success: true, data });
     } catch (err: any) {
@@ -228,11 +228,12 @@ async function startServer() {
   });
 
   // ==================== ROTAS DE DOMÍNIO (Supabase) ====================
-  // estoque e tarefas fazem seu próprio gate de papel por rota/método (Eloisa
-  // lê estoque mas não escreve; tarefas varia por dono) — o resto é bloco
-  // fechado pra admin+equipe, e usuarios é admin-only.
-  app.use('/api/categorias', autorizar('admin', 'equipe'), categoriasRouter(supabase));
-  app.use('/api/modelos-moto', autorizar('admin', 'equipe'), modelosMotoRouter(supabase));
+  // estoque, categorias, modelos-moto e tarefas fazem seu próprio gate de
+  // papel por rota/método (Eloisa lê estoque/categorias/motos mas não
+  // escreve; tarefas varia por dono) — o resto é bloco fechado pra
+  // admin+equipe, e usuarios é admin-only.
+  app.use('/api/categorias', categoriasRouter(supabase));
+  app.use('/api/modelos-moto', modelosMotoRouter(supabase));
   app.use('/api/formas-pagamento', autorizar('admin', 'equipe'), formasPagamentoRouter(supabase));
   app.use('/api/estoque', estoqueRouter(supabase));
   app.use('/api/promocoes', autorizar('admin', 'equipe'), promocoesRouter(supabase));

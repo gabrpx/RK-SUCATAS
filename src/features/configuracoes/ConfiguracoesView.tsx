@@ -18,7 +18,7 @@ import { PromocoesView } from '../promocoes/PromocoesView';
 
 type Aba = 'categorias' | 'motos' | 'pagamento' | 'promocoes' | 'usuarios';
 
-export function ConfiguracoesView({ theme, userRole }: { theme: 'light' | 'dark'; userRole?: string }) {
+export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 'dark'; userRoles?: string[] }) {
   const {
     categorias,
     modelos,
@@ -46,7 +46,7 @@ export function ConfiguracoesView({ theme, userRole }: { theme: 'light' | 'dark'
     { id: 'motos', label: 'Motos', icone: Bike, total: modelos.length },
     { id: 'pagamento', label: 'Formas de Pagamento', icone: Wallet, total: formasPagamento.length },
     { id: 'promocoes', label: 'Promoções', icone: Tag },
-    ...(userRole === 'admin' ? [{ id: 'usuarios' as Aba, label: 'Usuários', icone: Users }] : []),
+    ...(userRoles.includes('admin') ? [{ id: 'usuarios' as Aba, label: 'Usuários', icone: Users }] : []),
   ];
 
   return (
@@ -135,7 +135,7 @@ export function ConfiguracoesView({ theme, userRole }: { theme: 'light' | 'dark'
         />
       )}
       {aba === 'promocoes' && <PromocoesView />}
-      {aba === 'usuarios' && userRole === 'admin' && <UsuariosView />}
+      {aba === 'usuarios' && userRoles.includes('admin') && <UsuariosView />}
     </div>
   );
 }

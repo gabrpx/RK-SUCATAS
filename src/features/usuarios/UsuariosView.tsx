@@ -2,8 +2,8 @@
 // a mais dentro de Configurações (ver ConfiguracoesView.tsx). Cada pessoa
 // tem seu próprio login; papel define o que ela vê no resto do sistema
 // (ver TAB_ROLES em src/App.tsx).
-import { useEffect, useState } from 'react';
-import { UserPlus, KeyRound, Pencil, Ban, RotateCcw, Loader2 } from 'lucide-react';
+import { Fragment, useEffect, useState } from 'react';
+import { UserPlus, KeyRound, Pencil, Ban, RotateCcw, Loader2, Check } from 'lucide-react';
 import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { usuariosApi } from './api';
+import { ALL_ROLES } from '../../constants/roles';
 import type { Role, Usuario, UsuarioInput } from './types';
 
 const ROLE_LABEL: Record<Role, string> = {
@@ -30,7 +31,7 @@ const ROLE_TOM: Record<Role, StatusTone> = {
   mecanico: 'warning',
 };
 
-const EMPTY_FORM: UsuarioInput = { username: '', nome_exibicao: '', password: '', role: 'equipe' };
+const EMPTY_FORM: UsuarioInput = { username: '', nome_exibicao: '', password: '', roles: ['equipe'] };
 
 export function UsuariosView() {
   const meuId = localStorage.getItem('user_id');
@@ -76,7 +77,7 @@ export function UsuariosView() {
 
   const abrirEditar = (usuario: Usuario) => {
     setEditando(usuario);
-    setForm({ username: usuario.username, nome_exibicao: usuario.nome_exibicao, password: '', role: usuario.role });
+    setForm({ username: usuario.username, nome_exibicao: usuario.nome_exibicao, password: '', roles: usuario.roles });
     setErroForm(null);
     setIsFormOpen(true);
   };
@@ -85,6 +86,10 @@ export function UsuariosView() {
     setErroForm(null);
     if (!form.username.trim()) {
       setErroForm('Usuário não pode ficar em branco.');
+      return;
+    }
+    if (form.roles.length === 0) {
+      setErroForm('Selecione pelo menos um papel.');
       return;
     }
     if (!editando) {
@@ -96,7 +101,7 @@ export function UsuariosView() {
     setSalvando(true);
     try {
       const result = editando
-        ? await usuariosApi.atualizar(editando.id, { username: form.username.trim(), nome_exibicao: form.nome_exibicao, role: form.role })
+        ? await usuariosApi.atualizar(editando.id, { username: form.username.trim(), nome_exibicao: form.nome_exibicao, roles: form.roles })
         : await usuariosApi.criar(form);
       if (!result.success) throw new Error(result.error);
       setIsFormOpen(false);
@@ -159,9 +164,17 @@ export function UsuariosView() {
       ),
     },
     {
-      key: 'role',
-      header: 'Papel',
-      render: (u) => <StatusBadge texto={ROLE_LABEL[u.role]} tom={ROLE_TOM[u.role]} />,
+      key: 'roles',
+      header: 'Papéis',
+      render: (u) => (
+        <div className="flex flex-wrap gap-1">
+          {u.roles.map((r) => (
+            <Fragment key={r}>
+              <StatusBadge texto={ROLE_LABEL[r]} tom={ROLE_TOM[r]} />
+            </Fragment>
+          ))}
+        </div>
+      ),
     },
     {
       key: 'status',
@@ -213,7 +226,11 @@ export function UsuariosView() {
           <p className="text-sm font-medium text-text-primary truncate">{u.nome_exibicao}</p>
           <p className="text-xs text-text-faint">@{u.username}</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-            <StatusBadge texto={ROLE_LABEL[u.role]} tom={ROLE_TOM[u.role]} />
+            {u.roles.map((r) => (
+              <Fragment key={r}>
+                <StatusBadge texto={ROLE_LABEL[r]} tom={ROLE_TOM[r]} />
+              </Fragment>
+            ))}
             <StatusBadge texto={u.ativo ? 'Ativo' : 'Inativo'} tom="positive" ativo={u.ativo} />
           </div>
         </div>
@@ -329,19 +346,37 @@ export function UsuariosView() {
                 </div>
               )}
               <div>
-                <label className={labelClass}>Papel</label>
-                <select
-                  value={form.role}
-                  onChange={(e) => setForm((f) => ({ ...f, role: e.target.value as Role }))}
-                  disabled={editando?.id === meuId}
-                  className={inputClass}
-                >
-                  {(Object.keys(ROLE_LABEL) as Role[]).map((r) => (
-                    <option key={r} value={r}>
-                      {ROLE_LABEL[r]}
-                    </option>
-                  ))}
-                </select>
+                <label className={labelClass}>Papéis</label>
+                <p className="text-xs text-text-faint mb-2">
+                  Pode marcar mais de um — ex: "Estoque (leitura)" + "Mandados" pra ver o estoque e também receber tarefas.
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {ALL_ROLES.map((r) => {
+                    const marcado = form.roles.includes(r);
+                    return (
+                      <button
+                        key={r}
+                        type="button"
+                        disabled={editando?.id === meuId}
+                        onClick={() =>
+                          setForm((f) => ({
+                            ...f,
+                            roles: marcado ? f.roles.filter((x) => x !== r) : [...f.roles, r],
+                          }))
+                        }
+                        className={cn(
+                          'flex items-center gap-2 py-2.5 px-3 rounded-control border text-sm text-left transition-colors disabled:opacity-50',
+                          marcado ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-secondary'
+                        )}
+                      >
+                        <span className={cn('size-4 rounded shrink-0 flex items-center justify-center border', marcado ? 'bg-accent border-accent text-white' : 'border-border-default')}>
+                          {marcado && <Check size={12} />}
+                        </span>
+                        {ROLE_LABEL[r]}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
             <div className="flex gap-3 p-6 border-t border-border-subtle">

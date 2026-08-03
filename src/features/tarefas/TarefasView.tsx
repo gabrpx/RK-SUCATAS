@@ -36,13 +36,17 @@ function paraDatetimeLocal(iso: string | null) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function TarefasView({ userRole }: { userRole: string }) {
+export function TarefasView({ userRoles }: { userRoles: string[] }) {
   const { tarefas, setTarefas, loading, error, refetch } = useTarefas();
-  const ehResponsavel = EXECUTORES_TAREFA.includes(userRole as Role);
+  // Admin/equipe sempre cai na visão de quem cria, mesmo se também tiver um
+  // papel executor (mandados/mecanico) — só quem é EXCLUSIVAMENTE executor
+  // (ex: estoque_leitura + mandados) fica na visão restrita "minhas tarefas".
+  const ehAdminOuEquipe = userRoles.includes('admin') || userRoles.includes('equipe');
+  const ehResponsavel = !ehAdminOuEquipe && userRoles.some((r) => EXECUTORES_TAREFA.includes(r as Role));
   const meuId = localStorage.getItem('user_id');
 
   if (ehResponsavel) return <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} />;
-  return <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} userRole={userRole} meuId={meuId} />;
+  return <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} userRoles={userRoles} meuId={meuId} />;
 }
 
 // =============================================================================
@@ -150,14 +154,14 @@ function VisaoCriador({
   loading,
   error,
   refetch,
-  userRole,
+  userRoles,
   meuId,
 }: {
   tarefas: Tarefa[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
-  userRole: string;
+  userRoles: string[];
   meuId: string | null;
 }) {
   const [filtroStatus, setFiltroStatus] = useState<'todas' | 'pendente' | 'concluida'>('todas');
@@ -179,7 +183,7 @@ function VisaoCriador({
 
   const filtradas = useMemo(() => (filtroStatus === 'todas' ? tarefas : tarefas.filter((t) => t.status === filtroStatus)), [tarefas, filtroStatus]);
 
-  const podeEditar = (tarefa: Tarefa) => userRole === 'admin' || tarefa.criado_por === meuId;
+  const podeEditar = (tarefa: Tarefa) => userRoles.includes('admin') || tarefa.criado_por === meuId;
 
   const abrirCriar = () => {
     setEditando(null);

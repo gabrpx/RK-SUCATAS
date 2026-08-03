@@ -8,9 +8,16 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { mensagemErroExclusao } from '../dbErrors.js';
 import { getDescendantIds, ehDescendenteOuIgual } from '../../features/motos/motoTree.js';
 import type { ModeloMoto } from '../../types/catalog.js';
+import { autorizar } from '../../../middleware/auth.js';
 
 const MSG_NOME_DUPLICADO = 'Já existe um modelo com esse nome neste nível.';
 const MSG_PAI_INVALIDO = 'Modelo pai inválido.';
+
+// GET fica aberto pra estoque_leitura (precisa disso pra a visão "Por Moto"
+// e o filtro por modelo do Estoque renderizarem); toda escrita continua
+// admin/equipe only.
+const LEITURA = autorizar('admin', 'equipe', 'estoque_leitura');
+const ESCRITA = autorizar('admin', 'equipe');
 
 export function modelosMotoRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -45,7 +52,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     return criado as ModeloMoto;
   }
 
-  router.get('/', async (_req, res) => {
+  router.get('/', LEITURA, async (_req, res) => {
     try {
       const { data, error } = await supabase.from('modelos_moto').select('*').order('ordem');
       if (error) throw error;
@@ -55,7 +62,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req, res) => {
+  router.post('/', ESCRITA, async (req, res) => {
     try {
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
@@ -88,7 +95,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
   // Acha-ou-cria a marca e a cilindrada, depois insere a moto como filha do
   // nó mais específico dos dois. Retorna os três nós (novos ou reaproveitados)
   // pro frontend atualizar o estado local sem duplicar.
-  router.post('/rapido', async (req, res) => {
+  router.post('/rapido', ESCRITA, async (req, res) => {
     try {
       const marcaNome = String(req.body?.marca || '').trim();
       const cilindradaNome = req.body?.cilindrada ? String(req.body.cilindrada).trim() : '';
@@ -121,7 +128,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', ESCRITA, async (req, res) => {
     try {
       const { id } = req.params;
       const atualizacao: Partial<Pick<ModeloMoto, 'nome' | 'parent_id' | 'ano' | 'imagem_url'>> = {};
@@ -170,7 +177,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/reordenar', async (req, res) => {
+  router.patch('/reordenar', ESCRITA, async (req, res) => {
     try {
       const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids : [];
       if (ids.length === 0) return res.status(400).json({ success: false, error: 'Lista de ids vazia' });
@@ -185,7 +192,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', ESCRITA, async (req, res) => {
     try {
       const { id } = req.params;
       const modelos = await listarTodos();

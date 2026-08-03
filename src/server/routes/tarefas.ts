@@ -15,8 +15,18 @@ const CAMPOS_EDITAVEIS = ['titulo', 'descricao', 'prazo', 'atribuido_para'] as c
 
 const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo com papel "mandados" ou "mecanico"';
 
-function responsavelValido(responsavel: { role: string; ativo: boolean } | null): boolean {
-  return !!responsavel && EXECUTORES_TAREFA.includes(responsavel.role as Role) && responsavel.ativo;
+function responsavelValido(responsavel: { roles: string[]; ativo: boolean } | null): boolean {
+  return !!responsavel && responsavel.roles.some((r) => EXECUTORES_TAREFA.includes(r as Role)) && responsavel.ativo;
+}
+
+// Um usuário pode ter vários papéis ao mesmo tempo (ver migration_020) — as
+// duas checagens abaixo testam se QUALQUER papel do usuário se encaixa,
+// não mais um `role === 'x'` de string única.
+function ehAdminOuEquipe(roles: string[]): boolean {
+  return roles.includes('admin') || roles.includes('equipe');
+}
+function ehExecutor(roles: string[]): boolean {
+  return roles.some((r) => EXECUTORES_TAREFA.includes(r as Role));
 }
 
 export function tarefasRouter(supabase: SupabaseClient) {
@@ -24,14 +34,17 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
   router.get('/', async (req: AuthenticatedRequest, res) => {
     try {
-      const role = req.usuario?.role;
-      if (role === 'estoque_leitura') {
+      const roles = req.usuario?.roles ?? [];
+      if (!ehAdminOuEquipe(roles) && !ehExecutor(roles)) {
         return res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
       }
 
       let query = supabase.from('tarefas').select(SELECT_COM_JOINS).order('status', { ascending: true }).order('prazo', { ascending: true, nullsFirst: false });
 
-      if (EXECUTORES_TAREFA.includes(role as Role)) {
+      // Quem tem QUALQUER papel executor (mandados/mecanico) só vê as
+      // próprias, mesmo que também tenha admin/equipe — ver estoque_leitura
+      // + mandados combinados: continua enxergando só as tarefas dele aqui.
+      if (ehExecutor(roles) && !ehAdminOuEquipe(roles)) {
         query = query.eq('atribuido_para', req.usuario!.id);
       } else {
         if (req.query.status) query = query.eq('status', String(req.query.status));
@@ -49,8 +62,8 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
   router.post('/', async (req: AuthenticatedRequest, res) => {
     try {
-      const role = req.usuario?.role;
-      if (role !== 'admin' && role !== 'equipe') {
+      const roles = req.usuario?.roles ?? [];
+      if (!ehAdminOuEquipe(roles)) {
         return res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
       }
 
@@ -59,7 +72,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
       if (!titulo) return res.status(400).json({ success: false, error: 'Título é obrigatório' });
       if (!atribuido_para) return res.status(400).json({ success: false, error: 'Responsável é obrigatório' });
 
-      const { data: responsavel, error: erroResponsavel } = await supabase.from('usuarios').select('id, role, ativo').eq('id', atribuido_para).maybeSingle();
+      const { data: responsavel, error: erroResponsavel } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', atribuido_para).maybeSingle();
       if (erroResponsavel) throw erroResponsavel;
       if (!responsavelValido(responsavel)) {
         return res.status(400).json({ success: false, error: ERRO_RESPONSAVEL_INVALIDO });
@@ -85,8 +98,8 @@ export function tarefasRouter(supabase: SupabaseClient) {
   // Confirma que o usuário logado pode mexer nesta tarefa (dono = criador, ou
   // admin mexe em qualquer uma). Retorna a tarefa atual ou já responde o erro.
   async function carregarTarefaEditavel(req: AuthenticatedRequest, res: any) {
-    const role = req.usuario?.role;
-    if (role !== 'admin' && role !== 'equipe') {
+    const roles = req.usuario?.roles ?? [];
+    if (!ehAdminOuEquipe(roles)) {
       res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
       return null;
     }
@@ -99,7 +112,9 @@ export function tarefasRouter(supabase: SupabaseClient) {
       res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
       return null;
     }
-    if (role === 'equipe' && tarefa.criado_por !== req.usuario!.id) {
+    // Admin mexe em qualquer tarefa; quem só tem equipe (sem admin) só mexe
+    // nas que criou.
+    if (!roles.includes('admin') && tarefa.criado_por !== req.usuario!.id) {
       res.status(403).json({ success: false, error: 'Só quem criou a tarefa pode alterá-la' });
       return null;
     }
@@ -117,7 +132,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
       }
 
       if (payload.atribuido_para !== undefined) {
-        const { data: responsavel } = await supabase.from('usuarios').select('id, role, ativo').eq('id', payload.atribuido_para).maybeSingle();
+        const { data: responsavel } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', payload.atribuido_para).maybeSingle();
         if (!responsavelValido(responsavel)) {
           return res.status(400).json({ success: false, error: ERRO_RESPONSAVEL_INVALIDO });
         }
@@ -134,12 +149,12 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
   router.patch('/:id/concluir', async (req: AuthenticatedRequest, res) => {
     try {
-      const role = req.usuario?.role;
+      const roles = req.usuario?.roles ?? [];
       const { data: tarefa, error: erroBusca } = await supabase.from('tarefas').select('id, atribuido_para').eq('id', req.params.id).maybeSingle();
       if (erroBusca) throw erroBusca;
       if (!tarefa) return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
 
-      const podeConcluir = role === 'admin' || role === 'equipe' || (EXECUTORES_TAREFA.includes(role as Role) && tarefa.atribuido_para === req.usuario!.id);
+      const podeConcluir = ehAdminOuEquipe(roles) || (ehExecutor(roles) && tarefa.atribuido_para === req.usuario!.id);
       if (!podeConcluir) {
         return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode dar baixa' });
       }
@@ -163,12 +178,12 @@ export function tarefasRouter(supabase: SupabaseClient) {
   // atribuído), já que reabrir é só o inverso da mesma ação.
   router.patch('/:id/reabrir', async (req: AuthenticatedRequest, res) => {
     try {
-      const role = req.usuario?.role;
+      const roles = req.usuario?.roles ?? [];
       const { data: tarefa, error: erroBusca } = await supabase.from('tarefas').select('id, atribuido_para').eq('id', req.params.id).maybeSingle();
       if (erroBusca) throw erroBusca;
       if (!tarefa) return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
 
-      const podeReabrir = role === 'admin' || role === 'equipe' || (EXECUTORES_TAREFA.includes(role as Role) && tarefa.atribuido_para === req.usuario!.id);
+      const podeReabrir = ehAdminOuEquipe(roles) || (ehExecutor(roles) && tarefa.atribuido_para === req.usuario!.id);
       if (!podeReabrir) {
         return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode reabri-la' });
       }

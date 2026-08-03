@@ -85,15 +85,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     // não têm permissão pra nenhum destes quatro endpoints — a aba deles
     // (Tarefas) busca os próprios dados via useTarefas, não via este contexto.
     // Sem isso, o app ficaria repetindo requisições que sempre voltam 403 a
-    // cada poll.
-    const role = localStorage.getItem('user_role') as Role | null;
-    if (role && EXECUTORES_TAREFA.includes(role)) {
+    // cada poll. Um usuário pode ter vários papéis (ver migration_020): só
+    // pula tudo se NENHUM papel dele está fora de EXECUTORES_TAREFA — quem
+    // também é estoque_leitura/admin/equipe continua buscando normalmente.
+    let roles: Role[] = [];
+    try {
+      const raw = localStorage.getItem('user_roles');
+      roles = raw ? JSON.parse(raw) : [];
+    } catch {
+      roles = [];
+    }
+    if (roles.length > 0 && roles.every((r) => EXECUTORES_TAREFA.includes(r))) {
       setLoading(false);
       return;
     }
-    // 'estoque_leitura' (Eloisa) só pode ler estoque — os outros três
-    // endpoints são bloqueados no backend pra esse papel, então nem tenta.
-    const podeVendasCaixaOrcamentos = role !== 'estoque_leitura';
+    // 'estoque_leitura' sem admin/equipe só pode ler estoque — os outros
+    // três endpoints são bloqueados no backend pra esse papel, então nem
+    // tenta (evita 403 previsível a cada poll).
+    const podeVendasCaixaOrcamentos = roles.includes('admin') || roles.includes('equipe');
 
     if (!silent) setLoading(true);
 

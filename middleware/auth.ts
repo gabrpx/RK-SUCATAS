@@ -12,7 +12,7 @@ const JWT_SECRET = requireEnv('JWT_SECRET');
 export interface UsuarioLogado {
   id: string;
   username: string;
-  role: string;
+  roles: string[];
 }
 
 export interface AuthenticatedRequest extends Request {
@@ -36,7 +36,14 @@ export function autenticar(req: AuthenticatedRequest, res: Response, next: NextF
   // localhost era impossível: toda chamada de API voltava a virar admin.
   if (token) {
     try {
-      req.usuario = jwt.verify(token, JWT_SECRET) as UsuarioLogado;
+      const decoded = jwt.verify(token, JWT_SECRET) as { id: string; username: string; roles?: string[]; role?: string };
+      // Normaliza pra sempre virar array: tokens novos já trazem `roles`,
+      // mas tokens antigos emitidos antes da migration_020 (válidos por até
+      // 7 dias, ver expiresIn no login) ainda trazem só `role` singular —
+      // sem isso todo mundo logado precisaria relogar no exato momento do
+      // deploy dessa mudança.
+      const roles = Array.isArray(decoded.roles) ? decoded.roles : decoded.role ? [decoded.role] : [];
+      req.usuario = { id: decoded.id, username: decoded.username, roles };
       return next();
     } catch {
       return res.status(401).json({ success: false, error: 'Token inválido ou expirado' });
@@ -48,7 +55,7 @@ export function autenticar(req: AuthenticatedRequest, res: Response, next: NextF
   // exposto na internet nunca vê uma conexão com remoteAddress de loopback
   // vinda de fora da própria máquina.
   if (ENDERECOS_LOOPBACK.includes(req.socket.remoteAddress || '')) {
-    req.usuario = { id: '00000000-0000-0000-0000-000000000000', username: 'localhost', role: 'admin' };
+    req.usuario = { id: '00000000-0000-0000-0000-000000000000', username: 'localhost', roles: ['admin'] };
     return next();
   }
 
@@ -57,9 +64,11 @@ export function autenticar(req: AuthenticatedRequest, res: Response, next: NextF
 
 // Gate por papel: usar depois de `autenticar` (precisa de req.usuario já
 // preenchido). Ex.: router.post('/', autorizar('admin', 'equipe'), handler).
+// Autorizado se QUALQUER um dos papéis do usuário está na lista permitida —
+// um usuário pode ter vários papéis ao mesmo tempo (ver migration_020).
 export function autorizar(...rolesPermitidas: string[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction) => {
-    if (!req.usuario || !rolesPermitidas.includes(req.usuario.role)) {
+    if (!req.usuario || !req.usuario.roles.some((r) => rolesPermitidas.includes(r))) {
       return res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
     }
     next();

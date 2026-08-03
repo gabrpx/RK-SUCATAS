@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { ALL_ROLES } from '../../constants/roles.js';
 
-const SELECT_SEM_SENHA = 'id, username, nome_exibicao, role, ativo, criado_em';
+const SELECT_SEM_SENHA = 'id, username, nome_exibicao, roles, ativo, criado_em';
 
 export function usuariosRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -28,7 +28,7 @@ export function usuariosRouter(supabase: SupabaseClient) {
       const username = String(req.body?.username || '').trim().toLowerCase();
       const nomeExibicao = String(req.body?.nome_exibicao || '').trim();
       const password = String(req.body?.password || '');
-      const role = req.body?.role;
+      const roles = req.body?.roles;
 
       if (!username || !nomeExibicao || !password) {
         return res.status(400).json({ success: false, error: 'Usuário, nome e senha são obrigatórios' });
@@ -36,14 +36,14 @@ export function usuariosRouter(supabase: SupabaseClient) {
       if (password.length < 6) {
         return res.status(400).json({ success: false, error: 'Senha precisa ter pelo menos 6 caracteres' });
       }
-      if (!ALL_ROLES.includes(role)) {
-        return res.status(400).json({ success: false, error: 'Papel inválido' });
+      if (!Array.isArray(roles) || roles.length === 0 || !roles.every((r: unknown) => ALL_ROLES.includes(r as any))) {
+        return res.status(400).json({ success: false, error: 'Selecione pelo menos um papel válido' });
       }
 
       const senha_hash = bcrypt.hashSync(password, 10);
       const { data, error } = await supabase
         .from('usuarios')
-        .insert({ username, nome_exibicao: nomeExibicao, senha_hash, role })
+        .insert({ username, nome_exibicao: nomeExibicao, senha_hash, roles })
         .select(SELECT_SEM_SENHA)
         .single();
 
@@ -69,18 +69,21 @@ export function usuariosRouter(supabase: SupabaseClient) {
         payload.username = username;
       }
       if (req.body?.nome_exibicao !== undefined) payload.nome_exibicao = String(req.body.nome_exibicao).trim();
-      if (req.body?.role !== undefined) {
-        if (!ALL_ROLES.includes(req.body.role)) return res.status(400).json({ success: false, error: 'Papel inválido' });
-        payload.role = req.body.role;
+      if (req.body?.roles !== undefined) {
+        const roles = req.body.roles;
+        if (!Array.isArray(roles) || roles.length === 0 || !roles.every((r: unknown) => ALL_ROLES.includes(r as any))) {
+          return res.status(400).json({ success: false, error: 'Selecione pelo menos um papel válido' });
+        }
+        payload.roles = roles;
       }
       if (req.body?.ativo !== undefined) payload.ativo = Boolean(req.body.ativo);
 
-      const { data: atual, error: erroAtual } = await supabase.from('usuarios').select('id, role, ativo').eq('id', req.params.id).maybeSingle();
+      const { data: atual, error: erroAtual } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', req.params.id).maybeSingle();
       if (erroAtual) throw erroAtual;
       if (!atual) return res.status(404).json({ success: false, error: 'Usuário não encontrado' });
 
       const vaiDesativar = payload.ativo === false;
-      const vaiTirarDeAdmin = payload.role !== undefined && payload.role !== 'admin';
+      const vaiTirarDeAdmin = payload.roles !== undefined && !payload.roles.includes('admin');
 
       const alvoEhEuMesmo = req.usuario?.id === req.params.id;
       if (alvoEhEuMesmo && (vaiDesativar || vaiTirarDeAdmin)) {
@@ -90,11 +93,11 @@ export function usuariosRouter(supabase: SupabaseClient) {
       // Além de não poder se auto-rebaixar (checagem acima), ninguém pode
       // deixar o sistema sem NENHUM admin ativo, mesmo mexendo na conta de
       // outra pessoa — senão perde-se o acesso pra gerenciar usuários.
-      if (atual.role === 'admin' && atual.ativo && (vaiDesativar || vaiTirarDeAdmin)) {
+      if (atual.roles.includes('admin') && atual.ativo && (vaiDesativar || vaiTirarDeAdmin)) {
         const { count, error: erroContagem } = await supabase
           .from('usuarios')
           .select('id', { count: 'exact', head: true })
-          .eq('role', 'admin')
+          .contains('roles', ['admin'])
           .eq('ativo', true)
           .neq('id', req.params.id);
         if (erroContagem) throw erroContagem;

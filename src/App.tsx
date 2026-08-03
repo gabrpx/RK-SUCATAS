@@ -67,10 +67,24 @@ type DetailItem = Estoque | Venda;
 type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'configuracoes' | 'tarefas';
 const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'configuracoes', 'tarefas'];
 
-// Primeira aba visível pra cada papel — usada como fallback quando a URL
-// pede uma aba que o papel logado não pode ver.
-function primeiraAbaPermitida(role: Role): Tab {
-  return VALID_TABS.find((tab) => TAB_ROLES[tab].includes(role)) as Tab;
+// Primeira aba visível pra quem tem esses papéis — usada como fallback
+// quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
+function primeiraAbaPermitida(roles: Role[]): Tab {
+  return VALID_TABS.find((tab) => TAB_ROLES[tab].some((r) => roles.includes(r))) as Tab;
+}
+
+// Lê a lista de papéis do usuário do localStorage (gravada por Login.tsx
+// como JSON). JSON inválido/ausente não deve derrubar o app — cai no
+// fallback de quem chama.
+function lerRolesArmazenados(): Role[] | null {
+  try {
+    const raw = localStorage.getItem('user_roles');
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) && parsed.length > 0 ? (parsed as Role[]) : null;
+  } catch {
+    return null;
+  }
 }
 
 function isVenda(item: DetailItem): item is Venda {
@@ -109,9 +123,9 @@ export default function App() {
       }
 
       const token = localStorage.getItem('auth_token');
-      const role = localStorage.getItem('user_role');
+      const roles = localStorage.getItem('user_roles');
 
-      if (token && role) {
+      if (token && roles) {
         setIsUserAuthenticated(true);
         if (window.location.pathname.toLowerCase() === '/login' || window.location.pathname === '/') {
           window.history.replaceState(null, '', '/dashboard');
@@ -132,7 +146,7 @@ export default function App() {
   const handleLogout = () => {
     sessionStorage.setItem(FORCE_REAL_AUTH_KEY, '1');
     localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_roles');
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_id');
     setIsUserAuthenticated(false);
@@ -454,22 +468,23 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   // fichas de unidade (badge de avaria e valor total dependem disso).
   const { refreshData } = useData();
 
-  // IS_LOCALHOST pula o login (ver comentário acima) e nunca grava user_role
-  // no localStorage — nesse caso replica o mesmo 'admin' que o backend
-  // atribui via bypass de loopback. Fora do localhost, checkAuthStatus só
-  // autentica com token E role presentes, então este branch não deveria ser
-  // alcançável — mas se o storage for corrompido/alterado em runtime, cai no
-  // papel menos privilegiado em vez de assumir admin.
-  const userRole = ((localStorage.getItem('user_role') as Role) || (IS_LOCALHOST ? 'admin' : 'estoque_leitura')) as Role;
+  // IS_LOCALHOST pula o login (ver comentário acima) e nunca grava
+  // user_roles no localStorage — nesse caso replica o mesmo ['admin'] que o
+  // backend atribui via bypass de loopback. Fora do localhost,
+  // checkAuthStatus só autentica com token E roles presentes, então este
+  // branch não deveria ser alcançável — mas se o storage for
+  // corrompido/alterado em runtime, cai no papel menos privilegiado em vez
+  // de assumir admin.
+  const userRoles = lerRolesArmazenados() ?? (IS_LOCALHOST ? ['admin'] : ['estoque_leitura']);
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
     const abaValida = VALID_TABS.includes(path);
-    if (abaValida && TAB_ROLES[path].includes(userRole)) return path;
-    // Aba inexistente OU papel sem permissão pra ela: cai na primeira aba
-    // que o papel logado pode ver, em vez de sempre tentar 'dashboard'
-    // (que Eloisa/mandados/mecanico não conseguem ver).
-    return primeiraAbaPermitida(userRole);
+    if (abaValida && TAB_ROLES[path].some((r) => userRoles.includes(r))) return path;
+    // Aba inexistente OU nenhum papel do usuário tem permissão pra ela: cai
+    // na primeira aba que algum papel dele pode ver, em vez de sempre
+    // tentar 'dashboard' (que Eloisa/mandados/mecanico não conseguem ver).
+    return primeiraAbaPermitida(userRoles);
   });
   const [pendingEditItem, setPendingEditItem] = useState<Estoque | null>(null);
   const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
@@ -560,28 +575,28 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
           </div>
 
           <nav className="flex-1 space-y-2">
-            {TAB_ROLES.dashboard.includes(userRole) && (
+            {TAB_ROLES.dashboard.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={LayoutDashboard} label={isSidebarOpen ? 'Dashboard' : ''} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} theme={theme} />
             )}
-            {TAB_ROLES.estoque.includes(userRole) && (
+            {TAB_ROLES.estoque.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Package} label={isSidebarOpen ? 'Estoque' : ''} active={activeTab === 'estoque'} onClick={() => setActiveTab('estoque')} theme={theme} />
             )}
-            {TAB_ROLES.vendas.includes(userRole) && (
+            {TAB_ROLES.vendas.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={ShoppingCart} label={isSidebarOpen ? 'Vendas' : ''} active={activeTab === 'vendas'} onClick={() => setActiveTab('vendas')} theme={theme} />
             )}
-            {TAB_ROLES.orcamentos.includes(userRole) && (
+            {TAB_ROLES.orcamentos.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Receipt} label={isSidebarOpen ? 'Orçamentos' : ''} active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} theme={theme} />
             )}
-            {TAB_ROLES.caixa.includes(userRole) && (
+            {TAB_ROLES.caixa.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
             )}
-            {TAB_ROLES.frete.includes(userRole) && (
+            {TAB_ROLES.frete.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Truck} label={isSidebarOpen ? 'Frete' : ''} active={activeTab === 'frete'} onClick={() => setActiveTab('frete')} theme={theme} />
             )}
-            {TAB_ROLES.tarefas.includes(userRole) && (
+            {TAB_ROLES.tarefas.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={ClipboardList} label={isSidebarOpen ? 'Tarefas' : ''} active={activeTab === 'tarefas'} onClick={() => setActiveTab('tarefas')} theme={theme} />
             )}
-            {TAB_ROLES.configuracoes.includes(userRole) && (
+            {TAB_ROLES.configuracoes.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Settings} label={isSidebarOpen ? 'Configurações' : ''} active={activeTab === 'configuracoes'} onClick={() => setActiveTab('configuracoes')} theme={theme} />
             )}
             <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} theme={theme} className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600" />
@@ -627,7 +642,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   setPendingEditItem={setPendingEditItem}
                   filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
                   setFiltroEstoqueBaixoInicial={setPendingEstoqueBaixo}
-                  readOnly={userRole === 'estoque_leitura'}
+                  readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
                 />
               ) : activeTab === 'vendas' ? (
                 <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
@@ -638,16 +653,16 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               ) : activeTab === 'frete' ? (
                 <FreteView />
               ) : activeTab === 'tarefas' ? (
-                <TarefasView userRole={userRole} />
+                <TarefasView userRoles={userRoles} />
               ) : (
-                <ConfiguracoesView theme={theme} userRole={userRole} />
+                <ConfiguracoesView theme={theme} userRoles={userRoles} />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRole={userRole} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} />
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRoles={userRoles} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} />
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
@@ -663,7 +678,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             onClose={() => setSelectedDetailItem(null)}
             onEdit={itemActions.edit}
             onDelete={itemActions.delete}
-            readOnly={userRole === 'estoque_leitura'}
+            readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
             onAlterado={refreshData}
           />
         )}

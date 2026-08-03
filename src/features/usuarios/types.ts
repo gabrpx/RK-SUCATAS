@@ -7,7 +7,9 @@ export interface Usuario {
   id: string;
   username: string;
   nome_exibicao: string;
-  role: Role;
+  // Um usuário pode ter vários papéis ao mesmo tempo (ex: estoque_leitura +
+  // mandados, pra ver o estoque E receber tarefas) — ver migration_020.
+  roles: Role[];
   ativo: boolean;
   criado_em: string;
 }
@@ -16,12 +18,12 @@ export interface UsuarioInput {
   username: string;
   nome_exibicao: string;
   password: string;
-  role: Role;
+  roles: Role[];
 }
 
 export interface UsuarioUpdateInput {
   username?: string;
   nome_exibicao?: string;
-  role?: Role;
+  roles?: Role[];
   ativo?: boolean;
 }

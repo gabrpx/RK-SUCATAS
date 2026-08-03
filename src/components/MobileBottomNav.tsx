@@ -20,7 +20,7 @@ function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMoreOpen, setIsMoreOpen }: any) => {
+export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isMoreOpen, setIsMoreOpen }: any) => {
   const allItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Início', roles: TAB_ROLES.dashboard },
     { id: 'estoque', icon: Package, label: 'Estoque', roles: TAB_ROLES.estoque },
@@ -35,7 +35,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMo
     { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: TAB_ROLES.orcamentos },
   ];
 
-  const allowedItems = allItems.filter(item => item.roles.includes(userRole));
+  const allowedItems = allItems.filter(item => item.roles.some((r: string) => userRoles.includes(r)));
 
   // 4 na barra principal (o que se usa todo dia); Frete e Configurações vão pro "Mais".
   const mainItems = allowedItems.slice(0, 4);

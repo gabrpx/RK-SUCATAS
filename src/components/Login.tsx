@@ -39,7 +39,7 @@ export const Login = ({ onLogin }: LoginProps) => {
       }
 
       localStorage.setItem('auth_token', data.token);
-      localStorage.setItem('user_role', data.user.role);
+      localStorage.setItem('user_roles', JSON.stringify(data.user.roles));
       localStorage.setItem('user_name', data.user.nome_exibicao || data.user.username);
       localStorage.setItem('user_id', data.user.id);
 
