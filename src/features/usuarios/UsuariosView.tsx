@@ -5,6 +5,7 @@
 import { useEffect, useState } from 'react';
 import { UserPlus, KeyRound, Pencil, Ban, RotateCcw, Loader2 } from 'lucide-react';
 import { cn } from '../../utils';
+import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
 import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -108,14 +109,14 @@ export function UsuariosView() {
       if (!result.success) throw new Error(result.error);
       await carregar();
     } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar usuário');
+      aviso.falha(err, 'Erro ao atualizar usuário');
     }
   };
 
   const confirmarRedefinicao = async () => {
     if (!redefinindoSenhaDe) return;
     if (novaSenha.length < 6) {
-      alert('A senha precisa ter pelo menos 6 caracteres.');
+      aviso.atencao('A senha precisa ter pelo menos 6 caracteres.');
       return;
     }
     try {
@@ -124,7 +125,7 @@ export function UsuariosView() {
       setRedefinindoSenhaDe(null);
       setNovaSenha('');
     } catch (err: any) {
-      alert(err.message || 'Erro ao redefinir senha');
+      aviso.falha(err, 'Erro ao redefinir senha');
     }
   };
 

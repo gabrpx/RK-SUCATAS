@@ -26,6 +26,7 @@ import {
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
+import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { orcamentosApi } from './api';
 import type { Orcamento, OrcamentoItem, OrcamentoItemInput, DescontoTipo } from './types';
@@ -357,7 +358,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
         if (!result.success) throw new Error(result.error);
         setAtual(result.data);
       } catch (err: any) {
-        alert(err.message || 'Erro ao adicionar item');
+        aviso.falha(err, 'Erro ao adicionar item');
       } finally {
         setSalvando(false);
       }
@@ -378,7 +379,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       if (!result.success) throw new Error(result.error);
       setAtual(result.data);
     } catch (err: any) {
-      alert(err.message || 'Erro ao remover item');
+      aviso.falha(err, 'Erro ao remover item');
     } finally {
       setSalvando(false);
     }
@@ -391,7 +392,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       if (!result.success) throw new Error(result.error);
       setAtual(result.data);
     } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar item');
+      aviso.falha(err, 'Erro ao atualizar item');
     }
   };
 
@@ -403,7 +404,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       if (!result.success) throw new Error(result.error);
       setAtual(result.data);
     } catch (err: any) {
-      alert(err.message || 'Erro ao atualizar item');
+      aviso.falha(err, 'Erro ao atualizar item');
     }
   };
 
@@ -414,7 +415,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
   const total = Math.max(0, subtotal - desconto);
 
   const salvarHeader = async () => {
-    if (!clienteNome.trim()) return alert('Nome do cliente é obrigatório');
+    if (!clienteNome.trim()) return aviso.atencao('Nome do cliente é obrigatório');
 
     if (isEdicao && atual) {
       setSalvando(true);
@@ -431,12 +432,12 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
         setAtual(result.data);
         await onChanged();
       } catch (err: any) {
-        alert(err.message || 'Erro ao salvar orçamento');
+        aviso.falha(err, 'Erro ao salvar orçamento');
       } finally {
         setSalvando(false);
       }
     } else {
-      if (rascunho.length === 0) return alert('Adicione ao menos um item ao orçamento');
+      if (rascunho.length === 0) return aviso.atencao('Adicione ao menos um item ao orçamento');
       setSalvando(true);
       try {
         const result = await orcamentosApi.criar({
@@ -453,7 +454,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
         setRascunho([]);
         await onChanged();
       } catch (err: any) {
-        alert(err.message || 'Erro ao criar orçamento');
+        aviso.falha(err, 'Erro ao criar orçamento');
       } finally {
         setSalvando(false);
       }
@@ -470,7 +471,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       setConfirmandoCancelamento(false);
       await onChanged();
     } catch (err: any) {
-      alert(err.message || 'Erro ao cancelar orçamento');
+      aviso.falha(err, 'Erro ao cancelar orçamento');
     } finally {
       setSalvando(false);
     }
@@ -968,7 +969,7 @@ function VenderModal({
   const [enviando, setEnviando] = useState(false);
 
   const confirmar = async () => {
-    if (!formaPagamentoId) return alert('Selecione a forma de pagamento');
+    if (!formaPagamentoId) return aviso.atencao('Selecione a forma de pagamento');
     setEnviando(true);
     try {
       if (alvo.tipo === 'item' && item) {
@@ -979,12 +980,19 @@ function VenderModal({
         const result = await orcamentosApi.venderTudo(orcamento.id, { forma_pagamento_id: formaPagamentoId, data });
         if (!result.success) throw new Error(result.error);
         if (result.data.falhas.length > 0) {
-          alert(`${result.data.sucesso.length} venda(s) realizada(s). ${result.data.falhas.length} falharam:\n` + result.data.falhas.map((f) => f.error).join('\n'));
+          // Venda parcial: o que passou já entrou, então não é erro puro —
+          // avisa o que ficou de fora pra poder resolver item a item.
+          aviso.atencao(`${result.data.sucesso.length} venda(s) registrada(s), ${result.data.falhas.length} não`, {
+            descricao: result.data.falhas.map((f) => f.error).join(' · '),
+            duracao: 10000,
+          });
+        } else {
+          aviso.sucesso(`${result.data.sucesso.length} venda(s) registrada(s)`);
         }
         onVendido(result.data.orcamento);
       }
     } catch (err: any) {
-      alert(err.message || 'Erro ao registrar venda');
+      aviso.falha(err, 'Erro ao registrar venda');
     } finally {
       setEnviando(false);
     }

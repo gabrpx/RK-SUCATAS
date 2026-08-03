@@ -52,6 +52,7 @@ import { FreteView } from './features/frete/FreteView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
 import { TarefasView } from './features/tarefas/TarefasView';
+import { Toaster } from './components/ui/toast';
 import { UnidadesAvaria } from './features/estoque/UnidadesAvaria';
 import { contarAvarias } from './features/estoque/valorEstoque';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
@@ -149,6 +150,9 @@ export default function App() {
   return (
     <DataProvider>
       <AppContent onLogout={handleLogout} />
+      {/* Fora do AppContent pra sobreviver à troca de aba e continuar
+          aparecendo mesmo na tela de login. */}
+      <Toaster />
     </DataProvider>
   );
 }
@@ -321,11 +325,12 @@ function DetailModal({
                   )}
                   {onDelete && (
                     <button
+                      // Sem window.confirm aqui: quem recebe o onDelete já abre
+                      // a própria confirmação (Estoque) ou o modal de
+                      // cancelamento (Vendas) — eram duas perguntas seguidas.
                       onClick={() => {
-                        if (window.confirm('Tem certeza que deseja excluir este item?')) {
-                          onDelete((item as any).id);
-                          onClose();
-                        }
+                        onDelete((item as any).id);
+                        onClose();
                       }}
                       className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500/20 flex items-center justify-center gap-2"
                     >
@@ -566,7 +571,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               ) : activeTab === 'caixa' ? (
                 <CaixaView theme={theme} />
               ) : activeTab === 'frete' ? (
-                <FreteView theme={theme} />
+                <FreteView />
               ) : activeTab === 'tarefas' ? (
                 <TarefasView userRole={userRole} />
               ) : (

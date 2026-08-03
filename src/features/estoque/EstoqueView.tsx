@@ -43,6 +43,7 @@ import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, 
 import { gerarCsvEstoque } from './planilha';
 import { ImportarPlanilhaModal } from './ImportarPlanilhaModal';
 import { baixarCsv } from '../../utils/csv';
+import { aviso } from '../../components/ui/toast';
 import { getDescendantIds, buildTree } from '../categorias/categoriaTree';
 import { getDescendantIds as getDescendantIdsMoto, buildTree as buildTreeMoto } from '../motos/motoTree';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
@@ -51,6 +52,9 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
 const ITEMS_PER_PAGE = 25;
+
+// Janela pra clicar em "Desfazer" antes da exclusão ir pro banco.
+const MS_PARA_DESFAZER = 6000;
 
 // Mesmo critério usado no card de estoque baixo do Dashboard: item ainda tem
 // unidade (não é "esgotado"), mas está no fim.
@@ -220,8 +224,8 @@ export function EstoqueView({
       if (!result.success || !result.url) throw new Error(result.error || 'Falha no upload');
       setFormData((prev) => ({ ...prev, imagem_url: result.url! }));
       if (comprimido) setResumoCompressao(`Foto otimizada: ${formatarBytes(bytesAntes)} → ${formatarBytes(bytesDepois)}`);
-    } catch (err: any) {
-      alert(err.message || 'Erro ao enviar imagem');
+    } catch (err) {
+      aviso.falha(err, 'Erro ao enviar imagem');
     } finally {
       setIsUploadingImagem(false);
     }
@@ -344,9 +348,11 @@ export function EstoqueView({
   // condição e ano ficam preenchidos porque peça costuma sair em lote da
   // mesma moto — é o que corta mais tempo na catalogação em massa.
   const handleSave = async (continuar = false) => {
-    if (!formData.nome.trim()) return alert('Nome da peça é obrigatório');
-    if (!formData.categoria_id) return alert('Selecione uma categoria');
-    if (formExigeNota && !formData.nota_cadastro) return alert('Para peças de Motor, selecione "Com nota pra cadastro" ou "Sem nota pra cadastro"');
+    if (!formData.nome.trim()) return aviso.atencao('Preencha o nome da peça');
+    if (!formData.categoria_id) return aviso.atencao('Selecione uma categoria');
+    if (formExigeNota && !formData.nota_cadastro) {
+      return aviso.atencao('Peça de Motor Completo precisa da nota', { descricao: 'Escolha "Com nota" ou "Sem nota pra cadastro".' });
+    }
 
     setIsSaving(true);
     const payload: EstoqueInput = {
@@ -367,6 +373,9 @@ export function EstoqueView({
         const result = await estoqueApi.criar(payload);
         if (!result.success) throw new Error(result.error);
         setEstoque((prev) => [result.data, ...prev]);
+        // Confirmação com o código gerado: é como quem cataloga sabe que a
+        // peça entrou, sem precisar fechar o modal pra conferir na lista.
+        aviso.sucesso(`${result.data.codigo} cadastrada`, { descricao: result.data.nome, duracao: 2500 });
 
         if (continuar) {
           setFormData({
@@ -388,25 +397,50 @@ export function EstoqueView({
       }
       setIsModalOpen(false);
       setEditingItem(null);
-    } catch (err: any) {
-      alert(err.message || 'Erro ao salvar item');
+    } catch (err) {
+      aviso.falha(err, 'Erro ao salvar item');
     } finally {
       setIsSaving(false);
     }
   };
 
-  const handleDelete = async () => {
+  // A peça some da lista na hora, mas a exclusão de verdade só sai depois da
+  // janela de desfazer. Apagar peça errada num estoque desse tamanho é caro, e
+  // o backend ainda apaga a foto do Storage junto — não dá pra restaurar
+  // depois. Se a pessoa fechar o navegador antes dos segundos acabarem, a
+  // exclusão simplesmente não acontece: erra pro lado seguro, que é não perder
+  // nada.
+  const handleDelete = () => {
     if (!itemToDelete) return;
-    const id = itemToDelete.id;
-    setEstoque((prev) => prev.filter((i) => i.id !== id));
+    const item = itemToDelete;
     setItemToDelete(null);
-    try {
-      const result = await estoqueApi.excluir(id);
-      if (!result.success) throw new Error(result.error);
-    } catch (err: any) {
-      alert(err.message || 'Erro ao excluir item');
-      refreshData();
-    }
+    setEstoque((prev) => prev.filter((i) => i.id !== item.id));
+
+    let desfeito = false;
+    const temporizador = setTimeout(async () => {
+      if (desfeito) return;
+      try {
+        const result = await estoqueApi.excluir(item.id);
+        if (!result.success) throw new Error(result.error);
+      } catch (err) {
+        aviso.falha(err, 'Erro ao excluir item');
+        refreshData();
+      }
+    }, MS_PARA_DESFAZER);
+
+    aviso.atencao(`${item.codigo} excluída`, {
+      descricao: item.nome,
+      duracao: MS_PARA_DESFAZER,
+      acao: {
+        label: 'Desfazer',
+        onClick: () => {
+          desfeito = true;
+          clearTimeout(temporizador);
+          setEstoque((prev) => (prev.some((i) => i.id === item.id) ? prev : [item, ...prev]));
+          aviso.sucesso('Exclusão desfeita');
+        },
+      },
+    });
   };
 
   // Backup do estoque em CSV. Exporta o que está filtrado na tela (ou tudo,

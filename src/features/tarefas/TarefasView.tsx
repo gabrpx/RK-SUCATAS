@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, Clock, Loader2 } from 'lucide-react';
 import { cn } from '../../utils';
+import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
 import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -67,7 +68,7 @@ function VisaoResponsavel({
       if (!result.success) throw new Error(result.error);
       setTarefas((prev) => prev.map((t) => (t.id === tarefa.id ? result.data : t)));
     } catch (err: any) {
-      alert(err.message || 'Erro ao concluir tarefa');
+      aviso.falha(err, 'Erro ao concluir tarefa');
     } finally {
       setConcluindo(null);
     }
@@ -225,7 +226,7 @@ function VisaoCriador({
       setExcluindo(null);
       refetch();
     } catch (err: any) {
-      alert(err.message || 'Erro ao excluir tarefa');
+      aviso.falha(err, 'Erro ao excluir tarefa');
     }
   };
 

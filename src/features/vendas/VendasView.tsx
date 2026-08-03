@@ -8,6 +8,7 @@ import { ShoppingCart, Search, Plus, Trash2, X, Loader2, Calendar, Package, Edit
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
+import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { vendasApi } from './api';
 import type { Venda } from './types';
@@ -67,7 +68,7 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
       await refreshData();
       setVendaToCancel(null);
     } catch (err: any) {
-      alert(err.message || 'Erro ao cancelar venda');
+      aviso.falha(err, 'Erro ao cancelar venda');
     } finally {
       setCancelando(false);
     }
@@ -265,9 +266,11 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
   const handleSubmit = async () => {
     if (!itemSelecionado) return;
     const qtd = componenteSelecionado ? 1 : Number(quantidade);
-    if (!qtd || qtd <= 0) return alert('Quantidade inválida');
-    if (!componenteSelecionado && qtd > itemSelecionado.quantidade) return alert(`Só há ${itemSelecionado.quantidade} unidade(s) em estoque`);
-    if (!formaPagamentoId) return alert('Selecione a forma de pagamento');
+    if (!qtd || qtd <= 0) return aviso.atencao('Quantidade inválida');
+    if (!componenteSelecionado && qtd > itemSelecionado.quantidade) {
+      return aviso.atencao(`Só há ${itemSelecionado.quantidade} unidade(s) em estoque`, { descricao: itemSelecionado.nome });
+    }
+    if (!formaPagamentoId) return aviso.atencao('Selecione a forma de pagamento');
 
     setSaving(true);
     try {
@@ -287,7 +290,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
       await refreshData();
       handleClose();
     } catch (err: any) {
-      alert(err.message || 'Erro ao registrar venda');
+      aviso.falha(err, 'Erro ao registrar venda');
     } finally {
       setSaving(false);
     }
