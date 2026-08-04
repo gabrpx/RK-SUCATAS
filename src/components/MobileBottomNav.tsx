@@ -8,6 +8,7 @@ import {
   Settings,
   ClipboardList,
   MoreHorizontal,
+  Store,
   X
 } from 'lucide-react';
 import { useState } from 'react';
@@ -33,6 +34,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
     // comentário acima) — Orçamentos é ferramenta de pré-venda, de uso menos
     // frequente que Caixa, então tolera bem ficar dentro de "Mais".
     { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: TAB_ROLES.orcamentos },
+    { id: 'mercadolivre', icon: Store, label: 'Mercado Livre', roles: TAB_ROLES.mercadolivre },
   ];
 
   const allowedItems = allItems.filter(item => item.roles.some((r: string) => userRoles.includes(r)));

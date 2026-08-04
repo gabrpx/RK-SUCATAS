@@ -28,13 +28,14 @@ import { caixaRouter } from './src/server/routes/caixa.js';
 import { uploadRouter } from './src/server/routes/upload.js';
 import { usuariosRouter } from './src/server/routes/usuarios.js';
 import { tarefasRouter } from './src/server/routes/tarefas.js';
+import { mercadolivreRouter, mercadolivreCallbackHandler } from './src/server/routes/mercadolivre.js';
 import { EXECUTORES_TAREFA } from './src/constants/roles.js';
 
 dotenv.config();
 
 async function startServer() {
   console.log('🌐 Validando variáveis de ambiente...');
-  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'ADMIN_PASSWORD', 'MELHOR_ENVIO_TOKEN'].forEach((env) => {
+  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'ADMIN_PASSWORD', 'MELHOR_ENVIO_TOKEN', 'MERCADOLIVRE_APP_ID', 'MERCADOLIVRE_CLIENT_SECRET', 'MERCADOLIVRE_REDIRECT_URI'].forEach((env) => {
     if (!process.env[env]) console.warn(`⚠️ Variável de ambiente [${env}] não está definida!`);
     else console.log(`✅ [${env}] está presente.`);
   });
@@ -48,7 +49,7 @@ async function startServer() {
 
   app.set('trust proxy', 1);
 
-  const allowedOrigins = ['http://localhost:3000', 'http://localhost', 'capacitor://localhost', 'https://rk-sucatas-987595911324.southamerica-east1.run.app'];
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost', 'capacitor://localhost', 'https://rk-sucatas.onrender.com'];
   if (process.env.APP_URL) allowedOrigins.push(process.env.APP_URL);
 
   app.use(
@@ -108,6 +109,12 @@ async function startServer() {
   app.get('/api/health', (_req, res) => {
     res.json({ success: true, status: 'ok', timestamp: new Date().toISOString() });
   });
+
+  // Sem gate de JWT de propósito: é o Mercado Livre redirecionando o
+  // navegador de volta depois do login, não uma chamada da nossa SPA — não
+  // tem como vir com Authorization: Bearer junto. Ver mercadolivre.ts pra
+  // como isso continua seguro (state de uso único).
+  app.get('/api/mercadolivre/callback', mercadolivreCallbackHandler(supabase));
 
   // 10 tentativas a cada 15min por IP — impede força bruta de senha sem
   // atrapalhar o uso normal (uma pessoa errando a senha algumas vezes).
@@ -242,6 +249,7 @@ async function startServer() {
   app.use('/api/caixa', autorizar('admin', 'equipe'), caixaRouter(supabase));
   app.use('/api/upload', autorizar('admin', 'equipe'), uploadRouter());
   app.use('/api/tarefas', tarefasRouter(supabase));
+  app.use('/api/mercadolivre', autorizar('admin', 'equipe'), mercadolivreRouter(supabase));
   app.use('/api/usuarios', autorizar('admin'), usuariosRouter(supabase));
 
   // Error handler genérico pra API

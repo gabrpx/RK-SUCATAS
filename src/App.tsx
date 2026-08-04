@@ -37,6 +37,7 @@ import {
   Settings,
   ClipboardList,
   Gauge,
+  Store,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -50,6 +51,7 @@ import { VendasView } from './features/vendas/VendasView';
 import { OrcamentosView } from './features/orcamentos/OrcamentosView';
 import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
+import { MercadoLivreView } from './features/mercadolivre/MercadoLivreView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
 import { TarefasView } from './features/tarefas/TarefasView';
@@ -65,8 +67,8 @@ import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'configuracoes' | 'tarefas';
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'configuracoes', 'tarefas'];
+type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas';
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas'];
 
 // Primeira aba visível pra quem tem esses papéis — usada como fallback
 // quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
@@ -457,7 +459,7 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações', tarefas: 'Tarefas' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
@@ -586,6 +588,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             {TAB_ROLES.frete.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Truck} label={isSidebarOpen ? 'Frete' : ''} active={activeTab === 'frete'} onClick={() => setActiveTab('frete')} theme={theme} />
             )}
+            {TAB_ROLES.mercadolivre.some((r) => userRoles.includes(r)) && (
+              <SidebarItem icon={Store} label={isSidebarOpen ? 'Mercado Livre' : ''} active={activeTab === 'mercadolivre'} onClick={() => setActiveTab('mercadolivre')} theme={theme} />
+            )}
             {TAB_ROLES.tarefas.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={ClipboardList} label={isSidebarOpen ? 'Tarefas' : ''} active={activeTab === 'tarefas'} onClick={() => setActiveTab('tarefas')} theme={theme} />
             )}
@@ -645,6 +650,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 <CaixaView theme={theme} />
               ) : activeTab === 'frete' ? (
                 <FreteView />
+              ) : activeTab === 'mercadolivre' ? (
+                <MercadoLivreView />
               ) : activeTab === 'tarefas' ? (
                 <TarefasView userRoles={userRoles} />
               ) : (
