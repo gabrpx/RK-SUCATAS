@@ -34,6 +34,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { encontrarCategoriaPorNome } from './matchCategoria';
+import { encontrarModeloPorNome } from './matchModelo';
 import { categoriaExigeNota } from './categoriaMotor';
 import { comprimirImagem, formatarBytes } from '../../utils/comprimirImagem';
 import { tomCondicaoNota } from './condicaoNota';
@@ -156,6 +157,8 @@ export function EstoqueView({
   // Enquanto true, a categoria é escolhida automaticamente com base no nome
   // digitado. Vira false assim que o usuário mexe manualmente no dropdown.
   const [categoriaAutoDetectada, setCategoriaAutoDetectada] = useState(true);
+  // Mesma lógica, agora pro modelo de moto.
+  const [modeloAutoDetectado, setModeloAutoDetectado] = useState(true);
   const [novoComponente, setNovoComponente] = useState('');
   // Controle do bloco "também serve em": enquanto true, mostra o
   // MotoCascadeSelect temporário pra escolher o próximo modelo compatível.
@@ -182,6 +185,7 @@ export function EstoqueView({
     setEditingItem(null);
     setFormData(EMPTY_FORM);
     setCategoriaAutoDetectada(true);
+    setModeloAutoDetectado(true);
     setNovoComponente('');
     setAdicionandoCompativel(false);
     setCompatTempId('');
@@ -193,6 +197,7 @@ export function EstoqueView({
   const openEditModal = useCallback((item: Estoque) => {
     setEditingItem(item);
     setCategoriaAutoDetectada(false);
+    setModeloAutoDetectado(false);
     setNovoComponente('');
     setAdicionandoCompativel(false);
     setCompatTempId('');
@@ -221,14 +226,26 @@ export function EstoqueView({
 
   // Ao digitar o nome de uma peça nova, tenta achar a categoria já cadastrada
   // que combina com as palavras digitadas e seleciona sozinho. Só age em
-  // itens novos e só enquanto o usuário não escolheu a categoria na mão.
+  // itens novos e só enquanto o usuário não escolheu a categoria na mão —
+  // e some de novo se o texto for apagado a ponto de não bater com nada mais.
   useEffect(() => {
     if (editingItem || !categoriaAutoDetectada) return;
     const match = encontrarCategoriaPorNome(formData.nome, categorias);
-    if (match && match.id !== formData.categoria_id) {
-      setFormData((prev) => ({ ...prev, categoria_id: match.id }));
+    const novoId = match?.id ?? '';
+    if (novoId !== formData.categoria_id) {
+      setFormData((prev) => ({ ...prev, categoria_id: novoId }));
     }
   }, [formData.nome, categorias, editingItem, categoriaAutoDetectada]);
+
+  // Mesma auto-detecção, agora pro modelo de moto — espelha o efeito acima.
+  useEffect(() => {
+    if (editingItem || !modeloAutoDetectado) return;
+    const match = encontrarModeloPorNome(formData.nome, modelos);
+    const novoId = match?.id ?? '';
+    if (novoId !== formData.modelo_moto_id) {
+      setFormData((prev) => ({ ...prev, modelo_moto_id: novoId }));
+    }
+  }, [formData.nome, modelos, editingItem, modeloAutoDetectado]);
 
   // Envia uma ou várias fotos de uma vez e ACRESCENTA à galeria (não
   // substitui) — mesmo padrão de UnidadesAvaria.tsx `enviarFotos`.
@@ -413,9 +430,9 @@ export function EstoqueView({
           setCompatTempId('');
           setResumoCompressao(null);
           setSalvasEmSequencia((n) => n + 1);
-          // Não mexe em categoriaAutoDetectada de propósito: se a categoria
-          // vinha sendo detectada pelo nome, continua detectando; se foi
-          // escolhida na mão, a escolha permanece valendo.
+          // Não mexe em categoriaAutoDetectada/modeloAutoDetectado de
+          // propósito: se vinham sendo detectados pelo nome, continuam
+          // detectando; se foram escolhidos na mão, a escolha permanece valendo.
           setTimeout(() => inputNomeRef.current?.focus(), 0);
           return;
         }
@@ -1026,13 +1043,14 @@ export function EstoqueView({
                       theme="dark"
                       modelos={modelos}
                       value={formData.modelo_moto_id || ''}
-                      onChange={(id) =>
+                      onChange={(id) => {
+                        setModeloAutoDetectado(false);
                         setFormData({
                           ...formData,
                           modelo_moto_id: id,
                           modelo_moto_compativel_ids: formData.modelo_moto_compativel_ids.filter((cid) => cid !== id),
-                        })
-                      }
+                        });
+                      }}
                       onCreate={criarNoMoto}
                       allowEmpty
                       emptyLabel="Universal / não se aplica"
