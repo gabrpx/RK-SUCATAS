@@ -131,7 +131,7 @@ export function EstoqueView({
   setFiltroEstoqueBaixoInicial,
   readOnly = false,
 }: EstoqueViewProps) {
-  const { estoque: items, setEstoque, loading, refreshData } = useData();
+  const { estoque: items, setEstoque, loading, estoqueError, refreshData } = useData();
   const { categorias, modelos, criarCategoria, criarNoMoto } = useCatalogos();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -503,7 +503,7 @@ export function EstoqueView({
         <div className="flex items-center gap-2.5">
           <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
             {item.imagens[0] ? (
-              <img loading="lazy" src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             ) : (
               <Package size={16} className="text-text-faint" />
             )}
@@ -615,7 +615,7 @@ export function EstoqueView({
       <div className="flex items-start gap-3">
         <div className="size-11 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
           {item.imagens[0] ? (
-            <img loading="lazy" src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
           ) : (
             <Package size={18} className="text-text-faint" />
           )}
@@ -898,6 +898,13 @@ export function EstoqueView({
                 <div className="py-12 flex items-center justify-center text-text-faint">
                   <Loader2 size={20} className="animate-spin" />
             </div>
+          ) : estoqueError && items.length === 0 ? (
+            <EmptyState
+              icone={RefreshCw}
+              mensagem="Não foi possível carregar o estoque. Verifique sua conexão."
+              acaoLabel="Tentar novamente"
+              onAcao={refreshData}
+            />
           ) : (
             <EmptyState
               icone={Package}

@@ -19,6 +19,9 @@ interface DataContextValue {
   caixa: CaixaEntry[];
   orcamentos: Orcamento[];
   loading: boolean;
+  /** true quando a última tentativa de buscar o estoque falhou — distingue
+   *  "deu erro" de "está vazio mesmo", pra tela não mostrar uma coisa pela outra. */
+  estoqueError: boolean;
   setEstoque: React.Dispatch<React.SetStateAction<Estoque[]>>;
   setVendas: React.Dispatch<React.SetStateAction<Venda[]>>;
   setCaixa: React.Dispatch<React.SetStateAction<CaixaEntry[]>>;
@@ -34,6 +37,7 @@ export const DataContext = createContext<DataContextValue>({
   caixa: [],
   orcamentos: [],
   loading: false,
+  estoqueError: false,
   setEstoque: () => {},
   setVendas: () => {},
   setCaixa: () => {},
@@ -72,8 +76,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [caixa, setCaixa] = useState<CaixaEntry[]>(() => readCache('rk_caixa', []));
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>(() => readCache('rk_orcamentos', []));
   const [loading, setLoading] = useState(false);
+  const [estoqueError, setEstoqueError] = useState(false);
   const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
   const lastFetchRef = useRef(0);
+  const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadData = async (force = false, silent = false) => {
     const now = Date.now();
@@ -115,15 +121,31 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     const [estoqueRes, vendasRes, caixaRes, orcamentosRes] = results;
 
+    let falhouEstoque = false;
     if (estoqueRes.status === 'fulfilled') {
       try {
         const data = await parseJson(estoqueRes.value);
-        if (data.success) setEstoque(prev => applyIfChanged(prev, data.data, 'rk_estoque_v2'));
+        if (data.success) {
+          setEstoque(prev => applyIfChanged(prev, data.data, 'rk_estoque_v2'));
+        } else {
+          falhouEstoque = true;
+        }
       } catch (e) {
         console.error('Erro ao processar estoque:', e);
+        falhouEstoque = true;
       }
     } else {
       console.error('Erro ao buscar estoque:', estoqueRes.reason);
+      falhouEstoque = true;
+    }
+    setEstoqueError(falhouEstoque);
+
+    // Falha na primeira carga (ex: cold start do servidor, rede instável no
+    // celular) não pode esperar os 10s do polling normal — sem isso a tela
+    // fica parecendo "estoque vazio" por até 10s reais, ou mais numa rede ruim.
+    if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    if (falhouEstoque) {
+      retryTimeoutRef.current = setTimeout(() => loadData(false, true), 4000);
     }
 
     if (vendasRes.status === 'fulfilled' && vendasRes.value) {
@@ -168,7 +190,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     const interval = setInterval(() => {
       if (document.visibilityState === 'visible') loadData(false, true);
     }, POLL_INTERVAL_MS);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      if (retryTimeoutRef.current) clearTimeout(retryTimeoutRef.current);
+    };
   }, []);
 
   return (
@@ -179,6 +204,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         caixa,
         orcamentos,
         loading,
+        estoqueError,
         setEstoque,
         setVendas,
         setCaixa,

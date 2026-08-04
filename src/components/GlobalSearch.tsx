@@ -36,7 +36,7 @@ const EstoqueItemCard = ({ item, theme, onClick }: { item: Estoque; theme: strin
   >
     <div className={cn('w-12 h-12 rounded-lg overflow-hidden flex-shrink-0', theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-100')}>
       {item.imagens[0] ? (
-        <img loading="lazy" src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+        <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
       ) : (
         <div className="w-full h-full flex items-center justify-center text-zinc-400">
           <Package size={18} />
