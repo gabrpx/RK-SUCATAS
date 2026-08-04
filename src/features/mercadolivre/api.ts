@@ -14,6 +14,17 @@ export interface MercadoLivreStatus {
   ml_user_id: string | null;
 }
 
+// Uma métrica de reputação do Mercado Livre: taxa (0–1) já ajustada pro
+// cálculo oficial do nível da conta (`rate`/`value`), mais o número bruto
+// sem ajuste em `excluded` (casos descontados por não contarem contra o
+// vendedor — ex: reclamação resolvida a favor da loja).
+interface MetricaReputacao {
+  period: string;
+  rate: number;
+  value: number;
+  excluded?: { real_rate: number; real_value: number };
+}
+
 // Só os campos que a tela de "dados da página" usa — a resposta real de
 // /users/me do Mercado Livre é bem maior que isso.
 export interface MercadoLivreConta {
@@ -30,7 +41,17 @@ export interface MercadoLivreConta {
     transactions?: {
       completed: number;
       canceled: number;
+      total?: number;
       ratings?: { positive: number; negative: number; neutral: number };
+    };
+    // Janela móvel (ex: "365 days") — o que o Mercado Livre realmente usa
+    // pra calcular o nível do vendedor, diferente do histórico total em
+    // `transactions`.
+    metrics?: {
+      claims?: MetricaReputacao;
+      delayed_handling_time?: MetricaReputacao;
+      cancellations?: MetricaReputacao;
+      sales?: { period: string; completed: number };
     };
   };
 }

@@ -1,11 +1,14 @@
 // Aba Mercado Livre — por enquanto só o primeiro módulo: conectar a conta da
-// loja via OAuth e mostrar os dados básicos da página (nome, reputação).
-// Os próximos módulos (anúncios, etiquetas, mensagens) entram aqui como
-// blocos novos, um de cada vez, todos reaproveitando a mesma conexão.
+// loja via OAuth e mostrar os dados básicos da página (nome, reputação em
+// cards e o resumo de avaliações em gráfico). Os próximos módulos (anúncios,
+// etiquetas, mensagens) entram aqui como blocos novos, um de cada vez, todos
+// reaproveitando a mesma conexão.
 import { useEffect, useState } from 'react';
-import { Store, Loader2, ExternalLink, Star, Award, Unlink } from 'lucide-react';
+import { Store, Loader2, ExternalLink, Award, CheckCircle2, XCircle, AlertTriangle, Clock, Unlink } from 'lucide-react';
+import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { aviso } from '../../components/ui/toast';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { MetricCard, type MetricTone } from '../../components/ui/MetricCard';
 import { mercadolivreApi, type MercadoLivreConta } from './api';
 
 // Erros que o callback do backend pode mandar de volta na query string —
@@ -14,6 +17,28 @@ const MENSAGENS_ERRO: Record<string, string> = {
   estado_invalido: 'O login expirou ou foi aberto de outra aba. Tente conectar de novo.',
   troca_token: 'O Mercado Livre recusou a autorização. Tente conectar de novo.',
 };
+
+// Cor por SIGNIFICADO (positiva/neutra/negativa), nunca decorativa — mesma
+// regra de CLAUDE.md > Design system. Ordem fixa: positivo, neutro, negativo.
+const CORES_AVALIACAO = { positivo: 'var(--positive)', neutro: 'var(--text-muted)', negativo: 'var(--negative)' };
+
+const pct = (n: number | undefined) => (n != null ? `${Math.round(n * 100)}%` : '—');
+
+// A API do Mercado Livre devolve o período em inglês ("365 days") — o resto
+// da tela é todo em português, então traduz só esse pedaço.
+const periodoPt = (periodo: string) => periodo.replace(/(\d+)\s*days?/i, '$1 dias');
+
+// Tooltip custom do donut: card no estilo do design system em vez do balão
+// padrão do Recharts.
+function ChartTooltip({ active, payload }: { active?: boolean; payload?: { name: string; value: number }[] }) {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="rounded-control border border-border-default bg-surface-raised px-3 py-2 shadow-lg">
+      <p className="text-[10px] uppercase tracking-wide text-text-faint mb-1">{payload[0].name}</p>
+      <p className="text-sm font-medium text-text-primary">{pct(payload[0].value)}</p>
+    </div>
+  );
+}
 
 export function MercadoLivreView() {
   const [carregando, setCarregando] = useState(true);
@@ -99,6 +124,21 @@ export function MercadoLivreView() {
 
   const nomeExibicao = [conta?.first_name, conta?.last_name].filter(Boolean).join(' ') || conta?.nickname;
   const reputacao = conta?.seller_reputation;
+  const transacoes = reputacao?.transactions;
+  const metrics = reputacao?.metrics;
+
+  // Tom por resultado: taxa oficial 0 é positivo (é o que conta pro nível da
+  // conta), qualquer taxa acima de 0 é negativo — não existe "neutro" aqui
+  // porque toda reclamação/atraso/cancelamento é, por definição, algo ruim.
+  const tomPorTaxa = (rate: number | undefined): MetricTone => (rate ? 'negative' : 'positive');
+
+  const ratingsData = transacoes?.ratings
+    ? [
+        { name: 'Positivas', value: transacoes.ratings.positive, cor: CORES_AVALIACAO.positivo },
+        { name: 'Neutras', value: transacoes.ratings.neutral, cor: CORES_AVALIACAO.neutro },
+        { name: 'Negativas', value: transacoes.ratings.negative, cor: CORES_AVALIACAO.negativo },
+      ].filter((d) => d.value > 0)
+    : [];
 
   return (
     <div className="space-y-5 pb-24 md:pb-6 max-w-4xl">
@@ -144,32 +184,79 @@ export function MercadoLivreView() {
             </div>
 
             {reputacao && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="rounded-control border border-border-subtle bg-surface-inset p-3">
-                  <div className="flex items-center gap-1.5 text-text-faint mb-1">
-                    <Award size={13} />
-                    <span className="text-[10px] uppercase font-medium tracking-wide">Nível</span>
-                  </div>
-                  <p className="text-sm font-medium text-text-primary">{reputacao.level_id?.replace('5_', '') ?? '—'}</p>
-                </div>
-                <div className="rounded-control border border-border-subtle bg-surface-inset p-3">
-                  <div className="flex items-center gap-1.5 text-text-faint mb-1">
-                    <Star size={13} />
-                    <span className="text-[10px] uppercase font-medium tracking-wide">Vendas completas</span>
-                  </div>
-                  <p className="text-sm font-medium text-text-primary">{reputacao.transactions?.completed ?? 0}</p>
-                </div>
-                <div className="rounded-control border border-border-subtle bg-surface-inset p-3">
-                  <div className="text-text-faint mb-1">
-                    <span className="text-[10px] uppercase font-medium tracking-wide">Avaliações positivas</span>
-                  </div>
-                  <p className="text-sm font-medium text-positive">{reputacao.transactions?.ratings?.positive != null ? `${Math.round(reputacao.transactions.ratings.positive * 100)}%` : '—'}</p>
-                </div>
-                <div className="rounded-control border border-border-subtle bg-surface-inset p-3">
-                  <div className="text-text-faint mb-1">
-                    <span className="text-[10px] uppercase font-medium tracking-wide">Reclamações</span>
-                  </div>
-                  <p className="text-sm font-medium text-negative">{reputacao.transactions?.ratings?.negative != null ? `${Math.round(reputacao.transactions.ratings.negative * 100)}%` : '—'}</p>
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <MetricCard icone={Award} label="Nível" valor={reputacao.level_id?.replace(/^\d_/, '') ?? '—'} tom="neutral" />
+                <MetricCard
+                  icone={CheckCircle2}
+                  label="Vendas concluídas"
+                  valor={String(transacoes?.completed ?? 0)}
+                  contexto={transacoes?.total ? `de ${transacoes.total} no histórico` : undefined}
+                  tom="positive"
+                />
+                <MetricCard
+                  icone={XCircle}
+                  label="Vendas canceladas"
+                  valor={String(transacoes?.canceled ?? 0)}
+                  contexto={transacoes?.total ? `${Math.round(((transacoes.canceled ?? 0) / transacoes.total) * 100)}% do histórico` : undefined}
+                  tom={transacoes?.canceled ? 'negative' : 'positive'}
+                />
+                {metrics?.claims && (
+                  <MetricCard
+                    icone={AlertTriangle}
+                    label={`Reclamações (${periodoPt(metrics.claims.period)})`}
+                    valor={pct(metrics.claims.rate)}
+                    contexto={metrics.claims.excluded?.real_value ? `${metrics.claims.excluded.real_value} registrada(s) ao todo` : undefined}
+                    tom={tomPorTaxa(metrics.claims.rate)}
+                  />
+                )}
+                {metrics?.delayed_handling_time && (
+                  <MetricCard
+                    icone={Clock}
+                    label={`Atraso no envio (${periodoPt(metrics.delayed_handling_time.period)})`}
+                    valor={pct(metrics.delayed_handling_time.rate)}
+                    contexto={metrics.delayed_handling_time.excluded?.real_value ? `${metrics.delayed_handling_time.excluded.real_value} pedido(s) ao todo` : undefined}
+                    tom={tomPorTaxa(metrics.delayed_handling_time.rate)}
+                  />
+                )}
+                {metrics?.cancellations && (
+                  <MetricCard
+                    icone={XCircle}
+                    label={`Cancelamentos (${periodoPt(metrics.cancellations.period)})`}
+                    valor={pct(metrics.cancellations.rate)}
+                    contexto={metrics.cancellations.excluded?.real_value ? `${metrics.cancellations.excluded.real_value} ao todo` : undefined}
+                    tom={tomPorTaxa(metrics.cancellations.rate)}
+                  />
+                )}
+              </div>
+            )}
+
+            {ratingsData.length > 0 && (
+              <div className="rounded-control border border-border-subtle bg-surface-inset p-4">
+                <p className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-faint mb-3">Avaliações dos compradores</p>
+                <div className="flex flex-col sm:flex-row items-center gap-4">
+                  <ResponsiveContainer width={160} height={160} className="shrink-0">
+                    <PieChart>
+                      <Pie data={ratingsData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={76} paddingAngle={3} stroke="none">
+                        {ratingsData.map((entry) => (
+                          <Cell key={entry.name} fill={entry.cor} />
+                        ))}
+                      </Pie>
+                      <Tooltip content={<ChartTooltip />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+
+                  {/* Legenda em lista — nunca flutuante sobre o gráfico */}
+                  <ul className="flex-1 w-full space-y-2">
+                    {ratingsData.map((entry) => (
+                      <li key={entry.name} className="flex items-center justify-between gap-2 text-sm">
+                        <span className="flex items-center gap-2 min-w-0 text-text-secondary">
+                          <span className="size-2 rounded-full shrink-0" style={{ background: entry.cor }} />
+                          <span className="truncate">{entry.name}</span>
+                        </span>
+                        <span className="text-text-primary font-medium shrink-0">{pct(entry.value)}</span>
+                      </li>
+                    ))}
+                  </ul>
                 </div>
               </div>
             )}
