@@ -10,6 +10,7 @@ import { motion } from 'motion/react';
 import { X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../utils';
+import { useScrollLock } from '../../hooks/useScrollLock';
 
 export type ModalSize = 'sm' | 'md' | 'lg';
 
@@ -33,6 +34,8 @@ export interface ModalProps {
 }
 
 export function Modal({ aberto, onFechar, titulo, subtitulo, icone: Icone, tamanho = 'md', rodape, children }: ModalProps) {
+  useScrollLock(aberto);
+
   useEffect(() => {
     if (!aberto) return;
 
@@ -41,13 +44,8 @@ export function Modal({ aberto, onFechar, titulo, subtitulo, icone: Icone, taman
     };
     window.addEventListener('keydown', aoTeclar);
 
-    // Sem isso a página atrás rola junto quando o modal chega no fim.
-    const overflowAnterior = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
     return () => {
       window.removeEventListener('keydown', aoTeclar);
-      document.body.style.overflow = overflowAnterior;
     };
   }, [aberto, onFechar]);
 

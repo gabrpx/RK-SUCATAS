@@ -5,6 +5,7 @@ import { Search, X, Package, Tag, Layers } from 'lucide-react';
 import { useData } from '../context/DataContext';
 import { cn, formatDateRelative, parseLocalDate } from '../utils';
 import { NotaCadastroBadge } from './NotaCadastroBadge';
+import { useScrollLock } from '../hooks/useScrollLock';
 import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 
@@ -68,16 +69,10 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ theme, onSelectItem,
   const inputRef = useRef<HTMLInputElement>(null);
   const { estoque, vendas } = useData();
 
+  useScrollLock(isOpen);
+
   useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-      inputRef.current?.focus();
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
+    if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
   const handleClose = () => {

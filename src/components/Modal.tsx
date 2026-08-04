@@ -1,7 +1,8 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 import { cn } from '../utils';
+import { useScrollLock } from '../hooks/useScrollLock';
 
 interface ModalProps {
   isOpen: boolean;
@@ -28,16 +29,7 @@ export const Modal: React.FC<ModalProps> = ({
   iconColor = 'text-zinc-400',
   footer
 }) => {
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden';
-    } else {
-      document.body.style.overflow = 'unset';
-    }
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, [isOpen]);
+  useScrollLock(isOpen);
 
   if (!isOpen) return null;
 

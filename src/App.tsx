@@ -42,6 +42,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
 import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
+import { useScrollLock } from './hooks/useScrollLock';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
@@ -233,12 +234,7 @@ function DetailModal({
   readOnly?: boolean;
   onAlterado?: () => void;
 }) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
+  useScrollLock(true);
 
   const venda = isVenda(item) ? item : null;
   const estoque = !venda ? (item as Estoque) : null;
@@ -522,10 +518,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     document.documentElement.classList.toggle('dark', theme === 'dark');
   }, [theme]);
 
-  useEffect(() => {
-    const shouldLock = isLogoutModalOpen || !!selectedDetailItem;
-    document.body.style.overflow = shouldLock ? 'hidden' : 'unset';
-  }, [isLogoutModalOpen, selectedDetailItem]);
+  useScrollLock(isLogoutModalOpen);
 
   const itemActions = useMemo(() => {
     if (!selectedDetailItem) return { edit: undefined, delete: undefined };
