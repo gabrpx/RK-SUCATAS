@@ -1,6 +1,17 @@
 // Chamadas HTTP do módulo Mercado Livre. Fino de propósito: cada função
 // mapeia 1:1 pra uma rota do backend (src/server/routes/mercadolivre.ts).
 import { api } from '../../utils/api';
+import type {
+  PedidoPreview,
+  ImportarPedidoItemInput,
+  ImportarPedidosResultado,
+  ResultadoSincronizacao,
+  ResultadoReconciliacao,
+  PerguntaPreview,
+  AnuncioOrfaoML,
+  EnvioML,
+  ContagemPendencias,
+} from './types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -61,4 +72,25 @@ export const mercadolivreApi = {
   iniciarLogin: () => api.get('/api/mercadolivre/auth/login') as Promise<ApiResult<never> & { url: string }>,
   dadosConta: () => api.get('/api/mercadolivre/me') as Promise<ApiResult<MercadoLivreConta>>,
   desconectar: () => api.delete('/api/mercadolivre/desconectar') as Promise<ApiResult<null>>,
+
+  // Features 1 + 7 — reconciliação manual (preço, quantidade, status), nunca automática.
+  sincronizarAnuncio: (estoqueId: string) => api.post(`/api/mercadolivre/anuncios/${estoqueId}/sincronizar`) as Promise<ApiResult<ResultadoSincronizacao>>,
+  sincronizarCatalogo: () => api.post('/api/mercadolivre/anuncios/sincronizar') as Promise<ApiResult<ResultadoReconciliacao>>,
+
+  // Feature 2 — preview e importação de pedidos como venda.
+  buscarPedidosNovos: (dias = 30) => api.get(`/api/mercadolivre/pedidos/novos?dias=${dias}`) as Promise<ApiResult<PedidoPreview[]>>,
+  importarPedidos: (itens: ImportarPedidoItemInput[]) => api.post('/api/mercadolivre/pedidos/importar', { itens }) as Promise<ApiResult<ImportarPedidosResultado>>,
+
+  // Feature 10 — envio (Mercado Envios) de um pedido já importado.
+  buscarEnvioPedido: (mlOrderId: string) => api.get(`/api/mercadolivre/pedidos/${mlOrderId}/envio`) as Promise<ApiResult<EnvioML | null>>,
+
+  // Feature 3 — central de perguntas.
+  buscarPerguntas: () => api.get('/api/mercadolivre/perguntas') as Promise<ApiResult<PerguntaPreview[]>>,
+  responderPergunta: (questionId: number, texto: string) => api.post(`/api/mercadolivre/perguntas/${questionId}/responder`, { texto }) as Promise<ApiResult<null>>,
+
+  // Feature 6 — anúncios ativos no ML sem peça local correspondente.
+  buscarAnunciosOrfaos: () => api.get('/api/mercadolivre/anuncios-orfaos') as Promise<ApiResult<AnuncioOrfaoML[]>>,
+
+  // Feature 9 — indicador ao vivo de pendências.
+  buscarPendencias: () => api.get('/api/mercadolivre/pendencias') as Promise<ApiResult<ContagemPendencias>>,
 };

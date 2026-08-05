@@ -18,6 +18,13 @@ export interface Venda {
   componente_vendido: string | null;
   data: string;
   criado_em: string;
+  // Canal de origem — 'mercado_livre' quando a venda veio de um pedido
+  // importado (ver src/services/mercadolivreSync.ts); os 3 campos ml_* só
+  // existem nesse caso.
+  canal: 'balcao' | 'mercado_livre';
+  ml_order_id: string | null;
+  ml_item_id: string | null;
+  ml_shipping_id: string | null;
 }
 
 // Payload pra registrar uma venda nova (chama a função registrar_venda no banco,

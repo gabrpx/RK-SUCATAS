@@ -29,10 +29,24 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { orcamentosApi } from './api';
+import { mercadolivreApi } from '../mercadolivre/api';
 import type { Orcamento, OrcamentoItem, OrcamentoItemInput, DescontoTipo } from './types';
 import type { Estoque } from '../estoque/types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
+
+// Features 1+7 — reconciliação manual de preço/estoque do anúncio (feature
+// 1+7 do módulo Mercado Livre), disparada só por clique explícito, nunca
+// automaticamente a partir de uma venda.
+async function sincronizarAnuncioML(estoqueId: string) {
+  try {
+    const resultado = await mercadolivreApi.sincronizarAnuncio(estoqueId);
+    if (resultado.success) aviso.sucesso('Anúncio sincronizado no Mercado Livre');
+    else aviso.falha(resultado.error, 'Não deu pra sincronizar o anúncio');
+  } catch (err) {
+    aviso.falha(err, 'Não deu pra sincronizar o anúncio');
+  }
+}
 
 type PeriodoFiltro = 'hoje' | '7d' | '30d' | 'mes' | 'tudo';
 
@@ -958,6 +972,7 @@ function VenderModal({
   onVendido: (orcamento: Orcamento) => void;
 }) {
   const { formasPagamento } = useCatalogos();
+  const { estoque } = useData();
   const item = alvo.item;
   // Se a linha já foi cotada como uma parte específica, isso é fixo — só
   // deixa escolher inteiro-vs-parte quando o item tem componentes E ainda
@@ -968,6 +983,18 @@ function VenderModal({
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [enviando, setEnviando] = useState(false);
 
+  // Avisa quando algum item recém-vendido tem anúncio vinculado — sincronizar
+  // é sempre um clique à parte, nunca automático (decisão explícita do dono
+  // da loja: nada muda no Mercado Livre sem confirmação manual).
+  const avisarSincronizacao = (estoqueIds: string[]) => {
+    const idsComAnuncio = estoqueIds.filter((id) => estoque.find((e) => e.id === id)?.anuncio_ml_url);
+    if (idsComAnuncio.length === 0) return;
+    aviso.info(idsComAnuncio.length === 1 ? 'Este item tem anúncio no Mercado Livre' : `${idsComAnuncio.length} itens vendidos têm anúncio no Mercado Livre`, {
+      descricao: 'Sincronize pra atualizar preço e quantidade por lá também.',
+      acao: { label: 'Sincronizar agora', onClick: () => idsComAnuncio.forEach((id) => sincronizarAnuncioML(id)) },
+    });
+  };
+
   const confirmar = async () => {
     if (!formaPagamentoId) return aviso.atencao('Selecione a forma de pagamento');
     setEnviando(true);
@@ -976,6 +1003,7 @@ function VenderModal({
         const result = await orcamentosApi.venderItem(orcamento.id, item.id, { forma_pagamento_id: formaPagamentoId, componente: componenteEscolhido, data });
         if (!result.success) throw new Error(result.error);
         onVendido(result.data.orcamento);
+        avisarSincronizacao(item.estoque_id ? [item.estoque_id] : []);
       } else {
         const result = await orcamentosApi.venderTudo(orcamento.id, { forma_pagamento_id: formaPagamentoId, data });
         if (!result.success) throw new Error(result.error);
@@ -990,6 +1018,8 @@ function VenderModal({
           aviso.sucesso(`${result.data.sucesso.length} venda(s) registrada(s)`);
         }
         onVendido(result.data.orcamento);
+        const estoqueIdsVendidos = orcamento.itens.filter((i) => result.data.sucesso.includes(i.id) && i.estoque_id).map((i) => i.estoque_id as string);
+        avisarSincronizacao(estoqueIdsVendidos);
       }
     } catch (err: any) {
       aviso.falha(err, 'Erro ao registrar venda');

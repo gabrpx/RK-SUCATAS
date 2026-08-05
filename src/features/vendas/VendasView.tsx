@@ -10,12 +10,26 @@ import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
+import { StatusBadge } from '../../components/ui/StatusBadge';
 import { vendasApi } from './api';
+import { mercadolivreApi } from '../mercadolivre/api';
 import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import type { Venda } from './types';
 import type { Estoque } from '../estoque/types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
+
+// Features 1+7 — reconciliação manual de preço/estoque do anúncio, disparada
+// só por clique explícito (toast com ação), nunca automaticamente após a venda.
+async function sincronizarAnuncioML(estoqueId: string) {
+  try {
+    const resultado = await mercadolivreApi.sincronizarAnuncio(estoqueId);
+    if (resultado.success) aviso.sucesso('Anúncio sincronizado no Mercado Livre');
+    else aviso.falha(resultado.error, 'Não deu pra sincronizar o anúncio');
+  } catch (err) {
+    aviso.falha(err, 'Não deu pra sincronizar o anúncio');
+  }
+}
 
 type PeriodoFiltro = 'hoje' | '7d' | '30d' | 'mes' | 'tudo';
 
@@ -40,7 +54,7 @@ interface VendasViewProps {
 }
 
 export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasViewProps) {
-  const { vendas, setVendas, refreshData, loading } = useData();
+  const { vendas, setVendas, estoque, refreshData, loading } = useData();
   const { formasPagamento } = useCatalogos();
   const [search, setSearch] = useState('');
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
@@ -65,9 +79,16 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
     try {
       const result = await vendasApi.cancelar(vendaToCancel.id);
       if (!result.success) throw new Error(result.error);
+      const itemCancelado = vendaToCancel.estoque_id ? estoque.find((e) => e.id === vendaToCancel.estoque_id) : undefined;
       // Cancelar mexe em vendas + estoque + caixa ao mesmo tempo — resincroniza tudo.
       await refreshData();
       setVendaToCancel(null);
+      if (itemCancelado?.anuncio_ml_url) {
+        aviso.info('A quantidade deste item voltou pro estoque', {
+          descricao: 'Sincronize pra refletir isso no anúncio do Mercado Livre também.',
+          acao: { label: 'Sincronizar agora', onClick: () => sincronizarAnuncioML(itemCancelado.id) },
+        });
+      }
     } catch (err: any) {
       aviso.falha(err, 'Erro ao cancelar venda');
     } finally {
@@ -151,10 +172,17 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
                     <Package size={16} />
                   </div>
                   <div className="min-w-0">
-                    <p className={cn('font-bold text-sm truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
-                      {venda.quantidade > 1 ? `${venda.quantidade}x ` : ''}
-                      {venda.nome_item}
-                    </p>
+                    <div className="flex items-center gap-2 min-w-0">
+                      <p className={cn('font-bold text-sm truncate min-w-0', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
+                        {venda.quantidade > 1 ? `${venda.quantidade}x ` : ''}
+                        {venda.nome_item}
+                      </p>
+                      {venda.canal === 'mercado_livre' && (
+                        <span className="shrink-0">
+                          <StatusBadge texto="Mercado Livre" tom="accent" />
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
                       {parseLocalDate(venda.data).toLocaleDateString('pt-BR')}
                       <span>· {venda.forma_pagamento?.nome}</span>
@@ -289,7 +317,15 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
       if (!result.success) throw new Error(result.error);
       // Registrar mexe em vendas + estoque + caixa — resincroniza tudo de uma vez.
       await refreshData();
+      const anuncioUrl = itemSelecionado.anuncio_ml_url;
+      const estoqueIdVendido = itemSelecionado.id;
       handleClose();
+      if (anuncioUrl) {
+        aviso.info('Este item tem anúncio no Mercado Livre', {
+          descricao: 'Sincronize pra atualizar preço e quantidade por lá também.',
+          acao: { label: 'Sincronizar agora', onClick: () => sincronizarAnuncioML(estoqueIdVendido) },
+        });
+      }
     } catch (err: any) {
       aviso.falha(err, 'Erro ao registrar venda');
     } finally {

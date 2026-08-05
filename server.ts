@@ -28,7 +28,8 @@ import { caixaRouter } from './src/server/routes/caixa.js';
 import { uploadRouter } from './src/server/routes/upload.js';
 import { usuariosRouter } from './src/server/routes/usuarios.js';
 import { tarefasRouter } from './src/server/routes/tarefas.js';
-import { mercadolivreRouter, mercadolivreCallbackHandler } from './src/server/routes/mercadolivre.js';
+import { mercadolivreRouter, mercadolivreCallbackHandler, mercadolivreWebhookHandler } from './src/server/routes/mercadolivre.js';
+import { iniciarDetectorDePendenciasML } from './src/services/mercadolivreScheduler.js';
 import { EXECUTORES_TAREFA } from './src/constants/roles.js';
 
 dotenv.config();
@@ -115,6 +116,20 @@ async function startServer() {
   // tem como vir com Authorization: Bearer junto. Ver mercadolivre.ts pra
   // como isso continua seguro (state de uso único).
   app.get('/api/mercadolivre/callback', mercadolivreCallbackHandler(supabase));
+
+  // Mesma razão de ficar fora do gate de JWT: é o Mercado Livre chamando
+  // nosso servidor direto (webhook), não a nossa SPA. Rate limit generoso —
+  // é defesa contra abuso do endpoint público, não uma trava pro tráfego real
+  // do ML (ver mercadolivreWebhookHandler pra como isso continua seguro sem
+  // depender de assinatura: o corpo nunca é tratado como dado, só como gatilho
+  // pra buscar o recurso de novo na API oficial).
+  const notificationsLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 120,
+    standardHeaders: true,
+    legacyHeaders: false,
+  });
+  app.post('/api/mercadolivre/notifications', notificationsLimiter, mercadolivreWebhookHandler(supabase));
 
   // 10 tentativas a cada 15min por IP — impede força bruta de senha sem
   // atrapalhar o uso normal (uma pessoa errando a senha algumas vezes).
@@ -251,6 +266,12 @@ async function startServer() {
   app.use('/api/tarefas', tarefasRouter(supabase));
   app.use('/api/mercadolivre', autorizar('admin', 'equipe'), mercadolivreRouter(supabase));
   app.use('/api/usuarios', autorizar('admin'), usuariosRouter(supabase));
+
+  // Único processo em background do sistema: só detecta pergunta/pedido novo
+  // do Mercado Livre (feature 9) pra alimentar o indicador de pendências.
+  // Nunca muda anúncio nem grava venda sozinho — isso só acontece por clique
+  // humano (ver mercadolivreSync.ts > sincronizarAnuncio/importarPedidoComoVenda).
+  iniciarDetectorDePendenciasML(supabase);
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {
