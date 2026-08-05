@@ -56,6 +56,7 @@ import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
 import { TarefasView } from './features/tarefas/TarefasView';
 import { Toaster } from './components/ui/toast';
+import { SincronizacaoMlProvider } from './features/mercadolivre/SincronizacaoMlContext';
 import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
 import { UnidadesEstoque } from './features/estoque/UnidadesEstoque';
 import { contarAvarias } from './features/estoque/valorEstoque';
@@ -177,7 +178,13 @@ export default function App() {
 
   return (
     <DataProvider>
-      <AppContent onLogout={handleLogout} />
+      {/* SincronizacaoMlProvider por fora do AppContent pelo mesmo motivo do
+          Toaster logo abaixo: precisa sobreviver à troca de aba, senão o
+          toast "Sincronizar agora" (disparado de Vendas/Orçamentos) para de
+          funcionar assim que a pessoa sai daquela tela antes de clicar. */}
+      <SincronizacaoMlProvider>
+        <AppContent onLogout={handleLogout} />
+      </SincronizacaoMlProvider>
       {/* Fora do AppContent pra sobreviver à troca de aba e continuar
           aparecendo mesmo na tela de login. */}
       <Toaster />

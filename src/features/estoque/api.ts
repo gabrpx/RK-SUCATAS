@@ -1,7 +1,7 @@
 // Chamadas HTTP do módulo de Estoque. Fino de propósito: cada função mapeia
 // 1:1 pra uma rota do backend (src/server/routes/estoque.ts).
 import { api } from '../../utils/api';
-import type { Estoque, EstoqueInput, EstoqueUnidade, EstoqueUnidadeInput } from './types';
+import type { Estoque, EstoqueInput, EstoqueUnidade, EstoqueUnidadeInput, EstoqueAnuncioMl, EstoqueAnuncioMlInput } from './types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -33,6 +33,16 @@ export const estoqueApi = {
     api.patch(`/api/estoque/${estoqueId}/unidades/${unidadeId}`, payload) as Promise<ApiResult<EstoqueUnidade>>,
   excluirUnidade: (estoqueId: string, unidadeId: string) =>
     api.delete(`/api/estoque/${estoqueId}/unidades/${unidadeId}`) as Promise<ApiResult<null>>,
+
+  // Anúncios do Mercado Livre vinculados a esta peça — aninhados no item
+  // porque não existem fora dele (ver migration_025).
+  listarAnunciosMl: (estoqueId: string) => api.get(`/api/estoque/${estoqueId}/anuncios-ml`) as Promise<ApiResult<EstoqueAnuncioMl[]>>,
+  criarAnuncioMl: (estoqueId: string, payload: EstoqueAnuncioMlInput) =>
+    api.post(`/api/estoque/${estoqueId}/anuncios-ml`, payload) as Promise<ApiResult<EstoqueAnuncioMl>>,
+  atualizarAnuncioMl: (estoqueId: string, linkId: string, payload: EstoqueAnuncioMlInput) =>
+    api.patch(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}`, payload) as Promise<ApiResult<EstoqueAnuncioMl>>,
+  excluirAnuncioMl: (estoqueId: string, linkId: string) =>
+    api.delete(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}`) as Promise<ApiResult<null>>,
 };
 
 // Upload de imagem é multipart — não passa pelo helper `api` (que força

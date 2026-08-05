@@ -33,6 +33,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { estoqueApi, uploadImagemEstoque } from './api';
+import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
 import { categoriaExigeNota } from './categoriaMotor';
@@ -79,31 +80,34 @@ const EMPTY_FORM: EstoqueInput = {
   descricao: '',
   ativo: true,
   componentes: null,
-  anuncio_ml_url: '',
   anuncio_fb_url: '',
   modelo_moto_compativel_ids: [],
 };
 
-// Badge quadrado de anúncio (ML/FB) — colorido e clicável quando o link
-// existe, esmaecido e inerte quando não existe. Nunca decorativo: a cor
-// (positive) sinaliza "publicado", não é escolha estética.
-function AnuncioBadge({ label, canal, url }: { label: string; canal: string; url: string | null | undefined }) {
-  const ativo = !!url;
+// Badge quadrado de anúncio (ML/FB) — colorido e clicável quando existe pelo
+// menos 1 link, esmaecido e inerte quando não existe. Nunca decorativo: a
+// cor (positive) sinaliza "publicado", não é escolha estética. ML pode ter
+// vários links (migration_025) — o número aparece ao lado do label quando
+// há mais de 1, e o clique decide sozinho (abrir direto ou levar pra edição)
+// via `onAbrir`, que quem chama define de acordo com a contagem.
+function AnuncioBadge({ label, canal, count, onAbrir }: { label: string; canal: string; count: number; onAbrir: () => void }) {
+  const ativo = count > 0;
   return (
     <button
       type="button"
       disabled={!ativo}
       onClick={(e) => {
         e.stopPropagation();
-        if (url) window.open(url, '_blank', 'noopener,noreferrer');
+        if (ativo) onAbrir();
       }}
-      title={ativo ? `Ver anúncio no ${canal}` : `Sem anúncio no ${canal}`}
+      title={ativo ? `Ver anúncio${count > 1 ? `s (${count})` : ''} no ${canal}` : `Sem anúncio no ${canal}`}
       className={cn(
-        'size-6 rounded-badge text-[9px] font-bold flex items-center justify-center shrink-0 transition-opacity',
+        'h-6 min-w-6 px-1 rounded-badge text-[9px] font-bold flex items-center justify-center gap-0.5 shrink-0 transition-opacity',
         ativo ? 'bg-positive-bg text-positive hover:opacity-80 cursor-pointer' : 'bg-surface-inset text-text-faint cursor-default'
       )}
     >
       {label}
+      {count > 1 && <span className="tabular-nums">{count}</span>}
     </button>
   );
 }
@@ -217,12 +221,23 @@ export function EstoqueView({
       descricao: item.descricao || '',
       ativo: item.ativo,
       componentes: item.componentes,
-      anuncio_ml_url: item.anuncio_ml_url || '',
       anuncio_fb_url: item.anuncio_fb_url || '',
       modelo_moto_compativel_ids: (item.modelos_compativeis ?? []).map((m) => m.id),
     });
     setIsModalOpen(true);
   }, []);
+
+  // Clique no badge "ML" da tabela: com 1 link só, vai direto pro anúncio;
+  // com 2+, não dá pra escolher sozinho qual abrir — leva pra edição, onde
+  // os links aparecem todos listados.
+  const abrirAnunciosMl = useCallback(
+    (item: Estoque) => {
+      const links = item.links_ml ?? [];
+      if (links.length === 1) window.open(links[0].url, '_blank', 'noopener,noreferrer');
+      else openEditModal(item);
+    },
+    [openEditModal]
+  );
 
   // Ao digitar o nome de uma peça nova, tenta achar a categoria já cadastrada
   // que combina com as palavras digitadas e seleciona sozinho. Só age em
@@ -396,7 +411,6 @@ export function EstoqueView({
       valor: Number(formData.valor) || 0,
       quantidade: Math.max(0, Number(formData.quantidade) || 0),
       modelo_moto_id: formData.modelo_moto_id || null,
-      anuncio_ml_url: formData.anuncio_ml_url?.trim() || null,
       anuncio_fb_url: formData.anuncio_fb_url?.trim() || null,
       // Proteção redundante à validação de UI: nunca manda o principal
       // também como "compatível" (o backend já dedupe, mas evita o roundtrip).
@@ -571,8 +585,8 @@ export function EstoqueView({
       width: '5.5rem',
       render: (item) => (
         <div className="flex items-center justify-center gap-1">
-          <AnuncioBadge label="ML" canal="Mercado Livre" url={item.anuncio_ml_url} />
-          <AnuncioBadge label="FB" canal="Facebook" url={item.anuncio_fb_url} />
+          <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
+          <AnuncioBadge label="FB" canal="Facebook" count={item.anuncio_fb_url ? 1 : 0} onAbrir={() => window.open(item.anuncio_fb_url!, '_blank', 'noopener,noreferrer')} />
         </div>
       ),
     },
@@ -672,8 +686,8 @@ export function EstoqueView({
           )}
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />
-            <AnuncioBadge label="ML" canal="Mercado Livre" url={item.anuncio_ml_url} />
-            <AnuncioBadge label="FB" canal="Facebook" url={item.anuncio_fb_url} />
+            <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
+            <AnuncioBadge label="FB" canal="Facebook" count={item.anuncio_fb_url ? 1 : 0} onAbrir={() => window.open(item.anuncio_fb_url!, '_blank', 'noopener,noreferrer')} />
           </div>
           <div className="flex items-center justify-between gap-2 mt-2">
             <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium tabular-nums', tomQtd)}>
@@ -1332,40 +1346,31 @@ export function EstoqueView({
                 </div>
               </ModalSection>
 
-              <ModalSection
-                titulo="Anúncios publicados"
-                descricao='Cole o link do anúncio em cada canal — aparece como badge clicável na coluna "Anúncios" da tabela.'
-              >
-                <div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="relative">
-                      <input
-                        value={formData.anuncio_ml_url || ''}
-                        onChange={(e) => setFormData({ ...formData, anuncio_ml_url: e.target.value })}
-                        placeholder="Link no Mercado Livre"
-                        className={cn(inputClass, 'pr-9')}
-                      />
-                      {formData.anuncio_ml_url && (
-                        <a href={formData.anuncio_ml_url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-accent-soft-fg">
-                          <ExternalLink size={14} />
-                        </a>
-                      )}
-                    </div>
-                    <div className="relative">
-                      <input
-                        value={formData.anuncio_fb_url || ''}
-                        onChange={(e) => setFormData({ ...formData, anuncio_fb_url: e.target.value })}
-                        placeholder="Link no Facebook"
-                        className={cn(inputClass, 'pr-9')}
-                      />
-                      {formData.anuncio_fb_url && (
-                        <a href={formData.anuncio_fb_url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-accent-soft-fg">
-                          <ExternalLink size={14} />
-                        </a>
-                      )}
-                    </div>
-                  </div>
+              <ModalSection titulo="Anúncio no Facebook" descricao="Cole o link do anúncio — aparece como badge clicável na coluna “Anúncios” da tabela.">
+                <div className="relative">
+                  <input
+                    value={formData.anuncio_fb_url || ''}
+                    onChange={(e) => setFormData({ ...formData, anuncio_fb_url: e.target.value })}
+                    placeholder="Link no Facebook"
+                    className={cn(inputClass, 'pr-9')}
+                  />
+                  {formData.anuncio_fb_url && (
+                    <a href={formData.anuncio_fb_url} target="_blank" rel="noopener noreferrer" className="absolute right-3 top-1/2 -translate-y-1/2 text-text-faint hover:text-accent-soft-fg">
+                      <ExternalLink size={14} />
+                    </a>
+                  )}
                 </div>
+              </ModalSection>
+
+              <ModalSection
+                titulo="Anúncios no Mercado Livre"
+                descricao="Vincule quantos anúncios forem precisos — cada um sincroniza preço e estoque com o seu próprio anúncio."
+              >
+                {editingItem ? (
+                  <EstoqueAnunciosMlEditor item={editingItem} onAlterado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_ml: links } : prev))} />
+                ) : (
+                  <p className="text-xs text-text-faint">Salve a peça primeiro pra poder vincular anúncios do Mercado Livre.</p>
+                )}
               </ModalSection>
 
               <ModalSection

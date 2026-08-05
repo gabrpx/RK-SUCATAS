@@ -64,6 +64,37 @@ export async function obterAccessTokenValido(supabase: SupabaseClient): Promise<
   return conexao?.accessToken ?? null;
 }
 
+const MARGEM_PADRAO = 30;
+
+// Fallback pro padrão de 30% tanto se ninguém conectou a conta ainda quanto
+// se a migration_026 não tiver rodado (coluna ausente) — mesmo espírito de
+// nunca quebrar a tela por migração pendente que o resto do sistema usa.
+export async function obterMargemSincronizacao(supabase: SupabaseClient): Promise<number> {
+  const { data, error } = await supabase
+    .from(TABELA_CONEXAO)
+    .select('margem_sincronizacao_percentual')
+    .order('atualizado_em', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    if (error.code === '42703' || error.code === 'PGRST204' || error.code === 'PGRST205') return MARGEM_PADRAO;
+    throw error;
+  }
+  return data?.margem_sincronizacao_percentual != null ? Number(data.margem_sincronizacao_percentual) : MARGEM_PADRAO;
+}
+
+// update, não upsert: só faz sentido mudar a margem de uma conta que já
+// existe (é o mesmo idioma de "a única linha esperada" já usado em
+// DELETE /desconectar, src/server/routes/mercadolivre.ts).
+export async function atualizarMargemSincronizacao(supabase: SupabaseClient, margemPercentual: number): Promise<void> {
+  const { error, count } = await supabase
+    .from(TABELA_CONEXAO)
+    .update({ margem_sincronizacao_percentual: margemPercentual }, { count: 'exact' })
+    .not('ml_user_id', 'is', null);
+  if (error) throw error;
+  if (!count) throw new Error('Conecte a conta do Mercado Livre antes de configurar a margem.');
+}
+
 // Extrai o id MLB de um link colado à mão (estoque.anuncio_ml_url não tem
 // validação de formato em nenhuma camada — pode ser qualquer string). Casa
 // tanto "MLB1234567890" quanto "MLB-1234567890" (formato usado na URL do

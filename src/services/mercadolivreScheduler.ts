@@ -1,8 +1,9 @@
 // Único loop em background do módulo Mercado Livre — só detecta pergunta/
 // pedido novo (feature 9). Preço e estoque (features 1+7) foram deixados de
-// fora de propósito: são disparados só por clique humano (ver
-// mercadolivreSync.ts > sincronizarAnuncio), nunca em background, porque
-// mudam o anúncio real na conta de produção da loja.
+// fora de propósito: são disparados só por clique humano, com revisão antes
+// de aplicar (ver mercadolivreSync.ts > buscarPreviewSincronizacao /
+// aplicarSincronizacao), nunca em background, porque mudam o anúncio real
+// na conta de produção da loja.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { verificarNotificacoesPendentes } from './mercadolivreSync.js';
 

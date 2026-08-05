@@ -5,12 +5,13 @@ import type {
   PedidoPreview,
   ImportarPedidoItemInput,
   ImportarPedidosResultado,
-  ResultadoSincronizacao,
-  ResultadoReconciliacao,
+  PreviewSincronizacao,
+  AplicarSincronizacaoResultado,
   PerguntaPreview,
   AnuncioOrfaoML,
   EnvioML,
   ContagemPendencias,
+  GrupoAnuncioDuplicado,
 } from './types';
 
 interface ApiResult<T> {
@@ -73,9 +74,13 @@ export const mercadolivreApi = {
   dadosConta: () => api.get('/api/mercadolivre/me') as Promise<ApiResult<MercadoLivreConta>>,
   desconectar: () => api.delete('/api/mercadolivre/desconectar') as Promise<ApiResult<null>>,
 
-  // Features 1 + 7 — reconciliação manual (preço, quantidade, status), nunca automática.
-  sincronizarAnuncio: (estoqueId: string) => api.post(`/api/mercadolivre/anuncios/${estoqueId}/sincronizar`) as Promise<ApiResult<ResultadoSincronizacao>>,
-  sincronizarCatalogo: () => api.post('/api/mercadolivre/anuncios/sincronizar') as Promise<ApiResult<ResultadoReconciliacao>>,
+  // Features 1 + 7 — sincronização com revisão: preview calcula sem
+  // escrever, aplicar escreve só os links selecionados. Nunca automática.
+  buscarPreviewSincronizacao: () => api.get('/api/mercadolivre/sincronizacao/preview') as Promise<ApiResult<PreviewSincronizacao>>,
+  aplicarSincronizacao: (linkIds: string[]) => api.post('/api/mercadolivre/sincronizacao/aplicar', { linkIds }) as Promise<ApiResult<AplicarSincronizacaoResultado>>,
+  buscarConfiguracao: () => api.get('/api/mercadolivre/configuracoes') as Promise<ApiResult<{ margemPercentual: number }>>,
+  atualizarConfiguracao: (margemPercentual: number) =>
+    api.patch('/api/mercadolivre/configuracoes', { margem_percentual: margemPercentual }) as Promise<ApiResult<{ margemPercentual: number }>>,
 
   // Feature 2 — preview e importação de pedidos como venda.
   buscarPedidosNovos: (dias = 30) => api.get(`/api/mercadolivre/pedidos/novos?dias=${dias}`) as Promise<ApiResult<PedidoPreview[]>>,
@@ -93,4 +98,8 @@ export const mercadolivreApi = {
 
   // Feature 9 — indicador ao vivo de pendências.
   buscarPendencias: () => api.get('/api/mercadolivre/pendencias') as Promise<ApiResult<ContagemPendencias>>,
+
+  // Anúncios duplicados no próprio catálogo do ML (títulos parecidos).
+  buscarAnunciosDuplicados: () => api.get('/api/mercadolivre/anuncios-duplicados') as Promise<ApiResult<GrupoAnuncioDuplicado[]>>,
+  pausarAnuncio: (mlbId: string) => api.post(`/api/mercadolivre/anuncios/${mlbId}/pausar`) as Promise<ApiResult<null>>,
 };

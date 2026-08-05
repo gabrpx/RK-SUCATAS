@@ -225,7 +225,6 @@ export function linhaParaEstoqueInput(linha: LinhaImportacao): EstoqueInput {
     descricao: linha.descricao,
     ativo: true,
     componentes: null,
-    anuncio_ml_url: null,
     anuncio_fb_url: null,
     // Importação em massa não tem coluna pra modelos compatíveis — dá pra
     // adicionar depois editando a peça.
@@ -304,7 +303,7 @@ export function gerarCsvEstoque(items: Estoque[], categorias: Categoria[]): stri
         .filter((u) => u.avaria)
         .map((u) => [u.apelido, u.avaria_descricao].filter(Boolean).join(': '))
         .join(' | '),
-      item.anuncio_ml_url ?? '',
+      (item.links_ml ?? []).map((l) => l.url).join(' | '),
       item.anuncio_fb_url ?? '',
       (item.componentes ?? []).join(' | '),
       item.descricao ?? '',

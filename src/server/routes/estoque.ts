@@ -6,6 +6,7 @@ import { excluirImagemPorUrl } from '../../services/storageService.js';
 import { categoriaExigeNota } from '../../features/estoque/categoriaMotor.js';
 import type { Categoria } from '../../types/catalog.js';
 import { anexarPromocoes } from '../../features/promocoes/calculo.js';
+import { extrairMlbId } from '../../services/mercadolivreApi.js';
 import { autorizar } from '../../../middleware/auth.js';
 
 // GET fica aberto pra Eloisa (estoque_leitura, só consulta); toda escrita
@@ -82,6 +83,66 @@ async function anexarCompatibilidades(supabase: SupabaseClient, itens: any[]): P
   return itens.map((item) => ({ ...item, modelos_compativeis: porEstoque.get(item.id) ?? [] }));
 }
 
+// Um item sem nenhuma linha em estoque_anuncios_ml ainda, mas com o campo
+// legado preenchido, sintetiza 1 "link" a partir dele — mesmo formato de
+// EstoqueAnuncioMl, com `legado: true` pra o frontend saber que esse
+// vínculo em particular vive na coluna antiga (id não é uuid de verdade).
+function sintetizarLinkLegado(item: any): any[] {
+  if (!item.anuncio_ml_url) return [];
+  return [
+    {
+      id: `legado:${item.id}`,
+      estoque_id: item.id,
+      url: item.anuncio_ml_url,
+      mlb_id: extrairMlbId(item.anuncio_ml_url) ?? '',
+      legado: true,
+      criado_em: item.criado_em,
+      atualizado_em: item.atualizado_em,
+    },
+  ];
+}
+
+// Vínculos de anúncio ML (migration_025) — aninhados no item, mesmo motivo
+// de anexarUnidades acima: um link não faz sentido fora da peça. Diferente
+// de anexarUnidades/anexarCompatibilidades, o fallback aqui não pode só
+// devolver lista vazia quando a tabela ainda não existe — isso regrediria
+// uma capacidade que já funciona em produção hoje (1 link por peça via
+// anuncio_ml_url), então sintetiza esse link legado em vez de escondê-lo.
+async function anexarAnunciosMl(supabase: SupabaseClient, itens: any[] | null): Promise<any[]> {
+  const lista = itens ?? [];
+  if (lista.length === 0) return lista;
+
+  const { data, error } = await supabase.from('estoque_anuncios_ml').select('*').order('criado_em');
+
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      console.warn(
+        '⚠️ Tabela estoque_anuncios_ml ausente — rode supabase/migration_025_estoque_anuncios_ml.sql pra habilitar múltiplos anúncios por peça. Usando o link único legado (anuncio_ml_url) por enquanto.'
+      );
+      return lista.map((item) => ({ ...item, links_ml: sintetizarLinkLegado(item) }));
+    }
+    console.error('Erro ao buscar anúncios ML de estoque:', error);
+    return lista.map((item) => ({ ...item, links_ml: [] }));
+  }
+
+  const porEstoque = new Map<string, any[]>();
+  for (const link of data ?? []) {
+    const atual = porEstoque.get(link.estoque_id) ?? [];
+    atual.push(link);
+    porEstoque.set(link.estoque_id, atual);
+  }
+
+  return lista.map((item) => ({ ...item, links_ml: porEstoque.get(item.id) ?? [] }));
+}
+
+function montarPayloadAnuncioMl(body: any): { payload?: { url: string; mlb_id: string }; erro?: string } {
+  const url = String(body?.url || '').trim();
+  if (!url) return { erro: 'Informe o link do anúncio' };
+  const mlbId = extrairMlbId(url);
+  if (!mlbId) return { erro: 'Não foi possível identificar o ID do anúncio (MLB...) nesse link' };
+  return { payload: { url, mlb_id: mlbId } };
+}
+
 // Sincroniza `estoque_modelos_compativeis` por delete-then-insert: mais simples
 // que diffar, e a lista é sempre pequena (poucos modelos por peça). Ignorada
 // quando o campo não veio no body (ex: PATCH que não mexe em compatibilidade).
@@ -124,7 +185,6 @@ const CAMPOS_EDITAVEIS = [
   'descricao',
   'ativo',
   'componentes',
-  'anuncio_ml_url',
   'anuncio_fb_url',
 ] as const;
 
@@ -174,7 +234,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (error) throw error;
       const comUnidades = await anexarUnidades(supabase, data);
       const comCompatibilidades = await anexarCompatibilidades(supabase, comUnidades);
-      res.json({ success: true, data: await anexarPromocoes(supabase, comCompatibilidades) });
+      const comAnunciosMl = await anexarAnunciosMl(supabase, comCompatibilidades);
+      res.json({ success: true, data: await anexarPromocoes(supabase, comAnunciosMl) });
     } catch (error: any) {
       console.error('Erro ao listar estoque:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -187,7 +248,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (error) throw error;
       const [comUnidades] = await anexarUnidades(supabase, [data]);
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comCompatibilidades]);
+      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosMl]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
@@ -213,7 +275,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (erroCompat) return res.status(400).json({ success: false, error: erroCompat });
 
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [{ ...data, unidades: [] }]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comCompatibilidades]);
+      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosMl]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       console.error('Erro ao criar item de estoque:', error);
@@ -257,7 +320,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       // de avaria some da lista até o próximo refresh.
       const [comUnidades] = await anexarUnidades(supabase, [data]);
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comCompatibilidades]);
+      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosMl]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       console.error('Erro ao atualizar item de estoque:', error);
@@ -470,6 +534,128 @@ export function estoqueRouter(supabase: SupabaseClient) {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Erro ao excluir unidade:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ==========================================================================
+  // Anúncios do Mercado Livre por peça (migration_025) — substituem o campo
+  // único anuncio_ml_url (no máximo 1 por peça) por N vínculos, cada um
+  // sincronizável com seu próprio anúncio no ML. Aninhadas no item, mesmo
+  // padrão de /:id/unidades acima.
+  // ==========================================================================
+
+  router.get('/:id/anuncios-ml', LEITURA, async (req, res) => {
+    try {
+      const { data, error } = await supabase.from('estoque_anuncios_ml').select('*').eq('estoque_id', req.params.id).order('criado_em');
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205') {
+          const { data: item } = await supabase.from('estoque').select('id, anuncio_ml_url, criado_em, atualizado_em').eq('id', req.params.id).maybeSingle();
+          return res.json({ success: true, data: item ? sintetizarLinkLegado(item) : [] });
+        }
+        throw error;
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao listar anúncios ML da peça:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/:id/anuncios-ml', ESCRITA, async (req, res) => {
+    try {
+      const { payload, erro } = montarPayloadAnuncioMl(req.body);
+      if (erro) return res.status(400).json({ success: false, error: erro });
+
+      const { data: item, error: erroItem } = await supabase.from('estoque').select('id, anuncio_ml_url').eq('id', req.params.id).maybeSingle();
+      if (erroItem) throw erroItem;
+      if (!item) return res.status(404).json({ success: false, error: 'Peça não encontrada' });
+
+      const { data, error } = await supabase
+        .from('estoque_anuncios_ml')
+        .insert({ ...payload, estoque_id: req.params.id })
+        .select('*')
+        .single();
+
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205') {
+          // Migração ainda não rodou: preserva a capacidade que já existe em
+          // produção hoje (1 link por peça) escrevendo na coluna legada, mas
+          // não deixa criar um SEGUNDO vínculo por essa via — isso exige a
+          // migration_025 rodada.
+          if (item.anuncio_ml_url) {
+            return res.status(409).json({ success: false, error: 'Rode a migration_025 antes de vincular mais de um anúncio a esta peça.' });
+          }
+          const { data: atualizado, error: erroLegado } = await supabase
+            .from('estoque')
+            .update({ anuncio_ml_url: payload!.url })
+            .eq('id', req.params.id)
+            .select('id, anuncio_ml_url, criado_em, atualizado_em')
+            .single();
+          if (erroLegado) throw erroLegado;
+          return res.json({ success: true, data: sintetizarLinkLegado(atualizado)[0] });
+        }
+        if (error.code === '23505') {
+          return res.status(400).json({ success: false, error: 'Este anúncio já está vinculado a outra peça do estoque.' });
+        }
+        throw error;
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao vincular anúncio ML:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id/anuncios-ml/:linkId', ESCRITA, async (req, res) => {
+    try {
+      const { payload, erro } = montarPayloadAnuncioMl(req.body);
+      if (erro) return res.status(400).json({ success: false, error: erro });
+
+      if (req.params.linkId.startsWith('legado:')) {
+        const { data, error } = await supabase
+          .from('estoque')
+          .update({ anuncio_ml_url: payload!.url })
+          .eq('id', req.params.id)
+          .select('id, anuncio_ml_url, criado_em, atualizado_em')
+          .single();
+        if (error) throw error;
+        return res.json({ success: true, data: sintetizarLinkLegado(data)[0] });
+      }
+
+      const { data, error } = await supabase
+        .from('estoque_anuncios_ml')
+        .update(payload)
+        .eq('id', req.params.linkId)
+        .eq('estoque_id', req.params.id)
+        .select('*')
+        .single();
+      if (error) {
+        if (error.code === '23505') {
+          return res.status(400).json({ success: false, error: 'Este anúncio já está vinculado a outra peça do estoque.' });
+        }
+        throw error;
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao atualizar anúncio ML:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.delete('/:id/anuncios-ml/:linkId', ESCRITA, async (req, res) => {
+    try {
+      if (req.params.linkId.startsWith('legado:')) {
+        const { error } = await supabase.from('estoque').update({ anuncio_ml_url: null }).eq('id', req.params.id);
+        if (error) throw error;
+        return res.json({ success: true });
+      }
+
+      const { error } = await supabase.from('estoque_anuncios_ml').delete().eq('id', req.params.linkId).eq('estoque_id', req.params.id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao remover anúncio ML:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

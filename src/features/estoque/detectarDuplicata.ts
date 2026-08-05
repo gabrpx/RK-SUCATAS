@@ -10,7 +10,12 @@ import type { Estoque } from './types';
 // Além de tirar acento/pontuação, separa fronteira letra↔número: "CG125" e
 // "CG 125" precisam virar os mesmos tokens, senão duplicata escrita junto
 // passa batido.
-function tokenizar(texto: string): string[] {
+//
+// Exportada (com similaridade/CORTE_POSSIVEL abaixo) pra ser reaproveitada
+// pelo backend em src/services/mercadolivreSync.ts, pra comparar título de
+// anúncio do Mercado Livre com nome de peça do estoque — mesmo problema de
+// "nomes parecidos, não idênticos", mesma solução.
+export function tokenizar(texto: string): string[] {
   return (texto || '')
     .toLowerCase()
     .normalize('NFD')
@@ -36,7 +41,7 @@ export interface Duplicata {
 
 // Jaccard: interseção sobre união dos tokens. Escolhido em vez de substring
 // pra "CDI Titan 150" não casar com "CDI Titan 160" (0.5, abaixo do corte).
-function similaridade(a: string[], b: string[]): number {
+export function similaridade(a: string[], b: string[]): number {
   if (a.length === 0 || b.length === 0) return 0;
   const setA = new Set(a);
   const setB = new Set(b);
@@ -50,7 +55,7 @@ function similaridade(a: string[], b: string[]): number {
 
 // Abaixo disso o ruído supera a utilidade — "Farol" x "Farol Dianteiro"
 // (0.5) são peças diferentes e não devem virar alerta.
-const CORTE_POSSIVEL = 0.6;
+export const CORTE_POSSIVEL = 0.6;
 const MAXIMO_SUGESTOES = 3;
 
 export interface OpcoesDuplicata {

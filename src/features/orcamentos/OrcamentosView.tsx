@@ -29,24 +29,11 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { orcamentosApi } from './api';
-import { mercadolivreApi } from '../mercadolivre/api';
+import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
 import type { Orcamento, OrcamentoItem, OrcamentoItemInput, DescontoTipo } from './types';
 import type { Estoque } from '../estoque/types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
-
-// Features 1+7 — reconciliação manual de preço/estoque do anúncio (feature
-// 1+7 do módulo Mercado Livre), disparada só por clique explícito, nunca
-// automaticamente a partir de uma venda.
-async function sincronizarAnuncioML(estoqueId: string) {
-  try {
-    const resultado = await mercadolivreApi.sincronizarAnuncio(estoqueId);
-    if (resultado.success) aviso.sucesso('Anúncio sincronizado no Mercado Livre');
-    else aviso.falha(resultado.error, 'Não deu pra sincronizar o anúncio');
-  } catch (err) {
-    aviso.falha(err, 'Não deu pra sincronizar o anúncio');
-  }
-}
 
 type PeriodoFiltro = 'hoje' | '7d' | '30d' | 'mes' | 'tudo';
 
@@ -973,6 +960,7 @@ function VenderModal({
 }) {
   const { formasPagamento } = useCatalogos();
   const { estoque } = useData();
+  const { abrir: abrirSincronizacao } = useSincronizacaoMl();
   const item = alvo.item;
   // Se a linha já foi cotada como uma parte específica, isso é fixo — só
   // deixa escolher inteiro-vs-parte quando o item tem componentes E ainda
@@ -987,11 +975,11 @@ function VenderModal({
   // é sempre um clique à parte, nunca automático (decisão explícita do dono
   // da loja: nada muda no Mercado Livre sem confirmação manual).
   const avisarSincronizacao = (estoqueIds: string[]) => {
-    const idsComAnuncio = estoqueIds.filter((id) => estoque.find((e) => e.id === id)?.anuncio_ml_url);
+    const idsComAnuncio = estoqueIds.filter((id) => (estoque.find((e) => e.id === id)?.links_ml?.length ?? 0) > 0);
     if (idsComAnuncio.length === 0) return;
     aviso.info(idsComAnuncio.length === 1 ? 'Este item tem anúncio no Mercado Livre' : `${idsComAnuncio.length} itens vendidos têm anúncio no Mercado Livre`, {
       descricao: 'Sincronize pra atualizar preço e quantidade por lá também.',
-      acao: { label: 'Sincronizar agora', onClick: () => idsComAnuncio.forEach((id) => sincronizarAnuncioML(id)) },
+      acao: { label: 'Sincronizar agora', onClick: () => abrirSincronizacao(idsComAnuncio) },
     });
   };
 

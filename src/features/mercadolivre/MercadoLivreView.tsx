@@ -19,9 +19,11 @@ import {
   RefreshCw,
   PackageSearch,
   HelpCircle,
+  Link2,
   Link2Off,
   Send,
   Search,
+  Copy,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../../utils';
@@ -33,9 +35,11 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { useData } from '../../context/DataContext';
+import { useSincronizacaoMl } from './SincronizacaoMlContext';
 import { mercadolivreApi, type MercadoLivreConta } from './api';
+import { estoqueApi } from '../estoque/api';
 import { calcularAlertasReputacao, type TipoAlertaReputacao } from './alertas';
-import type { PedidoPreview, ImportarPedidoItemInput, PerguntaPreview, AnuncioOrfaoML, ContagemPendencias } from './types';
+import type { PedidoPreview, ImportarPedidoItemInput, PerguntaPreview, AnuncioOrfaoML, ContagemPendencias, GrupoAnuncioDuplicado, ItemAnuncioDuplicado } from './types';
 
 // Erros que o callback do backend pode mandar de volta na query string —
 // texto amigável pra cada um, o resto cai no genérico.
@@ -83,7 +87,7 @@ export function MercadoLivreView() {
   const [confirmandoDesconexao, setConfirmandoDesconexao] = useState(false);
   const [conta, setConta] = useState<MercadoLivreConta | null>(null);
   const [pendencias, setPendencias] = useState<ContagemPendencias | null>(null);
-  const [sincronizandoCatalogo, setSincronizandoCatalogo] = useState(false);
+  const { abrir: abrirSincronizacao } = useSincronizacaoMl();
   const pedidosRef = useRef<HTMLDivElement>(null);
 
   const carregarStatus = async () => {
@@ -178,34 +182,6 @@ export function MercadoLivreView() {
     } finally {
       setDesconectando(false);
       setConfirmandoDesconexao(false);
-    }
-  };
-
-  const sincronizarCatalogo = async () => {
-    setSincronizandoCatalogo(true);
-    try {
-      const resultado = await mercadolivreApi.sincronizarCatalogo();
-      if (resultado.success && resultado.data) {
-        const { verificados, sincronizados, ignorados, erros } = resultado.data;
-        if (erros.length > 0) {
-          aviso.atencao(`${sincronizados} de ${verificados} anúncio(s) sincronizado(s), ${erros.length} com erro`, {
-            descricao: erros
-              .slice(0, 2)
-              .map((e) => `${e.nome}: ${e.error}`)
-              .join(' · '),
-          });
-        } else if (sincronizados === 0) {
-          aviso.info(ignorados > 0 ? `Nenhuma mudança — ${ignorados} anúncio(s) já estava(m) em dia` : 'Nenhum item com anúncio vinculado pra sincronizar');
-        } else {
-          aviso.sucesso(`${sincronizados} anúncio(s) atualizado(s) no Mercado Livre`);
-        }
-      } else {
-        aviso.falha(resultado.error, 'Não deu pra sincronizar o catálogo');
-      }
-    } catch (err) {
-      aviso.falha(err, 'Não deu pra sincronizar o catálogo');
-    } finally {
-      setSincronizandoCatalogo(false);
     }
   };
 
@@ -368,11 +344,10 @@ export function MercadoLivreView() {
             <div className="pt-4 border-t border-border-subtle flex flex-wrap items-center justify-between gap-3">
               <button
                 type="button"
-                onClick={sincronizarCatalogo}
-                disabled={sincronizandoCatalogo}
-                className="shrink-0 h-9 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center gap-1.5 disabled:opacity-50"
+                onClick={() => abrirSincronizacao()}
+                className="shrink-0 h-9 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center gap-1.5"
               >
-                {sincronizandoCatalogo ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                <RefreshCw size={13} />
                 Sincronizar preços e estoque
               </button>
               <button
@@ -396,6 +371,7 @@ export function MercadoLivreView() {
           </div>
           <SecaoPerguntas onAtualizarPendencias={carregarPendencias} />
           <SecaoAnunciosOrfaos />
+          <SecaoAnunciosDuplicados />
         </>
       )}
     </div>
@@ -718,8 +694,26 @@ function SecaoPerguntas({ onAtualizarPendencias }: { onAtualizarPendencias: () =
 // Feature 6 — anúncios ativos no ML que nenhuma peça do estoque referencia.
 // Só leitura/relatório, por isso carrega sozinha ao abrir a tela.
 function SecaoAnunciosOrfaos() {
+  const { refreshData } = useData();
   const [carregando, setCarregando] = useState(true);
   const [anuncios, setAnuncios] = useState<AnuncioOrfaoML[]>([]);
+  const [vinculando, setVinculando] = useState<string | null>(null);
+
+  const vincular = async (anuncio: AnuncioOrfaoML) => {
+    if (!anuncio.sugestao || vinculando) return;
+    setVinculando(anuncio.mlbId);
+    try {
+      const resultado = await estoqueApi.criarAnuncioMl(anuncio.sugestao.estoqueId, { url: anuncio.permalink });
+      if (!resultado.success) throw new Error(resultado.error);
+      aviso.sucesso(`Anúncio vinculado a "${anuncio.sugestao.nome}"`);
+      setAnuncios((prev) => prev.filter((a) => a.mlbId !== anuncio.mlbId));
+      await refreshData();
+    } catch (err) {
+      aviso.falha(err, 'Não deu pra vincular o anúncio');
+    } finally {
+      setVinculando(null);
+    }
+  };
 
   useEffect(() => {
     let cancelado = false;
@@ -761,29 +755,188 @@ function SecaoAnunciosOrfaos() {
       ) : (
         <ul className="divide-y divide-border-subtle">
           {anuncios.map((anuncio) => (
-            <li key={anuncio.mlbId} className="py-3 flex items-center gap-3">
-              {anuncio.thumbnail ? (
-                <img src={anuncio.thumbnail} alt="" className="size-10 rounded-control object-cover shrink-0 bg-surface-inset" />
-              ) : (
-                <div className="size-10 rounded-control bg-surface-inset shrink-0" />
-              )}
-              <div className="min-w-0 flex-1">
-                <p className="text-sm text-text-primary truncate">{anuncio.titulo}</p>
-                <p className="text-xs text-text-faint">
-                  {formatCurrency(anuncio.preco)} · {anuncio.quantidadeDisponivel} disponível
-                </p>
+            <li key={anuncio.mlbId} className="py-3 space-y-2">
+              <div className="flex items-center gap-3">
+                {anuncio.thumbnail ? (
+                  <img src={anuncio.thumbnail} alt="" className="size-10 rounded-control object-cover shrink-0 bg-surface-inset" />
+                ) : (
+                  <div className="size-10 rounded-control bg-surface-inset shrink-0" />
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm text-text-primary truncate">{anuncio.titulo}</p>
+                  <p className="text-xs text-text-faint">
+                    {formatCurrency(anuncio.preco)} · {anuncio.quantidadeDisponivel} disponível
+                  </p>
+                </div>
+                <a
+                  href={anuncio.permalink}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className="shrink-0 h-8 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center gap-1.5"
+                >
+                  Ver no ML <ExternalLink size={12} />
+                </a>
               </div>
-              <a
-                href={anuncio.permalink}
-                target="_blank"
-                rel="noreferrer noopener"
-                className="shrink-0 h-8 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center gap-1.5"
-              >
-                Ver no ML <ExternalLink size={12} />
-              </a>
+              {anuncio.sugestao && (
+                <AlertBar
+                  tom="neutral"
+                  icone={Link2}
+                  mensagem={`Este anúncio parece ser: ${anuncio.sugestao.nome}`}
+                  acaoLabel={vinculando === anuncio.mlbId ? 'Vinculando...' : 'Vincular agora'}
+                  onAcao={() => vincular(anuncio)}
+                />
+              )}
             </li>
           ))}
         </ul>
+      )}
+    </div>
+  );
+}
+
+// Feature C — anúncios ativos que têm título parecido com outro anúncio
+// ativo do mesmo vendedor (não contra o estoque — isso é a seção acima).
+// Cada grupo agrupa prováveis duplicatas; "Pausar" só muda o status no ML
+// depois de confirmação, mesmo cuidado usado no resto do módulo pra nunca
+// mutar o anúncio real sem um clique explícito.
+function SecaoAnunciosDuplicados() {
+  const [carregando, setCarregando] = useState(true);
+  const [erroCarregar, setErroCarregar] = useState<string | null>(null);
+  const [grupos, setGrupos] = useState<GrupoAnuncioDuplicado[]>([]);
+  const [confirmandoPausa, setConfirmandoPausa] = useState<ItemAnuncioDuplicado | null>(null);
+  const [pausando, setPausando] = useState(false);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const resultado = await mercadolivreApi.buscarAnunciosDuplicados();
+        if (cancelado) return;
+        if (resultado.success && resultado.data) setGrupos(resultado.data);
+        else setErroCarregar(resultado.error ?? 'Não deu pra verificar duplicatas');
+      } catch (err) {
+        if (!cancelado) setErroCarregar(err instanceof Error ? err.message : 'Não deu pra verificar duplicatas');
+      } finally {
+        if (!cancelado) setCarregando(false);
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, []);
+
+  const confirmarPausa = async () => {
+    if (!confirmandoPausa) return;
+    setPausando(true);
+    try {
+      const resultado = await mercadolivreApi.pausarAnuncio(confirmandoPausa.mlbId);
+      if (!resultado.success) throw new Error(resultado.error);
+      aviso.sucesso('Anúncio pausado no Mercado Livre');
+      setGrupos((prev) => prev.map((g) => ({ ...g, itens: g.itens.map((i) => (i.mlbId === confirmandoPausa.mlbId ? { ...i, status: 'paused' } : i)) })));
+      setConfirmandoPausa(null);
+    } catch (err) {
+      aviso.falha(err, 'Não deu pra pausar o anúncio');
+    } finally {
+      setPausando(false);
+    }
+  };
+
+  return (
+    <div className="rounded-card border border-border-subtle bg-surface-card p-5">
+      <div className="flex items-center gap-3 mb-4">
+        <div className="size-9 rounded-control bg-accent-soft-bg text-accent-soft-fg flex items-center justify-center shrink-0">
+          <Copy size={18} />
+        </div>
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-text-primary">Possíveis anúncios duplicados</p>
+          <p className="text-xs text-text-faint">Títulos parecidos entre anúncios ativos — pode ser a mesma peça anunciada mais de uma vez</p>
+        </div>
+      </div>
+
+      {carregando ? (
+        <div className="py-8 flex items-center justify-center text-text-faint">
+          <Loader2 size={18} className="animate-spin" />
+        </div>
+      ) : erroCarregar ? (
+        <p className="text-xs text-danger">{erroCarregar}</p>
+      ) : grupos.length === 0 ? (
+        <EmptyState icone={Copy} mensagem="Nenhum anúncio com título parecido a outro ativo no momento." />
+      ) : (
+        <div className="space-y-3">
+          {grupos.map((grupo) => (
+            <div key={grupo.grupoId} className="rounded-control border border-border-subtle bg-surface-inset p-3 space-y-2">
+              {grupo.itens.map((item) => (
+                <div key={item.mlbId} className="flex items-center gap-3">
+                  {item.thumbnail ? (
+                    <img src={item.thumbnail} alt="" className="size-9 rounded-control object-cover shrink-0 bg-surface-page" />
+                  ) : (
+                    <div className="size-9 rounded-control bg-surface-page shrink-0" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm text-text-primary truncate">{item.titulo}</p>
+                    <p className="text-xs text-text-faint">
+                      {formatCurrency(item.preco)} · {item.quantidadeDisponivel} disponível
+                      {item.vinculado && ' · vinculado no estoque'}
+                    </p>
+                  </div>
+                  {item.status === 'paused' ? (
+                    <StatusBadge texto="Pausado" tom="neutral" />
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setConfirmandoPausa(item)}
+                      className="shrink-0 h-8 px-3 rounded-control border border-border-default text-xs font-medium text-danger hover:bg-danger-bg flex items-center gap-1.5"
+                    >
+                      Pausar
+                    </button>
+                  )}
+                  <a
+                    href={item.permalink}
+                    target="_blank"
+                    rel="noreferrer noopener"
+                    title="Ver no Mercado Livre"
+                    className="shrink-0 size-8 rounded-control text-text-faint hover:text-accent-soft-fg flex items-center justify-center"
+                  >
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {confirmandoPausa && (
+        <Modal
+          aberto={!!confirmandoPausa}
+          onFechar={() => setConfirmandoPausa(null)}
+          titulo="Pausar este anúncio?"
+          icone={Copy}
+          tamanho="sm"
+          rodape={
+            <div className="flex gap-3">
+              <button
+                onClick={() => setConfirmandoPausa(null)}
+                className="flex-1 h-11 rounded-control border border-border-default font-medium text-sm text-text-secondary hover:bg-surface-raised"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={confirmarPausa}
+                disabled={pausando}
+                className="flex-1 h-11 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+              >
+                {pausando && <Loader2 size={14} className="animate-spin" />}
+                Pausar
+              </button>
+            </div>
+          }
+        >
+          <p className="text-sm text-text-secondary">
+            <span className="text-text-primary font-medium">{confirmandoPausa.titulo}</span> deixa de ficar visível pra compradores no Mercado Livre até
+            alguém reativar manualmente por lá.
+          </p>
+        </Modal>
       )}
     </div>
   );

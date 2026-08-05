@@ -42,19 +42,41 @@ export interface ImportarPedidosResultado {
   falhas: { mlOrderId: string; mlItemId: string; error: string }[];
 }
 
-export interface ResultadoSincronizacao {
-  sincronizado: boolean;
-  motivo?: 'sem_link_valido' | 'item_nao_encontrado';
-  mudouPreco?: boolean;
-  mudouQuantidade?: boolean;
-  mudouStatus?: boolean;
+// Uma linha da lista de revisão de sincronização — 1 por anúncio vinculado
+// (não por peça: item com 2+ anúncios aparece em 2+ linhas, uma por link).
+export interface AnuncioParaSincronizar {
+  linkId: string;
+  estoqueId: string;
+  estoqueNome: string;
+  mlbId: string;
+  url: string;
+  disponivelNoMl: boolean;
+  fechado: boolean;
+  precoAtualMl: number | null;
+  quantidadeAtualMl: number | null;
+  statusAtualMl: string | null;
+  precoEfetivoSistema: number;
+  margemAplicada: number;
+  precoNovoSistema: number;
+  quantidadeNovaSistema: number;
+  statusNovoSistema: 'active' | 'paused';
+  mudaPreco: boolean;
+  mudaQuantidade: boolean;
+  mudaStatus: boolean;
+  semAlteracao: boolean;
 }
 
-export interface ResultadoReconciliacao {
-  verificados: number;
+export interface PreviewSincronizacao {
+  margemPercentual: number;
+  anuncios: AnuncioParaSincronizar[];
+}
+
+export interface AplicarSincronizacaoResultado {
+  processados: number;
   sincronizados: number;
-  ignorados: number;
-  erros: { estoqueId: string; nome: string; error: string }[];
+  semAlteracao: number;
+  indisponiveis: number;
+  erros: { linkId: string; estoqueNome: string; mlbId: string; error: string }[];
 }
 
 export interface PerguntaPreview {
@@ -72,6 +94,26 @@ export interface AnuncioOrfaoML {
   permalink: string;
   thumbnail: string | null;
   quantidadeDisponivel: number;
+  // Melhor peça do estoque candidata a ser esse anúncio, por título parecido
+  // (fuzzy match) — null quando nenhuma peça bate o suficiente.
+  sugestao: { estoqueId: string; nome: string; similaridade: number } | null;
+}
+
+export interface ItemAnuncioDuplicado {
+  mlbId: string;
+  titulo: string;
+  preco: number;
+  permalink: string;
+  thumbnail: string | null;
+  quantidadeDisponivel: number;
+  status: string;
+  vinculado: boolean;
+}
+
+export interface GrupoAnuncioDuplicado {
+  grupoId: string;
+  itens: ItemAnuncioDuplicado[];
+  similaridadeMinima: number;
 }
 
 export interface EnvioML {

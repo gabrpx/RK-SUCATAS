@@ -12,24 +12,12 @@ import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { vendasApi } from './api';
-import { mercadolivreApi } from '../mercadolivre/api';
+import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
 import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import type { Venda } from './types';
 import type { Estoque } from '../estoque/types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
-
-// Features 1+7 — reconciliação manual de preço/estoque do anúncio, disparada
-// só por clique explícito (toast com ação), nunca automaticamente após a venda.
-async function sincronizarAnuncioML(estoqueId: string) {
-  try {
-    const resultado = await mercadolivreApi.sincronizarAnuncio(estoqueId);
-    if (resultado.success) aviso.sucesso('Anúncio sincronizado no Mercado Livre');
-    else aviso.falha(resultado.error, 'Não deu pra sincronizar o anúncio');
-  } catch (err) {
-    aviso.falha(err, 'Não deu pra sincronizar o anúncio');
-  }
-}
 
 type PeriodoFiltro = 'hoje' | '7d' | '30d' | 'mes' | 'tudo';
 
@@ -56,6 +44,7 @@ interface VendasViewProps {
 export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasViewProps) {
   const { vendas, setVendas, estoque, refreshData, loading } = useData();
   const { formasPagamento } = useCatalogos();
+  const { abrir: abrirSincronizacao } = useSincronizacaoMl();
   const [search, setSearch] = useState('');
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [pagamentoFiltro, setPagamentoFiltro] = useState('Todos');
@@ -83,10 +72,10 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
       // Cancelar mexe em vendas + estoque + caixa ao mesmo tempo — resincroniza tudo.
       await refreshData();
       setVendaToCancel(null);
-      if (itemCancelado?.anuncio_ml_url) {
+      if ((itemCancelado?.links_ml?.length ?? 0) > 0) {
         aviso.info('A quantidade deste item voltou pro estoque', {
-          descricao: 'Sincronize pra refletir isso no anúncio do Mercado Livre também.',
-          acao: { label: 'Sincronizar agora', onClick: () => sincronizarAnuncioML(itemCancelado.id) },
+          descricao: 'Sincronize pra refletir isso no(s) anúncio(s) do Mercado Livre também.',
+          acao: { label: 'Sincronizar agora', onClick: () => abrirSincronizacao([itemCancelado!.id]) },
         });
       }
     } catch (err: any) {
@@ -242,6 +231,7 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
 function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: () => void; theme: 'light' | 'dark' }) {
   const { estoque, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
+  const { abrir: abrirSincronizacao } = useSincronizacaoMl();
   const [busca, setBusca] = useState('');
   const [itemSelecionado, setItemSelecionado] = useState<Estoque | null>(null);
   const [componenteSelecionado, setComponenteSelecionado] = useState<string | null>(null);
@@ -317,13 +307,13 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
       if (!result.success) throw new Error(result.error);
       // Registrar mexe em vendas + estoque + caixa — resincroniza tudo de uma vez.
       await refreshData();
-      const anuncioUrl = itemSelecionado.anuncio_ml_url;
+      const temAnuncio = (itemSelecionado.links_ml?.length ?? 0) > 0;
       const estoqueIdVendido = itemSelecionado.id;
       handleClose();
-      if (anuncioUrl) {
+      if (temAnuncio) {
         aviso.info('Este item tem anúncio no Mercado Livre', {
           descricao: 'Sincronize pra atualizar preço e quantidade por lá também.',
-          acao: { label: 'Sincronizar agora', onClick: () => sincronizarAnuncioML(estoqueIdVendido) },
+          acao: { label: 'Sincronizar agora', onClick: () => abrirSincronizacao([estoqueIdVendido]) },
         });
       }
     } catch (err: any) {

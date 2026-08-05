@@ -7,15 +7,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { requireEnv } from '../env.js';
-import { obterConexaoAtual, obterAccessTokenValido, trocarTokens, responderPergunta } from '../../services/mercadolivreApi.js';
+import { obterConexaoAtual, obterAccessTokenValido, trocarTokens, responderPergunta, obterMargemSincronizacao, atualizarMargemSincronizacao } from '../../services/mercadolivreApi.js';
 import {
-  sincronizarAnuncio,
-  reconciliarCatalogoCompleto,
+  buscarPreviewSincronizacao,
+  aplicarSincronizacao,
   buscarPreviewPedidos,
   importarPedidosEmLote,
   buscarEnvioDoPedido,
   buscarPerguntasComRascunho,
   listarAnunciosOrfaos,
+  listarAnunciosDuplicados,
+  pausarAnuncio,
   contarPendencias,
   type ImportarPedidoParams,
 } from '../../services/mercadolivreSync.js';
@@ -104,32 +106,66 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   });
 
   // ==========================================================================
-  // Features 1 + 7 — reconciliação manual de anúncio (preço, quantidade, status)
+  // Features 1 + 7 — sincronização de anúncio (preço, quantidade, status),
+  // com revisão explícita: preview calcula sem escrever, aplicar escreve só
+  // o que foi selecionado na lista.
   // ==========================================================================
 
-  router.post('/anuncios/:estoqueId/sincronizar', async (req, res) => {
+  router.get('/sincronizacao/preview', async (_req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
 
-      const resultado = await sincronizarAnuncio(supabase, conexao.accessToken, req.params.estoqueId);
-      res.json({ success: true, data: resultado });
+      const preview = await buscarPreviewSincronizacao(supabase, conexao.accessToken);
+      res.json({ success: true, data: preview });
     } catch (error: any) {
-      console.error('Erro ao sincronizar anúncio do Mercado Livre:', error.response?.data || error.message);
+      console.error('Erro ao calcular preview de sincronização do Mercado Livre:', error.response?.data || error.message);
       res.status(500).json({ success: false, error: mensagemErro(error) });
     }
   });
 
-  router.post('/anuncios/sincronizar', async (_req, res) => {
+  router.post('/sincronizacao/aplicar', async (req, res) => {
     try {
+      const linkIds = Array.isArray(req.body?.linkIds) ? req.body.linkIds.map((id: any) => String(id)) : [];
+      if (linkIds.length === 0) return res.status(400).json({ success: false, error: 'Selecione ao menos um anúncio pra sincronizar' });
+
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
 
-      const resultado = await reconciliarCatalogoCompleto(supabase, conexao.accessToken);
+      const resultado = await aplicarSincronizacao(supabase, conexao.accessToken, linkIds);
       res.json({ success: true, data: resultado });
     } catch (error: any) {
-      console.error('Erro ao sincronizar catálogo com o Mercado Livre:', error.response?.data || error.message);
+      console.error('Erro ao aplicar sincronização do Mercado Livre:', error.response?.data || error.message);
       res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  // ==========================================================================
+  // Margem de repasse aplicada no cálculo de preço novo da sincronização
+  // (migration_026) — padrão 30%, editável pela própria tela.
+  // ==========================================================================
+
+  router.get('/configuracoes', async (_req, res) => {
+    try {
+      const margemPercentual = await obterMargemSincronizacao(supabase);
+      res.json({ success: true, data: { margemPercentual } });
+    } catch (error: any) {
+      console.error('Erro ao buscar configurações do Mercado Livre:', error.message);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/configuracoes', async (req, res) => {
+    try {
+      const margemPercentual = Number(req.body?.margem_percentual);
+      if (!Number.isFinite(margemPercentual) || margemPercentual < 0 || margemPercentual > 500) {
+        return res.status(400).json({ success: false, error: 'A margem deve ser um número entre 0 e 500' });
+      }
+      await atualizarMargemSincronizacao(supabase, margemPercentual);
+      res.json({ success: true, data: { margemPercentual } });
+    } catch (error: any) {
+      console.error('Erro ao atualizar configurações do Mercado Livre:', error.message);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 
@@ -146,6 +182,36 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
       res.json({ success: true, data: orfaos });
     } catch (error: any) {
       console.error('Erro ao listar anúncios órfãos do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  // ==========================================================================
+  // Feature C — anúncios duplicados no próprio catálogo do ML
+  // ==========================================================================
+
+  router.get('/anuncios-duplicados', async (_req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const duplicados = await listarAnunciosDuplicados(supabase, conexao.accessToken, conexao.mlUserId);
+      res.json({ success: true, data: duplicados });
+    } catch (error: any) {
+      console.error('Erro ao listar anúncios duplicados do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  router.post('/anuncios/:mlbId/pausar', async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      await pausarAnuncio(conexao.accessToken, req.params.mlbId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao pausar anúncio do Mercado Livre:', error.response?.data || error.message);
       res.status(500).json({ success: false, error: mensagemErro(error) });
     }
   });

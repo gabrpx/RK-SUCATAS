@@ -36,6 +36,25 @@ export interface EstoqueUnidade {
 
 export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
 
+// Um anúncio do Mercado Livre vinculado a esta peça — ver
+// supabase/migration_025_estoque_anuncios_ml.sql. Substitui o campo único
+// `anuncio_ml_url` (no máximo 1 por peça) por N vínculos, cada um
+// sincronizável com seu próprio anúncio no ML.
+export interface EstoqueAnuncioMl {
+  id: string;
+  estoque_id: string;
+  url: string;
+  mlb_id: string;
+  // true = este vínculo ainda vive só na coluna legada anuncio_ml_url
+  // (migration_025 não rodou em produção ainda) — `id` nesse caso não é um
+  // uuid de verdade, é `legado:${estoque_id}`, tratado à parte pelo backend.
+  legado?: boolean;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export type EstoqueAnuncioMlInput = Pick<EstoqueAnuncioMl, 'url'>;
+
 export interface Estoque {
   id: string;
   codigo: string;
@@ -64,10 +83,19 @@ export interface Estoque {
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;
-  // Link do anúncio publicado (Mercado Livre / Facebook Marketplace) — null
-  // quando a peça ainda não foi anunciada naquele canal.
+  // Legado (migration_008) — não é mais editável a partir da migration_025,
+  // que substituiu isso por `links_ml` (N anúncios por peça). Continua
+  // presente no retorno da API só pelos dados antigos que já tinha; usar
+  // `links_ml` pra tudo daqui pra frente.
   anuncio_ml_url: string | null;
+  // Link do anúncio publicado no Facebook Marketplace — null quando a peça
+  // ainda não foi anunciada lá. Continua sendo 1 link só, fora do escopo da
+  // migration_025 (que mexeu só no Mercado Livre).
   anuncio_fb_url: string | null;
+  // Anúncios do Mercado Livre vinculados a esta peça (join do backend, ver
+  // anexarAnunciosMl em src/server/routes/estoque.ts). Ausente em payloads
+  // antigos em cache — sempre tratar como opcional.
+  links_ml?: EstoqueAnuncioMl[];
   // Nomes das partes em que este item pode ser desmembrado na venda (ex:
   // ["Superior", "Inferior"]). null = item sempre vendido inteiro.
   componentes: string[] | null;
@@ -101,7 +129,6 @@ export type EstoqueInput = Pick<
   | 'descricao'
   | 'ativo'
   | 'componentes'
-  | 'anuncio_ml_url'
   | 'anuncio_fb_url'
 > & {
   // Ids dos modelos secundários — não é campo direto de `Estoque` (que expõe
