@@ -10,7 +10,9 @@ export type NotaCadastro = 'com_nota' | 'sem_nota';
 
 // Ficha de uma unidade física específica dentro da mesma linha de estoque —
 // ver supabase/migration_014_unidades_avaria.sql. Só existe pra unidade que
-// tem algo diferente das outras (5 TBI iguais, 1 amassado = 1 ficha só).
+// tem algo diferente das outras (5 TBI iguais, 1 amassado = 1 ficha só; mas
+// "diferente" nem sempre é avaria — pode ser só uma nota de condição própria,
+// um apelido ou um preço diferente, numa unidade sem defeito nenhum).
 export interface EstoqueUnidade {
   id: string;
   estoque_id: string;
@@ -18,15 +20,21 @@ export interface EstoqueUnidade {
   apelido: string | null;
   avaria: boolean;
   avaria_descricao: string | null;
-  /** Fotos do defeito — separadas de estoque.imagens, que mostra a peça boa */
+  /** Fotos desta unidade — separadas de estoque.imagens, que mostra a peça boa */
   fotos: string[];
   /** null = vale o preço normal da peça; preenchido = preço só desta unidade */
   valor: number | null;
+  // Nota de condição (1-10) desta unidade específica — mesma escala e mesma
+  // semântica de herança que `valor` acima: null = herda estoque.condicao_nota;
+  // preenchido = essa unidade tem nota própria, sobrepondo a da peça.
+  // Pode vir ausente (undefined) em vez de null se o backend ainda não achou
+  // a coluna em produção (migration_024 pendente) — tratar undefined igual a null.
+  condicao_nota: number | null;
   criado_em: string;
   atualizado_em: string;
 }
 
-export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor'>;
+export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
 
 export interface Estoque {
   id: string;

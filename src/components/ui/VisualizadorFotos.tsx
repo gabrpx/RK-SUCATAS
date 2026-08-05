@@ -1,6 +1,6 @@
 // Visualizador de foto em tela cheia, com navegação por seta (desktop) ou
 // pelos botões laterais (celular). Usado em qualquer galeria de mais de uma
-// foto — peça (Estoque.imagens) e unidade avariada (EstoqueUnidade.fotos).
+// foto — peça (Estoque.imagens) e unidade de estoque (EstoqueUnidade.fotos).
 import { useEffect } from 'react';
 import { X, ImageOff, ChevronLeft, ChevronRight } from 'lucide-react';
 
@@ -9,7 +9,7 @@ interface VisualizadorFotosProps {
   indice: number;
   onTrocar: (indice: number) => void;
   onFechar: () => void;
-  /** Rótulo do alt/contador — "Foto" por padrão, "Avaria" pras fichas de unidade */
+  /** Rótulo do alt/contador — "Foto" por padrão, "Unidade" pras fichas de unidade */
   legenda?: string;
 }
 

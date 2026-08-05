@@ -3,7 +3,7 @@
 // sentido inverso. Função pura — quem chama decide o que fazer com os erros.
 import { parseCsv, gerarCsv } from '../../utils/csv';
 import { categoriaExigeNota } from './categoriaMotor';
-import { valorTotalItem, contarAvarias } from './valorEstoque';
+import { valorTotalItem, contarAvarias, contarFichas } from './valorEstoque';
 import { getAncestorChain } from '../categorias/categoriaTree';
 import type { Categoria, ModeloMoto } from '../../types/catalog';
 import type { CondicaoPeca, Estoque, EstoqueInput, NotaCadastro } from './types';
@@ -250,6 +250,8 @@ const CABECALHO_EXPORT = [
   'Valor',
   'Quantidade',
   'Valor total',
+  'Unidades com ficha',
+  'Notas das unidades',
   'Unidades com avaria',
   'Avarias',
   'Anúncio ML',
@@ -290,6 +292,13 @@ export function gerarCsvEstoque(items: Estoque[], categorias: Categoria[]): stri
       // Respeita preço próprio de unidade avariada — o backup precisa bater
       // com o total mostrado na tela.
       numeroBr(valorTotalItem(item)),
+      contarFichas(item) || '',
+      // Só lista quem tem nota PRÓPRIA (não a herdada da peça) — mantém a
+      // coluna enxuta em vez de repetir a mesma nota pra toda unidade sem ficha.
+      (item.unidades ?? [])
+        .filter((u) => u.condicao_nota != null)
+        .map((u) => `${u.apelido || 'Unidade'}: ${u.condicao_nota}/10`)
+        .join(' | '),
       contarAvarias(item) || '',
       (item.unidades ?? [])
         .filter((u) => u.avaria)

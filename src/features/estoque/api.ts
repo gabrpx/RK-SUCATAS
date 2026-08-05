@@ -24,7 +24,7 @@ export const estoqueApi = {
   ajustarQuantidadeEmLote: (ids: string[], delta: number) =>
     api.post('/api/estoque/bulk-update-quantidade', { ids, delta }) as Promise<ApiResult<null>>,
 
-  // Fichas de unidade física com avaria — aninhadas no item porque não
+  // Fichas de unidade física desta peça — aninhadas no item porque não
   // existem fora dele (ver migration_014).
   listarUnidades: (estoqueId: string) => api.get(`/api/estoque/${estoqueId}/unidades`) as Promise<ApiResult<EstoqueUnidade[]>>,
   criarUnidade: (estoqueId: string, payload: EstoqueUnidadeInput) =>

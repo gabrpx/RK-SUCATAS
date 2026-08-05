@@ -39,6 +39,19 @@ export function contarAvarias(item: Estoque): number {
   return (item.unidades ?? []).filter((u) => u.avaria).length;
 }
 
+// Mesmo padrão de herança de valorDaUnidade — undefined é tratado igual a
+// null porque o backend pode devolver a ficha sem essa chave quando a coluna
+// condicao_nota ainda não existe em produção (migration_024 pendente).
+export function condicaoNotaDaUnidade(unidade: EstoqueUnidade, notaPadrao: number | null): number | null {
+  return unidade.condicao_nota === null || unidade.condicao_nota === undefined ? notaPadrao : unidade.condicao_nota;
+}
+
+// Quantas fichas de unidade existem pra essa peça — independente de terem
+// avaria ou não. Ver temAvaria/contarAvarias pra contagem específica de avaria.
+export function contarFichas(item: Estoque): number {
+  return (item.unidades ?? []).length;
+}
+
 // Quantas fichas sobram além do que existe fisicamente. Acontece depois de
 // vender unidades: `quantidade` cai, mas o sistema não sabe qual unidade
 // saiu, então as fichas ficam. Quem cataloga precisa revisar e apagar a que

@@ -37,10 +37,10 @@ import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
 import { categoriaExigeNota } from './categoriaMotor';
 import { comprimirImagem, formatarBytes } from '../../utils/comprimirImagem';
-import { tomCondicaoNota } from './condicaoNota';
+import { CondicaoNotaPicker } from './CondicaoNotaPicker';
 import { detectarDuplicatas } from './detectarDuplicata';
 import { calcularResumoDoDia } from './resumoDoDia';
-import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, temAvaria } from './valorEstoque';
+import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, temAvaria, contarFichas } from './valorEstoque';
 import { gerarCsvEstoque } from './planilha';
 import { ImportarPlanilhaModal } from './ImportarPlanilhaModal';
 import { EstoqueByMoto } from './EstoqueByMoto';
@@ -248,7 +248,7 @@ export function EstoqueView({
   }, [formData.nome, modelos, editingItem, modeloAutoDetectado]);
 
   // Envia uma ou várias fotos de uma vez e ACRESCENTA à galeria (não
-  // substitui) — mesmo padrão de UnidadesAvaria.tsx `enviarFotos`.
+  // substitui) — mesmo padrão de UnidadesEstoque.tsx `enviarFotos`.
   const handleUploadImagem = async (files: FileList) => {
     setIsUploadingImagem(true);
     setResumoCompressao(null);
@@ -529,6 +529,13 @@ export function EstoqueView({
             <div className="flex items-center gap-1.5">
               <p className="text-[12.5px] font-medium text-text-primary truncate max-w-[240px]">{item.nome}</p>
               <CondicaoNotaBadge nota={item.condicao_nota} />
+              {/* Contagem de fichas é informativa (nem toda ficha é avaria) —
+                  o aviso de avaria fica separado, no badge seguinte. */}
+              {contarFichas(item) > 0 && (
+                <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>
+                  <StatusBadge tom="neutral" texto={`${contarFichas(item)} ${contarFichas(item) === 1 ? 'ficha' : 'fichas'}`} />
+                </span>
+              )}
               {/* Unidade avariada não vira linha separada — o aviso vive aqui,
                   e o detalhe mostra qual unidade é. */}
               {temAvaria(item) && (
@@ -641,6 +648,11 @@ export function EstoqueView({
           <div className="flex items-center gap-1.5">
             <p className="text-sm font-medium text-text-primary truncate">{item.nome}</p>
             <CondicaoNotaBadge nota={item.condicao_nota} />
+            {contarFichas(item) > 0 && (
+              <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>
+                <StatusBadge tom="neutral" texto={`${contarFichas(item)} ${contarFichas(item) === 1 ? 'ficha' : 'fichas'}`} />
+              </span>
+            )}
             {temAvaria(item) && (
               <span
                 title={`${contarAvarias(item)} unidade(s) com avaria`}
@@ -1158,46 +1170,12 @@ export function EstoqueView({
                   </div>
                 </div>
 
-                <div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <label className={cn(labelClass, 'mb-0')}>Nota de condição (estado físico)</label>
-                    {formData.condicao_nota != null && (
-                      <button
-                        type="button"
-                        onClick={() => setFormData({ ...formData, condicao_nota: null })}
-                        className="text-[11px] font-medium text-text-faint hover:text-text-secondary"
-                      >
-                        Limpar
-                      </button>
-                    )}
-                  </div>
-                  <div className="grid grid-cols-5 sm:grid-cols-10 gap-1.5">
-                    {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => {
-                      const selecionado = formData.condicao_nota === n;
-                      const tom = tomCondicaoNota(n);
-                      return (
-                        <button
-                          key={n}
-                          type="button"
-                          onClick={() => setFormData({ ...formData, condicao_nota: n })}
-                          className={cn(
-                            'py-2 rounded-control font-semibold text-xs border transition-all tabular-nums',
-                            selecionado
-                              ? tom === 'danger'
-                                ? 'bg-danger border-danger text-surface-page'
-                                : tom === 'warning'
-                                ? 'bg-warning border-warning text-surface-page'
-                                : 'bg-positive border-positive text-surface-page'
-                              : 'border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg'
-                          )}
-                        >
-                          {n}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-text-faint mt-1.5">Opcional — 1 é estado ruim, 10 é como nova.</p>
-                </div>
+                <CondicaoNotaPicker
+                  valor={formData.condicao_nota}
+                  onChange={(n) => setFormData({ ...formData, condicao_nota: n })}
+                  label="Nota de condição (estado físico)"
+                  ajuda="Opcional — 1 é estado ruim, 10 é como nova."
+                />
 
                 {formExigeNota && (
                   <div>

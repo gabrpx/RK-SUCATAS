@@ -318,9 +318,13 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   function montarPayloadUnidade(body: any) {
     const payload: Record<string, any> = {};
-    if (body?.apelido !== undefined) payload.apelido = String(body.apelido).trim() || null;
+    // body.apelido/avaria_descricao === null (herança/campo limpo) precisa
+    // virar null no banco, não a string "null" — String(null) === 'null'.
+    if (body?.apelido !== undefined) payload.apelido = body.apelido === null ? null : String(body.apelido).trim() || null;
     if (body?.avaria !== undefined) payload.avaria = Boolean(body.avaria);
-    if (body?.avaria_descricao !== undefined) payload.avaria_descricao = String(body.avaria_descricao).trim() || null;
+    if (body?.avaria_descricao !== undefined) {
+      payload.avaria_descricao = body.avaria_descricao === null ? null : String(body.avaria_descricao).trim() || null;
+    }
     if (body?.fotos !== undefined) {
       payload.fotos = Array.isArray(body.fotos) ? body.fotos.map((f: any) => String(f)).filter(Boolean) : [];
     }
@@ -330,7 +334,44 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const numero = body.valor === null || body.valor === '' ? null : Number(body.valor);
       payload.valor = numero === null || Number.isNaN(numero) ? null : Math.max(0, numero);
     }
+    // Mesma semântica de herança de `valor` acima, mesmo clamp de
+    // estoque.condicao_nota em montarPayload — null = herda a nota da peça.
+    if (body?.condicao_nota !== undefined) {
+      const nota = body.condicao_nota === null || body.condicao_nota === '' ? null : Number(body.condicao_nota);
+      payload.condicao_nota = nota === null || !Number.isFinite(nota) ? null : Math.min(10, Math.max(1, Math.round(nota)));
+    }
     return payload;
+  }
+
+  // A tabela estoque_unidades já existe em produção (migration_014), mas a
+  // coluna condicao_nota só existe depois que a migration_024 rodar.
+  // Diferente de anexarUnidades/anexarCompatibilidades (tabela inteira
+  // ausente, detectado só na leitura), aqui o risco é a ESCRITA falhar por
+  // causa de UM campo — e não é razoável deixar apelido/avaria/fotos/valor
+  // pararem de salvar por isso. Tenta com o campo; se a coluna não existir
+  // ainda, tenta de novo sem ele e avisa no log — mesmo espírito de "a aba
+  // não pode quebrar por migration pendente", agora pra escrita.
+  function erroColunaCondicaoNotaAusente(error: any): boolean {
+    if (!error) return false;
+    // 42703 = Postgres "undefined_column"; PGRST204 = PostgREST "coluna fora
+    // do cache de schema" (mesma causa, mensageiro diferente).
+    const codigoConhecido = error.code === '42703' || error.code === 'PGRST204';
+    return codigoConhecido && String(error.message || '').includes('condicao_nota');
+  }
+
+  async function inserirOuAtualizarUnidade<T>(
+    executar: (payload: Record<string, any>) => PromiseLike<{ data: T | null; error: any }>,
+    payload: Record<string, any>
+  ): Promise<{ data: T | null; error: any }> {
+    const resultado = await executar(payload);
+    if (!resultado.error || !('condicao_nota' in payload) || !erroColunaCondicaoNotaAusente(resultado.error)) {
+      return resultado;
+    }
+    console.warn(
+      '⚠️ Coluna estoque_unidades.condicao_nota ausente — rode supabase/migration_024_condicao_nota_unidade.sql pra habilitar a nota por unidade. Salvando o restante da ficha sem ela.'
+    );
+    const { condicao_nota, ...semNota } = payload;
+    return executar(semNota);
   }
 
   router.get('/:id/unidades', LEITURA, async (req, res) => {
@@ -366,7 +407,10 @@ export function estoqueRouter(supabase: SupabaseClient) {
       }
 
       const payload = { ...montarPayloadUnidade(req.body), estoque_id: req.params.id };
-      const { data, error } = await supabase.from('estoque_unidades').insert(payload).select('*').single();
+      const { data, error } = await inserirOuAtualizarUnidade(
+        (p) => supabase.from('estoque_unidades').insert(p).select('*').single(),
+        payload
+      );
       if (error) throw error;
       res.json({ success: true, data });
     } catch (error: any) {
@@ -388,13 +432,17 @@ export function estoqueRouter(supabase: SupabaseClient) {
         fotosRemovidas = antigas.filter((url) => !payload.fotos.includes(url));
       }
 
-      const { data, error } = await supabase
-        .from('estoque_unidades')
-        .update(payload)
-        .eq('id', req.params.unidadeId)
-        .eq('estoque_id', req.params.id)
-        .select('*')
-        .single();
+      const { data, error } = await inserirOuAtualizarUnidade(
+        (p) =>
+          supabase
+            .from('estoque_unidades')
+            .update(p)
+            .eq('id', req.params.unidadeId)
+            .eq('estoque_id', req.params.id)
+            .select('*')
+            .single(),
+        payload
+      );
       if (error) throw error;
 
       for (const url of fotosRemovidas) {

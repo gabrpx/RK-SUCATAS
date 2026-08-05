@@ -57,7 +57,7 @@ import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
 import { TarefasView } from './features/tarefas/TarefasView';
 import { Toaster } from './components/ui/toast';
 import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
-import { UnidadesAvaria } from './features/estoque/UnidadesAvaria';
+import { UnidadesEstoque } from './features/estoque/UnidadesEstoque';
 import { contarAvarias } from './features/estoque/valorEstoque';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
 import { PromocaoBadge } from './features/promocoes/PromocaoBadge';
@@ -377,9 +377,10 @@ function DetailModal({
               </div>
             )}
 
-            {/* Unidades físicas com avaria: mesma peça, uma linha só no
-                estoque, mas cada unidade diferente ganha ficha e foto. */}
-            {estoque && <UnidadesAvaria item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
+            {/* Unidades físicas desta peça: mesma peça, uma linha só no
+                estoque, mas cada unidade diferente (nota própria, avaria,
+                apelido ou preço) ganha ficha e foto. */}
+            {estoque && <UnidadesEstoque item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
 
             <div className="flex flex-col gap-3 pt-4">
               <button onClick={handleWhatsAppShare} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3">
