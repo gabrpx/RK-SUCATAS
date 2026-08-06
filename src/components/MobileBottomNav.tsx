@@ -1,51 +1,38 @@
-import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  Receipt,
-  Wallet,
-  Truck,
-  Settings,
-  ClipboardList,
-  MoreHorizontal,
-  Store,
-  Users,
-  HandCoins,
-  X
-} from 'lucide-react';
-import { useState } from 'react';
+import { MoreHorizontal, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
-import { TAB_ROLES } from '../constants/roles';
+import { NAV_ITEMS, NAV_GROUP_LABELS } from '../constants/navigation';
+import type { NavGroup } from '../constants/navigation';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
+// O que se usa todo dia fica fixo na barra principal — independente da
+// ordem de NAV_ITEMS (essa é pensada pra agrupar a sidebar desktop, não pra
+// prioridade de uso mobile).
+const MOBILE_MAIN_IDS = ['dashboard', 'estoque', 'vendas', 'caixa'];
+
 export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isMoreOpen, setIsMoreOpen }: any) => {
-  const allItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Início', roles: TAB_ROLES.dashboard },
-    { id: 'estoque', icon: Package, label: 'Estoque', roles: TAB_ROLES.estoque },
-    { id: 'vendas', icon: ShoppingCart, label: 'Vendas', roles: TAB_ROLES.vendas },
-    { id: 'caixa', icon: Wallet, label: 'Caixa', roles: TAB_ROLES.caixa },
-    { id: 'tarefas', icon: ClipboardList, label: 'Tarefas', roles: TAB_ROLES.tarefas },
-    { id: 'frete', icon: Truck, label: 'Frete', roles: TAB_ROLES.frete },
-    { id: 'configuracoes', icon: Settings, label: 'Config', roles: TAB_ROLES.configuracoes },
-    // No fim de propósito: só os 4 primeiros ficam na barra principal (ver
-    // comentário acima) — Orçamentos é ferramenta de pré-venda, de uso menos
-    // frequente que Caixa, então tolera bem ficar dentro de "Mais".
-    { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: TAB_ROLES.orcamentos },
-    { id: 'clientes', icon: Users, label: 'Clientes', roles: TAB_ROLES.clientes },
-    { id: 'fiado', icon: HandCoins, label: 'Fiado', roles: TAB_ROLES.fiado },
-    { id: 'mercadolivre', icon: Store, label: 'Mercado Livre', roles: TAB_ROLES.mercadolivre },
-  ];
+  const allowedItems = NAV_ITEMS.filter(item => item.roles.some((r: string) => userRoles.includes(r)));
 
-  const allowedItems = allItems.filter(item => item.roles.some((r: string) => userRoles.includes(r)));
+  const mainItems = MOBILE_MAIN_IDS
+    .map(id => allowedItems.find(item => item.id === id))
+    .filter((item): item is (typeof allowedItems)[number] => Boolean(item));
+  const moreItems = allowedItems.filter(item => !MOBILE_MAIN_IDS.includes(item.id));
 
-  // 4 na barra principal (o que se usa todo dia); Frete e Configurações vão pro "Mais".
-  const mainItems = allowedItems.slice(0, 4);
-  const moreItems = allowedItems.slice(4);
+  // Agrupa moreItems por seção (mesmos grupos da sidebar desktop) mantendo a
+  // ordem de NAV_ITEMS; só mostra cabeçalho pra grupo que realmente tem item.
+  const moreGroups: Array<{ group: NavGroup; items: typeof moreItems }> = [];
+  for (const item of moreItems) {
+    const last = moreGroups[moreGroups.length - 1];
+    if (last && last.group === item.group) {
+      last.items.push(item);
+    } else {
+      moreGroups.push({ group: item.group, items: [item] });
+    }
+  }
 
   const handleTabClick = (id: string) => {
     setActiveTab(id);
@@ -65,23 +52,23 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
               onClick={() => handleTabClick(item.id)}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
-                activeTab === item.id 
-                  ? "text-violet-500" 
+                activeTab === item.id
+                  ? "text-accent"
                   : theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
               )}
             >
               <item.icon size={22} />
-              <span className="text-[10px] font-medium truncate w-full text-center px-1">{item.label}</span>
+              <span className="text-[10px] font-medium truncate w-full text-center px-1">{item.mobileLabel ?? item.label}</span>
             </button>
           ))}
-          
+
           {moreItems.length > 0 && (
             <button
               onClick={() => setIsMoreOpen(!isMoreOpen)}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
                 isMoreOpen || moreItems.some(i => i.id === activeTab)
-                  ? "text-violet-500" 
+                  ? "text-accent"
                   : theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
               )}
             >
@@ -109,7 +96,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
               exit={{ y: "100%" }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className={cn(
-                "fixed bottom-0 left-0 right-0 z-[60] md:hidden rounded-t-3xl p-6 pb-nav-safe",
+                "fixed bottom-0 left-0 right-0 z-[60] md:hidden rounded-t-3xl p-6 pb-nav-safe max-h-[80vh] overflow-y-auto",
                 theme === 'dark' ? "bg-zinc-900 border-t border-zinc-800" : "bg-white border-t border-zinc-200"
               )}
             >
@@ -120,7 +107,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                 )}>
                   Mais Opções
                 </h3>
-                <button 
+                <button
                   onClick={() => setIsMoreOpen(false)}
                   className={cn(
                     "p-2 rounded-full",
@@ -131,21 +118,35 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                 </button>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                {moreItems.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabClick(item.id)}
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl transition-all",
-                      activeTab === item.id
-                        ? "bg-violet-500/10 text-violet-500 border border-violet-500/20"
-                        : theme === 'dark' ? "bg-zinc-800/50 text-zinc-400 border border-transparent" : "bg-zinc-50 text-zinc-500 border border-transparent"
+              <div className="space-y-5">
+                {moreGroups.map((section, idx) => (
+                  <div key={section.group ?? `no-group-${idx}`}>
+                    {section.group && (
+                      <span className={cn(
+                        "block mb-2 text-[10px] font-black uppercase tracking-[0.2em]",
+                        theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
+                      )}>
+                        {NAV_GROUP_LABELS[section.group]}
+                      </span>
                     )}
-                  >
-                    <item.icon size={24} />
-                    <span className="text-[11px] font-bold text-center">{item.label}</span>
-                  </button>
+                    <div className="grid grid-cols-3 gap-4">
+                      {section.items.map(item => (
+                        <button
+                          key={item.id}
+                          onClick={() => handleTabClick(item.id)}
+                          className={cn(
+                            "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl transition-all",
+                            activeTab === item.id
+                              ? "bg-accent/10 text-accent border border-accent/20"
+                              : theme === 'dark' ? "bg-zinc-800/50 text-zinc-400 border border-transparent" : "bg-zinc-50 text-zinc-500 border border-transparent"
+                          )}
+                        >
+                          <item.icon size={24} />
+                          <span className="text-[11px] font-bold text-center">{item.mobileLabel ?? item.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
               </div>
             </motion.div>

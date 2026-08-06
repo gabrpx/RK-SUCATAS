@@ -13,12 +13,8 @@
 
 import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
 import {
-  LayoutDashboard,
   Package,
   TrendingUp,
-  Receipt,
-  ShoppingCart,
-  Wallet,
   X,
   ChevronRight,
   ChevronLeft,
@@ -34,12 +30,7 @@ import {
   MessageCircle,
   FileText,
   LogOut,
-  Settings,
-  ClipboardList,
   Gauge,
-  Store,
-  Users,
-  HandCoins,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -70,11 +61,12 @@ import { ComprovantesPixVenda } from './features/comprovantes/ComprovantesPixVen
 import { VendaClienteResumo } from './features/vendas/VendaClienteResumo';
 import { TAB_ROLES } from './constants/roles';
 import type { Role } from './constants/roles';
+import { NAV_ITEMS, NAV_GROUP_LABELS } from './constants/navigation';
+import type { Tab, NavGroup } from './constants/navigation';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'clientes' | 'fiado' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas';
 const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'fiado', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas'];
 
 // Primeira aba visível pra quem tem esses papéis — usada como fallback
@@ -209,7 +201,7 @@ const SidebarItem = memo(({ icon: Icon, label, active, onClick, theme, className
     onClick={onClick}
     className={cn(
       'w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-500 group relative overflow-hidden transform-gpu',
-      active ? 'bg-violet-600 text-white shadow-[0_10px_30px_rgba(139,92,246,0.3)]' : theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900',
+      active ? 'bg-accent text-white shadow-[0_10px_30px_rgba(91,61,240,0.35)]' : theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900',
       className
     )}
   >
@@ -514,6 +506,11 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   // de assumir admin.
   const userRoles = lerRolesArmazenados() ?? (IS_LOCALHOST ? ['admin'] : ['estoque_leitura']);
 
+  const visibleNavItems = useMemo(
+    () => NAV_ITEMS.filter((item) => item.roles.some((r) => userRoles.includes(r))),
+    [userRoles]
+  );
+
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
     const abaValida = VALID_TABS.includes(path);
@@ -603,48 +600,45 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             {isSidebarOpen && (
               <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col min-w-0">
                 <span className={cn('font-black text-xl tracking-tighter truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
-                  RK <span className="text-violet-500">SUCATAS</span>
+                  RK <span className="text-accent">SUCATAS</span>
                 </span>
                 <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Gestão Inteligente</span>
               </motion.div>
             )}
           </div>
 
-          <nav className="flex-1 space-y-2">
-            {TAB_ROLES.dashboard.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={LayoutDashboard} label={isSidebarOpen ? 'Dashboard' : ''} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} theme={theme} />
-            )}
-            {TAB_ROLES.estoque.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={Package} label={isSidebarOpen ? 'Estoque' : ''} active={activeTab === 'estoque'} onClick={() => setActiveTab('estoque')} theme={theme} />
-            )}
-            {TAB_ROLES.vendas.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={ShoppingCart} label={isSidebarOpen ? 'Vendas' : ''} active={activeTab === 'vendas'} onClick={() => setActiveTab('vendas')} theme={theme} />
-            )}
-            {TAB_ROLES.orcamentos.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={Receipt} label={isSidebarOpen ? 'Orçamentos' : ''} active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} theme={theme} />
-            )}
-            {TAB_ROLES.clientes.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={Users} label={isSidebarOpen ? 'Clientes' : ''} active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} theme={theme} />
-            )}
-            {TAB_ROLES.fiado.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={HandCoins} label={isSidebarOpen ? 'Fiado' : ''} active={activeTab === 'fiado'} onClick={() => setActiveTab('fiado')} theme={theme} />
-            )}
-            {TAB_ROLES.caixa.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
-            )}
-            {TAB_ROLES.frete.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={Truck} label={isSidebarOpen ? 'Frete' : ''} active={activeTab === 'frete'} onClick={() => setActiveTab('frete')} theme={theme} />
-            )}
-            {TAB_ROLES.mercadolivre.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={Store} label={isSidebarOpen ? 'Mercado Livre' : ''} active={activeTab === 'mercadolivre'} onClick={() => setActiveTab('mercadolivre')} theme={theme} />
-            )}
-            {TAB_ROLES.tarefas.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={ClipboardList} label={isSidebarOpen ? 'Tarefas' : ''} active={activeTab === 'tarefas'} onClick={() => setActiveTab('tarefas')} theme={theme} />
-            )}
-            {TAB_ROLES.configuracoes.some((r) => userRoles.includes(r)) && (
-              <SidebarItem icon={Settings} label={isSidebarOpen ? 'Configurações' : ''} active={activeTab === 'configuracoes'} onClick={() => setActiveTab('configuracoes')} theme={theme} />
-            )}
-            <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} theme={theme} className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600" />
+          <nav className="flex-1 space-y-1">
+            {(() => {
+              let lastGroup: NavGroup | undefined;
+              return visibleNavItems.map((item) => {
+                const showHeader = item.group !== null && item.group !== lastGroup;
+                lastGroup = item.group;
+                return (
+                  <React.Fragment key={item.id}>
+                    {showHeader && (
+                      <div className={cn('pt-4 pb-1 first:pt-0', isSidebarOpen ? 'px-5' : 'flex justify-center')}>
+                        {isSidebarOpen ? (
+                          <span className={cn('text-[10px] font-black uppercase tracking-[0.2em]', theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400')}>
+                            {NAV_GROUP_LABELS[item.group as Exclude<NavGroup, null>]}
+                          </span>
+                        ) : (
+                          <span className={cn('block w-6 border-t', theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200')} />
+                        )}
+                      </div>
+                    )}
+                    <SidebarItem
+                      icon={item.icon}
+                      label={isSidebarOpen ? item.label : ''}
+                      active={activeTab === item.id}
+                      onClick={() => setActiveTab(item.id)}
+                      theme={theme}
+                    />
+                  </React.Fragment>
+                );
+              });
+            })()}
+            <div className={cn('my-2 border-t', theme === 'dark' ? 'border-zinc-800/70' : 'border-zinc-200')} />
+            <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} theme={theme} className="text-danger hover:bg-danger-bg hover:text-danger" />
           </nav>
 
           <button onClick={() => setIsSidebarOpen((v) => !v)} className={cn('mt-4 p-3 rounded-xl flex items-center justify-center', theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-900' : 'text-zinc-400 hover:bg-zinc-100')}>
