@@ -8,7 +8,8 @@ interface ApiResult<T> {
 }
 
 export const tarefasApi = {
-  listar: (): Promise<ApiResult<Tarefa[]>> => api.get('/api/tarefas'),
+  listar: (filtros?: { cliente_id?: string }): Promise<ApiResult<Tarefa[]>> =>
+    api.get(`/api/tarefas${filtros?.cliente_id ? `?cliente_id=${filtros.cliente_id}` : ''}`),
   criar: (payload: TarefaInput): Promise<ApiResult<Tarefa>> => api.post('/api/tarefas', payload),
   atualizar: (id: string, payload: TarefaUpdateInput): Promise<ApiResult<Tarefa>> => api.patch(`/api/tarefas/${id}`, payload),
   concluir: (id: string): Promise<ApiResult<Tarefa>> => api.patch(`/api/tarefas/${id}/concluir`, {}),

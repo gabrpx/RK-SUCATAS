@@ -6,9 +6,9 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const SELECT_COM_ITENS = '*, itens:orcamento_itens(*)';
+const SELECT_COM_ITENS = '*, itens:orcamento_itens(*), cliente:clientes(id, nome, telefone)';
 
-const CAMPOS_HEADER_EDITAVEIS = ['cliente_nome', 'cliente_telefone', 'desconto_tipo', 'desconto_valor', 'observacoes', 'validade'] as const;
+const CAMPOS_HEADER_EDITAVEIS = ['cliente_nome', 'cliente_telefone', 'cliente_id', 'desconto_tipo', 'desconto_valor', 'observacoes', 'validade'] as const;
 
 export function orcamentosRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -41,7 +41,10 @@ export function orcamentosRouter(supabase: SupabaseClient) {
   // Vende uma linha (inteira ou só um componente) e faz o link de volta.
   // Lança em caso de erro de regra de negócio (estoque insuficiente etc.) —
   // quem chama decide se responde 400 direto ou acumula num relatório de falhas.
-  const venderLinha = async (item: any, params: { forma_pagamento_id: string; componente?: string | null; data?: string | null; cliente_nome: string }) => {
+  const venderLinha = async (
+    item: any,
+    params: { forma_pagamento_id: string; componente?: string | null; data?: string | null; cliente_nome: string; cliente_id?: string | null }
+  ) => {
     const componenteFinal = params.componente ?? item.componente ?? null;
 
     const { data: venda, error } = await supabase.rpc('registrar_venda', {
@@ -54,6 +57,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       p_observacoes: null,
       p_data: params.data || null,
       p_componente: componenteFinal,
+      p_cliente_id: params.cliente_id ?? null,
     });
     if (error) throw error;
 
@@ -92,7 +96,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
 
   router.post('/', async (req, res) => {
     try {
-      const { cliente_nome, cliente_telefone, desconto_tipo, desconto_valor, observacoes, validade, itens } = req.body || {};
+      const { cliente_nome, cliente_telefone, cliente_id, desconto_tipo, desconto_valor, observacoes, validade, itens } = req.body || {};
 
       if (!cliente_nome || !String(cliente_nome).trim()) return res.status(400).json({ success: false, error: 'Nome do cliente é obrigatório' });
       if (!Array.isArray(itens) || itens.length === 0) return res.status(400).json({ success: false, error: 'Adicione ao menos um item ao orçamento' });
@@ -102,6 +106,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
         .insert({
           cliente_nome,
           cliente_telefone: cliente_telefone || null,
+          cliente_id: cliente_id || null,
           desconto_tipo: desconto_tipo || null,
           desconto_valor: Number(desconto_valor) || 0,
           observacoes: observacoes || null,
@@ -242,7 +247,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       const { forma_pagamento_id, componente, data: dataVenda } = req.body || {};
       if (!forma_pagamento_id) return res.status(400).json({ success: false, error: 'Forma de pagamento é obrigatória' });
 
-      const { data: orcamento, error: e1 } = await supabase.from('orcamentos').select('status, cliente_nome').eq('id', req.params.id).single();
+      const { data: orcamento, error: e1 } = await supabase.from('orcamentos').select('status, cliente_nome, cliente_id').eq('id', req.params.id).single();
       if (e1) throw e1;
       if (orcamento.status !== 'aberto') return res.status(400).json({ success: false, error: 'Este orçamento não está mais em aberto' });
 
@@ -250,7 +255,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       if (e2) throw e2;
       if (item.venda_id) return res.status(400).json({ success: false, error: 'Esta linha já foi vendida' });
 
-      const venda = await venderLinha(item, { forma_pagamento_id, componente, data: dataVenda, cliente_nome: orcamento.cliente_nome });
+      const venda = await venderLinha(item, { forma_pagamento_id, componente, data: dataVenda, cliente_nome: orcamento.cliente_nome, cliente_id: orcamento.cliente_id });
       await recalcularStatus(req.params.id);
 
       const data = await buscarOrcamento(req.params.id);
@@ -266,7 +271,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       const { forma_pagamento_id, data: dataVenda } = req.body || {};
       if (!forma_pagamento_id) return res.status(400).json({ success: false, error: 'Forma de pagamento é obrigatória' });
 
-      const { data: orcamento, error: e1 } = await supabase.from('orcamentos').select('status, cliente_nome').eq('id', req.params.id).single();
+      const { data: orcamento, error: e1 } = await supabase.from('orcamentos').select('status, cliente_nome, cliente_id').eq('id', req.params.id).single();
       if (e1) throw e1;
       if (orcamento.status !== 'aberto') return res.status(400).json({ success: false, error: 'Este orçamento não está mais em aberto' });
 
@@ -282,7 +287,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       // anteriores permanecem vendidas e a falha é reportada à parte.
       for (const item of pendentes || []) {
         try {
-          await venderLinha(item, { forma_pagamento_id, data: dataVenda, cliente_nome: orcamento.cliente_nome });
+          await venderLinha(item, { forma_pagamento_id, data: dataVenda, cliente_nome: orcamento.cliente_nome, cliente_id: orcamento.cliente_id });
           sucesso.push(item.id);
         } catch (err: any) {
           falhas.push({ itemId: item.id, error: err.message });

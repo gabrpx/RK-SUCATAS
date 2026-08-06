@@ -9,6 +9,7 @@ import {
   ClipboardList,
   MoreHorizontal,
   Store,
+  Users,
   X
 } from 'lucide-react';
 import { useState } from 'react';
@@ -34,6 +35,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
     // comentário acima) — Orçamentos é ferramenta de pré-venda, de uso menos
     // frequente que Caixa, então tolera bem ficar dentro de "Mais".
     { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: TAB_ROLES.orcamentos },
+    { id: 'clientes', icon: Users, label: 'Clientes', roles: TAB_ROLES.clientes },
     { id: 'mercadolivre', icon: Store, label: 'Mercado Livre', roles: TAB_ROLES.mercadolivre },
   ];
 

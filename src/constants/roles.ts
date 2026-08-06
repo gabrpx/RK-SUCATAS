@@ -14,6 +14,7 @@ export const TAB_ROLES: Record<string, Role[]> = {
   estoque: ['admin', 'equipe', 'estoque_leitura'],
   vendas: ['admin', 'equipe'],
   orcamentos: ['admin', 'equipe'],
+  clientes: ['admin', 'equipe'],
   caixa: ['admin', 'equipe'],
   frete: ['admin', 'equipe'],
   mercadolivre: ['admin', 'equipe'],

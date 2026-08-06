@@ -1,4 +1,8 @@
+import type { ClienteResumo } from '../clientes/types';
+
 export type TarefaStatus = 'pendente' | 'concluida';
+export type TarefaPrioridade = 'baixa' | 'media' | 'alta';
+export type TarefaTipo = 'geral' | 'visita';
 
 export interface UsuarioResumo {
   id: string;
@@ -13,11 +17,15 @@ export interface Tarefa {
   atribuido_para: string;
   criado_por: string;
   status: TarefaStatus;
+  prioridade: TarefaPrioridade;
+  tipo: TarefaTipo;
+  cliente_id: string | null;
   concluida_em: string | null;
   criado_em: string;
   atualizado_em: string;
   atribuido: UsuarioResumo | null;
   criador: UsuarioResumo | null;
+  cliente: ClienteResumo | null;
 }
 
 export interface TarefaInput {
@@ -25,6 +33,9 @@ export interface TarefaInput {
   descricao?: string | null;
   prazo?: string | null;
   atribuido_para: string;
+  cliente_id?: string | null;
+  prioridade?: TarefaPrioridade;
+  tipo?: TarefaTipo;
 }
 
 export interface TarefaUpdateInput {
@@ -32,4 +43,7 @@ export interface TarefaUpdateInput {
   descricao?: string | null;
   prazo?: string | null;
   atribuido_para?: string;
+  cliente_id?: string | null;
+  prioridade?: TarefaPrioridade;
+  tipo?: TarefaTipo;
 }

@@ -29,6 +29,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { orcamentosApi } from './api';
+import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
 import type { Orcamento, OrcamentoItem, OrcamentoItemInput, DescontoTipo } from './types';
 import type { Estoque } from '../estoque/types';
@@ -289,6 +290,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
   const isEdicao = !!atual;
 
   const [clienteNome, setClienteNome] = useState(atual?.cliente_nome || '');
+  const [clienteId, setClienteId] = useState<string | null>(atual?.cliente_id || null);
   const [clienteTelefone, setClienteTelefone] = useState(atual?.cliente_telefone || '');
   const [descontoTipo, setDescontoTipo] = useState<DescontoTipo>(atual?.desconto_tipo || 'fixo');
   const [descontoValor, setDescontoValor] = useState(atual?.desconto_valor || 0);
@@ -423,6 +425,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       try {
         const result = await orcamentosApi.atualizar(atual.id, {
           cliente_nome: clienteNome,
+          cliente_id: clienteId,
           cliente_telefone: clienteTelefone || null,
           desconto_tipo: descontoTipo,
           desconto_valor: Number(descontoValor) || 0,
@@ -443,6 +446,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       try {
         const result = await orcamentosApi.criar({
           cliente_nome: clienteNome,
+          cliente_id: clienteId,
           cliente_telefone: clienteTelefone || null,
           desconto_tipo: descontoTipo,
           desconto_valor: Number(descontoValor) || 0,
@@ -537,12 +541,15 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Nome do cliente</label>
-              <input
-                value={clienteNome}
-                onChange={(e) => setClienteNome(e.target.value)}
+              <SeletorCliente
+                clienteId={clienteId}
+                nome={clienteNome}
+                onChange={(id, nome) => {
+                  setClienteId(id);
+                  setClienteNome(nome);
+                }}
                 disabled={isEdicao && atual!.status !== 'aberto'}
                 placeholder="Nome"
-                className={inputClass}
               />
             </div>
             <div>

@@ -38,6 +38,7 @@ import {
   ClipboardList,
   Gauge,
   Store,
+  Users,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -49,6 +50,7 @@ import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
 import { OrcamentosView } from './features/orcamentos/OrcamentosView';
+import { ClientesView } from './features/clientes/ClientesView';
 import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { MercadoLivreView } from './features/mercadolivre/MercadoLivreView';
@@ -68,8 +70,8 @@ import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas';
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas'];
+type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'clientes' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas';
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas'];
 
 // Primeira aba visível pra quem tem esses papéis — usada como fallback
 // quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
@@ -467,7 +469,7 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
@@ -494,6 +496,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   });
   const [pendingEditItem, setPendingEditItem] = useState<Estoque | null>(null);
   const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
+  const [pendingClienteId, setPendingClienteId] = useState<string | null>(null);
+  const [pendingFiltroSumidos, setPendingFiltroSumidos] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
@@ -590,6 +594,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             {TAB_ROLES.orcamentos.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Receipt} label={isSidebarOpen ? 'Orçamentos' : ''} active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} theme={theme} />
             )}
+            {TAB_ROLES.clientes.some((r) => userRoles.includes(r)) && (
+              <SidebarItem icon={Users} label={isSidebarOpen ? 'Clientes' : ''} active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} theme={theme} />
+            )}
             {TAB_ROLES.caixa.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
             )}
@@ -638,6 +645,14 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                     setActiveTab('estoque');
                     setPendingEstoqueBaixo(true);
                   }}
+                  onNavigateCliente={(clienteId) => {
+                    setActiveTab('clientes');
+                    setPendingClienteId(clienteId);
+                  }}
+                  onNavigateClientesSumidos={() => {
+                    setActiveTab('clientes');
+                    setPendingFiltroSumidos(true);
+                  }}
                 />
               ) : activeTab === 'estoque' ? (
                 <EstoqueView
@@ -654,6 +669,13 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
               ) : activeTab === 'orcamentos' ? (
                 <OrcamentosView theme={theme} />
+              ) : activeTab === 'clientes' ? (
+                <ClientesView
+                  pendingClienteId={pendingClienteId}
+                  setPendingClienteId={setPendingClienteId}
+                  pendingFiltroSumidos={pendingFiltroSumidos}
+                  setPendingFiltroSumidos={setPendingFiltroSumidos}
+                />
               ) : activeTab === 'caixa' ? (
                 <CaixaView theme={theme} />
               ) : activeTab === 'frete' ? (

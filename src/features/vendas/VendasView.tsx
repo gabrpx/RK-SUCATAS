@@ -12,6 +12,7 @@ import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { vendasApi } from './api';
+import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
 import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import type { Venda } from './types';
@@ -239,6 +240,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
   const [valorUnitario, setValorUnitario] = useState('');
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
   const [clienteNome, setClienteNome] = useState('');
+  const [clienteId, setClienteId] = useState<string | null>(null);
   const [observacoes, setObservacoes] = useState('');
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
@@ -258,6 +260,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
     setValorUnitario('');
     setFormaPagamentoId('');
     setClienteNome('');
+    setClienteId(null);
     setObservacoes('');
     setData(new Date().toISOString().slice(0, 10));
   }, []);
@@ -300,6 +303,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
         forma_pagamento_id: formaPagamentoId,
         modelo_moto_id: itemSelecionado.modelo_moto_id,
         cliente_nome: clienteNome || null,
+        cliente_id: clienteId,
         observacoes: observacoes || null,
         data,
         componente: componenteSelecionado,
@@ -464,7 +468,15 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Cliente (opcional)</label>
-                  <input value={clienteNome} onChange={(e) => setClienteNome(e.target.value)} placeholder="Nome" className={inputClass} />
+                  <SeletorCliente
+                    clienteId={clienteId}
+                    nome={clienteNome}
+                    onChange={(id, nome) => {
+                      setClienteId(id);
+                      setClienteNome(nome);
+                    }}
+                    placeholder="Nome"
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>Data</label>

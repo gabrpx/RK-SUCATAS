@@ -1,3 +1,5 @@
+import type { ClienteResumo } from '../clientes/types';
+
 export type OrcamentoStatus = 'aberto' | 'convertido' | 'cancelado';
 export type DescontoTipo = 'fixo' | 'percentual';
 
@@ -19,6 +21,8 @@ export interface Orcamento {
   codigo: string;
   cliente_nome: string;
   cliente_telefone: string | null;
+  cliente_id: string | null;
+  cliente?: ClienteResumo | null;
   desconto_tipo: DescontoTipo | null;
   desconto_valor: number;
   observacoes: string | null;
@@ -42,6 +46,7 @@ export interface OrcamentoItemInput {
 export interface OrcamentoInput {
   cliente_nome: string;
   cliente_telefone?: string | null;
+  cliente_id?: string | null;
   desconto_tipo?: DescontoTipo | null;
   desconto_valor?: number;
   observacoes?: string | null;
@@ -52,6 +57,7 @@ export interface OrcamentoInput {
 export interface OrcamentoHeaderInput {
   cliente_nome?: string;
   cliente_telefone?: string | null;
+  cliente_id?: string | null;
   desconto_tipo?: DescontoTipo | null;
   desconto_valor?: number;
   observacoes?: string | null;

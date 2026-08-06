@@ -24,6 +24,7 @@ import { estoqueRouter } from './src/server/routes/estoque.js';
 import { promocoesRouter } from './src/server/routes/promocoes.js';
 import { vendasRouter } from './src/server/routes/vendas.js';
 import { orcamentosRouter } from './src/server/routes/orcamentos.js';
+import { clientesRouter } from './src/server/routes/clientes.js';
 import { caixaRouter } from './src/server/routes/caixa.js';
 import { uploadRouter } from './src/server/routes/upload.js';
 import { usuariosRouter } from './src/server/routes/usuarios.js';
@@ -261,6 +262,7 @@ async function startServer() {
   app.use('/api/promocoes', autorizar('admin', 'equipe'), promocoesRouter(supabase));
   app.use('/api/vendas', autorizar('admin', 'equipe'), vendasRouter(supabase));
   app.use('/api/orcamentos', autorizar('admin', 'equipe'), orcamentosRouter(supabase));
+  app.use('/api/clientes', autorizar('admin', 'equipe'), clientesRouter(supabase));
   app.use('/api/caixa', autorizar('admin', 'equipe'), caixaRouter(supabase));
   app.use('/api/upload', autorizar('admin', 'equipe'), uploadRouter());
   app.use('/api/tarefas', tarefasRouter(supabase));

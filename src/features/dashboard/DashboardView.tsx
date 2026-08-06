@@ -19,6 +19,8 @@ import {
   CheckCircle2,
   Clock,
   Inbox,
+  Users,
+  UserX,
 } from 'lucide-react';
 import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn, parseLocalDate } from '../../utils';
@@ -28,6 +30,7 @@ import { MetricCard } from '../../components/ui/MetricCard';
 import { AlertBar } from '../../components/ui/AlertBar';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { clientesSumidos, rankingTopClientes } from '../clientes/metricas';
 import type { Estoque } from '../estoque/types';
 import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
@@ -178,14 +181,18 @@ export function DashboardView({
   onTabChange,
   onOpenSearch,
   onNavigateEstoqueBaixo,
+  onNavigateCliente,
+  onNavigateClientesSumidos,
 }: {
   theme?: 'light' | 'dark';
   onSelectItem: (item: Estoque | Venda) => void;
   onTabChange: (tab: string) => void;
   onOpenSearch?: () => void;
   onNavigateEstoqueBaixo?: () => void;
+  onNavigateCliente?: (clienteId: string) => void;
+  onNavigateClientesSumidos?: () => void;
 }) {
-  const { estoque, vendas, caixa, orcamentos, loading } = useData();
+  const { estoque, vendas, caixa, orcamentos, clientes, loading } = useData();
   const [searchTerm, setSearchTerm] = useState('');
 
   const userName = (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'Admin';
@@ -225,8 +232,11 @@ export function DashboardView({
       .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
       .slice(0, 5);
 
-    return { valorTotalEstoque, totalUnidadesEstoque, itensEstoqueBaixo, vendasMes, valorVendasMes, ticketMedio, valorSaidasMes, ultimasVendas, pendencias };
-  }, [estoque, vendas, caixa, orcamentos]);
+    const sumidos = clientesSumidos(clientes, vendas, orcamentos);
+    const topClientes = rankingTopClientes(clientes, vendas, orcamentos, { limite: 5 });
+
+    return { valorTotalEstoque, totalUnidadesEstoque, itensEstoqueBaixo, vendasMes, valorVendasMes, ticketMedio, valorSaidasMes, ultimasVendas, pendencias, sumidos, topClientes };
+  }, [estoque, vendas, caixa, orcamentos, clientes]);
 
   // Saldo líquido diário (entradas - saídas) dos últimos 30 dias — série
   // única pro gráfico de área, com o valor de hoje sempre na última posição.
@@ -338,7 +348,7 @@ export function DashboardView({
         />
       </div>
 
-      {/* 3. Alerta de estoque baixo */}
+      {/* 3. Alertas */}
       {metrics.itensEstoqueBaixo.length > 0 && (
         <AlertBar
           tom="warning"
@@ -346,6 +356,15 @@ export function DashboardView({
           mensagem={`${metrics.itensEstoqueBaixo.length} peça(s) com estoque baixo (≤ 2 unidades)`}
           acaoLabel="Ver itens"
           onAcao={() => onNavigateEstoqueBaixo?.()}
+        />
+      )}
+      {metrics.sumidos.length > 0 && (
+        <AlertBar
+          tom="warning"
+          icone={UserX}
+          mensagem={`${metrics.sumidos.length} cliente(s) sem comprar há 90+ dias`}
+          acaoLabel="Ver clientes"
+          onAcao={() => onNavigateClientesSumidos?.()}
         />
       )}
 
@@ -457,6 +476,29 @@ export function DashboardView({
           )}
         </PanelCard>
       </div>
+
+      {/* 6. Top clientes */}
+      <PanelCard titulo="Top clientes" acaoLabel="Ver todos" onAcao={() => onTabChange('clientes')}>
+        {metrics.topClientes.length === 0 ? (
+          <EmptyState icone={Users} mensagem="Nenhuma venda vinculada a um cliente cadastrado ainda." />
+        ) : (
+          <div className="divide-y divide-border-subtle">
+            {metrics.topClientes.map(({ cliente, totalGasto, quantidadeCompras }) => (
+              <div key={cliente.id}>
+                <LinhaAtividade
+                  icone={Users}
+                  tom="positive"
+                  titulo={cliente.nome}
+                  legenda={`${quantidadeCompras} compra${quantidadeCompras === 1 ? '' : 's'}`}
+                  data={cliente.telefone || ''}
+                  valor={totalGasto}
+                  onClick={() => onNavigateCliente?.(cliente.id)}
+                />
+              </div>
+            ))}
+          </div>
+        )}
+      </PanelCard>
     </div>
   );
 }

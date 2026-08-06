@@ -1,0 +1,157 @@
+// Cadastro de clientes — histórico de compras vem de vendas/orçamentos
+// vinculados por cliente_id (ver vendas.ts/orcamentos.ts), calculado no
+// frontend a partir dos dados já carregados (ver src/features/clientes/
+// metricas.ts). Esta rota só cuida do cadastro em si e da timeline de notas.
+import { Router } from 'express';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+
+const SELECT_COM_NOTAS = '*, notas:clientes_notas(*, autor:usuarios(id, nome_exibicao))';
+
+const CAMPOS_EDITAVEIS = ['nome', 'telefone', 'documento', 'data_nascimento', 'origem', 'preferencia_contato', 'tags', 'observacoes', 'ativo'] as const;
+
+function normalizarTags(tags: unknown): string[] | undefined {
+  if (!Array.isArray(tags)) return undefined;
+  const limpas = tags.map((t) => String(t).trim().toLowerCase()).filter(Boolean);
+  return Array.from(new Set(limpas));
+}
+
+export function clientesRouter(supabase: SupabaseClient) {
+  const router = Router();
+
+  // Por padrão só lista ativos — ?incluir_inativos=true traz todos, usado
+  // pela tela de reativação.
+  router.get('/', async (req, res) => {
+    try {
+      let query = supabase.from('clientes').select('*').order('nome');
+      if (req.query.incluir_inativos !== 'true') query = query.eq('ativo', true);
+      const { data, error } = await query;
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao listar clientes:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.get('/:id', async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select(SELECT_COM_NOTAS)
+        .eq('id', req.params.id)
+        .order('criado_em', { foreignTable: 'clientes_notas', ascending: false })
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Cliente não encontrado' });
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao buscar cliente:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/', async (req, res) => {
+    try {
+      const nome = String(req.body?.nome || '').trim();
+      if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
+
+      const payload = {
+        nome,
+        telefone: req.body?.telefone ? String(req.body.telefone).trim() : null,
+        documento: req.body?.documento ? String(req.body.documento).trim() : null,
+        data_nascimento: req.body?.data_nascimento || null,
+        origem: req.body?.origem || null,
+        preferencia_contato: req.body?.preferencia_contato || null,
+        tags: normalizarTags(req.body?.tags) ?? [],
+        observacoes: req.body?.observacoes ? String(req.body.observacoes).trim() : null,
+      };
+
+      const { data, error } = await supabase.from('clientes').insert(payload).select('*').single();
+      if (error) {
+        if (error.code === '23505') {
+          return res.status(409).json({ success: false, error: 'Já existe um cliente cadastrado com este documento' });
+        }
+        throw error;
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao criar cliente:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id', async (req, res) => {
+    try {
+      const payload: Record<string, any> = {};
+      for (const campo of CAMPOS_EDITAVEIS) {
+        if (req.body?.[campo] === undefined) continue;
+        if (campo === 'nome') {
+          const nome = String(req.body.nome).trim();
+          if (!nome) return res.status(400).json({ success: false, error: 'Nome não pode ficar em branco' });
+          payload.nome = nome;
+        } else if (campo === 'tags') {
+          payload.tags = normalizarTags(req.body.tags) ?? [];
+        } else if (campo === 'ativo') {
+          payload.ativo = Boolean(req.body.ativo);
+        } else {
+          payload[campo] = req.body[campo] === '' ? null : req.body[campo];
+        }
+      }
+
+      const { data, error } = await supabase.from('clientes').update(payload).eq('id', req.params.id).select('*').maybeSingle();
+      if (error) {
+        if (error.code === '23505') {
+          return res.status(409).json({ success: false, error: 'Já existe um cliente cadastrado com este documento' });
+        }
+        throw error;
+      }
+      if (!data) return res.status(404).json({ success: false, error: 'Cliente não encontrado' });
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao atualizar cliente:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/:id/notas', async (req: AuthenticatedRequest, res) => {
+    try {
+      const texto = String(req.body?.texto || '').trim();
+      if (!texto) return res.status(400).json({ success: false, error: 'Texto da nota é obrigatório' });
+
+      const { data, error } = await supabase
+        .from('clientes_notas')
+        .insert({ cliente_id: req.params.id, texto, criado_por: req.usuario!.id })
+        .select('*, autor:usuarios(id, nome_exibicao)')
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao adicionar nota:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Só quem escreveu a nota ou um admin pode apagá-la — mesma regra de
+  // carregarTarefaEditavel em tarefas.ts.
+  router.delete('/:id/notas/:notaId', async (req: AuthenticatedRequest, res) => {
+    try {
+      const roles = req.usuario?.roles ?? [];
+      const { data: nota, error: erroBusca } = await supabase.from('clientes_notas').select('id, criado_por').eq('id', req.params.notaId).maybeSingle();
+      if (erroBusca) throw erroBusca;
+      if (!nota) return res.status(404).json({ success: false, error: 'Nota não encontrada' });
+      if (!roles.includes('admin') && nota.criado_por !== req.usuario!.id) {
+        return res.status(403).json({ success: false, error: 'Só quem escreveu a nota pode excluí-la' });
+      }
+
+      const { error } = await supabase.from('clientes_notas').delete().eq('id', req.params.notaId);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao excluir nota:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  return router;
+}

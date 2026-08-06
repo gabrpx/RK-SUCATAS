@@ -3,20 +3,25 @@
 // próprias. Um componente só, dois modos de renderização por papel — ver
 // App.tsx (TAB_ROLES) pra quem enxerga esta aba.
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2 } from 'lucide-react';
+import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, MapPin, Phone } from 'lucide-react';
 import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
 import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
+import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useTarefas } from './useTarefas';
 import { tarefasApi } from './api';
 import { EXECUTORES_TAREFA } from '../../constants/roles';
 import type { Role } from '../../constants/roles';
-import type { Tarefa, TarefaInput, UsuarioResumo } from './types';
+import type { Tarefa, TarefaInput, TarefaPrioridade, UsuarioResumo } from './types';
 
-const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '' };
+const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral' };
+
+const PRIORIDADE_LABELS: Record<TarefaPrioridade, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
+const PRIORIDADE_TONS: Record<TarefaPrioridade, StatusTone> = { baixa: 'neutral', media: 'warning', alta: 'danger' };
 
 function formatarPrazo(prazo: string | null) {
   if (!prazo) return null;
@@ -102,16 +107,32 @@ function VisaoResponsavel({
               <div key={tarefa.id} className="bg-surface-card border border-border-subtle rounded-card p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className={cn('text-base font-medium text-text-primary', concluida && 'line-through opacity-60')}>{tarefa.titulo}</p>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      {tarefa.tipo === 'visita' && <MapPin size={13} className="text-accent shrink-0" />}
+                      <p className={cn('text-base font-medium text-text-primary', concluida && 'line-through opacity-60')}>{tarefa.titulo}</p>
+                    </div>
                     {tarefa.descricao && <p className="text-sm text-text-secondary mt-1">{tarefa.descricao}</p>}
+                    {tarefa.cliente && (
+                      <p className="text-xs text-text-faint mt-1 flex items-center gap-1.5">
+                        {tarefa.cliente.nome}
+                        {tarefa.cliente.telefone && (
+                          <span className="inline-flex items-center gap-0.5">
+                            <Phone size={10} /> {tarefa.cliente.telefone}
+                          </span>
+                        )}
+                      </p>
+                    )}
                   </div>
-                  {concluida ? (
-                    <StatusBadge texto="Concluída" tom="positive" />
-                  ) : vencida ? (
-                    <StatusBadge texto="Atrasada" tom="danger" />
-                  ) : (
-                    <StatusBadge texto="Pendente" tom="warning" />
-                  )}
+                  <div className="flex flex-col items-end gap-1 shrink-0">
+                    {concluida ? (
+                      <StatusBadge texto="Concluída" tom="positive" />
+                    ) : vencida ? (
+                      <StatusBadge texto="Atrasada" tom="danger" />
+                    ) : (
+                      <StatusBadge texto="Pendente" tom="warning" />
+                    )}
+                    {!concluida && tarefa.prioridade !== 'media' && <StatusBadge texto={PRIORIDADE_LABELS[tarefa.prioridade]} tom={PRIORIDADE_TONS[tarefa.prioridade]} />}
+                  </div>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
@@ -170,6 +191,8 @@ function VisaoCriador({
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editando, setEditando] = useState<Tarefa | null>(null);
   const [form, setForm] = useState<TarefaInput>(EMPTY_FORM);
+  // Só pra exibição no SeletorCliente — o que de fato é salvo é form.cliente_id.
+  const [clienteNomeTexto, setClienteNomeTexto] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState<Tarefa | null>(null);
@@ -188,13 +211,23 @@ function VisaoCriador({
   const abrirCriar = () => {
     setEditando(null);
     setForm({ ...EMPTY_FORM, atribuido_para: responsaveis[0]?.id || '' });
+    setClienteNomeTexto('');
     setErroForm(null);
     setIsFormOpen(true);
   };
 
   const abrirEditar = (tarefa: Tarefa) => {
     setEditando(tarefa);
-    setForm({ titulo: tarefa.titulo, descricao: tarefa.descricao || '', prazo: paraDatetimeLocal(tarefa.prazo), atribuido_para: tarefa.atribuido_para });
+    setForm({
+      titulo: tarefa.titulo,
+      descricao: tarefa.descricao || '',
+      prazo: paraDatetimeLocal(tarefa.prazo),
+      atribuido_para: tarefa.atribuido_para,
+      cliente_id: tarefa.cliente_id,
+      prioridade: tarefa.prioridade,
+      tipo: tarefa.tipo,
+    });
+    setClienteNomeTexto(tarefa.cliente?.nome || '');
     setErroForm(null);
     setIsFormOpen(true);
   };
@@ -210,6 +243,9 @@ function VisaoCriador({
       descricao: form.descricao?.trim() || null,
       prazo: form.prazo ? new Date(form.prazo).toISOString() : null,
       atribuido_para: form.atribuido_para,
+      cliente_id: form.cliente_id || null,
+      prioridade: form.prioridade || 'media',
+      tipo: form.tipo || 'geral',
     };
     try {
       const result = editando ? await tarefasApi.atualizar(editando.id, payload) : await tarefasApi.criar(payload);
@@ -262,8 +298,12 @@ function VisaoCriador({
       header: 'Tarefa',
       render: (t) => (
         <div className="flex flex-col">
-          <span className="text-sm font-medium text-text-primary">{t.titulo}</span>
+          <span className="text-sm font-medium text-text-primary flex items-center gap-1.5">
+            {t.tipo === 'visita' && <MapPin size={12} className="text-accent shrink-0" />}
+            {t.titulo}
+          </span>
           {t.descricao && <span className="text-xs text-text-faint line-clamp-1">{t.descricao}</span>}
+          {t.cliente && <span className="text-xs text-text-faint">{t.cliente.nome}</span>}
         </div>
       ),
     },
@@ -272,6 +312,11 @@ function VisaoCriador({
       key: 'prazo',
       header: 'Prazo',
       render: (t) => (t.prazo ? <span className={cn(estaVencida(t) && 'text-danger font-medium')}>{formatarPrazo(t.prazo)}</span> : '—'),
+    },
+    {
+      key: 'prioridade',
+      header: 'Prioridade',
+      render: (t) => <StatusBadge texto={PRIORIDADE_LABELS[t.prioridade]} tom={PRIORIDADE_TONS[t.prioridade]} />,
     },
     {
       key: 'status',
@@ -318,8 +363,12 @@ function VisaoCriador({
       <div>
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-text-primary truncate">{t.titulo}</p>
+            <p className="text-sm font-medium text-text-primary truncate flex items-center gap-1.5">
+              {t.tipo === 'visita' && <MapPin size={12} className="text-accent shrink-0" />}
+              {t.titulo}
+            </p>
             {t.descricao && <p className="text-xs text-text-faint line-clamp-1">{t.descricao}</p>}
+            {t.cliente && <p className="text-xs text-text-faint">{t.cliente.nome}</p>}
           </div>
           <div className="flex items-center gap-1 shrink-0">
             <button
@@ -356,6 +405,7 @@ function VisaoCriador({
           )}
           <span className="text-xs text-text-faint">{t.atribuido?.nome_exibicao || '—'}</span>
           {t.prazo && <span className={cn('text-xs', estaVencida(t) ? 'text-danger font-medium' : 'text-text-faint')}>{formatarPrazo(t.prazo)}</span>}
+          <StatusBadge texto={PRIORIDADE_LABELS[t.prioridade]} tom={PRIORIDADE_TONS[t.prioridade]} />
         </div>
       </div>
     );
@@ -430,9 +480,30 @@ function VisaoCriador({
             </div>
             <div className="p-6 space-y-4">
               {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
+              <div className="flex items-center gap-2">
+                {(['geral', 'visita'] as const).map((tipo) => (
+                  <button
+                    key={tipo}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, tipo }))}
+                    className={cn(
+                      'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                      form.tipo === tipo ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                    )}
+                  >
+                    {tipo === 'visita' && <MapPin size={12} />}
+                    {tipo === 'geral' ? 'Tarefa geral' : 'Visita à loja'}
+                  </button>
+                ))}
+              </div>
               <div>
                 <label className={labelClass}>Título</label>
-                <input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} className={inputClass} placeholder="ex: Buscar peça no fornecedor" />
+                <input
+                  value={form.titulo}
+                  onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+                  className={inputClass}
+                  placeholder={form.tipo === 'visita' ? 'ex: Visita pra ver a moto' : 'ex: Buscar peça no fornecedor'}
+                />
               </div>
               <div>
                 <label className={labelClass}>Descrição</label>
@@ -443,9 +514,21 @@ function VisaoCriador({
                   placeholder="Detalhes do que precisa ser feito"
                 />
               </div>
-              <div>
-                <label className={labelClass}>Prazo</label>
-                <input type="datetime-local" value={form.prazo || ''} onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))} className={inputClass} />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Prazo</label>
+                  <input type="datetime-local" value={form.prazo || ''} onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))} className={inputClass} />
+                </div>
+                <div>
+                  <label className={labelClass}>Prioridade</label>
+                  <select value={form.prioridade} onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value as TarefaPrioridade }))} className={inputClass}>
+                    {(['baixa', 'media', 'alta'] as const).map((p) => (
+                      <option key={p} value={p}>
+                        {PRIORIDADE_LABELS[p]}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
               <div>
                 <label className={labelClass}>Responsável</label>
@@ -456,6 +539,18 @@ function VisaoCriador({
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className={labelClass}>Cliente (opcional)</label>
+                <SeletorCliente
+                  clienteId={form.cliente_id || null}
+                  nome={clienteNomeTexto}
+                  onChange={(id, nome) => {
+                    setForm((f) => ({ ...f, cliente_id: id }));
+                    setClienteNomeTexto(nome);
+                  }}
+                  placeholder="Vincular a um cliente cadastrado"
+                />
               </div>
             </div>
             <div className="flex gap-3 p-6 border-t border-border-subtle">

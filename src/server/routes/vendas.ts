@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const SELECT_COM_JOIN = '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome)';
+const SELECT_COM_JOIN = '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome), cliente:clientes(id, nome, telefone)';
 
 export function vendasRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -23,7 +23,7 @@ export function vendasRouter(supabase: SupabaseClient) {
 
   router.post('/', async (req, res) => {
     try {
-      const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, observacoes, data, componente } = req.body || {};
+      const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, cliente_id, observacoes, data, componente } = req.body || {};
 
       if (!estoque_id) return res.status(400).json({ success: false, error: 'estoque_id é obrigatório' });
       if (!quantidade || Number(quantidade) <= 0) return res.status(400).json({ success: false, error: 'Quantidade inválida' });
@@ -44,6 +44,7 @@ export function vendasRouter(supabase: SupabaseClient) {
         // Nome de uma parte cadastrada em estoque.componentes — quando
         // informado, dá baixa só nela (ver comentário em registrar_venda).
         p_componente: componente || null,
+        p_cliente_id: cliente_id || null,
       });
 
       if (error) throw error;
@@ -61,7 +62,7 @@ export function vendasRouter(supabase: SupabaseClient) {
   router.patch('/:id', async (req, res) => {
     try {
       const payload: Record<string, any> = {};
-      for (const campo of ['forma_pagamento_id', 'observacoes', 'cliente_nome'] as const) {
+      for (const campo of ['forma_pagamento_id', 'observacoes', 'cliente_nome', 'cliente_id'] as const) {
         if (req.body[campo] !== undefined) payload[campo] = req.body[campo];
       }
       const { data, error } = await supabase.from('vendas').update(payload).eq('id', req.params.id).select(SELECT_COM_JOIN).single();

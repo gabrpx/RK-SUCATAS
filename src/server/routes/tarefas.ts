@@ -9,11 +9,14 @@ import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { EXECUTORES_TAREFA } from '../../constants/roles.js';
 import type { Role } from '../../constants/roles.js';
 
-const SELECT_COM_JOINS = '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao)';
+const SELECT_COM_JOINS = '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone)';
 
-const CAMPOS_EDITAVEIS = ['titulo', 'descricao', 'prazo', 'atribuido_para'] as const;
+const CAMPOS_EDITAVEIS = ['titulo', 'descricao', 'prazo', 'atribuido_para', 'cliente_id', 'prioridade', 'tipo'] as const;
 
 const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo com papel "mandados" ou "mecanico"';
+
+const PRIORIDADES_VALIDAS = ['baixa', 'media', 'alta'] as const;
+const TIPOS_VALIDOS = ['geral', 'visita'] as const;
 
 function responsavelValido(responsavel: { roles: string[]; ativo: boolean } | null): boolean {
   return !!responsavel && responsavel.roles.some((r) => EXECUTORES_TAREFA.includes(r as Role)) && responsavel.ativo;
@@ -49,6 +52,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
       } else {
         if (req.query.status) query = query.eq('status', String(req.query.status));
         if (req.query.atribuido_para) query = query.eq('atribuido_para', String(req.query.atribuido_para));
+        if (req.query.cliente_id) query = query.eq('cliente_id', String(req.query.cliente_id));
       }
 
       const { data, error } = await query;
@@ -72,6 +76,15 @@ export function tarefasRouter(supabase: SupabaseClient) {
       if (!titulo) return res.status(400).json({ success: false, error: 'Título é obrigatório' });
       if (!atribuido_para) return res.status(400).json({ success: false, error: 'Responsável é obrigatório' });
 
+      const prioridade = req.body?.prioridade || 'media';
+      if (!PRIORIDADES_VALIDAS.includes(prioridade)) {
+        return res.status(400).json({ success: false, error: 'Prioridade inválida' });
+      }
+      const tipo = req.body?.tipo || 'geral';
+      if (!TIPOS_VALIDOS.includes(tipo)) {
+        return res.status(400).json({ success: false, error: 'Tipo de tarefa inválido' });
+      }
+
       const { data: responsavel, error: erroResponsavel } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', atribuido_para).maybeSingle();
       if (erroResponsavel) throw erroResponsavel;
       if (!responsavelValido(responsavel)) {
@@ -84,6 +97,9 @@ export function tarefasRouter(supabase: SupabaseClient) {
         prazo: req.body?.prazo || null,
         atribuido_para,
         criado_por: req.usuario!.id,
+        cliente_id: req.body?.cliente_id || null,
+        prioridade,
+        tipo,
       };
 
       const { data, error } = await supabase.from('tarefas').insert(payload).select(SELECT_COM_JOINS).single();

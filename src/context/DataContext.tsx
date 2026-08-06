@@ -9,6 +9,7 @@ import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 import type { CaixaEntry } from '../features/caixa/types';
 import type { Orcamento } from '../features/orcamentos/types';
+import type { Cliente } from '../features/clientes/types';
 
 const CACHE_TIME_MS = 5 * 1000;
 const POLL_INTERVAL_MS = 10 * 1000;
@@ -18,6 +19,7 @@ interface DataContextValue {
   vendas: Venda[];
   caixa: CaixaEntry[];
   orcamentos: Orcamento[];
+  clientes: Cliente[];
   loading: boolean;
   /** true quando a última tentativa de buscar o estoque falhou — distingue
    *  "deu erro" de "está vazio mesmo", pra tela não mostrar uma coisa pela outra. */
@@ -26,6 +28,7 @@ interface DataContextValue {
   setVendas: React.Dispatch<React.SetStateAction<Venda[]>>;
   setCaixa: React.Dispatch<React.SetStateAction<CaixaEntry[]>>;
   setOrcamentos: React.Dispatch<React.SetStateAction<Orcamento[]>>;
+  setClientes: React.Dispatch<React.SetStateAction<Cliente[]>>;
   refreshData: () => Promise<void>;
   showSensitiveInfo: boolean;
   setShowSensitiveInfo: React.Dispatch<React.SetStateAction<boolean>>;
@@ -36,12 +39,14 @@ export const DataContext = createContext<DataContextValue>({
   vendas: [],
   caixa: [],
   orcamentos: [],
+  clientes: [],
   loading: false,
   estoqueError: false,
   setEstoque: () => {},
   setVendas: () => {},
   setCaixa: () => {},
   setOrcamentos: () => {},
+  setClientes: () => {},
   refreshData: async () => {},
   showSensitiveInfo: true,
   setShowSensitiveInfo: () => {},
@@ -75,6 +80,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [vendas, setVendas] = useState<Venda[]>(() => readCache('rk_vendas', []));
   const [caixa, setCaixa] = useState<CaixaEntry[]>(() => readCache('rk_caixa', []));
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>(() => readCache('rk_orcamentos', []));
+  const [clientes, setClientes] = useState<Cliente[]>(() => readCache('rk_clientes', []));
   const [loading, setLoading] = useState(false);
   const [estoqueError, setEstoqueError] = useState(false);
   const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
@@ -117,9 +123,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/vendas') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes') : Promise.resolve(null),
     ]);
 
-    const [estoqueRes, vendasRes, caixaRes, orcamentosRes] = results;
+    const [estoqueRes, vendasRes, caixaRes, orcamentosRes, clientesRes] = results;
 
     let falhouEstoque = false;
     if (estoqueRes.status === 'fulfilled') {
@@ -181,6 +188,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar orçamentos:', orcamentosRes.reason);
     }
 
+    if (clientesRes.status === 'fulfilled' && clientesRes.value) {
+      try {
+        const data = await parseJson(clientesRes.value);
+        if (data.success) setClientes(prev => applyIfChanged(prev, data.data, 'rk_clientes'));
+      } catch (e) {
+        console.error('Erro ao processar clientes:', e);
+      }
+    } else if (clientesRes.status === 'rejected') {
+      console.error('Erro ao buscar clientes:', clientesRes.reason);
+    }
+
     lastFetchRef.current = now;
     setLoading(false);
   };
@@ -203,12 +221,14 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         vendas,
         caixa,
         orcamentos,
+        clientes,
         loading,
         estoqueError,
         setEstoque,
         setVendas,
         setCaixa,
         setOrcamentos,
+        setClientes,
         refreshData: () => loadData(true),
         showSensitiveInfo,
         setShowSensitiveInfo,

@@ -1,4 +1,5 @@
 import type { ModeloMoto, FormaPagamento } from '../../types/catalog';
+import type { ClienteResumo } from '../clientes/types';
 
 export interface Venda {
   id: string;
@@ -12,6 +13,8 @@ export interface Venda {
   modelo_moto_id: string | null;
   modelo_moto?: ModeloMoto | null;
   cliente_nome: string | null;
+  cliente_id: string | null;
+  cliente?: ClienteResumo | null;
   observacoes: string | null;
   // Nome da parte vendida avulsa (ex: "Inferior"), quando a venda não é do
   // item inteiro — ver estoque.componentes / estoque.unidades_incompletas.
@@ -36,6 +39,7 @@ export interface VendaInput {
   forma_pagamento_id: string;
   modelo_moto_id?: string | null;
   cliente_nome?: string | null;
+  cliente_id?: string | null;
   observacoes?: string | null;
   data?: string;
   // Quando informado, vende só essa parte do item (não desconta a unidade
