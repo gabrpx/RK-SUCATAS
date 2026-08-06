@@ -19,7 +19,10 @@ import { clientesApi } from './api';
 import { calcularHistoricoCliente, calcularSegmento, SEGMENTO_LABELS, SEGMENTO_TONS } from './metricas';
 import { gerarCsvHistoricoCliente, baixarCsv } from './exportarHistoricoCsv';
 import { useTarefas } from '../tarefas/useTarefas';
+import { comprovantesApi } from '../comprovantes/api';
+import { ComprovanteListItem } from '../comprovantes/ComprovantesPixVenda';
 import type { Cliente, ClienteInput, ClienteNota, ClienteOrigem, PreferenciaContato, ClienteMotoInput, PecaProcuradaInput, PecaProcuradaStatus } from './types';
+import type { Role } from '../../constants/roles';
 
 const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = { aguardando: 'Aguardando', atendida: 'Atendida', cancelada: 'Cancelada' };
 const PECA_STATUS_TONS: Record<PecaProcuradaStatus, 'warning' | 'positive' | 'neutral'> = { aguardando: 'warning', atendida: 'positive', cancelada: 'neutral' };
@@ -72,12 +75,15 @@ export function ClientesView({
   setPendingClienteId,
   pendingFiltroSumidos,
   setPendingFiltroSumidos,
+  userRoles = [],
 }: {
   pendingClienteId?: string | null;
   setPendingClienteId?: (id: string | null) => void;
   pendingFiltroSumidos?: boolean;
   setPendingFiltroSumidos?: (v: boolean) => void;
+  userRoles?: Role[];
 }) {
+  const podeExcluirComprovante = userRoles.includes('admin');
   const { clientes, vendas, orcamentos, refreshData, loading } = useData();
   const { tarefas } = useTarefas();
   const { modelos, categorias } = useCatalogos();
@@ -332,6 +338,20 @@ export function ClientesView({
       setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: (prev.pecas_procuradas || []).filter((p) => p.id !== pedidoId) } : prev));
     } catch (err: any) {
       aviso.falha(err, 'Erro ao excluir peça procurada');
+    }
+  };
+
+  // Soft-delete, só admin — o backend nunca apaga o arquivo do Storage (ver
+  // migration_036). Comprovante sem venda_id (venda cancelada) não tem como
+  // ser removido por aqui — a rota de exclusão vive em /api/vendas/:id/comprovantes.
+  const removerComprovante = async (comprovanteId: string, vendaId: string | null) => {
+    if (!clienteAberto || !vendaId) return;
+    try {
+      const result = await comprovantesApi.remover(vendaId, comprovanteId);
+      if (!result.success) throw new Error(result.error);
+      setClienteAberto((prev) => (prev ? { ...prev, comprovantes_pix: (prev.comprovantes_pix || []).filter((c) => c.id !== comprovanteId) } : prev));
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao excluir comprovante');
     }
   };
 
@@ -895,6 +915,32 @@ export function ClientesView({
                   </div>
                 ) : (
                   <p className="text-xs text-text-faint">Nenhuma anotação registrada ainda.</p>
+                )}
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
+                  <Receipt size={12} /> Comprovantes de PIX
+                </p>
+                {carregandoFicha ? (
+                  <div className="py-4 flex items-center justify-center text-text-faint">
+                    <Loader2 size={16} className="animate-spin" />
+                  </div>
+                ) : (clienteAberto.comprovantes_pix || []).length === 0 ? (
+                  <p className="text-xs text-text-faint">Nenhum comprovante anexado ainda.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {clienteAberto.comprovantes_pix!.map((c) => (
+                      <div key={c.id}>
+                        <ComprovanteListItem
+                          comprovante={c}
+                          legenda={c.venda?.nome_item}
+                          podeExcluir={podeExcluirComprovante && !!c.venda_id}
+                          onExcluir={(comp) => removerComprovante(comp.id, comp.venda_id)}
+                        />
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             </div>

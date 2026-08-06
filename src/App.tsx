@@ -66,6 +66,8 @@ import { UnidadesEstoque } from './features/estoque/UnidadesEstoque';
 import { contarAvarias } from './features/estoque/valorEstoque';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
 import { PromocaoBadge } from './features/promocoes/PromocaoBadge';
+import { ComprovantesPixVenda } from './features/comprovantes/ComprovantesPixVenda';
+import { VendaClienteResumo } from './features/vendas/VendaClienteResumo';
 import { TAB_ROLES } from './constants/roles';
 import type { Role } from './constants/roles';
 import type { Estoque } from './features/estoque/types';
@@ -238,6 +240,8 @@ function DetailModal({
   onDelete,
   readOnly,
   onAlterado,
+  userRoles,
+  onAbrirFiado,
 }: {
   item: DetailItem;
   onClose: () => void;
@@ -246,6 +250,8 @@ function DetailModal({
   onDelete?: (id: string) => void;
   readOnly?: boolean;
   onAlterado?: () => void;
+  userRoles: Role[];
+  onAbrirFiado?: () => void;
 }) {
   useScrollLock(true);
 
@@ -378,6 +384,27 @@ function DetailModal({
                 </>
               )}
             </div>
+
+            {venda && (
+              <div className="space-y-4">
+                <ComprovantesPixVenda vendaId={venda.id} podeExcluir={userRoles.includes('admin')} readOnly={readOnly} />
+                {venda.cliente_id && (
+                  <VendaClienteResumo
+                    clienteId={venda.cliente_id}
+                    venda={venda}
+                    podeExcluirComprovante={userRoles.includes('admin')}
+                    onAbrirFiado={
+                      onAbrirFiado
+                        ? () => {
+                            onAbrirFiado();
+                            onClose();
+                          }
+                        : undefined
+                    }
+                  />
+                )}
+              </div>
+            )}
 
             {(estoque?.descricao || venda?.observacoes) && (
               <div className={cn('p-6 rounded-3xl border space-y-2', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}>
@@ -681,6 +708,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   setPendingClienteId={setPendingClienteId}
                   pendingFiltroSumidos={pendingFiltroSumidos}
                   setPendingFiltroSumidos={setPendingFiltroSumidos}
+                  userRoles={userRoles}
                 />
               ) : activeTab === 'fiado' ? (
                 <FiadoView />
@@ -718,6 +746,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             onDelete={itemActions.delete}
             readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
             onAlterado={refreshData}
+            userRoles={userRoles}
+            onAbrirFiado={() => setActiveTab('fiado')}
           />
         )}
       </AnimatePresence>

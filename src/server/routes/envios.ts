@@ -4,14 +4,14 @@
 // Envio quando o envio tem melhor_envio_order_id (ou seja, foi de fato
 // comprado por ela, não só cotado ou postado por outra transportadora).
 //
-// A chamada externa é tratada como best-effort: se o token não tiver o
-// escopo de rastreio, ou o pedido não existir do lado do Melhor Envio, o
-// erro vai pra status_detalhe e a resposta continua 200 — o registro do
-// envio em si não depende da API externa funcionar (ver plano da Fase 2).
+// A chamada externa em si (e o rastreio automático em background) vive em
+// src/services/rastreioMelhorEnvioService.ts — reutilizado também pelo
+// scheduler (ver enviosScheduler.ts), pra não duplicar a lógica nos dois
+// lugares. Aqui é só o CRUD + a rota manual que aciona esse serviço.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import axios from 'axios';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+import { rastrearEnvio } from '../../services/rastreioMelhorEnvioService.js';
 
 const SELECT_COM_JOIN = '*, cliente:clientes(id, nome, telefone)';
 
@@ -29,19 +29,6 @@ const CAMPOS_EDITAVEIS = [
   'valor_frete',
   'status',
 ] as const;
-
-// Tradução best-effort de status da API do Melhor Envio pro nosso enum —
-// nomes de status exatos ainda não confirmados contra a API real (ver risco
-// no plano da Fase 2); qualquer status não reconhecido só fica registrado
-// em status_detalhe, sem tentar adivinhar o mapeamento.
-function mapearStatusExterno(statusExterno: string | undefined | null): (typeof STATUS_VALIDOS)[number] | null {
-  const s = (statusExterno || '').toLowerCase();
-  if (['delivered', 'entregue'].includes(s)) return 'entregue';
-  if (['posted', 'released', 'postado'].includes(s)) return 'postado';
-  if (['in_transit', 'transit', 'em_transito'].includes(s)) return 'em_transito';
-  if (['cancelled', 'canceled', 'cancelado'].includes(s)) return 'cancelado';
-  return null;
-}
 
 export function enviosRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -122,37 +109,7 @@ export function enviosRouter(supabase: SupabaseClient) {
       if (erroBusca) throw erroBusca;
       if (!envio) return res.status(404).json({ success: false, error: 'Envio não encontrado' });
 
-      const atualizacao: Record<string, any> = { status_atualizado_em: new Date().toISOString() };
-
-      if (!envio.melhor_envio_order_id) {
-        atualizacao.status_detalhe = 'Sem número de pedido do Melhor Envio — status é só manual pra este envio.';
-      } else {
-        try {
-          const token = process.env.MELHOR_ENVIO_TOKEN;
-          const response = await axios.post(
-            'https://melhorenvio.com.br/api/v2/me/shipment/tracking',
-            { orders: [envio.melhor_envio_order_id] },
-            {
-              headers: {
-                Authorization: `Bearer ${token}`,
-                'Content-Type': 'application/json',
-                Accept: 'application/json',
-                'User-Agent': 'RK Sucatas (contato@rksucatas.com.br)',
-              },
-            }
-          );
-          const info = response.data?.[envio.melhor_envio_order_id] ?? response.data;
-          const statusMapeado = mapearStatusExterno(info?.status);
-          if (statusMapeado) atualizacao.status = statusMapeado;
-          atualizacao.status_detalhe = info?.tracking ? `Rastreio: ${info.tracking}` : JSON.stringify(info).slice(0, 500);
-        } catch (erroExterno: any) {
-          // Best-effort: token sem escopo de rastreio, pedido não encontrado do
-          // lado do Melhor Envio etc. — não falha a request, só registra.
-          const detalhe = erroExterno.response?.data?.message || erroExterno.message;
-          console.error('Erro ao rastrear envio via Melhor Envio:', erroExterno.response?.data || erroExterno.message);
-          atualizacao.status_detalhe = `Não foi possível atualizar automaticamente: ${detalhe}`;
-        }
-      }
+      const atualizacao = await rastrearEnvio(envio);
 
       const { data, error } = await supabase.from('envios').update(atualizacao).eq('id', req.params.id).select(SELECT_COM_JOIN).single();
       if (error) throw error;

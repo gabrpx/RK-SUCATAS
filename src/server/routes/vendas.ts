@@ -4,8 +4,13 @@
 // descontar o estoque, como acontecia no sistema antigo.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { autorizar } from '../../../middleware/auth.js';
+import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
 
 const SELECT_COM_JOIN = '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome, natureza), cliente:clientes(id, nome, telefone)';
+
+const SELECT_COMPROVANTE = '*, autor:usuarios!comprovantes_pix_criado_por_fkey(id, nome_exibicao)';
 
 export function vendasRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -90,6 +95,82 @@ export function vendasRouter(supabase: SupabaseClient) {
     } catch (error: any) {
       console.error('Erro ao cancelar venda:', error);
       res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  // Comprovantes de PIX da venda — sempre soma, nunca substitui (ver
+  // migration_036). Upload do arquivo em si acontece em POST
+  // /api/upload/comprovante; esta rota só registra o vínculo com a venda
+  // depois que o arquivo já está no Storage.
+  router.get('/:id/comprovantes', async (req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('comprovantes_pix')
+        .select(SELECT_COMPROVANTE)
+        .eq('venda_id', req.params.id)
+        .is('removido_em', null)
+        .order('criado_em', { ascending: false });
+      if (error) throw error;
+      const comUrl = await Promise.all(
+        (data ?? []).map(async (c: any) => ({ ...c, url: await gerarUrlAssinadaComprovante(c.storage_path) }))
+      );
+      res.json({ success: true, data: comUrl });
+    } catch (error: any) {
+      console.error('Erro ao listar comprovantes da venda:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/:id/comprovantes', async (req: AuthenticatedRequest, res) => {
+    try {
+      const { storage_path, nome_arquivo, tipo_mime, tamanho_bytes } = req.body || {};
+      if (!storage_path || !nome_arquivo || !tipo_mime || !tamanho_bytes) {
+        return res.status(400).json({ success: false, error: 'Dados do arquivo incompletos' });
+      }
+
+      const { data: venda, error: erroVenda } = await supabase
+        .from('vendas')
+        .select('cliente_id')
+        .eq('id', req.params.id)
+        .maybeSingle();
+      if (erroVenda) throw erroVenda;
+      if (!venda) return res.status(404).json({ success: false, error: 'Venda não encontrada' });
+
+      const { data, error } = await supabase
+        .from('comprovantes_pix')
+        .insert({
+          venda_id: req.params.id,
+          cliente_id: venda.cliente_id,
+          storage_path,
+          nome_arquivo,
+          tipo_mime,
+          tamanho_bytes,
+          criado_por: req.usuario!.id,
+        })
+        .select(SELECT_COMPROVANTE)
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data: { ...data, url: await gerarUrlAssinadaComprovante(data.storage_path) } });
+    } catch (error: any) {
+      console.error('Erro ao anexar comprovante na venda:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Soft-delete, só admin — o arquivo em si nunca é apagado do Storage (ver
+  // storageService.ts, sem função de exclusão de comprovante de propósito).
+  router.delete('/:id/comprovantes/:comprovanteId', autorizar('admin'), async (req: AuthenticatedRequest, res) => {
+    try {
+      const { error } = await supabase
+        .from('comprovantes_pix')
+        .update({ removido_em: new Date().toISOString(), removido_por: req.usuario!.id })
+        .eq('id', req.params.comprovanteId)
+        .eq('venda_id', req.params.id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao remover comprovante da venda:', error);
+      res.status(500).json({ success: false, error: error.message });
     }
   });
 

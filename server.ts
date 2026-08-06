@@ -33,6 +33,7 @@ import { usuariosRouter } from './src/server/routes/usuarios.js';
 import { tarefasRouter } from './src/server/routes/tarefas.js';
 import { mercadolivreRouter, mercadolivreCallbackHandler, mercadolivreWebhookHandler } from './src/server/routes/mercadolivre.js';
 import { iniciarDetectorDePendenciasML } from './src/services/mercadolivreScheduler.js';
+import { iniciarRastreioAutomaticoDeEnvios } from './src/services/enviosScheduler.js';
 import { EXECUTORES_TAREFA } from './src/constants/roles.js';
 
 dotenv.config();
@@ -278,6 +279,7 @@ async function startServer() {
   // Nunca muda anúncio nem grava venda sozinho — isso só acontece por clique
   // humano (ver mercadolivreSync.ts > sincronizarAnuncio/importarPedidoComoVenda).
   iniciarDetectorDePendenciasML(supabase);
+  iniciarRastreioAutomaticoDeEnvios(supabase);
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {

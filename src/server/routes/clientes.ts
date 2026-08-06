@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
 
 const SELECT_COM_DETALHES =
   '*, notas:clientes_notas(*, autor:usuarios(id, nome_exibicao)), ' +
@@ -47,7 +48,25 @@ export function clientesRouter(supabase: SupabaseClient) {
         .maybeSingle();
       if (error) throw error;
       if (!data) return res.status(404).json({ success: false, error: 'Cliente não encontrado' });
-      res.json({ success: true, data });
+
+      // Comprovantes de PIX de TODAS as vendas do cliente, agregados aqui —
+      // busca separada (não dá pra encaixar no SELECT_COM_DETALHES de cima
+      // porque comprovantes_pix não tem FK direta pra clientes_notas/motos,
+      // e porque a URL assinada precisa ser gerada por request, não vem de
+      // um select simples). Contexto de "qual venda" via join leve com vendas.
+      const { data: comprovantes, error: erroComprovantes } = await supabase
+        .from('comprovantes_pix')
+        .select('*, venda:vendas(id, nome_item, data)')
+        .eq('cliente_id', req.params.id)
+        .is('removido_em', null)
+        .order('criado_em', { ascending: false });
+      if (erroComprovantes) throw erroComprovantes;
+
+      const comprovantesComUrl = await Promise.all(
+        (comprovantes ?? []).map(async (c: any) => ({ ...c, url: await gerarUrlAssinadaComprovante(c.storage_path) }))
+      );
+
+      res.json({ success: true, data: { ...(data as any), comprovantes_pix: comprovantesComUrl } });
     } catch (error: any) {
       console.error('Erro ao buscar cliente:', error);
       res.status(500).json({ success: false, error: error.message });

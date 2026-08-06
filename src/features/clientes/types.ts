@@ -1,3 +1,5 @@
+import type { ComprovantePixComVenda } from '../comprovantes/types';
+
 export type ClienteOrigem = 'balcao' | 'indicacao' | 'mercado_livre' | 'redes_sociais' | 'outro';
 export type PreferenciaContato = 'whatsapp' | 'ligacao' | 'sms' | 'nenhuma';
 
@@ -77,6 +79,9 @@ export interface Cliente {
   notas?: ClienteNota[];
   motos?: ClienteMoto[];
   pecas_procuradas?: PecaProcurada[];
+  // Comprovantes de PIX de TODAS as vendas do cliente, agregados pelo
+  // backend (ver migration_036) — cada um traz o contexto de qual venda veio.
+  comprovantes_pix?: ComprovantePixComVenda[];
 }
 
 // Usado em joins de outras features (ex: Tarefa.cliente, Venda.cliente) —
