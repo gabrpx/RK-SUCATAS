@@ -77,7 +77,15 @@ export function vendasRouter(supabase: SupabaseClient) {
   router.delete('/:id', async (req, res) => {
     try {
       const { error } = await supabase.rpc('cancelar_venda', { p_venda_id: req.params.id });
-      if (error) throw error;
+      if (error) {
+        // 23503 = violação de FK — fiado_recebimentos.venda_id é "on delete
+        // restrict" de propósito (ver migration_031): não deixa cancelar uma
+        // venda que já tem dinheiro recebido registrado.
+        if (error.code === '23503') {
+          return res.status(409).json({ success: false, error: 'Não é possível cancelar: já há recebimento(s) de fiado registrados pra esta venda.' });
+        }
+        throw error;
+      }
       res.json({ success: true });
     } catch (error: any) {
       console.error('Erro ao cancelar venda:', error);

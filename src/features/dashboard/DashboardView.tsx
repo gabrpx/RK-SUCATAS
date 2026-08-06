@@ -196,7 +196,7 @@ export function DashboardView({
   onNavigateClientesSumidos?: () => void;
   onNavigateFiado?: () => void;
 }) {
-  const { estoque, vendas, caixa, orcamentos, clientes, fiadoBaixas, loading } = useData();
+  const { estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, loading } = useData();
   const [searchTerm, setSearchTerm] = useState('');
 
   const userName = (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'Admin';
@@ -242,11 +242,11 @@ export function DashboardView({
     // Só alerta fiado parado há um tempo — recém-vendido não precisa de
     // cobrança ainda, isso é ruído (ver regra "todo alerta precisa de ação").
     const DIAS_FIADO_ALERTA = 15;
-    const fiadoEmAberto = resumoFiadoPorCliente(vendas, fiadoBaixas).filter((r) => r.diasEmAbertoMax >= DIAS_FIADO_ALERTA);
+    const fiadoEmAberto = resumoFiadoPorCliente(vendas, fiadoRecebimentos).filter((r) => r.diasEmAbertoMax >= DIAS_FIADO_ALERTA);
     const fiadoTotalEmAberto = fiadoEmAberto.reduce((soma, r) => soma + r.totalEmAberto, 0);
 
     return { valorTotalEstoque, totalUnidadesEstoque, itensEstoqueBaixo, vendasMes, valorVendasMes, ticketMedio, valorSaidasMes, ultimasVendas, pendencias, sumidos, topClientes, fiadoEmAberto, fiadoTotalEmAberto };
-  }, [estoque, vendas, caixa, orcamentos, clientes, fiadoBaixas]);
+  }, [estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos]);
 
   // Saldo líquido diário (entradas - saídas) dos últimos 30 dias — série
   // única pro gráfico de área, com o valor de hoje sempre na última posição.

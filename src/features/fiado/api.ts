@@ -1,5 +1,5 @@
 import { api } from '../../utils/api';
-import type { FiadoBaixa, FiadoBaixaInput } from './types';
+import type { FiadoRecebimento, FiadoRecebimentoInput } from './types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -8,7 +8,7 @@ interface ApiResult<T> {
 }
 
 export const fiadoApi = {
-  listarBaixas: (): Promise<ApiResult<FiadoBaixa[]>> => api.get('/api/fiado/baixas'),
-  registrarBaixa: (payload: FiadoBaixaInput): Promise<ApiResult<FiadoBaixa>> => api.post('/api/fiado/baixas', payload),
-  removerBaixa: (id: string): Promise<ApiResult<null>> => api.delete(`/api/fiado/baixas/${id}`),
+  listarRecebimentos: (): Promise<ApiResult<FiadoRecebimento[]>> => api.get('/api/fiado/recebimentos'),
+  registrarRecebimento: (payload: FiadoRecebimentoInput): Promise<ApiResult<FiadoRecebimento>> => api.post('/api/fiado/recebimentos', payload),
+  removerRecebimento: (id: string): Promise<ApiResult<null>> => api.delete(`/api/fiado/recebimentos/${id}`),
 };
