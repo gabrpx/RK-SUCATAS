@@ -26,6 +26,8 @@ import { vendasRouter } from './src/server/routes/vendas.js';
 import { orcamentosRouter } from './src/server/routes/orcamentos.js';
 import { clientesRouter } from './src/server/routes/clientes.js';
 import { caixaRouter } from './src/server/routes/caixa.js';
+import { fiadoRouter } from './src/server/routes/fiado.js';
+import { enviosRouter } from './src/server/routes/envios.js';
 import { uploadRouter } from './src/server/routes/upload.js';
 import { usuariosRouter } from './src/server/routes/usuarios.js';
 import { tarefasRouter } from './src/server/routes/tarefas.js';
@@ -264,6 +266,8 @@ async function startServer() {
   app.use('/api/orcamentos', autorizar('admin', 'equipe'), orcamentosRouter(supabase));
   app.use('/api/clientes', autorizar('admin', 'equipe'), clientesRouter(supabase));
   app.use('/api/caixa', autorizar('admin', 'equipe'), caixaRouter(supabase));
+  app.use('/api/fiado', autorizar('admin', 'equipe'), fiadoRouter(supabase));
+  app.use('/api/envios', autorizar('admin', 'equipe'), enviosRouter(supabase));
   app.use('/api/upload', autorizar('admin', 'equipe'), uploadRouter());
   app.use('/api/tarefas', tarefasRouter(supabase));
   app.use('/api/mercadolivre', autorizar('admin', 'equipe'), mercadolivreRouter(supabase));

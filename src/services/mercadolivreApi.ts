@@ -183,7 +183,7 @@ export interface PedidoML {
   id: number;
   date_created: string;
   status: string;
-  buyer?: { nickname?: string };
+  buyer?: { nickname?: string; id?: number };
   order_items: ItemPedidoML[];
   shipping?: { id: number | null };
 }

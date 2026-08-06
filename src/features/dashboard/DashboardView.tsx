@@ -21,6 +21,7 @@ import {
   Inbox,
   Users,
   UserX,
+  HandCoins,
 } from 'lucide-react';
 import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn, parseLocalDate } from '../../utils';
@@ -31,6 +32,7 @@ import { AlertBar } from '../../components/ui/AlertBar';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { clientesSumidos, rankingTopClientes } from '../clientes/metricas';
+import { resumoFiadoPorCliente } from '../fiado/metricas';
 import type { Estoque } from '../estoque/types';
 import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
@@ -183,6 +185,7 @@ export function DashboardView({
   onNavigateEstoqueBaixo,
   onNavigateCliente,
   onNavigateClientesSumidos,
+  onNavigateFiado,
 }: {
   theme?: 'light' | 'dark';
   onSelectItem: (item: Estoque | Venda) => void;
@@ -191,8 +194,9 @@ export function DashboardView({
   onNavigateEstoqueBaixo?: () => void;
   onNavigateCliente?: (clienteId: string) => void;
   onNavigateClientesSumidos?: () => void;
+  onNavigateFiado?: () => void;
 }) {
-  const { estoque, vendas, caixa, orcamentos, clientes, loading } = useData();
+  const { estoque, vendas, caixa, orcamentos, clientes, fiadoBaixas, loading } = useData();
   const [searchTerm, setSearchTerm] = useState('');
 
   const userName = (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'Admin';
@@ -235,8 +239,14 @@ export function DashboardView({
     const sumidos = clientesSumidos(clientes, vendas, orcamentos);
     const topClientes = rankingTopClientes(clientes, vendas, orcamentos, { limite: 5 });
 
-    return { valorTotalEstoque, totalUnidadesEstoque, itensEstoqueBaixo, vendasMes, valorVendasMes, ticketMedio, valorSaidasMes, ultimasVendas, pendencias, sumidos, topClientes };
-  }, [estoque, vendas, caixa, orcamentos, clientes]);
+    // Só alerta fiado parado há um tempo — recém-vendido não precisa de
+    // cobrança ainda, isso é ruído (ver regra "todo alerta precisa de ação").
+    const DIAS_FIADO_ALERTA = 15;
+    const fiadoEmAberto = resumoFiadoPorCliente(vendas, fiadoBaixas).filter((r) => r.diasEmAbertoMax >= DIAS_FIADO_ALERTA);
+    const fiadoTotalEmAberto = fiadoEmAberto.reduce((soma, r) => soma + r.totalEmAberto, 0);
+
+    return { valorTotalEstoque, totalUnidadesEstoque, itensEstoqueBaixo, vendasMes, valorVendasMes, ticketMedio, valorSaidasMes, ultimasVendas, pendencias, sumidos, topClientes, fiadoEmAberto, fiadoTotalEmAberto };
+  }, [estoque, vendas, caixa, orcamentos, clientes, fiadoBaixas]);
 
   // Saldo líquido diário (entradas - saídas) dos últimos 30 dias — série
   // única pro gráfico de área, com o valor de hoje sempre na última posição.
@@ -365,6 +375,15 @@ export function DashboardView({
           mensagem={`${metrics.sumidos.length} cliente(s) sem comprar há 90+ dias`}
           acaoLabel="Ver clientes"
           onAcao={() => onNavigateClientesSumidos?.()}
+        />
+      )}
+      {metrics.fiadoEmAberto.length > 0 && (
+        <AlertBar
+          tom="warning"
+          icone={HandCoins}
+          mensagem={`${metrics.fiadoEmAberto.length} cliente(s) com fiado em aberto há 15+ dias (${formatCurrency(metrics.fiadoTotalEmAberto)})`}
+          acaoLabel="Ver fiado"
+          onAcao={() => onNavigateFiado?.()}
         />
       )}
 

@@ -8,6 +8,7 @@ import type { Categoria } from '../../types/catalog.js';
 import { anexarPromocoes } from '../../features/promocoes/calculo.js';
 import { extrairMlbId } from '../../services/mercadolivreApi.js';
 import { autorizar } from '../../../middleware/auth.js';
+import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
 // GET fica aberto pra Eloisa (estoque_leitura, só consulta); toda escrita
 // (criar/editar/excluir/ações em massa) é admin/equipe only.
@@ -81,6 +82,54 @@ async function anexarCompatibilidades(supabase: SupabaseClient, itens: any[]): P
   }
 
   return itens.map((item) => ({ ...item, modelos_compativeis: porEstoque.get(item.id) ?? [] }));
+}
+
+// Peça procurada (migration_033): quando uma peça nova cadastrada no estoque
+// bate com um pedido em aberto (categoria e/ou modelo de moto do pedido, os
+// que estiverem preenchidos — campo vazio no pedido não filtra por isso),
+// cria uma tarefa avisando quem registrou o pedido e marca ele como
+// atendido. Best-effort de propósito: nunca deve derrubar a criação da peça,
+// que é o fluxo principal — erro aqui só vai pro log.
+async function casarComPecasProcuradas(supabase: SupabaseClient, item: any, criadoPorUsuarioId: string): Promise<void> {
+  try {
+    // Tabela é pequena por construção (só pedidos ainda não atendidos) — filtra
+    // tudo em memória em vez de tentar expressar o match em SQL.
+    const { data: pedidos, error } = await supabase.from('pecas_procuradas').select('*').eq('status', 'aguardando');
+    if (error) {
+      if (error.code === '42P01' || error.code === 'PGRST205') {
+        console.warn('⚠️ Tabela pecas_procuradas ausente — rode supabase/migration_033_pecas_procuradas.sql pra habilitar o alerta automático.');
+        return;
+      }
+      throw error;
+    }
+    if (!pedidos || pedidos.length === 0) return;
+
+    const { data: compativeis } = await supabase.from('estoque_modelos_compativeis').select('modelo_moto_id').eq('estoque_id', item.id);
+    const modelosDaPeca = new Set<string>([item.modelo_moto_id, ...(compativeis ?? []).map((c: any) => c.modelo_moto_id)].filter(Boolean));
+
+    for (const pedido of pedidos) {
+      if (pedido.categoria_id && pedido.categoria_id !== item.categoria_id) continue;
+      if (pedido.modelo_moto_id && !modelosDaPeca.has(pedido.modelo_moto_id)) continue;
+
+      const { error: erroTarefa } = await supabase.from('tarefas').insert({
+        titulo: `Peça procurada chegou: ${item.nome}`,
+        descricao: `${pedido.cliente_nome || 'Cliente'} procurava "${pedido.descricao}" — acabou de chegar em estoque.`,
+        atribuido_para: pedido.criado_por,
+        criado_por: criadoPorUsuarioId,
+        cliente_id: pedido.cliente_id,
+        prioridade: 'alta',
+        tipo: 'geral',
+      });
+      if (erroTarefa) {
+        console.error('Erro ao criar tarefa de peça procurada:', erroTarefa);
+        continue;
+      }
+
+      await supabase.from('pecas_procuradas').update({ status: 'atendida', atendida_em: new Date().toISOString() }).eq('id', pedido.id);
+    }
+  } catch (err) {
+    console.error('Erro ao casar peça nova com pedidos em aberto:', err);
+  }
 }
 
 // Um item sem nenhuma linha em estoque_anuncios_ml ainda, mas com o campo
@@ -256,7 +305,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', ESCRITA, async (req, res) => {
+  router.post('/', ESCRITA, async (req: AuthenticatedRequest, res) => {
     try {
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome da peça é obrigatório' });
@@ -273,6 +322,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
       const erroCompat = await sincronizarCompatibilidades(supabase, data.id, req.body?.modelo_moto_compativel_ids);
       if (erroCompat) return res.status(400).json({ success: false, error: erroCompat });
+
+      if (req.usuario) casarComPecasProcuradas(supabase, data, req.usuario.id).catch((e) => console.error('Erro no match de peça procurada:', e));
 
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [{ ...data, unidades: [] }]);
       const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);

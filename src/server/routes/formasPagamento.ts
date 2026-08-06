@@ -21,8 +21,9 @@ export function formasPagamentoRouter(supabase: SupabaseClient) {
     try {
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
+      const natureza = req.body?.natureza === 'fiado' ? 'fiado' : 'avista';
 
-      const { data, error } = await supabase.from('formas_pagamento').insert([{ nome }]).select().single();
+      const { data, error } = await supabase.from('formas_pagamento').insert([{ nome, natureza }]).select().single();
       if (error) throw error;
       res.json({ success: true, data });
     } catch (error: any) {
@@ -30,12 +31,25 @@ export function formasPagamentoRouter(supabase: SupabaseClient) {
     }
   });
 
+  // Aceita nome e/ou natureza — o toggle "é fiado?" em Configurações manda só
+  // natureza, sem precisar reenviar o nome (mesmo espírito do PUT de
+  // categorias, que serve tanto pra renomear quanto pra mover).
   router.put('/:id', async (req, res) => {
     try {
-      const nome = String(req.body?.nome || '').trim();
-      if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
+      const payload: Record<string, any> = {};
+      if (req.body?.nome !== undefined) {
+        const nome = String(req.body.nome).trim();
+        if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
+        payload.nome = nome;
+      }
+      if (req.body?.natureza === 'fiado' || req.body?.natureza === 'avista') {
+        payload.natureza = req.body.natureza;
+      }
+      if (Object.keys(payload).length === 0) {
+        return res.status(400).json({ success: false, error: 'Nada para atualizar' });
+      }
 
-      const { data, error } = await supabase.from('formas_pagamento').update({ nome }).eq('id', req.params.id).select().single();
+      const { data, error } = await supabase.from('formas_pagamento').update(payload).eq('id', req.params.id).select().single();
       if (error) throw error;
       res.json({ success: true, data });
     } catch (error: any) {

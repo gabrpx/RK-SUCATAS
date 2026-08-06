@@ -5,7 +5,7 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-const SELECT_COM_JOIN = '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome), cliente:clientes(id, nome, telefone)';
+const SELECT_COM_JOIN = '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome, natureza), cliente:clientes(id, nome, telefone)';
 
 export function vendasRouter(supabase: SupabaseClient) {
   const router = Router();

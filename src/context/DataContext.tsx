@@ -10,6 +10,8 @@ import type { Venda } from '../features/vendas/types';
 import type { CaixaEntry } from '../features/caixa/types';
 import type { Orcamento } from '../features/orcamentos/types';
 import type { Cliente } from '../features/clientes/types';
+import type { FiadoBaixa } from '../features/fiado/types';
+import type { Envio } from '../features/frete/types';
 
 const CACHE_TIME_MS = 5 * 1000;
 const POLL_INTERVAL_MS = 10 * 1000;
@@ -20,6 +22,8 @@ interface DataContextValue {
   caixa: CaixaEntry[];
   orcamentos: Orcamento[];
   clientes: Cliente[];
+  fiadoBaixas: FiadoBaixa[];
+  envios: Envio[];
   loading: boolean;
   /** true quando a última tentativa de buscar o estoque falhou — distingue
    *  "deu erro" de "está vazio mesmo", pra tela não mostrar uma coisa pela outra. */
@@ -29,6 +33,8 @@ interface DataContextValue {
   setCaixa: React.Dispatch<React.SetStateAction<CaixaEntry[]>>;
   setOrcamentos: React.Dispatch<React.SetStateAction<Orcamento[]>>;
   setClientes: React.Dispatch<React.SetStateAction<Cliente[]>>;
+  setFiadoBaixas: React.Dispatch<React.SetStateAction<FiadoBaixa[]>>;
+  setEnvios: React.Dispatch<React.SetStateAction<Envio[]>>;
   refreshData: () => Promise<void>;
   showSensitiveInfo: boolean;
   setShowSensitiveInfo: React.Dispatch<React.SetStateAction<boolean>>;
@@ -40,6 +46,8 @@ export const DataContext = createContext<DataContextValue>({
   caixa: [],
   orcamentos: [],
   clientes: [],
+  fiadoBaixas: [],
+  envios: [],
   loading: false,
   estoqueError: false,
   setEstoque: () => {},
@@ -47,6 +55,8 @@ export const DataContext = createContext<DataContextValue>({
   setCaixa: () => {},
   setOrcamentos: () => {},
   setClientes: () => {},
+  setFiadoBaixas: () => {},
+  setEnvios: () => {},
   refreshData: async () => {},
   showSensitiveInfo: true,
   setShowSensitiveInfo: () => {},
@@ -81,6 +91,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [caixa, setCaixa] = useState<CaixaEntry[]>(() => readCache('rk_caixa', []));
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>(() => readCache('rk_orcamentos', []));
   const [clientes, setClientes] = useState<Cliente[]>(() => readCache('rk_clientes', []));
+  const [fiadoBaixas, setFiadoBaixas] = useState<FiadoBaixa[]>(() => readCache('rk_fiado_baixas', []));
+  const [envios, setEnvios] = useState<Envio[]>(() => readCache('rk_envios', []));
   const [loading, setLoading] = useState(false);
   const [estoqueError, setEstoqueError] = useState(false);
   const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
@@ -124,9 +136,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/fiado/baixas') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/envios') : Promise.resolve(null),
     ]);
 
-    const [estoqueRes, vendasRes, caixaRes, orcamentosRes, clientesRes] = results;
+    const [estoqueRes, vendasRes, caixaRes, orcamentosRes, clientesRes, fiadoBaixasRes, enviosRes] = results;
 
     let falhouEstoque = false;
     if (estoqueRes.status === 'fulfilled') {
@@ -199,6 +213,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar clientes:', clientesRes.reason);
     }
 
+    if (fiadoBaixasRes.status === 'fulfilled' && fiadoBaixasRes.value) {
+      try {
+        const data = await parseJson(fiadoBaixasRes.value);
+        if (data.success) setFiadoBaixas(prev => applyIfChanged(prev, data.data, 'rk_fiado_baixas'));
+      } catch (e) {
+        console.error('Erro ao processar baixas de fiado:', e);
+      }
+    } else if (fiadoBaixasRes.status === 'rejected') {
+      console.error('Erro ao buscar baixas de fiado:', fiadoBaixasRes.reason);
+    }
+
+    if (enviosRes.status === 'fulfilled' && enviosRes.value) {
+      try {
+        const data = await parseJson(enviosRes.value);
+        if (data.success) setEnvios(prev => applyIfChanged(prev, data.data, 'rk_envios'));
+      } catch (e) {
+        console.error('Erro ao processar envios:', e);
+      }
+    } else if (enviosRes.status === 'rejected') {
+      console.error('Erro ao buscar envios:', enviosRes.reason);
+    }
+
     lastFetchRef.current = now;
     setLoading(false);
   };
@@ -222,6 +258,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         caixa,
         orcamentos,
         clientes,
+        fiadoBaixas,
+        envios,
         loading,
         estoqueError,
         setEstoque,
@@ -229,6 +267,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setCaixa,
         setOrcamentos,
         setClientes,
+        setFiadoBaixas,
+        setEnvios,
         refreshData: () => loadData(true),
         showSensitiveInfo,
         setShowSensitiveInfo,

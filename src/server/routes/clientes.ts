@@ -6,9 +6,12 @@ import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
-const SELECT_COM_NOTAS = '*, notas:clientes_notas(*, autor:usuarios(id, nome_exibicao))';
+const SELECT_COM_DETALHES =
+  '*, notas:clientes_notas(*, autor:usuarios(id, nome_exibicao)), ' +
+  'motos:clientes_motos(*, modelo_moto:modelos_moto(id, nome, ano)), ' +
+  'pecas_procuradas:pecas_procuradas(*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano))';
 
-const CAMPOS_EDITAVEIS = ['nome', 'telefone', 'documento', 'data_nascimento', 'origem', 'preferencia_contato', 'tags', 'observacoes', 'ativo'] as const;
+const CAMPOS_EDITAVEIS = ['nome', 'telefone', 'documento', 'data_nascimento', 'origem', 'preferencia_contato', 'tags', 'observacoes', 'ativo', 'ml_nickname'] as const;
 
 function normalizarTags(tags: unknown): string[] | undefined {
   if (!Array.isArray(tags)) return undefined;
@@ -38,7 +41,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     try {
       const { data, error } = await supabase
         .from('clientes')
-        .select(SELECT_COM_NOTAS)
+        .select(SELECT_COM_DETALHES)
         .eq('id', req.params.id)
         .order('criado_em', { foreignTable: 'clientes_notas', ascending: false })
         .maybeSingle();
@@ -149,6 +152,129 @@ export function clientesRouter(supabase: SupabaseClient) {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Erro ao excluir nota:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Motos do cliente (migration_032) — entidade distinta de modelos_moto
+  // (catálogo usado por estoque/vendas): aqui é o veículo físico que o
+  // cliente tem, com placa/chassi/ano/cor próprios.
+  router.post('/:id/motos', async (req, res) => {
+    try {
+      const payload = {
+        cliente_id: req.params.id,
+        modelo_moto_id: req.body?.modelo_moto_id || null,
+        placa: req.body?.placa ? String(req.body.placa).trim() : null,
+        chassi: req.body?.chassi ? String(req.body.chassi).trim() : null,
+        ano: req.body?.ano ? String(req.body.ano).trim() : null,
+        cor: req.body?.cor ? String(req.body.cor).trim() : null,
+        observacoes: req.body?.observacoes ? String(req.body.observacoes).trim() : null,
+      };
+      const { data, error } = await supabase.from('clientes_motos').insert(payload).select('*, modelo_moto:modelos_moto(id, nome, ano)').single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao cadastrar moto do cliente:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id/motos/:motoId', async (req, res) => {
+    try {
+      const payload: Record<string, any> = {};
+      for (const campo of ['modelo_moto_id', 'placa', 'chassi', 'ano', 'cor', 'observacoes'] as const) {
+        if (req.body?.[campo] !== undefined) payload[campo] = req.body[campo] === '' ? null : req.body[campo];
+      }
+      const { data, error } = await supabase
+        .from('clientes_motos')
+        .update(payload)
+        .eq('id', req.params.motoId)
+        .eq('cliente_id', req.params.id)
+        .select('*, modelo_moto:modelos_moto(id, nome, ano)')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Moto não encontrada' });
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao atualizar moto do cliente:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.delete('/:id/motos/:motoId', async (req, res) => {
+    try {
+      const { error } = await supabase.from('clientes_motos').delete().eq('id', req.params.motoId).eq('cliente_id', req.params.id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao excluir moto do cliente:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Peças procuradas (migration_033) — pedido do cliente por algo que não
+  // tinha em estoque. O match automático que fecha isso (vira tarefa quando
+  // uma peça compatível é cadastrada) vive em src/server/routes/estoque.ts;
+  // aqui é só o CRUD manual do pedido em si.
+  router.post('/:id/pecas-procuradas', async (req: AuthenticatedRequest, res) => {
+    try {
+      const descricao = String(req.body?.descricao || '').trim();
+      if (!descricao) return res.status(400).json({ success: false, error: 'Descrição é obrigatória' });
+
+      const payload = {
+        cliente_id: req.params.id,
+        cliente_nome: req.body?.cliente_nome ? String(req.body.cliente_nome).trim() : null,
+        descricao,
+        categoria_id: req.body?.categoria_id || null,
+        modelo_moto_id: req.body?.modelo_moto_id || null,
+        criado_por: req.usuario!.id,
+      };
+      const { data, error } = await supabase
+        .from('pecas_procuradas')
+        .insert(payload)
+        .select('*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)')
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao cadastrar peça procurada:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Só o status é editável manualmente (ex: cancelar um pedido) — "atendida"
+  // normalmente é setado automaticamente pelo match em estoque.ts.
+  router.patch('/:id/pecas-procuradas/:pedidoId', async (req, res) => {
+    try {
+      const status = req.body?.status;
+      if (!['aguardando', 'atendida', 'cancelada'].includes(status)) {
+        return res.status(400).json({ success: false, error: 'Status inválido' });
+      }
+      const payload: Record<string, any> = { status };
+      if (status !== 'aguardando') payload.atendida_em = new Date().toISOString();
+      const { data, error } = await supabase
+        .from('pecas_procuradas')
+        .update(payload)
+        .eq('id', req.params.pedidoId)
+        .eq('cliente_id', req.params.id)
+        .select('*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)')
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Pedido não encontrado' });
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao atualizar peça procurada:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.delete('/:id/pecas-procuradas/:pedidoId', async (req, res) => {
+    try {
+      const { error } = await supabase.from('pecas_procuradas').delete().eq('id', req.params.pedidoId).eq('cliente_id', req.params.id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao excluir peça procurada:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

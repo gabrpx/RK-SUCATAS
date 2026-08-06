@@ -350,6 +350,7 @@ export async function buscarPreviewPedidos(supabase: SupabaseClient, token: stri
     mlOrderId: String(pedido.id),
     dataCriacao: pedido.date_created,
     comprador: pedido.buyer?.nickname ?? null,
+    compradorMlId: pedido.buyer?.id ?? null,
     shippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
     itens: pedido.order_items.map((linha): ItemPedidoPreview => {
       const chave = `${pedido.id}::${linha.item.id}`;
@@ -373,6 +374,7 @@ export interface ImportarPedidoParams {
   valorUnitario: number;
   formaPagamentoId: string;
   clienteNome: string | null;
+  clienteId?: string | null;
   data: string | null;
   mlOrderId: string;
   mlItemId: string;
@@ -405,6 +407,7 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
     p_cliente_nome: params.clienteNome,
     p_observacoes: `Importado do Mercado Livre — pedido ${params.mlOrderId}`,
     p_data: params.data,
+    p_cliente_id: params.clienteId || null,
   });
   if (error) throw error;
 

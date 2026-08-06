@@ -3,7 +3,7 @@
 // atendimento, tarefas/visitas vinculadas e desativação (soft delete — nunca
 // some do histórico de quem já comprou).
 import { useEffect, useMemo, useState } from 'react';
-import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX } from 'lucide-react';
+import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, Bike, PackageSearch, X } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { aviso } from '../../components/ui/toast';
@@ -12,11 +12,20 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { AlertBar } from '../../components/ui/AlertBar';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { useCatalogos } from '../../hooks/useCatalogos';
+import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
+import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
 import { clientesApi } from './api';
 import { calcularHistoricoCliente, calcularSegmento, SEGMENTO_LABELS, SEGMENTO_TONS } from './metricas';
 import { gerarCsvHistoricoCliente, baixarCsv } from './exportarHistoricoCsv';
 import { useTarefas } from '../tarefas/useTarefas';
-import type { Cliente, ClienteInput, ClienteNota, ClienteOrigem, PreferenciaContato } from './types';
+import type { Cliente, ClienteInput, ClienteNota, ClienteOrigem, PreferenciaContato, ClienteMotoInput, PecaProcuradaInput, PecaProcuradaStatus } from './types';
+
+const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = { aguardando: 'Aguardando', atendida: 'Atendida', cancelada: 'Cancelada' };
+const PECA_STATUS_TONS: Record<PecaProcuradaStatus, 'warning' | 'positive' | 'neutral'> = { aguardando: 'warning', atendida: 'positive', cancelada: 'neutral' };
+
+const EMPTY_MOTO: ClienteMotoInput = { modelo_moto_id: null, placa: '', chassi: '', ano: '', cor: '', observacoes: '' };
+const EMPTY_PECA: PecaProcuradaInput = { descricao: '', categoria_id: null, modelo_moto_id: null };
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -71,6 +80,7 @@ export function ClientesView({
 }) {
   const { clientes, vendas, orcamentos, refreshData, loading } = useData();
   const { tarefas } = useTarefas();
+  const { modelos, categorias } = useCatalogos();
   const [busca, setBusca] = useState('');
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
   const [somenteSumidos, setSomenteSumidos] = useState(false);
@@ -230,6 +240,100 @@ export function ClientesView({
   const inputClass =
     'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
   const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
+
+  // Opções em lista plana (caminho completo como label) em vez do seletor em
+  // cascata usado em Estoque/Configurações — mantém a mesma linguagem visual
+  // (tokens de design) do resto desta tela, que não usa o estilo zinc legado.
+  const opcoesModelo = useMemo(
+    () => modelos.map((m) => ({ id: m.id, label: getAncestorChainMoto(m.id, modelos).map((n) => n.nome).join(' › ') })).sort((a, b) => a.label.localeCompare(b.label, 'pt')),
+    [modelos]
+  );
+  const opcoesCategoria = useMemo(
+    () => categorias.map((c) => ({ id: c.id, label: getAncestorChainCategoria(c.id, categorias).map((n) => n.nome).join(' › ') })).sort((a, b) => a.label.localeCompare(b.label, 'pt')),
+    [categorias]
+  );
+
+  const [novaMoto, setNovaMoto] = useState<ClienteMotoInput>(EMPTY_MOTO);
+  const [enviandoMoto, setEnviandoMoto] = useState(false);
+
+  const enviarMoto = async () => {
+    if (!clienteAberto) return;
+    setEnviandoMoto(true);
+    try {
+      const payload: ClienteMotoInput = {
+        modelo_moto_id: novaMoto.modelo_moto_id || null,
+        placa: novaMoto.placa?.trim() || null,
+        chassi: novaMoto.chassi?.trim() || null,
+        ano: novaMoto.ano?.trim() || null,
+        cor: novaMoto.cor?.trim() || null,
+        observacoes: novaMoto.observacoes?.trim() || null,
+      };
+      const result = await clientesApi.criarMoto(clienteAberto.id, payload);
+      if (!result.success) throw new Error(result.error);
+      setClienteAberto((prev) => (prev ? { ...prev, motos: [...(prev.motos || []), result.data] } : prev));
+      setNovaMoto(EMPTY_MOTO);
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao cadastrar moto');
+    } finally {
+      setEnviandoMoto(false);
+    }
+  };
+
+  const removerMoto = async (motoId: string) => {
+    if (!clienteAberto) return;
+    try {
+      const result = await clientesApi.removerMoto(clienteAberto.id, motoId);
+      if (!result.success) throw new Error(result.error);
+      setClienteAberto((prev) => (prev ? { ...prev, motos: (prev.motos || []).filter((m) => m.id !== motoId) } : prev));
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao excluir moto');
+    }
+  };
+
+  const [novaPeca, setNovaPeca] = useState<PecaProcuradaInput>(EMPTY_PECA);
+  const [enviandoPeca, setEnviandoPeca] = useState(false);
+
+  const enviarPeca = async () => {
+    if (!clienteAberto || !novaPeca.descricao.trim()) return;
+    setEnviandoPeca(true);
+    try {
+      const payload: PecaProcuradaInput = {
+        descricao: novaPeca.descricao.trim(),
+        categoria_id: novaPeca.categoria_id || null,
+        modelo_moto_id: novaPeca.modelo_moto_id || null,
+      };
+      const result = await clientesApi.criarPecaProcurada(clienteAberto.id, payload);
+      if (!result.success) throw new Error(result.error);
+      setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: [result.data, ...(prev.pecas_procuradas || [])] } : prev));
+      setNovaPeca(EMPTY_PECA);
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao cadastrar peça procurada');
+    } finally {
+      setEnviandoPeca(false);
+    }
+  };
+
+  const atualizarStatusPeca = async (pedidoId: string, status: PecaProcuradaStatus) => {
+    if (!clienteAberto) return;
+    try {
+      const result = await clientesApi.atualizarStatusPecaProcurada(clienteAberto.id, pedidoId, status);
+      if (!result.success) throw new Error(result.error);
+      setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: (prev.pecas_procuradas || []).map((p) => (p.id === pedidoId ? result.data : p)) } : prev));
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao atualizar status');
+    }
+  };
+
+  const removerPeca = async (pedidoId: string) => {
+    if (!clienteAberto) return;
+    try {
+      const result = await clientesApi.removerPecaProcurada(clienteAberto.id, pedidoId);
+      if (!result.success) throw new Error(result.error);
+      setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: (prev.pecas_procuradas || []).filter((p) => p.id !== pedidoId) } : prev));
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao excluir peça procurada');
+    }
+  };
 
   const colunas: DataTableColumn<Cliente>[] = [
     {
@@ -646,6 +750,108 @@ export function ClientesView({
                   </div>
                 );
               })()}
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
+                  <Bike size={12} /> Motos
+                </p>
+                <div className="space-y-1.5 mb-3">
+                  {(clienteAberto.motos || []).map((m) => (
+                    <div key={m.id} className="flex items-center justify-between gap-2 bg-surface-card border border-border-subtle rounded-control p-2.5">
+                      <div className="min-w-0 text-xs">
+                        <p className="text-text-primary font-medium truncate">
+                          {m.modelo_moto?.nome || 'Sem modelo'} {m.ano ? `· ${m.ano}` : ''}
+                        </p>
+                        <p className="text-text-faint truncate">{[m.placa, m.chassi, m.cor].filter(Boolean).join(' · ') || 'Sem detalhes'}</p>
+                      </div>
+                      <button onClick={() => removerMoto(m.id)} className="shrink-0 size-6 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {(clienteAberto.motos || []).length === 0 && <p className="text-xs text-text-faint">Nenhuma moto cadastrada.</p>}
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <select value={novaMoto.modelo_moto_id || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, modelo_moto_id: e.target.value || null }))} className={cn(inputClass, 'col-span-2 text-xs py-2')}>
+                    <option value="">Modelo (opcional)</option>
+                    {opcoesModelo.map((o) => (
+                      <option key={o.id} value={o.id}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                  <input value={novaMoto.placa || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, placa: e.target.value }))} placeholder="Placa" className={cn(inputClass, 'text-xs py-2')} />
+                  <input value={novaMoto.ano || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, ano: e.target.value }))} placeholder="Ano" className={cn(inputClass, 'text-xs py-2')} />
+                  <input value={novaMoto.chassi || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, chassi: e.target.value }))} placeholder="Chassi" className={cn(inputClass, 'text-xs py-2')} />
+                  <input value={novaMoto.cor || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, cor: e.target.value }))} placeholder="Cor" className={cn(inputClass, 'text-xs py-2')} />
+                  <button
+                    onClick={enviarMoto}
+                    disabled={enviandoMoto}
+                    className="col-span-2 h-9 rounded-control bg-surface-inset border border-border-default text-text-secondary text-xs font-medium hover:bg-surface-raised disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {enviandoMoto ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Cadastrar moto
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
+                  <PackageSearch size={12} /> Peças procuradas
+                </p>
+                <div className="space-y-1.5 mb-3">
+                  {(clienteAberto.pecas_procuradas || []).map((p) => (
+                    <div key={p.id} className="flex items-center justify-between gap-2 bg-surface-card border border-border-subtle rounded-control p-2.5">
+                      <div className="min-w-0 text-xs flex-1">
+                        <p className="text-text-primary truncate">{p.descricao}</p>
+                        <p className="text-text-faint truncate">{[p.categoria?.nome, p.modelo_moto?.nome].filter(Boolean).join(' · ') || 'Sem filtro'}</p>
+                      </div>
+                      <StatusBadge texto={PECA_STATUS_LABELS[p.status]} tom={PECA_STATUS_TONS[p.status]} />
+                      {p.status === 'aguardando' && (
+                        <button onClick={() => atualizarStatusPeca(p.id, 'cancelada')} title="Cancelar pedido" className="shrink-0 size-6 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised">
+                          <X size={12} />
+                        </button>
+                      )}
+                      <button onClick={() => removerPeca(p.id)} title="Excluir" className="shrink-0 size-6 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised">
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                  {(clienteAberto.pecas_procuradas || []).length === 0 && <p className="text-xs text-text-faint">Nenhum pedido em aberto.</p>}
+                </div>
+                <div className="space-y-2">
+                  <input
+                    value={novaPeca.descricao}
+                    onChange={(e) => setNovaPeca((p) => ({ ...p, descricao: e.target.value }))}
+                    placeholder="O que o cliente está procurando?"
+                    className={cn(inputClass, 'text-xs py-2')}
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <select value={novaPeca.categoria_id || ''} onChange={(e) => setNovaPeca((p) => ({ ...p, categoria_id: e.target.value || null }))} className={cn(inputClass, 'text-xs py-2')}>
+                      <option value="">Categoria (opcional)</option>
+                      {opcoesCategoria.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <select value={novaPeca.modelo_moto_id || ''} onChange={(e) => setNovaPeca((p) => ({ ...p, modelo_moto_id: e.target.value || null }))} className={cn(inputClass, 'text-xs py-2')}>
+                      <option value="">Modelo (opcional)</option>
+                      {opcoesModelo.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <button
+                    onClick={enviarPeca}
+                    disabled={enviandoPeca || !novaPeca.descricao.trim()}
+                    className="w-full h-9 rounded-control bg-surface-inset border border-border-default text-text-secondary text-xs font-medium hover:bg-surface-raised disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  >
+                    {enviandoPeca ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Registrar pedido
+                  </button>
+                </div>
+              </div>
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">

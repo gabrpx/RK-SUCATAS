@@ -35,6 +35,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { useData } from '../../context/DataContext';
+import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useSincronizacaoMl } from './SincronizacaoMlContext';
 import { mercadolivreApi, type MercadoLivreConta } from './api';
 import { estoqueApi } from '../estoque/api';
@@ -389,6 +390,9 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
   const [importando, setImportando] = useState(false);
+  // Vínculo manual com um cliente cadastrado, por pedido — nunca automático
+  // (nickname/id do ML não são casados sozinhos com nenhum cadastro).
+  const [vinculoCliente, setVinculoCliente] = useState<Record<string, { clienteId: string | null; nome: string }>>({});
 
   const buscarPedidos = async () => {
     setBuscando(true);
@@ -397,12 +401,15 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
       if (resultado.success && resultado.data) {
         setPedidos(resultado.data);
         const encontrados = new Set<string>();
+        const vinculos: Record<string, { clienteId: string | null; nome: string }> = {};
         resultado.data.forEach((pedido) => {
+          vinculos[pedido.mlOrderId] = { clienteId: null, nome: pedido.comprador ?? '' };
           pedido.itens.forEach((item) => {
             if (item.status === 'encontrado') encontrados.add(`${pedido.mlOrderId}:${item.mlItemId}`);
           });
         });
         setSelecionados(encontrados);
+        setVinculoCliente(vinculos);
         setAberto(true);
       } else {
         aviso.falha(resultado.error, 'Não deu pra buscar os pedidos');
@@ -431,12 +438,14 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
       for (const item of pedido.itens) {
         const chave = `${pedido.mlOrderId}:${item.mlItemId}`;
         if (!selecionados.has(chave) || item.status !== 'encontrado' || !item.estoqueIdSugerido) continue;
+        const vinculo = vinculoCliente[pedido.mlOrderId];
         itens.push({
           estoque_id: item.estoqueIdSugerido,
           quantidade: item.quantidade,
           valor_unitario: item.valorUnitario,
           forma_pagamento_id: formaPagamentoId,
-          cliente_nome: pedido.comprador,
+          cliente_nome: vinculo?.nome || pedido.comprador,
+          cliente_id: vinculo?.clienteId ?? null,
           data: pedido.dataCriacao,
           ml_order_id: pedido.mlOrderId,
           ml_item_id: item.mlItemId,
@@ -544,6 +553,14 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
                   titulo={`Pedido ${pedido.mlOrderId}`}
                   descricao={`${pedido.comprador ?? 'Comprador não identificado'} · ${new Date(pedido.dataCriacao).toLocaleDateString('pt-BR')}`}
                 >
+                  <div className="mb-3">
+                    <SeletorCliente
+                      clienteId={vinculoCliente[pedido.mlOrderId]?.clienteId ?? null}
+                      nome={vinculoCliente[pedido.mlOrderId]?.nome ?? pedido.comprador ?? ''}
+                      onChange={(clienteId, nome) => setVinculoCliente((prev) => ({ ...prev, [pedido.mlOrderId]: { clienteId, nome } }))}
+                      placeholder="Vincular a um cliente cadastrado (opcional)"
+                    />
+                  </div>
                   <div className="space-y-2">
                     {pedido.itens.map((item) => {
                       const chave = `${pedido.mlOrderId}:${item.mlItemId}`;

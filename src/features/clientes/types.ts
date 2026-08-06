@@ -10,6 +10,53 @@ export interface ClienteNota {
   criado_em: string;
 }
 
+// Moto que o cliente TEM (veículo físico) — diferente de ModeloMoto, que é o
+// catálogo usado por estoque/vendas ("essa peça serve nesse modelo").
+export interface ClienteMoto {
+  id: string;
+  cliente_id: string;
+  modelo_moto_id: string | null;
+  modelo_moto: { id: string; nome: string; ano: string | null } | null;
+  placa: string | null;
+  chassi: string | null;
+  ano: string | null;
+  cor: string | null;
+  observacoes: string | null;
+  criado_em: string;
+}
+
+export interface ClienteMotoInput {
+  modelo_moto_id?: string | null;
+  placa?: string | null;
+  chassi?: string | null;
+  ano?: string | null;
+  cor?: string | null;
+  observacoes?: string | null;
+}
+
+export type PecaProcuradaStatus = 'aguardando' | 'atendida' | 'cancelada';
+
+export interface PecaProcurada {
+  id: string;
+  cliente_id: string | null;
+  cliente_nome: string | null;
+  descricao: string;
+  categoria_id: string | null;
+  categoria: { id: string; nome: string } | null;
+  modelo_moto_id: string | null;
+  modelo_moto: { id: string; nome: string; ano: string | null } | null;
+  status: PecaProcuradaStatus;
+  criado_por: string;
+  criado_em: string;
+  atendida_em: string | null;
+}
+
+export interface PecaProcuradaInput {
+  descricao: string;
+  categoria_id?: string | null;
+  modelo_moto_id?: string | null;
+}
+
 export interface Cliente {
   id: string;
   nome: string;
@@ -23,8 +70,13 @@ export interface Cliente {
   ativo: boolean;
   criado_em: string;
   atualizado_em: string;
-  // Só presente na resposta de GET /:id (ficha completa) — a listagem não traz.
+  // Vínculo manual com o comprador do Mercado Livre (ver migration_035) —
+  // preenchido na importação de pedido, sem matching automático.
+  ml_nickname?: string | null;
+  // Só presentes na resposta de GET /:id (ficha completa) — a listagem não traz.
   notas?: ClienteNota[];
+  motos?: ClienteMoto[];
+  pecas_procuradas?: PecaProcurada[];
 }
 
 // Usado em joins de outras features (ex: Tarefa.cliente, Venda.cliente) —

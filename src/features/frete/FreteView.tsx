@@ -3,13 +3,40 @@
 // cotar a partir de uma peça, que é como o pedido chega na prática ("quanto
 // fica pra mandar o farol da Titan pra Recife?").
 import { useEffect, useMemo, useState } from 'react';
-import { Truck, Loader2, Package, MapPin, DollarSign, Clock, Copy, Check, History, Box, Search, X, Save } from 'lucide-react';
+import { Truck, Loader2, Package, MapPin, DollarSign, Clock, Copy, Check, History, Box, Search, X, Save, PackagePlus, RefreshCw, Trash2, ClipboardCheck } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { aviso } from '../../components/ui/toast';
+import { DataTable } from '../../components/ui/DataTable';
+import type { DataTableColumn } from '../../components/ui/DataTable';
+import { StatusBadge } from '../../components/ui/StatusBadge';
+import type { StatusTone } from '../../components/ui/StatusBadge';
+import { EmptyState } from '../../components/ui/EmptyState';
+import { SeletorCliente } from '../clientes/SeletorCliente';
 import { CEP_ORIGEM_LOJA } from '../../constants/loja';
-import { calcularFrete, buscarCidadePorCep, type FreteQuote } from './api';
+import { calcularFrete, buscarCidadePorCep, enviosApi, type FreteQuote } from './api';
 import { presetsCaixa, ultimasDimensoes, historicoCotacoes, formatarCep, cepValido, type Dimensoes, type PresetCaixa } from './presets';
+import type { Envio, EnvioInput, EnvioStatus } from './types';
+
+const STATUS_LABELS: Record<EnvioStatus, string> = {
+  aguardando_postagem: 'Aguardando postagem',
+  postado: 'Postado',
+  em_transito: 'Em trânsito',
+  entregue: 'Entregue',
+  problema: 'Problema',
+  cancelado: 'Cancelado',
+};
+
+const STATUS_TONS: Record<EnvioStatus, StatusTone> = {
+  aguardando_postagem: 'neutral',
+  postado: 'accent',
+  em_transito: 'warning',
+  entregue: 'positive',
+  problema: 'danger',
+  cancelado: 'neutral',
+};
+
+const EMPTY_ENVIO: EnvioInput = { cliente_id: null, cliente_nome: '', transportadora: '', servico: '', codigo_rastreio: '', melhor_envio_order_id: '', cep_destino: '', valor_frete: null };
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -21,6 +48,42 @@ function precoDaCotacao(q: FreteQuote): number | null {
 }
 
 export const FreteView = () => {
+  const [secao, setSecao] = useState<'cotacao' | 'envios'>('cotacao');
+
+  return (
+    <div className="space-y-5 pb-24 md:pb-6 max-w-4xl">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-medium text-text-primary">Frete</h1>
+          <p className="text-sm text-text-faint mt-0.5">{secao === 'cotacao' ? 'Cotação de envio a partir da loja' : 'Envios registrados e rastreio'}</p>
+        </div>
+        <div className="flex items-center gap-1 rounded-control border border-border-default bg-surface-inset p-1 shrink-0">
+          <button
+            onClick={() => setSecao('cotacao')}
+            className={cn(
+              'h-8 px-3 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
+              secao === 'cotacao' ? 'bg-accent-soft-bg text-accent-soft-fg' : 'text-text-muted hover:text-text-secondary'
+            )}
+          >
+            Cotação
+          </button>
+          <button
+            onClick={() => setSecao('envios')}
+            className={cn(
+              'h-8 px-3 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
+              secao === 'envios' ? 'bg-accent-soft-bg text-accent-soft-fg' : 'text-text-muted hover:text-text-secondary'
+            )}
+          >
+            Envios
+          </button>
+        </div>
+      </div>
+      {secao === 'cotacao' ? <CotacaoSection /> : <EnviosSection />}
+    </div>
+  );
+};
+
+function CotacaoSection() {
   const { estoque } = useData();
 
   const [cep, setCep] = useState('');
@@ -149,12 +212,7 @@ export const FreteView = () => {
   const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
 
   return (
-    <div className="space-y-5 pb-24 md:pb-6 max-w-4xl">
-      <div>
-        <h1 className="text-2xl font-medium text-text-primary">Frete</h1>
-        <p className="text-sm text-text-faint mt-0.5">Cotação de envio a partir da loja</p>
-      </div>
-
+    <div className="space-y-5">
       <div className="rounded-card border border-border-subtle bg-surface-card p-5 space-y-5">
         {/* Cotar a partir de uma peça: puxa o nome pro texto do WhatsApp e
             deixa claro do que se está falando quando a cotação for enviada. */}
@@ -426,4 +484,264 @@ export const FreteView = () => {
       )}
     </div>
   );
-};
+}
+
+function EnviosSection() {
+  const { envios, refreshData, loading } = useData();
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [form, setForm] = useState<EnvioInput>(EMPTY_ENVIO);
+  const [salvando, setSalvando] = useState(false);
+  const [rastreandoId, setRastreandoId] = useState<string | null>(null);
+  const [rastreandoTodos, setRastreandoTodos] = useState(false);
+
+  const inputClass =
+    'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
+  const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
+
+  const salvar = async () => {
+    setSalvando(true);
+    try {
+      const result = await enviosApi.criar({
+        cliente_id: form.cliente_id || null,
+        cliente_nome: form.cliente_nome?.trim() || null,
+        transportadora: form.transportadora?.trim() || null,
+        servico: form.servico?.trim() || null,
+        codigo_rastreio: form.codigo_rastreio?.trim() || null,
+        melhor_envio_order_id: form.melhor_envio_order_id?.trim() || null,
+        cep_destino: form.cep_destino?.trim() || null,
+        valor_frete: form.valor_frete || null,
+      });
+      if (!result.success) throw new Error(result.error);
+      setIsFormOpen(false);
+      setForm(EMPTY_ENVIO);
+      await refreshData();
+      aviso.sucesso('Envio registrado');
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao registrar envio');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  const excluir = async (envio: Envio) => {
+    try {
+      const result = await enviosApi.excluir(envio.id);
+      if (!result.success) throw new Error(result.error);
+      await refreshData();
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao excluir envio');
+    }
+  };
+
+  const mudarStatus = async (envio: Envio, status: EnvioStatus) => {
+    try {
+      const result = await enviosApi.atualizar(envio.id, { status });
+      if (!result.success) throw new Error(result.error);
+      await refreshData();
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao atualizar status');
+    }
+  };
+
+  const rastrear = async (envio: Envio) => {
+    setRastreandoId(envio.id);
+    try {
+      const result = await enviosApi.rastrear(envio.id);
+      if (!result.success) throw new Error(result.error);
+      await refreshData();
+      if (result.data.status_detalhe?.startsWith('Não foi possível')) {
+        aviso.atencao('Rastreio não disponível', { descricao: result.data.status_detalhe });
+      } else {
+        aviso.sucesso('Status atualizado');
+      }
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao rastrear envio');
+    } finally {
+      setRastreandoId(null);
+    }
+  };
+
+  const rastrearTodos = async () => {
+    const rastreaveis = envios.filter((e) => e.melhor_envio_order_id && e.status !== 'entregue' && e.status !== 'cancelado');
+    if (rastreaveis.length === 0) return aviso.info('Nenhum envio com pedido do Melhor Envio pra rastrear');
+    setRastreandoTodos(true);
+    try {
+      await Promise.all(rastreaveis.map((e) => enviosApi.rastrear(e.id)));
+      await refreshData();
+      aviso.sucesso(`${rastreaveis.length} envio(s) verificado(s)`);
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao rastrear envios');
+    } finally {
+      setRastreandoTodos(false);
+    }
+  };
+
+  const colunas: DataTableColumn<Envio>[] = [
+    { key: 'cliente', header: 'Cliente', render: (e) => e.cliente?.nome || e.cliente_nome || '—' },
+    { key: 'transportadora', header: 'Transportadora', render: (e) => [e.transportadora, e.servico].filter(Boolean).join(' · ') || '—' },
+    { key: 'codigo', header: 'Código', render: (e) => e.codigo_rastreio || '—' },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (e) => (
+        <select
+          value={e.status}
+          onChange={(ev) => mudarStatus(e, ev.target.value as EnvioStatus)}
+          onClick={(ev) => ev.stopPropagation()}
+          className="bg-transparent text-xs border-none outline-none cursor-pointer text-text-secondary"
+        >
+          {(Object.keys(STATUS_LABELS) as EnvioStatus[]).map((s) => (
+            <option key={s} value={s}>
+              {STATUS_LABELS[s]}
+            </option>
+          ))}
+        </select>
+      ),
+    },
+    {
+      key: 'acoes',
+      header: 'Ações',
+      align: 'right',
+      render: (e) => (
+        <div className="flex items-center justify-end gap-1" onClick={(ev) => ev.stopPropagation()}>
+          {e.melhor_envio_order_id && (
+            <button
+              onClick={() => rastrear(e)}
+              disabled={rastreandoId === e.id}
+              title="Atualizar status via Melhor Envio"
+              className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary disabled:opacity-50"
+            >
+              {rastreandoId === e.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            </button>
+          )}
+          <button onClick={() => excluir(e)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-danger">
+            <Trash2 size={13} />
+          </button>
+        </div>
+      ),
+    },
+  ];
+
+  function renderMobileCard(e: Envio) {
+    return (
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-sm font-medium text-text-primary truncate">{e.cliente?.nome || e.cliente_nome || 'Sem cliente'}</p>
+          <p className="text-xs text-text-faint truncate">{[e.transportadora, e.codigo_rastreio].filter(Boolean).join(' · ') || '—'}</p>
+        </div>
+        <StatusBadge texto={STATUS_LABELS[e.status]} tom={STATUS_TONS[e.status]} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap items-center justify-end gap-2">
+        <button
+          onClick={rastrearTodos}
+          disabled={rastreandoTodos}
+          className="h-10 px-4 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider hover:bg-surface-raised disabled:opacity-50 flex items-center gap-2"
+        >
+          {rastreandoTodos ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />} Atualizar todos
+        </button>
+        <button
+          onClick={() => setIsFormOpen(true)}
+          className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90"
+        >
+          <PackagePlus size={16} /> Registrar envio
+        </button>
+      </div>
+
+      <DataTable
+        colunas={colunas}
+        dados={loading ? [] : envios}
+        getRowKey={(e) => e.id}
+        renderMobileCard={renderMobileCard}
+        paginaAtual={1}
+        totalPaginas={1}
+        onMudarPagina={() => {}}
+        emptyState={
+          loading ? (
+            <div className="py-12 flex items-center justify-center text-text-faint">
+              <Loader2 size={20} className="animate-spin" />
+            </div>
+          ) : (
+            <EmptyState icone={Truck} mensagem="Nenhum envio registrado ainda." acaoLabel="Registrar o primeiro" onAcao={() => setIsFormOpen(true)} />
+          )
+        }
+      />
+
+      {isFormOpen && (
+        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center overflow-y-auto" onClick={() => setIsFormOpen(false)}>
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="relative w-full max-w-md flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle my-auto"
+          >
+            <div className="p-6 border-b border-border-subtle">
+              <h2 className="text-lg font-medium">Registrar envio</h2>
+            </div>
+            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
+              <div>
+                <label className={labelClass}>Cliente</label>
+                <SeletorCliente
+                  clienteId={form.cliente_id || null}
+                  nome={form.cliente_nome || ''}
+                  onChange={(clienteId, nome) => setForm((f) => ({ ...f, cliente_id: clienteId, cliente_nome: nome }))}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>Transportadora</label>
+                  <input value={form.transportadora || ''} onChange={(e) => setForm((f) => ({ ...f, transportadora: e.target.value }))} className={inputClass} placeholder="Ex: Correios" />
+                </div>
+                <div>
+                  <label className={labelClass}>Serviço</label>
+                  <input value={form.servico || ''} onChange={(e) => setForm((f) => ({ ...f, servico: e.target.value }))} className={inputClass} placeholder="Ex: SEDEX" />
+                </div>
+              </div>
+              <div>
+                <label className={labelClass}>Código de rastreio</label>
+                <input value={form.codigo_rastreio || ''} onChange={(e) => setForm((f) => ({ ...f, codigo_rastreio: e.target.value }))} className={inputClass} placeholder="Opcional" />
+              </div>
+              <div>
+                <label className={labelClass}>Nº do pedido no Melhor Envio</label>
+                <input
+                  value={form.melhor_envio_order_id || ''}
+                  onChange={(e) => setForm((f) => ({ ...f, melhor_envio_order_id: e.target.value }))}
+                  className={inputClass}
+                  placeholder="Só se foi comprado por lá — habilita rastreio automático"
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className={labelClass}>CEP destino</label>
+                  <input value={form.cep_destino || ''} onChange={(e) => setForm((f) => ({ ...f, cep_destino: e.target.value }))} className={inputClass} placeholder="00000-000" />
+                </div>
+                <div>
+                  <label className={labelClass}>Valor do frete</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.valor_frete ?? ''}
+                    onChange={(e) => setForm((f) => ({ ...f, valor_frete: e.target.value === '' ? null : Number(e.target.value) }))}
+                    className={inputClass}
+                    placeholder="0,00"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3 p-6 border-t border-border-subtle">
+              <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+                Cancelar
+              </button>
+              <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+                {salvando ? 'Salvando...' : 'Salvar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

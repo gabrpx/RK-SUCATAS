@@ -20,6 +20,16 @@ function normalizarTexto(texto: string) {
 interface Item {
   id: string;
   nome: string;
+  [key: string]: any;
+}
+
+// Toggle opcional por item (hoje só usado por Formas de Pagamento, pro
+// marcador "é fiado?" — ver migration_030). Sem isso, o componente continua
+// se comportando exatamente como antes pra Categorias/Motos.
+interface ToggleConfig {
+  rotulo: string;
+  ativo: (item: Item) => boolean;
+  onAlternar: (item: Item) => Promise<{ success: boolean; error?: string }>;
 }
 
 interface ManageListSectionProps {
@@ -30,9 +40,10 @@ interface ManageListSectionProps {
   onCriar: (nome: string) => Promise<{ success: boolean; error?: string }>;
   onExcluir: (id: string) => Promise<{ success: boolean; error?: string }>;
   onRenomear?: (id: string, nome: string) => Promise<{ success: boolean; error?: string }>;
+  toggle?: ToggleConfig;
 }
 
-export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar, onExcluir, onRenomear }: ManageListSectionProps) {
+export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar, onExcluir, onRenomear, toggle }: ManageListSectionProps) {
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -184,6 +195,22 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
                   <>
                     <span className={cn('text-sm font-medium truncate', theme === 'dark' ? 'text-zinc-200' : 'text-zinc-700')}>{item.nome}</span>
                     <div className="flex items-center gap-1 shrink-0">
+                      {toggle && (
+                        <button
+                          onClick={() => toggle.onAlternar(item)}
+                          title={toggle.rotulo}
+                          className={cn(
+                            'px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors',
+                            toggle.ativo(item)
+                              ? 'bg-amber-500/15 text-amber-500'
+                              : theme === 'dark'
+                                ? 'bg-zinc-800/60 text-zinc-500 hover:text-zinc-300'
+                                : 'bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+                          )}
+                        >
+                          {toggle.rotulo}
+                        </button>
+                      )}
                       {onRenomear && (
                         <button onClick={() => iniciarEdicao(item)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors">
                           <Pencil size={13} />

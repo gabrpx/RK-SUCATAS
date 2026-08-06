@@ -10,6 +10,7 @@ import {
   MoreHorizontal,
   Store,
   Users,
+  HandCoins,
   X
 } from 'lucide-react';
 import { useState } from 'react';
@@ -36,6 +37,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
     // frequente que Caixa, então tolera bem ficar dentro de "Mais".
     { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: TAB_ROLES.orcamentos },
     { id: 'clientes', icon: Users, label: 'Clientes', roles: TAB_ROLES.clientes },
+    { id: 'fiado', icon: HandCoins, label: 'Fiado', roles: TAB_ROLES.fiado },
     { id: 'mercadolivre', icon: Store, label: 'Mercado Livre', roles: TAB_ROLES.mercadolivre },
   ];
 

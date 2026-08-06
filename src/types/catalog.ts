@@ -26,4 +26,8 @@ export interface ModeloMoto {
 export interface FormaPagamento {
   id: string;
   nome: string;
+  // 'fiado' marca formas de pagamento que não são recebidas na hora (ex:
+  // "PENDÊNCIA") — usado pela aba Fiado pra saber quais vendas acompanhar,
+  // sem depender do nome digitado (ver migration_030).
+  natureza: 'avista' | 'fiado';
 }

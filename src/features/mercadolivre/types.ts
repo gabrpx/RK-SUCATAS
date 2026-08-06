@@ -18,6 +18,10 @@ export interface PedidoPreview {
   mlOrderId: string;
   dataCriacao: string;
   comprador: string | null;
+  // Id numérico do comprador no ML — hoje só usado pra facilitar vincular
+  // manualmente a um cliente cadastrado (ver migration_035). Sem matching
+  // automático, mesma regra do resto da integração.
+  compradorMlId: number | null;
   shippingId: string | null;
   itens: ItemPedidoPreview[];
 }
@@ -30,6 +34,9 @@ export interface ImportarPedidoItemInput {
   valor_unitario: number;
   forma_pagamento_id: string;
   cliente_nome: string | null;
+  // Vínculo manual escolhido na tela de importação — nunca preenchido
+  // automaticamente a partir do nickname/id do comprador.
+  cliente_id?: string | null;
   data: string | null;
   ml_order_id: string;
   ml_item_id: string;

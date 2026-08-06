@@ -37,7 +37,10 @@ export const modelosMotoApi = {
 
 export const formasPagamentoApi = {
   listar: () => api.get('/api/formas-pagamento') as Promise<ApiResult<FormaPagamento[]>>,
-  criar: (nome: string) => api.post('/api/formas-pagamento', { nome }) as Promise<ApiResult<FormaPagamento>>,
+  criar: (nome: string, natureza?: 'avista' | 'fiado') => api.post('/api/formas-pagamento', { nome, natureza }) as Promise<ApiResult<FormaPagamento>>,
   renomear: (id: string, nome: string) => api.put(`/api/formas-pagamento/${id}`, { nome }) as Promise<ApiResult<FormaPagamento>>,
+  // Fiado: hoje só "PENDÊNCIA" nasce assim (migration_030) — este toggle deixa
+  // marcar outras formas de pagamento (ex: um carnê novo) sem precisar SQL.
+  atualizarNatureza: (id: string, natureza: 'avista' | 'fiado') => api.put(`/api/formas-pagamento/${id}`, { natureza }) as Promise<ApiResult<FormaPagamento>>,
   excluir: (id: string) => api.delete(`/api/formas-pagamento/${id}`) as Promise<ApiResult<null>>,
 };

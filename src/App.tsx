@@ -39,6 +39,7 @@ import {
   Gauge,
   Store,
   Users,
+  HandCoins,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -51,6 +52,7 @@ import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
 import { OrcamentosView } from './features/orcamentos/OrcamentosView';
 import { ClientesView } from './features/clientes/ClientesView';
+import { FiadoView } from './features/fiado/FiadoView';
 import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { MercadoLivreView } from './features/mercadolivre/MercadoLivreView';
@@ -70,8 +72,8 @@ import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'clientes' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas';
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas'];
+type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'clientes' | 'fiado' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas';
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'fiado', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas'];
 
 // Primeira aba visível pra quem tem esses papéis — usada como fallback
 // quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
@@ -469,7 +471,7 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
@@ -597,6 +599,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             {TAB_ROLES.clientes.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Users} label={isSidebarOpen ? 'Clientes' : ''} active={activeTab === 'clientes'} onClick={() => setActiveTab('clientes')} theme={theme} />
             )}
+            {TAB_ROLES.fiado.some((r) => userRoles.includes(r)) && (
+              <SidebarItem icon={HandCoins} label={isSidebarOpen ? 'Fiado' : ''} active={activeTab === 'fiado'} onClick={() => setActiveTab('fiado')} theme={theme} />
+            )}
             {TAB_ROLES.caixa.some((r) => userRoles.includes(r)) && (
               <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
             )}
@@ -653,6 +658,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                     setActiveTab('clientes');
                     setPendingFiltroSumidos(true);
                   }}
+                  onNavigateFiado={() => setActiveTab('fiado')}
                 />
               ) : activeTab === 'estoque' ? (
                 <EstoqueView
@@ -676,6 +682,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   pendingFiltroSumidos={pendingFiltroSumidos}
                   setPendingFiltroSumidos={setPendingFiltroSumidos}
                 />
+              ) : activeTab === 'fiado' ? (
+                <FiadoView />
               ) : activeTab === 'caixa' ? (
                 <CaixaView theme={theme} />
               ) : activeTab === 'frete' ? (

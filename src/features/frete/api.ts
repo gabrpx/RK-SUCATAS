@@ -1,6 +1,22 @@
 // Chamada HTTP do módulo de Frete — proxy fino pro backend, que por sua vez
 // fala com a API do Melhor Envio (o token secreto nunca sai do servidor).
 import { fetchWithRetry, parseJson } from '../../lib/apiClient';
+import { api } from '../../utils/api';
+import type { Envio, EnvioInput, EnvioUpdateInput } from './types';
+
+interface ApiResult<T> {
+  success: boolean;
+  data: T;
+  error?: string;
+}
+
+export const enviosApi = {
+  listar: (): Promise<ApiResult<Envio[]>> => api.get('/api/envios'),
+  criar: (payload: EnvioInput): Promise<ApiResult<Envio>> => api.post('/api/envios', payload),
+  atualizar: (id: string, payload: EnvioUpdateInput): Promise<ApiResult<Envio>> => api.patch(`/api/envios/${id}`, payload),
+  excluir: (id: string): Promise<ApiResult<null>> => api.delete(`/api/envios/${id}`),
+  rastrear: (id: string): Promise<ApiResult<Envio>> => api.post(`/api/envios/${id}/rastrear`),
+};
 
 export interface FreteQuote {
   company?: { name?: string };

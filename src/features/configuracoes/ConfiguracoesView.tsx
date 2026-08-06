@@ -37,6 +37,7 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
     criarFormaPagamento,
     renomearFormaPagamento,
     excluirFormaPagamento,
+    alternarNaturezaFormaPagamento,
   } = useCatalogos();
 
   const [aba, setAba] = useState<Aba>('categorias');
@@ -132,6 +133,11 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
           onCriar={criarFormaPagamento}
           onRenomear={renomearFormaPagamento}
           onExcluir={excluirFormaPagamento}
+          toggle={{
+            rotulo: 'Fiado',
+            ativo: (item) => item.natureza === 'fiado',
+            onAlternar: (item) => alternarNaturezaFormaPagamento(item.id, item.natureza === 'fiado' ? 'avista' : 'fiado'),
+          }}
         />
       )}
       {aba === 'promocoes' && <PromocoesView />}

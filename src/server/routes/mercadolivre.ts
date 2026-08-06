@@ -245,6 +245,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
         valorUnitario: Number(i.valor_unitario) || 0,
         formaPagamentoId: i.forma_pagamento_id,
         clienteNome: i.cliente_nome || null,
+        clienteId: i.cliente_id || null,
         data: i.data || null,
         mlOrderId: String(i.ml_order_id),
         mlItemId: String(i.ml_item_id),

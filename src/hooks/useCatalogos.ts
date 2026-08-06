@@ -141,6 +141,12 @@ export function useCatalogos() {
     return result;
   }, []);
 
+  const alternarNaturezaFormaPagamento = useCallback(async (id: string, natureza: 'avista' | 'fiado') => {
+    const result = await formasPagamentoApi.atualizarNatureza(id, natureza);
+    if (result.success) setFormasPagamento((prev) => prev.map((f) => (f.id === id ? result.data : f)));
+    return result;
+  }, []);
+
   return {
     categorias,
     modelos,
@@ -161,5 +167,6 @@ export function useCatalogos() {
     criarFormaPagamento,
     renomearFormaPagamento,
     excluirFormaPagamento,
+    alternarNaturezaFormaPagamento,
   };
 }
