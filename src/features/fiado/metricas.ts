@@ -55,6 +55,29 @@ export function vendasFiadoEmAberto(vendas: Venda[], recebimentos: FiadoRecebime
 // Agrupa por cliente_id quando a venda está vinculada a um cadastro; sem
 // vínculo, agrupa por cliente_nome (texto livre) — mesma lógica de "não
 // perde a informação só porque não tem cadastro" usada em Vendas/Orçamentos.
+export interface FormaPagamentoEfetiva {
+  // Nomes distintos das formas usadas pra quitar a venda, na ordem do
+  // primeiro recebimento — ex: ["Pix"] ou ["Pix", "Dinheiro"] se parcial em
+  // mais de uma forma. Vazio quando a venda ainda não teve nenhum recebimento.
+  formas: string[];
+  quitadoTotal: boolean;
+}
+
+// A venda em si nunca muda forma_pagamento_id depois de criada (preserva o
+// histórico de que começou como fiado) — isso só calcula, pra exibição, quais
+// formas foram de fato usadas pra receber o dinheiro dela.
+export function formaPagamentoEfetiva(venda: Venda, recebimentos: FiadoRecebimento[]): FormaPagamentoEfetiva | null {
+  if (venda.forma_pagamento?.natureza !== 'fiado') return null;
+  const doVenda = recebimentos
+    .filter((r) => r.venda_id === venda.id)
+    .sort((a, b) => new Date(a.recebido_em).getTime() - new Date(b.recebido_em).getTime());
+  if (doVenda.length === 0) return null;
+
+  const formas = Array.from(new Set(doVenda.map((r) => r.forma_pagamento?.nome).filter((n): n is string => !!n)));
+  const saldo = saldoPorVenda(venda, recebimentos);
+  return { formas, quitadoTotal: saldo <= EPSILON };
+}
+
 export function resumoFiadoPorCliente(vendas: Venda[], recebimentos: FiadoRecebimento[], agora: Date = new Date()): ResumoFiadoCliente[] {
   const emAberto = vendasFiadoEmAberto(vendas, recebimentos, agora);
   const porChave = new Map<string, ResumoFiadoCliente>();

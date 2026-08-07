@@ -23,6 +23,7 @@ import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { CustomDropdown } from '../../components/CustomDropdown';
+import { aviso } from '../../components/ui/toast';
 import { caixaApi } from './api';
 import type { CaixaEntry, CaixaTipo } from './types';
 
@@ -71,14 +72,17 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
 
   const handleDelete = async () => {
     if (!entryToDelete) return;
-    const id = entryToDelete.id;
-    setCaixa((prev) => prev.filter((e) => e.id !== id));
+    const entrada = entryToDelete;
+    setCaixa((prev) => prev.filter((e) => e.id !== entrada.id));
     setEntryToDelete(null);
     try {
-      const result = await caixaApi.excluir(id);
+      const result = await caixaApi.excluir(entrada.id);
       if (!result.success) throw new Error(result.error);
-    } catch (err) {
-      console.error('Erro ao excluir lançamento:', err);
+    } catch (err: any) {
+      // Backend recusa (409) lançamento vinculado a um recebimento de fiado —
+      // sem isso a linha sumia da tela mesmo sem ter sido excluída de verdade.
+      setCaixa((prev) => (prev.some((e) => e.id === entrada.id) ? prev : [...prev, entrada]));
+      aviso.falha(err, 'Erro ao excluir lançamento');
     }
   };
 

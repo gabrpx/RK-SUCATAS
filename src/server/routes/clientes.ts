@@ -20,6 +20,14 @@ function normalizarTags(tags: unknown): string[] | undefined {
   return Array.from(new Set(limpas));
 }
 
+// Telefone/documento sempre gravados só com dígitos — a máscara (parênteses,
+// traço, ponto) é responsabilidade só da exibição no frontend.
+function normalizarDigitos(value: unknown): string | null {
+  if (value === undefined || value === null) return null;
+  const digitos = String(value).replace(/\D/g, '');
+  return digitos || null;
+}
+
 export function clientesRouter(supabase: SupabaseClient) {
   const router = Router();
 
@@ -34,6 +42,24 @@ export function clientesRouter(supabase: SupabaseClient) {
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao listar clientes:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Todas as peças procuradas de todos os clientes, com o modelo de moto —
+  // usado pra montar badges de "moto procurada" e o filtro na listagem
+  // principal, sem precisar abrir a ficha de cada cliente (que só traz isso
+  // no GET /:id). Precisa vir ANTES de '/:id' pra não ser capturado por ele.
+  router.get('/pecas-procuradas/todas', async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('pecas_procuradas')
+        .select('id, cliente_id, status, modelo_moto_id, modelo_moto:modelos_moto(id, nome, ano)')
+        .not('cliente_id', 'is', null);
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao listar peças procuradas:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
@@ -80,8 +106,8 @@ export function clientesRouter(supabase: SupabaseClient) {
 
       const payload = {
         nome,
-        telefone: req.body?.telefone ? String(req.body.telefone).trim() : null,
-        documento: req.body?.documento ? String(req.body.documento).trim() : null,
+        telefone: normalizarDigitos(req.body?.telefone),
+        documento: normalizarDigitos(req.body?.documento),
         data_nascimento: req.body?.data_nascimento || null,
         origem: req.body?.origem || null,
         preferencia_contato: req.body?.preferencia_contato || null,
@@ -114,6 +140,8 @@ export function clientesRouter(supabase: SupabaseClient) {
           payload.nome = nome;
         } else if (campo === 'tags') {
           payload.tags = normalizarTags(req.body.tags) ?? [];
+        } else if (campo === 'telefone' || campo === 'documento') {
+          payload[campo] = normalizarDigitos(req.body[campo]);
         } else if (campo === 'ativo') {
           payload.ativo = Boolean(req.body.ativo);
         } else {

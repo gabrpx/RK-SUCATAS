@@ -38,10 +38,11 @@ import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
 import { categoriaExigeNota } from './categoriaMotor';
 import { comprimirImagem, formatarBytes } from '../../utils/comprimirImagem';
+import { formatCurrencyInput, parseCurrencyInput } from '../../utils/formatters';
 import { CondicaoNotaPicker } from './CondicaoNotaPicker';
 import { detectarDuplicatas } from './detectarDuplicata';
 import { calcularResumoDoDia } from './resumoDoDia';
-import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, temAvaria, contarFichas } from './valorEstoque';
+import { valorTotalEstoque as somarValorEstoque, valorTotalItem, contarAvarias, temAvaria, contarFichas, isEstoqueBaixo } from './valorEstoque';
 import { gerarCsvEstoque } from './planilha';
 import { ImportarPlanilhaModal } from './ImportarPlanilhaModal';
 import { EstoqueByMoto } from './EstoqueByMoto';
@@ -61,10 +62,6 @@ const ITEMS_PER_PAGE = 25;
 
 // Janela pra clicar em "Desfazer" antes da exclusão ir pro banco.
 const MS_PARA_DESFAZER = 6000;
-
-// Mesmo critério usado no card de estoque baixo do Dashboard: item ainda tem
-// unidade (não é "esgotado"), mas está no fim.
-const isEstoqueBaixo = (item: Estoque) => item.quantidade > 0 && item.quantidade <= 2;
 
 const EMPTY_FORM: EstoqueInput = {
   nome: '',
@@ -151,6 +148,7 @@ export function EstoqueView({
   // se volta nelas depois pra fechar o valor do estoque.
   const [soSemPreco, setSoSemPreco] = useState(false);
   const [soComAvaria, setSoComAvaria] = useState(false);
+  const [soSemFoto, setSoSemFoto] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -378,7 +376,8 @@ export function EstoqueView({
       const matchesEstoqueBaixo = !soEstoqueBaixo || isEstoqueBaixo(item);
       const matchesSemPreco = !soSemPreco || !(Number(item.valor) > 0);
       const matchesAvaria = !soComAvaria || temAvaria(item);
-      return matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo && matchesSemPreco && matchesAvaria;
+      const matchesSemFoto = !soSemFoto || (item.imagens?.length ?? 0) === 0;
+      return matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo && matchesSemPreco && matchesAvaria && matchesSemFoto;
     });
 
     result = [...result].sort((a, b) => {
@@ -387,12 +386,12 @@ export function EstoqueView({
       return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
     });
     return result;
-  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, sortKey, categorias, modelos]);
+  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, sortKey, categorias, modelos]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
   const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
 
-  useEffect(() => setCurrentPage(1), [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, sortKey]);
+  useEffect(() => setCurrentPage(1), [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, sortKey]);
 
   // `continuar` = fluxo "salvar e cadastrar próxima": persiste e já devolve o
   // formulário limpo pro próximo item, sem fechar o modal. Categoria, moto,
@@ -561,6 +560,16 @@ export function EstoqueView({
                   {contarAvarias(item)}
                 </span>
               )}
+              {/* Persistente — antes só existia um aviso pontual no momento da
+                  venda, sem jeito de saber disso navegando a lista. */}
+              {(item.unidades_incompletas?.length ?? 0) > 0 && (
+                <span
+                  title={`Falta vender: ${item.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}`}
+                  className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
+                >
+                  {item.unidades_incompletas.length} incompleta{item.unidades_incompletas.length === 1 ? '' : 's'}
+                </span>
+              )}
             </div>
             {isEstoqueBaixo(item) ? (
               <p className="text-[11px] text-warning font-medium">Último em estoque</p>
@@ -674,6 +683,14 @@ export function EstoqueView({
               >
                 <AlertTriangle size={9} />
                 {contarAvarias(item)}
+              </span>
+            )}
+            {(item.unidades_incompletas?.length ?? 0) > 0 && (
+              <span
+                title={`Falta vender: ${item.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}`}
+                className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
+              >
+                {item.unidades_incompletas.length} incompleta{item.unidades_incompletas.length === 1 ? '' : 's'}
               </span>
             )}
           </div>
@@ -922,6 +939,16 @@ export function EstoqueView({
                   {soComAvaria && <X size={12} />}
                 </button>
               )}
+              <button
+                onClick={() => setSoSemFoto((v) => !v)}
+                className={cn(
+                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+                  soSemFoto ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                )}
+              >
+                Sem foto
+                {soSemFoto && <X size={12} />}
+              </button>
             </div>
           </div>
 
@@ -1224,15 +1251,14 @@ export function EstoqueView({
                 <div className="grid grid-cols-3 gap-4">
                   <div>
                     <label className={labelClass}>Valor (R$)</label>
-                    {/* inputMode decimal abre o teclado numérico do celular —
-                        o tipo continua number pra manter os controles no desktop. */}
+                    {/* Máscara de moeda: dígitos preenchem da direita (estilo
+                        "digitar centavos"), evita erro de vírgula/ponto do
+                        input number cru. inputMode decimal só ajuda o teclado mobile. */}
                     <input
-                      type="number"
-                      min="0"
-                      step="0.01"
+                      type="text"
                       inputMode="decimal"
-                      value={formData.valor}
-                      onChange={(e) => setFormData({ ...formData, valor: Number(e.target.value) })}
+                      value={formatCurrencyInput(String(Math.round((formData.valor || 0) * 100)))}
+                      onChange={(e) => setFormData({ ...formData, valor: parseCurrencyInput(e.target.value) })}
                       className={inputClass}
                     />
                   </div>
@@ -1394,22 +1420,36 @@ export function EstoqueView({
                       ))}
                     </div>
                   )}
-                  <input
-                    value={novoComponente}
-                    onChange={(e) => setNovoComponente(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        e.preventDefault();
-                        const nomeParte = novoComponente.trim();
-                        if (nomeParte && !(formData.componentes || []).includes(nomeParte)) {
-                          setFormData((prev) => ({ ...prev, componentes: [...(prev.componentes || []), nomeParte] }));
-                        }
-                        setNovoComponente('');
+                  {/* <form onSubmit> em vez de só onKeyDown('Enter'): em
+                      teclados virtuais mobile com IME (Gboard, Samsung
+                      Keyboard) a tecla Enter às vezes chega como keyCode 229
+                      ("Process") em vez do Enter real, então o onKeyDown
+                      nunca disparava. O submit do form funciona nos dois casos. */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      const nomeParte = novoComponente.trim();
+                      if (nomeParte && !(formData.componentes || []).includes(nomeParte)) {
+                        setFormData((prev) => ({ ...prev, componentes: [...(prev.componentes || []), nomeParte] }));
                       }
+                      setNovoComponente('');
                     }}
-                    placeholder="Ex: Inferior — Enter pra adicionar"
-                    className={inputClass}
-                  />
+                    className="flex gap-2"
+                  >
+                    <input
+                      value={novoComponente}
+                      onChange={(e) => setNovoComponente(e.target.value)}
+                      placeholder="Ex: Inferior"
+                      className={cn(inputClass, 'flex-1')}
+                    />
+                    <button
+                      type="submit"
+                      disabled={!novoComponente.trim()}
+                      className="shrink-0 px-4 rounded-control bg-surface-inset border border-border-default text-text-secondary text-xs font-semibold uppercase tracking-wider hover:bg-surface-raised disabled:opacity-50"
+                    >
+                      Adicionar
+                    </button>
+                  </form>
                 </div>
               </ModalSection>
 

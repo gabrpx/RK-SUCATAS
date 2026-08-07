@@ -21,6 +21,8 @@ export const TAB_ROLES: Record<string, Role[]> = {
   mercadolivre: ['admin', 'equipe'],
   configuracoes: ['admin', 'equipe'],
   tarefas: ['admin', 'equipe', 'mandados', 'mecanico'],
+  // Só informativo (changelog do produto) — visível pra todo mundo que faz login.
+  patchnotes: ALL_ROLES,
 };
 
 // Cargos "de campo" que só recebem tarefas e dão baixa nas próprias —

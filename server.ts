@@ -201,10 +201,17 @@ async function startServer() {
   // Lista enxuta (id + nome) de quem pode receber tarefa, pro <select> de
   // responsável na tela de Tarefas — admin/equipe precisam disso pra criar
   // tarefas, mas não têm acesso ao resto de /api/usuarios (admin-only).
-  // Inclui todo cargo "executor" (EXECUTORES_TAREFA: mandados + mecanico).
-  app.get('/api/usuarios/responsaveis-tarefa', autorizar('admin', 'equipe'), async (_req, res) => {
+  // Inclui todo cargo "executor" (EXECUTORES_TAREFA: mandados + mecanico) MAIS
+  // o próprio usuário logado, que pode se autoatribuir tarefa mesmo sem papel
+  // executor (ver responsavelValido em tarefas.ts).
+  app.get('/api/usuarios/responsaveis-tarefa', autorizar('admin', 'equipe'), async (req: AuthenticatedRequest, res) => {
     try {
-      const { data, error } = await supabase.from('usuarios').select('id, nome_exibicao').overlaps('roles', EXECUTORES_TAREFA).eq('ativo', true).order('nome_exibicao');
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nome_exibicao')
+        .eq('ativo', true)
+        .or(`roles.ov.{${EXECUTORES_TAREFA.join(',')}},id.eq.${req.usuario!.id}`)
+        .order('nome_exibicao');
       if (error) throw error;
       res.json({ success: true, data });
     } catch (err: any) {

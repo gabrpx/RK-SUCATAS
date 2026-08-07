@@ -44,12 +44,16 @@ import { VendasView } from './features/vendas/VendasView';
 import { OrcamentosView } from './features/orcamentos/OrcamentosView';
 import { ClientesView } from './features/clientes/ClientesView';
 import { FiadoView } from './features/fiado/FiadoView';
+import { formaPagamentoEfetiva } from './features/fiado/metricas';
+import type { FiadoRecebimento } from './features/fiado/types';
+import { valorVendidoEmPartes, valorRestanteEstimado } from './features/vendas/metricas';
 import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { MercadoLivreView } from './features/mercadolivre/MercadoLivreView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
 import { TarefasView } from './features/tarefas/TarefasView';
+import { PatchNotesView } from './features/patchnotes/PatchNotesView';
 import { Toaster } from './components/ui/toast';
 import { SincronizacaoMlProvider } from './features/mercadolivre/SincronizacaoMlContext';
 import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
@@ -67,7 +71,7 @@ import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'fiado', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas'];
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'fiado', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes'];
 
 // Primeira aba visível pra quem tem esses papéis — usada como fallback
 // quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
@@ -234,6 +238,8 @@ function DetailModal({
   onAlterado,
   userRoles,
   onAbrirFiado,
+  fiadoRecebimentos = [],
+  vendas: todasAsVendas = [],
 }: {
   item: DetailItem;
   onClose: () => void;
@@ -244,6 +250,8 @@ function DetailModal({
   onAlterado?: () => void;
   userRoles: Role[];
   onAbrirFiado?: () => void;
+  fiadoRecebimentos?: FiadoRecebimento[];
+  vendas?: Venda[];
 }) {
   useScrollLock(true);
 
@@ -370,12 +378,33 @@ function DetailModal({
               {venda && (
                 <>
                   <DetailItemBox label="Quantidade" value={venda.quantidade} icon={Package} theme={theme} />
-                  <DetailItemBox label="Pagamento" value={venda.forma_pagamento?.nome} icon={CreditCard} theme={theme} />
+                  {(() => {
+                    const efetiva = formaPagamentoEfetiva(venda, fiadoRecebimentos);
+                    const valorPagamento = efetiva ? `${efetiva.formas.join(', ')}${efetiva.quitadoTotal ? '' : ' (parcial)'}` : venda.forma_pagamento?.nome;
+                    return <DetailItemBox label="Pagamento" value={valorPagamento} icon={CreditCard} theme={theme} />;
+                  })()}
                   <DetailItemBox label="Data" value={new Date(venda.data).toLocaleDateString('pt-BR')} icon={Calendar} theme={theme} />
                   {venda.cliente_nome && <DetailItemBox label="Cliente" value={venda.cliente_nome} icon={Edit} theme={theme} />}
                 </>
               )}
             </div>
+
+            {venda && formaPagamentoEfetiva(venda, fiadoRecebimentos) && (
+              <div className={cn('p-4 rounded-3xl border space-y-1.5', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}>
+                <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em]">Recebimentos deste fiado</h4>
+                {fiadoRecebimentos
+                  .filter((r) => r.venda_id === venda.id)
+                  .sort((a, b) => new Date(b.recebido_em).getTime() - new Date(a.recebido_em).getTime())
+                  .map((r) => (
+                    <div key={r.id} className="flex items-center justify-between text-xs">
+                      <span className={theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}>
+                        {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'}
+                      </span>
+                      <span className="font-medium text-emerald-500">{formatCurrency(r.valor)}</span>
+                    </div>
+                  ))}
+              </div>
+            )}
 
             {venda && (
               <div className="space-y-4">
@@ -407,18 +436,29 @@ function DetailModal({
               </div>
             )}
 
+            {/* Venda em partes: mostra o cálculo antes mesmo de abrir uma
+                venda nova, não só no momento de vender (ver VendasView). */}
+            {estoque && (estoque.unidades_incompletas?.length ?? 0) > 0 && (
+              <div className={cn('p-4 rounded-3xl border', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}>
+                <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] mb-2">Venda em partes</h4>
+                <p className="text-xs text-zinc-500 mb-1">
+                  {estoque.unidades_incompletas.length} unidade(s) incompleta(s) — falta: {estoque.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}
+                </p>
+                <p className="text-xs text-zinc-500">
+                  Valor original: {formatCurrency(estoque.valor)} · Já vendido em partes: {formatCurrency(valorVendidoEmPartes(estoque.id, todasAsVendas))} · Restante:{' '}
+                  {formatCurrency(valorRestanteEstimado(estoque.valor, estoque.id, todasAsVendas))}
+                </p>
+              </div>
+            )}
+
             {/* Unidades físicas desta peça: mesma peça, uma linha só no
                 estoque, mas cada unidade diferente (nota própria, avaria,
                 apelido ou preço) ganha ficha e foto. */}
             {estoque && <UnidadesEstoque item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
 
             <div className="flex flex-col gap-3 pt-4">
-              <button onClick={handleWhatsAppShare} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3">
-                <MessageCircle size={20} /> Compartilhar no WhatsApp
-              </button>
-
-              {(onEdit || onDelete) && (
-                <div className="grid grid-cols-2 gap-3">
+              {(onEdit || onDelete || estoque) && (
+                <div className={cn('grid gap-3', onEdit && onDelete && estoque ? 'grid-cols-3' : 'grid-cols-2')}>
                   {onEdit && (
                     <button
                       onClick={() => {
@@ -442,6 +482,18 @@ function DetailModal({
                       className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500/20 flex items-center justify-center gap-2"
                     >
                       <Trash2 size={16} /> Excluir
+                    </button>
+                  )}
+                  {/* WhatsApp só faz sentido pra Estoque (falar sobre a peça) —
+                      numa venda já concluída não há nada a "compartilhar". Virou
+                      uma ação secundária pequena, não mais o CTA principal do modal. */}
+                  {estoque && (
+                    <button
+                      onClick={handleWhatsAppShare}
+                      title="Compartilhar no WhatsApp"
+                      className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 flex items-center justify-center gap-2"
+                    >
+                      <MessageCircle size={16} /> WhatsApp
                     </button>
                   )}
                 </div>
@@ -490,12 +542,14 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
-  // fichas de unidade (badge de avaria e valor total dependem disso).
-  const { refreshData } = useData();
+  // fichas de unidade (badge de avaria e valor total dependem disso), pra
+  // mostrar a forma de pagamento efetiva de uma venda fiado já quitada, e pro
+  // cálculo de quanto já foi vendido em partes de um item incompleto.
+  const { refreshData, fiadoRecebimentos, vendas: todasAsVendas } = useData();
 
   // IS_LOCALHOST pula o login (ver comentário acima) e nunca grava
   // user_roles no localStorage — nesse caso replica o mesmo ['admin'] que o
@@ -693,7 +747,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
                 />
               ) : activeTab === 'vendas' ? (
-                <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
+                <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} userRoles={userRoles} />
               ) : activeTab === 'orcamentos' ? (
                 <OrcamentosView theme={theme} />
               ) : activeTab === 'clientes' ? (
@@ -705,7 +759,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   userRoles={userRoles}
                 />
               ) : activeTab === 'fiado' ? (
-                <FiadoView />
+                <FiadoView userRoles={userRoles} />
               ) : activeTab === 'caixa' ? (
                 <CaixaView theme={theme} />
               ) : activeTab === 'frete' ? (
@@ -714,6 +768,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 <MercadoLivreView />
               ) : activeTab === 'tarefas' ? (
                 <TarefasView userRoles={userRoles} />
+              ) : activeTab === 'patchnotes' ? (
+                <PatchNotesView />
               ) : (
                 <ConfiguracoesView theme={theme} userRoles={userRoles} />
               )}
@@ -742,6 +798,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             onAlterado={refreshData}
             userRoles={userRoles}
             onAbrirFiado={() => setActiveTab('fiado')}
+            fiadoRecebimentos={fiadoRecebimentos}
+            vendas={todasAsVendas}
           />
         )}
       </AnimatePresence>

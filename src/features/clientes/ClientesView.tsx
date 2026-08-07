@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, Bike, PackageSearch, X } from 'lucide-react';
 import { cn } from '../../utils';
+import { formatTelefoneBR, formatDocumentoBR, onlyDigits } from '../../utils/formatters';
 import { useData } from '../../context/DataContext';
 import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
@@ -16,7 +17,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
 import { clientesApi } from './api';
-import { calcularHistoricoCliente, calcularSegmento, SEGMENTO_LABELS, SEGMENTO_TONS } from './metricas';
+import { calcularHistoricoCliente, calcularSegmento, SEGMENTO_LABELS, SEGMENTO_TONS, badgesMotoProcurada, motosDistintasProcuradas } from './metricas';
 import { gerarCsvHistoricoCliente, baixarCsv } from './exportarHistoricoCsv';
 import { useTarefas } from '../tarefas/useTarefas';
 import { comprovantesApi } from '../comprovantes/api';
@@ -84,12 +85,20 @@ export function ClientesView({
   userRoles?: Role[];
 }) {
   const podeExcluirComprovante = userRoles.includes('admin');
-  const { clientes, vendas, orcamentos, refreshData, loading } = useData();
+  const { clientes, vendas, orcamentos, pecasProcuradas, setPecasProcuradas, refreshData, loading } = useData();
   const { tarefas } = useTarefas();
   const { modelos, categorias } = useCatalogos();
   const [busca, setBusca] = useState('');
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
+  const [motoProcuradaFiltro, setMotoProcuradaFiltro] = useState<string | null>(null);
   const [somenteSumidos, setSomenteSumidos] = useState(false);
+
+  const motosProcuradasOpcoes = useMemo(() => motosDistintasProcuradas(pecasProcuradas), [pecasProcuradas]);
+  const badgesPorCliente = useMemo(() => {
+    const mapa = new Map<string, ReturnType<typeof badgesMotoProcurada>>();
+    for (const c of clientes) mapa.set(c.id, badgesMotoProcurada(c.id, pecasProcuradas));
+    return mapa;
+  }, [clientes, pecasProcuradas]);
 
   // Um cálculo por cliente visível — o histórico nunca é persistido, é
   // sempre derivado de vendas/orçamentos já carregados (ver metricas.ts).
@@ -117,10 +126,13 @@ export function ClientesView({
     return clientes.filter((c) => {
       if (somenteSumidos && calcularSegmento(historicoPorCliente.get(c.id)!) !== 'sumido') return false;
       if (tagFiltro && !c.tags.includes(tagFiltro)) return false;
+      if (motoProcuradaFiltro && !(badgesPorCliente.get(c.id) || []).some((b) => b.modeloMotoId === motoProcuradaFiltro)) return false;
       if (!termo) return true;
-      return c.nome.toLowerCase().includes(termo) || (c.telefone || '').toLowerCase().includes(termo) || (c.documento || '').toLowerCase().includes(termo);
+      const digitosTermo = onlyDigits(termo);
+      const matchDigitos = digitosTermo.length > 0 && (onlyDigits(c.telefone || '').includes(digitosTermo) || onlyDigits(c.documento || '').includes(digitosTermo));
+      return c.nome.toLowerCase().includes(termo) || matchDigitos;
     });
-  }, [clientes, busca, tagFiltro, somenteSumidos, historicoPorCliente]);
+  }, [clientes, busca, tagFiltro, motoProcuradaFiltro, somenteSumidos, historicoPorCliente, badgesPorCliente]);
 
   // Deep-link vindo do alerta de "cliente sumido" no dashboard.
   useEffect(() => {
@@ -150,8 +162,8 @@ export function ClientesView({
     setEditando(cliente);
     setForm({
       nome: cliente.nome,
-      telefone: cliente.telefone || '',
-      documento: cliente.documento || '',
+      telefone: formatTelefoneBR(cliente.telefone || ''),
+      documento: formatDocumentoBR(cliente.documento || ''),
       data_nascimento: cliente.data_nascimento || '',
       origem: cliente.origem,
       preferencia_contato: cliente.preferencia_contato,
@@ -170,8 +182,8 @@ export function ClientesView({
     setErroForm(null);
     const payload: ClienteInput = {
       nome: form.nome.trim(),
-      telefone: form.telefone?.trim() || null,
-      documento: form.documento?.trim() || null,
+      telefone: onlyDigits(form.telefone || '') || null,
+      documento: onlyDigits(form.documento || '') || null,
       data_nascimento: form.data_nascimento || null,
       origem: form.origem || null,
       preferencia_contato: form.preferencia_contato || null,
@@ -311,6 +323,7 @@ export function ClientesView({
       const result = await clientesApi.criarPecaProcurada(clienteAberto.id, payload);
       if (!result.success) throw new Error(result.error);
       setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: [result.data, ...(prev.pecas_procuradas || [])] } : prev));
+      setPecasProcuradas((prev) => [{ id: result.data.id, cliente_id: clienteAberto.id, status: result.data.status, modelo_moto_id: result.data.modelo_moto_id, modelo_moto: result.data.modelo_moto }, ...prev]);
       setNovaPeca(EMPTY_PECA);
     } catch (err: any) {
       aviso.falha(err, 'Erro ao cadastrar peça procurada');
@@ -325,6 +338,7 @@ export function ClientesView({
       const result = await clientesApi.atualizarStatusPecaProcurada(clienteAberto.id, pedidoId, status);
       if (!result.success) throw new Error(result.error);
       setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: (prev.pecas_procuradas || []).map((p) => (p.id === pedidoId ? result.data : p)) } : prev));
+      setPecasProcuradas((prev) => prev.map((p) => (p.id === pedidoId ? { ...p, status: result.data.status } : p)));
     } catch (err: any) {
       aviso.falha(err, 'Erro ao atualizar status');
     }
@@ -336,6 +350,7 @@ export function ClientesView({
       const result = await clientesApi.removerPecaProcurada(clienteAberto.id, pedidoId);
       if (!result.success) throw new Error(result.error);
       setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: (prev.pecas_procuradas || []).filter((p) => p.id !== pedidoId) } : prev));
+      setPecasProcuradas((prev) => prev.filter((p) => p.id !== pedidoId));
     } catch (err: any) {
       aviso.falha(err, 'Erro ao excluir peça procurada');
     }
@@ -362,8 +377,13 @@ export function ClientesView({
       render: (c) => (
         <div className="flex flex-col">
           <span className="text-sm font-medium text-text-primary">{c.nome}</span>
-          {c.tags.length > 0 && (
+          {(c.tags.length > 0 || (badgesPorCliente.get(c.id) || []).length > 0) && (
             <div className="flex flex-wrap gap-1 mt-1">
+              {(badgesPorCliente.get(c.id) || []).map((b) => (
+                <span key={b.modeloMotoId} title="Moto procurada">
+                  <StatusBadge texto={b.nome} tom={b.tom} />
+                </span>
+              ))}
               {c.tags.map((t) => (
                 <span key={t}>
                   <StatusBadge texto={t} tom="accent" />
@@ -374,7 +394,7 @@ export function ClientesView({
         </div>
       ),
     },
-    { key: 'telefone', header: 'Telefone', render: (c) => c.telefone || '—' },
+    { key: 'telefone', header: 'Telefone', render: (c) => (c.telefone ? formatTelefoneBR(c.telefone) : '—') },
     {
       key: 'segmento',
       header: 'Segmento',
@@ -430,7 +450,7 @@ export function ClientesView({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium text-text-primary truncate">{c.nome}</p>
-            <p className="text-xs text-text-faint">{c.telefone || '—'}</p>
+            <p className="text-xs text-text-faint">{c.telefone ? formatTelefoneBR(c.telefone) : '—'}</p>
           </div>
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             <button type="button" onClick={() => abrirEditar(c)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
@@ -451,6 +471,11 @@ export function ClientesView({
             const segmento = calcularSegmento(historicoPorCliente.get(c.id)!);
             return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
           })()}
+          {(badgesPorCliente.get(c.id) || []).map((b) => (
+            <span key={b.modeloMotoId} title="Moto procurada">
+              <StatusBadge texto={b.nome} tom={b.tom} />
+            </span>
+          ))}
           {c.tags.map((t) => (
             <span key={t}>
               <StatusBadge texto={t} tom="accent" />
@@ -491,6 +516,21 @@ export function ClientesView({
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone ou documento" className={cn(inputClass, 'pl-9')} />
         </div>
+        {motosProcuradasOpcoes.length > 0 && (
+          <select
+            value={motoProcuradaFiltro || ''}
+            onChange={(e) => setMotoProcuradaFiltro(e.target.value || null)}
+            className={cn(inputClass, 'md:w-56')}
+            title="Filtrar por moto procurada"
+          >
+            <option value="">Todas as motos procuradas</option>
+            {motosProcuradasOpcoes.map((m) => (
+              <option key={m.id} value={m.id}>
+                {m.nome}
+              </option>
+            ))}
+          </select>
+        )}
         {todasTags.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
             <button
@@ -556,11 +596,25 @@ export function ClientesView({
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className={labelClass}>Telefone</label>
-                  <input value={form.telefone || ''} onChange={(e) => setForm((f) => ({ ...f, telefone: e.target.value }))} className={inputClass} placeholder="(00) 00000-0000" />
+                  <input
+                    value={form.telefone || ''}
+                    onChange={(e) => setForm((f) => ({ ...f, telefone: formatTelefoneBR(e.target.value) }))}
+                    inputMode="numeric"
+                    maxLength={15}
+                    className={inputClass}
+                    placeholder="(00) 00000-0000"
+                  />
                 </div>
                 <div>
                   <label className={labelClass}>CPF/CNPJ</label>
-                  <input value={form.documento || ''} onChange={(e) => setForm((f) => ({ ...f, documento: e.target.value }))} className={inputClass} placeholder="Opcional" />
+                  <input
+                    value={form.documento || ''}
+                    onChange={(e) => setForm((f) => ({ ...f, documento: formatDocumentoBR(e.target.value) }))}
+                    inputMode="numeric"
+                    maxLength={18}
+                    className={inputClass}
+                    placeholder="Opcional"
+                  />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -630,7 +684,7 @@ export function ClientesView({
             <div className="p-6 border-b border-border-subtle flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-medium">{clienteAberto.nome}</h2>
-                <p className="text-xs text-text-faint mt-0.5">{clienteAberto.telefone || 'Sem telefone cadastrado'}</p>
+                <p className="text-xs text-text-faint mt-0.5">{clienteAberto.telefone ? formatTelefoneBR(clienteAberto.telefone) : 'Sem telefone cadastrado'}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
                 {(() => {
@@ -643,6 +697,15 @@ export function ClientesView({
               </div>
             </div>
             <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
+              {(badgesPorCliente.get(clienteAberto.id) || []).length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {(badgesPorCliente.get(clienteAberto.id) || []).map((b) => (
+                    <span key={b.modeloMotoId} title="Moto procurada">
+                      <StatusBadge texto={b.nome} tom={b.tom} />
+                    </span>
+                  ))}
+                </div>
+              )}
               {clienteAberto.tags.length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {clienteAberto.tags.map((t) => (
@@ -657,7 +720,7 @@ export function ClientesView({
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-xs text-text-faint uppercase tracking-wide">Documento</p>
-                  <p className="text-text-primary">{clienteAberto.documento || '—'}</p>
+                  <p className="text-text-primary">{clienteAberto.documento ? formatDocumentoBR(clienteAberto.documento) : '—'}</p>
                 </div>
                 <div>
                   <p className="text-xs text-text-faint uppercase tracking-wide">Aniversário</p>

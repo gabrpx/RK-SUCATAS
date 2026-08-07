@@ -15,10 +15,11 @@ import {
   Users,
   ClipboardList,
   Settings,
+  ScrollText,
 } from 'lucide-react';
 import { TAB_ROLES, type Role } from './roles';
 
-export type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'clientes' | 'fiado' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas';
+export type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'clientes' | 'fiado' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas' | 'patchnotes';
 
 export type NavGroup = 'estoque' | 'vendas' | 'gestao' | null;
 
@@ -44,6 +45,7 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'clientes', icon: Users, label: 'Clientes', group: 'gestao', roles: TAB_ROLES.clientes },
   { id: 'tarefas', icon: ClipboardList, label: 'Tarefas', group: 'gestao', roles: TAB_ROLES.tarefas },
   { id: 'configuracoes', icon: Settings, label: 'Configurações', mobileLabel: 'Config', group: null, roles: TAB_ROLES.configuracoes },
+  { id: 'patchnotes', icon: ScrollText, label: 'Novidades', group: 'gestao', roles: TAB_ROLES.patchnotes },
 ];
 
 export const NAV_GROUP_LABELS: Record<Exclude<NavGroup, null>, string> = {

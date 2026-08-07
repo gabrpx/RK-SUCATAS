@@ -13,13 +13,18 @@ const SELECT_COM_JOINS = '*, atribuido:usuarios!atribuido_para(id, nome_exibicao
 
 const CAMPOS_EDITAVEIS = ['titulo', 'descricao', 'prazo', 'atribuido_para', 'cliente_id', 'prioridade', 'tipo'] as const;
 
-const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo com papel "mandados" ou "mecanico"';
+const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo com papel "mandados" ou "mecanico" (ou você mesmo)';
 
 const PRIORIDADES_VALIDAS = ['baixa', 'media', 'alta'] as const;
 const TIPOS_VALIDOS = ['geral', 'visita'] as const;
 
-function responsavelValido(responsavel: { roles: string[]; ativo: boolean } | null): boolean {
-  return !!responsavel && responsavel.roles.some((r) => EXECUTORES_TAREFA.includes(r as Role)) && responsavel.ativo;
+// Admin/equipe pode se autoatribuir uma tarefa (ex: lembrete pessoal) mesmo
+// sem ter papel executor — só quem NÃO é o próprio usuário logado precisa
+// necessariamente ser mandados/mecanico.
+function responsavelValido(responsavel: { roles: string[]; ativo: boolean } | null, souEuMesmo: boolean): boolean {
+  if (!responsavel || !responsavel.ativo) return false;
+  if (souEuMesmo) return true;
+  return responsavel.roles.some((r) => EXECUTORES_TAREFA.includes(r as Role));
 }
 
 // Um usuário pode ter vários papéis ao mesmo tempo (ver migration_020) — as
@@ -87,7 +92,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
       const { data: responsavel, error: erroResponsavel } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', atribuido_para).maybeSingle();
       if (erroResponsavel) throw erroResponsavel;
-      if (!responsavelValido(responsavel)) {
+      if (!responsavelValido(responsavel, atribuido_para === req.usuario!.id)) {
         return res.status(400).json({ success: false, error: ERRO_RESPONSAVEL_INVALIDO });
       }
 
@@ -149,7 +154,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
       if (payload.atribuido_para !== undefined) {
         const { data: responsavel } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', payload.atribuido_para).maybeSingle();
-        if (!responsavelValido(responsavel)) {
+        if (!responsavelValido(responsavel, payload.atribuido_para === req.usuario!.id)) {
           return res.status(400).json({ success: false, error: ERRO_RESPONSAVEL_INVALIDO });
         }
       }

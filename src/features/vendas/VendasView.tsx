@@ -15,8 +15,11 @@ import { vendasApi } from './api';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
 import { PromocaoBadge } from '../promocoes/PromocaoBadge';
+import { formaPagamentoEfetiva, saldoPorVenda } from '../fiado/metricas';
+import { valorRestanteEstimado, valorVendidoEmPartes } from './metricas';
 import type { Venda } from './types';
 import type { Estoque } from '../estoque/types';
+import type { Role } from '../../constants/roles';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -40,18 +43,27 @@ interface VendasViewProps {
   theme: 'light' | 'dark';
   onSelectItem: (item: Venda) => void;
   onRegisterActions?: (actions: { edit: (item: Venda) => void; delete: (id: string) => void }) => void;
+  userRoles?: Role[];
 }
 
-export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasViewProps) {
-  const { vendas, setVendas, estoque, refreshData, loading } = useData();
+export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles = [] }: VendasViewProps) {
+  const { vendas, setVendas, estoque, fiadoRecebimentos, refreshData, loading } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
+  const podeForcarCancelamento = userRoles.includes('admin');
   const [search, setSearch] = useState('');
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [pagamentoFiltro, setPagamentoFiltro] = useState('Todos');
   const [isNovaVendaOpen, setIsNovaVendaOpen] = useState(false);
   const [vendaToCancel, setVendaToCancel] = useState<Venda | null>(null);
   const [cancelando, setCancelando] = useState(false);
+
+  // Recebimentos de fiado já confirmados pra venda em confirmação de
+  // cancelamento — se houver algum, o cancelamento normal (cancelar_venda)
+  // falha por causa do "on delete restrict" (ver migration_031), então a UI
+  // precisa oferecer o caminho de reversão em cascata (migration_037).
+  const recebidoDoVendaToCancel = vendaToCancel ? Number(vendaToCancel.valor_total) - saldoPorVenda(vendaToCancel, fiadoRecebimentos) : 0;
+  const temRecebimentoFiado = recebidoDoVendaToCancel > 0.01;
 
   const filtered = useMemo(() => {
     return vendas
@@ -67,7 +79,7 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
     if (!vendaToCancel) return;
     setCancelando(true);
     try {
-      const result = await vendasApi.cancelar(vendaToCancel.id);
+      const result = temRecebimentoFiado ? await vendasApi.cancelarFiadoCompleto(vendaToCancel.id) : await vendasApi.cancelar(vendaToCancel.id);
       if (!result.success) throw new Error(result.error);
       const itemCancelado = vendaToCancel.estoque_id ? estoque.find((e) => e.id === vendaToCancel.estoque_id) : undefined;
       // Cancelar mexe em vendas + estoque + caixa ao mesmo tempo — resincroniza tudo.
@@ -175,7 +187,20 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
                     </div>
                     <p className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
                       {parseLocalDate(venda.data).toLocaleDateString('pt-BR')}
-                      <span>· {venda.forma_pagamento?.nome}</span>
+                      {(() => {
+                        const efetiva = formaPagamentoEfetiva(venda, fiadoRecebimentos);
+                        if (!efetiva) return <span>· {venda.forma_pagamento?.nome}</span>;
+                        return (
+                          <span className="flex items-center gap-1">
+                            · {efetiva.formas.join(', ')}
+                            {!efetiva.quitadoTotal && (
+                              <span className="shrink-0">
+                                <StatusBadge texto="Parcial" tom="warning" />
+                              </span>
+                            )}
+                          </span>
+                        );
+                      })()}
                       {venda.cliente_nome && <span>· {venda.cliente_nome}</span>}
                     </p>
                   </div>
@@ -213,12 +238,24 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
               <p className="text-sm text-zinc-500 mb-6">
                 "{vendaToCancel.nome_item}" ({formatCurrency(vendaToCancel.valor_total)}) será removida. A quantidade volta pro estoque e a entrada no caixa é desfeita.
               </p>
+              {temRecebimentoFiado && (
+                <p className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 mb-4 text-left">
+                  Esta venda já tem {formatCurrency(recebidoDoVendaToCancel)} recebido(s) via fiado.
+                  {podeForcarCancelamento
+                    ? ' Cancelar aqui também reverte esse(s) recebimento(s) e as entradas de caixa vinculadas.'
+                    : ' Só um admin pode cancelar uma venda fiado já com recebimento.'}
+                </p>
+              )}
               <div className="flex gap-3">
                 <button onClick={() => setVendaToCancel(null)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
                   Voltar
                 </button>
-                <button onClick={handleCancelar} disabled={cancelando} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {cancelando ? <Loader2 size={16} className="animate-spin" /> : 'Cancelar venda'}
+                <button
+                  onClick={handleCancelar}
+                  disabled={cancelando || (temRecebimentoFiado && !podeForcarCancelamento)}
+                  className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {cancelando ? <Loader2 size={16} className="animate-spin" /> : temRecebimentoFiado ? 'Reverter e cancelar' : 'Cancelar venda'}
                 </button>
               </div>
             </motion.div>
@@ -230,12 +267,16 @@ export function VendasView({ theme, onSelectItem, onRegisterActions }: VendasVie
 }
 
 function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: () => void; theme: 'light' | 'dark' }) {
-  const { estoque, refreshData } = useData();
+  const { estoque, vendas, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
   const [busca, setBusca] = useState('');
   const [itemSelecionado, setItemSelecionado] = useState<Estoque | null>(null);
   const [componenteSelecionado, setComponenteSelecionado] = useState<string | null>(null);
+  // Ficha específica (unidade física) escolhida pra vender, em vez de uma
+  // unidade genérica do lote — sempre opcional, mutuamente exclusivo com
+  // componente (não dá pra vender uma ficha inteira E só uma parte dela).
+  const [unidadeSelecionadaId, setUnidadeSelecionadaId] = useState<string | null>(null);
   const [quantidade, setQuantidade] = useState('1');
   const [valorUnitario, setValorUnitario] = useState('');
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
@@ -256,6 +297,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
     setBusca('');
     setItemSelecionado(null);
     setComponenteSelecionado(null);
+    setUnidadeSelecionadaId(null);
     setQuantidade('1');
     setValorUnitario('');
     setFormaPagamentoId('');
@@ -270,24 +312,50 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
     onClose();
   };
 
+  // Fichas ainda não vendidas do item selecionado — só essas podem ser
+  // escolhidas na venda (ver migration_038).
+  const fichasDisponiveis = useMemo(() => (itemSelecionado?.unidades ?? []).filter((u) => !u.vendida_em), [itemSelecionado]);
+
   const selecionarItem = (item: Estoque) => {
     setItemSelecionado(item);
     setComponenteSelecionado(null);
+    setUnidadeSelecionadaId(null);
     setValorUnitario(String(item.promocao_ativa?.valor_promocional ?? item.valor));
     setBusca('');
   };
 
   const selecionarComponente = (nome: string | null) => {
     setComponenteSelecionado(nome);
+    setUnidadeSelecionadaId(null);
     setQuantidade('1');
-    // Preço de uma parte avulsa costuma ser diferente do item inteiro — não
-    // arrasta o valor do item, pra forçar digitar o valor certo.
-    setValorUnitario(nome ? '' : String(itemSelecionado?.promocao_ativa?.valor_promocional ?? itemSelecionado?.valor ?? 0));
+    if (!nome) {
+      setValorUnitario(String(itemSelecionado?.promocao_ativa?.valor_promocional ?? itemSelecionado?.valor ?? 0));
+      return;
+    }
+    // Sugere o valor RESTANTE do conjunto (valor original menos as partes já
+    // vendidas), não o valor cheio do item pai — ex: mesa de R$600, já vendeu
+    // a Superior por R$350, ao escolher a Inferior o campo já vem com R$250.
+    // Ainda assim editável: é só um default, o vendedor decide o valor final.
+    const restante = itemSelecionado ? valorRestanteEstimado(itemSelecionado.valor, itemSelecionado.id, vendas) : 0;
+    setValorUnitario(restante > 0 ? String(restante) : '');
+  };
+
+  const selecionarUnidade = (id: string | null) => {
+    setUnidadeSelecionadaId(id);
+    setComponenteSelecionado(null);
+    setQuantidade('1');
+    if (!id) {
+      setValorUnitario(String(itemSelecionado?.promocao_ativa?.valor_promocional ?? itemSelecionado?.valor ?? 0));
+      return;
+    }
+    const unidade = fichasDisponiveis.find((u) => u.id === id);
+    const valorDaFicha = unidade?.valor ?? itemSelecionado?.promocao_ativa?.valor_promocional ?? itemSelecionado?.valor ?? 0;
+    setValorUnitario(String(valorDaFicha));
   };
 
   const handleSubmit = async () => {
     if (!itemSelecionado) return;
-    const qtd = componenteSelecionado ? 1 : Number(quantidade);
+    const qtd = componenteSelecionado || unidadeSelecionadaId ? 1 : Number(quantidade);
     if (!qtd || qtd <= 0) return aviso.atencao('Quantidade inválida');
     if (!componenteSelecionado && qtd > itemSelecionado.quantidade) {
       return aviso.atencao(`Só há ${itemSelecionado.quantidade} unidade(s) em estoque`, { descricao: itemSelecionado.nome });
@@ -307,6 +375,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
         observacoes: observacoes || null,
         data,
         componente: componenteSelecionado,
+        unidade_id: unidadeSelecionadaId,
       });
       if (!result.success) throw new Error(result.error);
       // Registrar mexe em vendas + estoque + caixa — resincroniza tudo de uma vez.
@@ -409,7 +478,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
             </div>
           )}
 
-          {itemSelecionado && itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && (
+          {itemSelecionado && !unidadeSelecionadaId && itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && (
             <div>
               <label className={labelClass}>O que está sendo vendido?</label>
               <div className="flex flex-wrap gap-2">
@@ -431,9 +500,52 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
                   </button>
                 ))}
               </div>
+              {(() => {
+                const vendidoEmPartes = valorVendidoEmPartes(itemSelecionado.id, vendas);
+                if (vendidoEmPartes <= 0) return null;
+                const restante = valorRestanteEstimado(itemSelecionado.valor, itemSelecionado.id, vendas);
+                return (
+                  <p className="text-xs text-zinc-500 mt-2">
+                    Valor original: {formatCurrency(itemSelecionado.valor)} · Já vendido em partes: {formatCurrency(vendidoEmPartes)} · Restante: {formatCurrency(restante)}
+                  </p>
+                );
+              })()}
               {componenteSelecionado && (
                 <p className="text-xs text-amber-500 mt-2">
                   Vai vender só "{componenteSelecionado}" — o item some incompleto do estoque até o resto ser vendido também.
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Ficha específica: sempre opcional — vender por quantidade
+              genérica sem apontar ficha continua funcionando normalmente. */}
+          {itemSelecionado && !componenteSelecionado && fichasDisponiveis.length > 0 && (
+            <div>
+              <label className={labelClass}>Vender uma ficha específica? (opcional)</label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => selecionarUnidade(null)}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !unidadeSelecionadaId ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                >
+                  Unidade genérica
+                </button>
+                {fichasDisponiveis.map((u) => (
+                  <button
+                    key={u.id}
+                    type="button"
+                    onClick={() => selecionarUnidade(u.id)}
+                    className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', unidadeSelecionadaId === u.id ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                  >
+                    {u.apelido || 'Sem apelido'}
+                    {u.avaria && ' · avaria'}
+                  </button>
+                ))}
+              </div>
+              {unidadeSelecionadaId && (
+                <p className="text-xs text-amber-500 mt-2">
+                  Vai vender exatamente esta ficha — ela sai marcada como vendida (com o histórico de foto/avaria preservado), sem precisar apagar nada na mão.
                 </p>
               )}
             </div>
@@ -447,11 +559,11 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
                   <input
                     type="number"
                     min="1"
-                    max={componenteSelecionado ? 1 : itemSelecionado.quantidade}
+                    max={componenteSelecionado || unidadeSelecionadaId ? 1 : itemSelecionado.quantidade}
                     value={quantidade}
-                    disabled={!!componenteSelecionado}
+                    disabled={!!componenteSelecionado || !!unidadeSelecionadaId}
                     onChange={(e) => setQuantidade(e.target.value)}
-                    className={cn(inputClass, componenteSelecionado && 'opacity-50')}
+                    className={cn(inputClass, (componenteSelecionado || unidadeSelecionadaId) && 'opacity-50')}
                   />
                 </div>
                 <div>

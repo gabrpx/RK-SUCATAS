@@ -46,8 +46,9 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
     setUnidades(item.unidades ?? []);
   }, [item.unidades, item.id]);
 
-  const comAvaria = unidades.filter((u) => u.avaria).length;
-  const semObservacao = Math.max(0, item.quantidade - unidades.length);
+  const disponiveis = unidades.filter((u) => !u.vendida_em);
+  const comAvaria = disponiveis.filter((u) => u.avaria).length;
+  const semObservacao = Math.max(0, item.quantidade - disponiveis.length);
   const excedentes = unidadesExcedentes({ ...item, unidades });
 
   const abrirNova = () => {
@@ -185,7 +186,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
             const notaPropria = unidade.condicao_nota != null;
             const tomNota = notaEfetiva != null ? tomCondicaoNota(notaEfetiva) : null;
             return (
-              <li key={unidade.id} className="rounded-control border border-border-subtle bg-surface-inset p-3">
+              <li key={unidade.id} className={cn('rounded-control border border-border-subtle bg-surface-inset p-3', unidade.vendida_em && 'opacity-60')}>
                 <div className="flex items-start gap-3">
                   {notaEfetiva != null && (
                     <div className="shrink-0 flex flex-col items-center justify-center w-12">
@@ -203,6 +204,11 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium text-text-primary">{unidade.apelido || `Unidade ${indice + 1}`}</span>
+                      {unidade.vendida_em && (
+                        <span className="inline-flex items-center rounded-badge bg-surface-raised px-2 py-0.5 text-[11px] font-medium leading-none text-text-muted">
+                          Vendida em {new Date(unidade.vendida_em).toLocaleDateString('pt-BR')}
+                        </span>
+                      )}
                       {unidade.avaria && (
                         <span className="inline-flex items-center rounded-badge bg-warning-bg px-2 py-0.5 text-[11px] font-medium leading-none text-warning">Avaria</span>
                       )}

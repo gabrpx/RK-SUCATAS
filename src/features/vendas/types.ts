@@ -1,5 +1,6 @@
 import type { ModeloMoto, FormaPagamento } from '../../types/catalog';
 import type { ClienteResumo } from '../clientes/types';
+import type { EstoqueUnidade } from '../estoque/types';
 
 export interface Venda {
   id: string;
@@ -19,6 +20,10 @@ export interface Venda {
   // Nome da parte vendida avulsa (ex: "Inferior"), quando a venda não é do
   // item inteiro — ver estoque.componentes / estoque.unidades_incompletas.
   componente_vendido: string | null;
+  // Ficha de unidade específica vendida (ver migration_038) — null quando a
+  // venda foi por quantidade genérica, sem apontar qual unidade física saiu.
+  unidade_id: string | null;
+  unidade?: EstoqueUnidade | null;
   data: string;
   criado_em: string;
   // Canal de origem — 'mercado_livre' quando a venda veio de um pedido
@@ -45,4 +50,7 @@ export interface VendaInput {
   // Quando informado, vende só essa parte do item (não desconta a unidade
   // inteira) — precisa estar em estoque.componentes do item selecionado.
   componente?: string | null;
+  // Quando informado, vende essa ficha específica (estoque_unidades.id) em
+  // vez de uma unidade genérica — opcional, mutuamente exclusivo com componente.
+  unidade_id?: string | null;
 }

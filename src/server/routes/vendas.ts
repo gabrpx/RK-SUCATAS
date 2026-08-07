@@ -8,7 +8,8 @@ import { autorizar } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
 
-const SELECT_COM_JOIN = '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome, natureza), cliente:clientes(id, nome, telefone)';
+const SELECT_COM_JOIN =
+  '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome, natureza), cliente:clientes(id, nome, telefone), unidade:estoque_unidades(id, apelido, avaria, avaria_descricao, fotos, valor)';
 
 const SELECT_COMPROVANTE = '*, autor:usuarios!comprovantes_pix_criado_por_fkey(id, nome_exibicao)';
 
@@ -28,7 +29,7 @@ export function vendasRouter(supabase: SupabaseClient) {
 
   router.post('/', async (req, res) => {
     try {
-      const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, cliente_id, observacoes, data, componente } = req.body || {};
+      const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, cliente_id, observacoes, data, componente, unidade_id } = req.body || {};
 
       if (!estoque_id) return res.status(400).json({ success: false, error: 'estoque_id é obrigatório' });
       if (!quantidade || Number(quantidade) <= 0) return res.status(400).json({ success: false, error: 'Quantidade inválida' });
@@ -50,6 +51,7 @@ export function vendasRouter(supabase: SupabaseClient) {
         // informado, dá baixa só nela (ver comentário em registrar_venda).
         p_componente: componente || null,
         p_cliente_id: cliente_id || null,
+        p_unidade_id: unidade_id || null,
       });
 
       if (error) throw error;
@@ -94,6 +96,21 @@ export function vendasRouter(supabase: SupabaseClient) {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Erro ao cancelar venda:', error);
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
+  // Cancela uma venda fiado mesmo já quitada (parcial ou total): reverte
+  // todos os fiado_recebimentos dela (e as entradas de caixa vinculadas) e só
+  // então cancela a venda em si — tudo numa transação (migration_037). Ação
+  // sensível (mexe com dinheiro já recebido), por isso só admin.
+  router.delete('/:id/fiado-completo', autorizar('admin'), async (req, res) => {
+    try {
+      const { error } = await supabase.rpc('cancelar_venda_fiado_completa', { p_venda_id: req.params.id });
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao cancelar venda fiado em cascata:', error);
       res.status(400).json({ success: false, error: error.message });
     }
   });

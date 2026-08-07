@@ -4,13 +4,15 @@
 // memória, sem custo de rede); só motos e os comprovantes de PIX de OUTRAS
 // compras do cliente exigem buscar a ficha completa (GET /api/clientes/:id).
 import { useEffect, useState } from 'react';
-import { Phone, IdCard, Bike, HandCoins, Loader2 } from 'lucide-react';
+import { Phone, IdCard, Bike, HandCoins, Loader2, PackageSearch } from 'lucide-react';
 import { useData } from '../../context/DataContext';
 import { clientesApi } from '../clientes/api';
 import { calcularHistoricoCliente } from '../clientes/metricas';
 import { saldoPorVenda } from '../fiado/metricas';
 import { comprovantesApi } from '../comprovantes/api';
 import { ComprovanteListItem } from '../comprovantes/ComprovantesPixVenda';
+import { StatusBadge } from '../../components/ui/StatusBadge';
+import { formatTelefoneBR, formatDocumentoBR } from '../../utils/formatters';
 import type { ComprovantePixComVenda } from '../comprovantes/types';
 import type { Cliente } from '../clientes/types';
 import type { Venda } from './types';
@@ -69,13 +71,13 @@ export function VendaClienteResumo({ clienteId, venda, podeExcluirComprovante = 
         {cliente.telefone && (
           <div className="flex items-center gap-2 text-sm text-text-secondary">
             <Phone size={14} className="text-text-faint shrink-0" />
-            {cliente.telefone}
+            {formatTelefoneBR(cliente.telefone)}
           </div>
         )}
         {cliente.documento && (
           <div className="flex items-center gap-2 text-sm text-text-secondary">
             <IdCard size={14} className="text-text-faint shrink-0" />
-            {cliente.documento}
+            {formatDocumentoBR(cliente.documento)}
           </div>
         )}
       </div>

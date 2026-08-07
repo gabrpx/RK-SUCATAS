@@ -1,0 +1,245 @@
+-- =============================================================================
+-- RK Sucatas — Migração 038: vender uma ficha/unidade específica
+-- =============================================================================
+-- Rode isso no editor SQL do Supabase (depende de estoque_unidades da
+-- migration_014 e de vendas/registrar_venda/cancelar_venda já com o estado da
+-- migration_031/migration_010 — schema.sql + migrations 002 a 037 aplicadas).
+--
+-- Problema: uma peça com fichas (ex: 5 TBI, 2 com ficha de avaria) sempre
+-- vendia o item pai — a venda nunca sabia qual unidade física estava saindo.
+-- Depois da venda, quem cataloga tinha que adivinhar e apagar a ficha certa
+-- na mão (ver comentário de `unidadesExcedentes` em valorEstoque.ts).
+--
+-- Solução: `vendas.unidade_id` (nullable) registra qual ficha específica foi
+-- vendida, quando o vendedor escolheu uma. Continua opcional — vender por
+-- quantidade genérica sem apontar ficha continua funcionando exatamente como
+-- antes (unidade_id fica null). `estoque_unidades.vendida_em` marca a ficha
+-- como vendida sem apagá-la (soft marker), preservando o histórico de
+-- avaria/foto/preço daquela unidade mesmo depois de vendida.
+--
+-- Só se aplica a venda do item inteiro (p_componente is null) — vender uma
+-- ficha específica E uma parte avulsa dela ao mesmo tempo não faz sentido no
+-- modelo atual (ficha é a unidade física inteira, componente é uma fração
+-- dela) e a função recusa essa combinação.
+--
+-- cancelar_venda devolve a ficha pra disponível (vendida_em = null) junto
+-- com a quantidade, exatamente como já reverte unidades_incompletas hoje.
+-- =============================================================================
+
+alter table vendas add column if not exists unidade_id uuid references estoque_unidades(id) on delete set null;
+alter table estoque_unidades add column if not exists vendida_em timestamptz;
+
+-- ATENÇÃO: copia o corpo INTEIRO e vigente de registrar_venda (o de
+-- migration_031_fiado_recebimentos.sql) — mesma convenção já usada nas
+-- migrations anteriores que mexeram nela. p_unidade_id é parâmetro novo no
+-- FINAL da assinatura, com default null, então nenhuma chamada existente quebra.
+create or replace function registrar_venda(
+  p_estoque_id uuid,
+  p_quantidade int,
+  p_valor_unitario numeric,
+  p_forma_pagamento_id uuid,
+  p_modelo_moto_id uuid default null,
+  p_cliente_nome text default null,
+  p_observacoes text default null,
+  p_data date default current_date,
+  p_componente text default null,
+  p_cliente_id uuid default null,
+  p_unidade_id uuid default null
+) returns vendas as $$
+declare
+  v_nome text;
+  v_estoque_atual int;
+  v_componentes jsonb;
+  v_unidades jsonb;
+  v_venda vendas;
+  v_nome_para_venda text;
+  v_idx int;
+  v_faltando jsonb;
+  v_unidades_completas int;
+  v_cliente_nome_final text;
+  v_natureza_forma text;
+  v_unidade_estoque_id uuid;
+  v_unidade_vendida_em timestamptz;
+begin
+  select nome, quantidade, componentes, coalesce(unidades_incompletas, '[]'::jsonb)
+    into v_nome, v_estoque_atual, v_componentes, v_unidades
+  from estoque where id = p_estoque_id
+  for update; -- trava a linha até o fim da transação, evita venda concorrente furar o estoque
+
+  if v_estoque_atual is null then
+    raise exception 'Item de estoque não encontrado';
+  end if;
+
+  -- Cliente cadastrado tem prioridade sobre o nome livre — o nome vira só um
+  -- retrato (snapshot) do cadastro no momento da venda, igual nome_item já é
+  -- um retrato de estoque.nome.
+  if p_cliente_id is not null then
+    select nome into v_cliente_nome_final from clientes where id = p_cliente_id;
+    if v_cliente_nome_final is null then
+      raise exception 'Cliente não encontrado';
+    end if;
+  else
+    v_cliente_nome_final := p_cliente_nome;
+  end if;
+
+  if p_unidade_id is not null then
+    if p_componente is not null then
+      raise exception 'Não é possível vender uma ficha específica e uma parte avulsa na mesma venda';
+    end if;
+    if p_quantidade <> 1 then
+      raise exception 'Venda de uma ficha específica só pode ser feita 1 de cada vez';
+    end if;
+
+    select estoque_id, vendida_em into v_unidade_estoque_id, v_unidade_vendida_em
+    from estoque_unidades where id = p_unidade_id
+    for update;
+
+    if v_unidade_estoque_id is null then
+      raise exception 'Ficha de unidade não encontrada';
+    end if;
+    if v_unidade_estoque_id <> p_estoque_id then
+      raise exception 'Esta ficha pertence a outro item de estoque';
+    end if;
+    if v_unidade_vendida_em is not null then
+      raise exception 'Esta ficha já foi vendida';
+    end if;
+  end if;
+
+  if p_componente is null then
+    -- Venda do item inteiro: só pode sair de unidades que ainda estão 100%
+    -- completas — não faria sentido vender como "inteira" uma unidade que já
+    -- perdeu uma parte.
+    v_unidades_completas := v_estoque_atual - jsonb_array_length(v_unidades);
+    if v_unidades_completas < p_quantidade then
+      raise exception 'Estoque insuficiente: % completa(s) disponível(is), % solicitada(s)', v_unidades_completas, p_quantidade;
+    end if;
+
+    update estoque set quantidade = quantidade - p_quantidade where id = p_estoque_id;
+    v_nome_para_venda := v_nome;
+
+    if p_unidade_id is not null then
+      update estoque_unidades set vendida_em = now() where id = p_unidade_id;
+    end if;
+  else
+    if p_quantidade <> 1 then
+      raise exception 'Venda de componente avulso só pode ser feita 1 de cada vez';
+    end if;
+    if v_componentes is null or not (v_componentes ? p_componente) then
+      raise exception '"%" não é um componente cadastrado pra este item', p_componente;
+    end if;
+
+    -- Procura uma unidade já incompleta que ainda não perdeu essa parte
+    -- específica (preferível a abrir uma nova unidade incompleta). Índice
+    -- 0-based explícito via ordinality — nunca fica "pendurado" num v_idx
+    -- indefinido como o loop antigo deixava em certos casos.
+    select (u.idx - 1) into v_idx
+    from jsonb_array_elements(v_unidades) with ordinality as u(elem, idx)
+    where not (coalesce(u.elem -> 'faltando', '[]'::jsonb) ? p_componente)
+    limit 1;
+
+    if v_idx is not null then
+      v_faltando := coalesce(v_unidades -> v_idx -> 'faltando', '[]'::jsonb) || to_jsonb(p_componente);
+      if (select count(*) from jsonb_array_elements_text(v_componentes) c where v_faltando ? c) = jsonb_array_length(v_componentes) then
+        -- Essa unidade acabou de perder a última parte: sai de vez do estoque.
+        v_unidades := v_unidades - v_idx;
+        update estoque set quantidade = quantidade - 1, unidades_incompletas = v_unidades where id = p_estoque_id;
+      else
+        v_unidades := jsonb_set(v_unidades, array[v_idx::text, 'faltando'], v_faltando);
+        update estoque set unidades_incompletas = v_unidades where id = p_estoque_id;
+      end if;
+    else
+      v_unidades_completas := v_estoque_atual - jsonb_array_length(v_unidades);
+      if v_unidades_completas < 1 then
+        raise exception 'Nenhuma unidade disponível pra vender "%" avulso', p_componente;
+      end if;
+      v_unidades := v_unidades || jsonb_build_array(jsonb_build_object('faltando', jsonb_build_array(p_componente)));
+      update estoque set unidades_incompletas = v_unidades where id = p_estoque_id;
+    end if;
+
+    v_nome_para_venda := v_nome || ' - ' || p_componente;
+  end if;
+
+  insert into vendas (
+    estoque_id, nome_item, quantidade, valor_unitario, valor_total,
+    forma_pagamento_id, modelo_moto_id, cliente_nome, cliente_id, observacoes, data, componente_vendido, unidade_id
+  ) values (
+    p_estoque_id, v_nome_para_venda, p_quantidade, p_valor_unitario, p_quantidade * p_valor_unitario,
+    p_forma_pagamento_id, p_modelo_moto_id, v_cliente_nome_final, p_cliente_id, p_observacoes, coalesce(p_data, current_date), p_componente, p_unidade_id
+  ) returning * into v_venda;
+
+  -- Fiado não lança no Caixa na hora — só quando um recebimento for
+  -- confirmado (ver registrar_recebimento_fiado, migration_031).
+  select natureza into v_natureza_forma from formas_pagamento where id = p_forma_pagamento_id;
+  if coalesce(v_natureza_forma, 'avista') <> 'fiado' then
+    insert into caixa (tipo, descricao, valor, forma_pagamento_id, venda_id, data)
+    values ('entrada', 'Venda: ' || v_nome_para_venda, v_venda.valor_total, p_forma_pagamento_id, v_venda.id, v_venda.data);
+  end if;
+
+  return v_venda;
+end;
+$$ language plpgsql;
+
+-- ATENÇÃO: copia o corpo INTEIRO e vigente de cancelar_venda (o de
+-- migration_010_fix_cancelar_venda_incompleto.sql) — só adiciona a reversão
+-- da ficha (vendida_em = null) quando a venda tinha uma vinculada.
+create or replace function cancelar_venda(p_venda_id uuid)
+returns void as $$
+declare
+  v_venda vendas;
+  v_componentes jsonb;
+  v_unidades jsonb;
+  v_idx int;
+  v_faltando jsonb;
+begin
+  select * into v_venda from vendas where id = p_venda_id;
+  if v_venda is null then
+    raise exception 'Venda não encontrada';
+  end if;
+
+  if v_venda.estoque_id is not null then
+    if v_venda.componente_vendido is null then
+      update estoque set quantidade = quantidade + v_venda.quantidade where id = v_venda.estoque_id;
+    else
+      select componentes, coalesce(unidades_incompletas, '[]'::jsonb)
+        into v_componentes, v_unidades
+      from estoque where id = v_venda.estoque_id
+      for update;
+
+      select (u.idx - 1) into v_idx
+      from jsonb_array_elements(v_unidades) with ordinality as u(elem, idx)
+      where coalesce(u.elem -> 'faltando', '[]'::jsonb) ? v_venda.componente_vendido
+      limit 1;
+
+      if v_idx is not null then
+        v_faltando := (v_unidades -> v_idx -> 'faltando') - v_venda.componente_vendido;
+        if jsonb_array_length(v_faltando) = 0 then
+          -- Essa era a última parte faltando dessa unidade: ela volta a
+          -- ficar 100% completa, então sai de unidades_incompletas.
+          v_unidades := v_unidades - v_idx;
+        else
+          -- A unidade continua incompleta (faltava mais de uma parte) — só
+          -- devolve a parte desta venda.
+          v_unidades := jsonb_set(v_unidades, array[v_idx::text, 'faltando'], v_faltando);
+        end if;
+        update estoque set unidades_incompletas = v_unidades where id = v_venda.estoque_id;
+      else
+        -- Essa venda tinha sido a que esvaziou a unidade (ela saiu de
+        -- `unidades_incompletas` e `quantidade` foi decrementada). Devolve 1
+        -- unidade e recria o estado de "falta tudo, exceto o que esta venda tirou".
+        v_faltando := coalesce(v_componentes, '[]'::jsonb) - v_venda.componente_vendido;
+        v_unidades := v_unidades || jsonb_build_array(jsonb_build_object('faltando', v_faltando));
+        update estoque set quantidade = quantidade + 1, unidades_incompletas = v_unidades where id = v_venda.estoque_id;
+      end if;
+    end if;
+
+    if v_venda.unidade_id is not null then
+      update estoque_unidades set vendida_em = null where id = v_venda.unidade_id;
+    end if;
+  end if;
+
+  delete from caixa where venda_id = p_venda_id;
+  delete from vendas where id = p_venda_id;
+end;
+$$ language plpgsql;
+
+NOTIFY pgrst, 'reload schema';

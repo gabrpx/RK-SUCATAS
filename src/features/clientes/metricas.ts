@@ -6,7 +6,7 @@
 // convertido já vira venda, então somar os dois contaria a mesma compra em
 // dobro. Orçamentos em aberto do cliente aparecem à parte, como pendência.
 import type { StatusTone } from '../../components/ui/StatusBadge';
-import type { Cliente } from './types';
+import type { Cliente, PecaProcuradaResumo } from './types';
 import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
 
@@ -72,6 +72,43 @@ export function clientesSumidos(clientes: Cliente[], vendas: Venda[], orcamentos
     .map((c) => ({ cliente: c, historico: calcularHistoricoCliente(c.id, vendas, orcamentos, agora) }))
     .filter(({ historico }) => historico.quantidadeCompras > 0 && (historico.diasDesdeUltimaCompra ?? 0) >= limiteDias)
     .sort((a, b) => (b.historico.diasDesdeUltimaCompra ?? 0) - (a.historico.diasDesdeUltimaCompra ?? 0));
+}
+
+// Badge por moto que o cliente já procurou peça — substitui o uso de "tags"
+// livres pra esse fim (que não tinham relação nenhuma com pecas_procuradas).
+// Um cliente pode ter procurado a mesma moto mais de uma vez com status
+// diferentes: o badge agrega tudo num só, priorizando "atendida" > "aguardando" > "cancelada".
+export interface BadgeMotoProcurada {
+  modeloMotoId: string;
+  nome: string;
+  tom: StatusTone;
+}
+
+const PRIORIDADE_STATUS: Record<PecaProcuradaResumo['status'], number> = { atendida: 2, aguardando: 1, cancelada: 0 };
+const TOM_POR_STATUS: Record<PecaProcuradaResumo['status'], StatusTone> = { atendida: 'positive', aguardando: 'warning', cancelada: 'neutral' };
+
+export function badgesMotoProcurada(clienteId: string, pecasProcuradas: PecaProcuradaResumo[]): BadgeMotoProcurada[] {
+  const porModelo = new Map<string, PecaProcuradaResumo>();
+  for (const p of pecasProcuradas) {
+    if (p.cliente_id !== clienteId || !p.modelo_moto_id || !p.modelo_moto) continue;
+    const atual = porModelo.get(p.modelo_moto_id);
+    if (!atual || PRIORIDADE_STATUS[p.status] > PRIORIDADE_STATUS[atual.status]) porModelo.set(p.modelo_moto_id, p);
+  }
+  return Array.from(porModelo.values())
+    .map((p) => ({ modeloMotoId: p.modelo_moto_id!, nome: p.modelo_moto!.nome, tom: TOM_POR_STATUS[p.status] }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// Lista de motos distintas presentes em qualquer peça procurada — alimenta o
+// dropdown de filtro "por moto procurada" na listagem de clientes.
+export function motosDistintasProcuradas(pecasProcuradas: PecaProcuradaResumo[]): { id: string; nome: string }[] {
+  const mapa = new Map<string, string>();
+  for (const p of pecasProcuradas) {
+    if (p.modelo_moto_id && p.modelo_moto) mapa.set(p.modelo_moto_id, p.modelo_moto.nome);
+  }
+  return Array.from(mapa.entries())
+    .map(([id, nome]) => ({ id, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
 }
 
 export function rankingTopClientes(clientes: Cliente[], vendas: Venda[], orcamentos: Orcamento[], opcoes: { limite?: number; desde?: Date } = {}) {

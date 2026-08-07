@@ -69,6 +69,21 @@ export function caixaRouter(supabase: SupabaseClient) {
 
   router.delete('/:id', async (req, res) => {
     try {
+      // Entrada gerada por um recebimento de fiado (ver migration_031) não
+      // leva venda_id, então não cai na trava de "somente-leitura" da UI —
+      // mas apagá-la direto aqui deixaria fiado_recebimentos.caixa_id órfão
+      // sem reverter o recebimento nem destravar a venda. Reverter é só pela
+      // aba Fiado (DELETE /api/fiado/recebimentos/:id), que apaga os dois juntos.
+      const { data: recebimentoVinculado, error: erroRecebimento } = await supabase
+        .from('fiado_recebimentos')
+        .select('id')
+        .eq('caixa_id', req.params.id)
+        .maybeSingle();
+      if (erroRecebimento) throw erroRecebimento;
+      if (recebimentoVinculado) {
+        return res.status(409).json({ success: false, error: 'Este lançamento veio de um recebimento de fiado — reverta-o pela aba Fiado.' });
+      }
+
       const { error } = await supabase.from('caixa').delete().eq('id', req.params.id);
       if (error) throw error;
       res.json({ success: true });

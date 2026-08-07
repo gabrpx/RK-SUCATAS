@@ -53,6 +53,17 @@ export interface PecaProcurada {
   atendida_em: string | null;
 }
 
+// Versão enxuta de PecaProcurada usada pra montar badges/filtro de "moto
+// procurada" na listagem geral de clientes (GET /api/clientes/pecas-procuradas/todas)
+// — não carrega descrição/categoria, só o necessário pra agrupar por moto.
+export interface PecaProcuradaResumo {
+  id: string;
+  cliente_id: string;
+  status: PecaProcuradaStatus;
+  modelo_moto_id: string | null;
+  modelo_moto: { id: string; nome: string; ano: string | null } | null;
+}
+
 export interface PecaProcuradaInput {
   descricao: string;
   categoria_id?: string | null;

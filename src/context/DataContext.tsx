@@ -9,7 +9,7 @@ import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 import type { CaixaEntry } from '../features/caixa/types';
 import type { Orcamento } from '../features/orcamentos/types';
-import type { Cliente } from '../features/clientes/types';
+import type { Cliente, PecaProcuradaResumo } from '../features/clientes/types';
 import type { FiadoRecebimento } from '../features/fiado/types';
 import type { Envio } from '../features/frete/types';
 
@@ -22,6 +22,7 @@ interface DataContextValue {
   caixa: CaixaEntry[];
   orcamentos: Orcamento[];
   clientes: Cliente[];
+  pecasProcuradas: PecaProcuradaResumo[];
   fiadoRecebimentos: FiadoRecebimento[];
   envios: Envio[];
   loading: boolean;
@@ -33,6 +34,7 @@ interface DataContextValue {
   setCaixa: React.Dispatch<React.SetStateAction<CaixaEntry[]>>;
   setOrcamentos: React.Dispatch<React.SetStateAction<Orcamento[]>>;
   setClientes: React.Dispatch<React.SetStateAction<Cliente[]>>;
+  setPecasProcuradas: React.Dispatch<React.SetStateAction<PecaProcuradaResumo[]>>;
   setFiadoRecebimentos: React.Dispatch<React.SetStateAction<FiadoRecebimento[]>>;
   setEnvios: React.Dispatch<React.SetStateAction<Envio[]>>;
   refreshData: () => Promise<void>;
@@ -46,6 +48,7 @@ export const DataContext = createContext<DataContextValue>({
   caixa: [],
   orcamentos: [],
   clientes: [],
+  pecasProcuradas: [],
   fiadoRecebimentos: [],
   envios: [],
   loading: false,
@@ -55,6 +58,7 @@ export const DataContext = createContext<DataContextValue>({
   setCaixa: () => {},
   setOrcamentos: () => {},
   setClientes: () => {},
+  setPecasProcuradas: () => {},
   setFiadoRecebimentos: () => {},
   setEnvios: () => {},
   refreshData: async () => {},
@@ -91,6 +95,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [caixa, setCaixa] = useState<CaixaEntry[]>(() => readCache('rk_caixa', []));
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>(() => readCache('rk_orcamentos', []));
   const [clientes, setClientes] = useState<Cliente[]>(() => readCache('rk_clientes', []));
+  const [pecasProcuradas, setPecasProcuradas] = useState<PecaProcuradaResumo[]>(() => readCache('rk_pecas_procuradas', []));
   const [fiadoRecebimentos, setFiadoRecebimentos] = useState<FiadoRecebimento[]>(() => readCache('rk_fiado_recebimentos', []));
   const [envios, setEnvios] = useState<Envio[]>(() => readCache('rk_envios', []));
   const [loading, setLoading] = useState(false);
@@ -136,11 +141,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes/pecas-procuradas/todas') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/fiado/recebimentos') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/envios') : Promise.resolve(null),
     ]);
 
-    const [estoqueRes, vendasRes, caixaRes, orcamentosRes, clientesRes, fiadoRecebimentosRes, enviosRes] = results;
+    const [estoqueRes, vendasRes, caixaRes, orcamentosRes, clientesRes, pecasProcuradasRes, fiadoRecebimentosRes, enviosRes] = results;
 
     let falhouEstoque = false;
     if (estoqueRes.status === 'fulfilled') {
@@ -213,6 +219,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar clientes:', clientesRes.reason);
     }
 
+    if (pecasProcuradasRes.status === 'fulfilled' && pecasProcuradasRes.value) {
+      try {
+        const data = await parseJson(pecasProcuradasRes.value);
+        if (data.success) setPecasProcuradas(prev => applyIfChanged(prev, data.data, 'rk_pecas_procuradas'));
+      } catch (e) {
+        console.error('Erro ao processar peças procuradas:', e);
+      }
+    } else if (pecasProcuradasRes.status === 'rejected') {
+      console.error('Erro ao buscar peças procuradas:', pecasProcuradasRes.reason);
+    }
+
     if (fiadoRecebimentosRes.status === 'fulfilled' && fiadoRecebimentosRes.value) {
       try {
         const data = await parseJson(fiadoRecebimentosRes.value);
@@ -258,6 +275,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         caixa,
         orcamentos,
         clientes,
+        pecasProcuradas,
         fiadoRecebimentos,
         envios,
         loading,
@@ -267,6 +285,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setCaixa,
         setOrcamentos,
         setClientes,
+        setPecasProcuradas,
         setFiadoRecebimentos,
         setEnvios,
         refreshData: () => loadData(true),

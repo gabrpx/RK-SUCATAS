@@ -30,6 +30,11 @@ export interface EstoqueUnidade {
   // Pode vir ausente (undefined) em vez de null se o backend ainda não achou
   // a coluna em produção (migration_024 pendente) — tratar undefined igual a null.
   condicao_nota: number | null;
+  // Preenchido quando esta ficha foi vendida como unidade específica (ver
+  // migration_038/vendas.unidade_id) — soft marker, a ficha continua existindo
+  // (com foto/avaria/preço) mesmo depois de vendida, só marcada indisponível.
+  // Ausente/undefined em payloads antigos em cache — tratar como não vendida.
+  vendida_em?: string | null;
   criado_em: string;
   atualizado_em: string;
 }

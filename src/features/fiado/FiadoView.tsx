@@ -4,7 +4,7 @@
 // quando um recebimento é confirmado aqui, com a forma de pagamento real
 // escolhida no momento, podendo ser parcial (ver src/features/fiado/metricas.ts).
 import { useMemo, useState } from 'react';
-import { HandCoins, Loader2, Check, Clock, History } from 'lucide-react';
+import { HandCoins, Loader2, Check, Clock, History, Undo2 } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { aviso } from '../../components/ui/toast';
@@ -12,11 +12,14 @@ import { DataTable } from '../../components/ui/DataTable';
 import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { fiadoApi } from './api';
 import { vendasFiadoEmAberto, resumoFiadoPorCliente } from './metricas';
 import type { ResumoFiadoCliente } from './metricas';
 import type { Venda } from '../vendas/types';
+import type { FiadoRecebimento } from './types';
+import type { Role } from '../../constants/roles';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -27,12 +30,14 @@ function formatarData(data: string) {
 // Uma venda por vez: valor a receber (default = saldo restante, editável pra
 // permitir parcial) + forma de pagamento real + histórico do que já foi
 // recebido dela.
-function LinhaVendaFiado({ venda, saldo, diasEmAberto }: { venda: Venda; saldo: number; diasEmAberto: number }) {
+function LinhaVendaFiado({ venda, saldo, diasEmAberto, podeReverter }: { venda: Venda; saldo: number; diasEmAberto: number; podeReverter: boolean }) {
   const { fiadoRecebimentos, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const [valor, setValor] = useState(String(saldo.toFixed(2)));
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
   const [enviando, setEnviando] = useState(false);
+  const [recebimentoParaReverter, setRecebimentoParaReverter] = useState<FiadoRecebimento | null>(null);
+  const [revertendo, setRevertendo] = useState(false);
 
   // Não faz sentido "confirmar recebimento" numa forma que é ela mesma fiado
   // — o backend recusaria de qualquer jeito, filtra aqui pra não nem oferecer.
@@ -60,6 +65,22 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto }: { venda: Venda; saldo: 
     }
   };
 
+  const reverterRecebimento = async () => {
+    if (!recebimentoParaReverter) return;
+    setRevertendo(true);
+    try {
+      const result = await fiadoApi.removerRecebimento(recebimentoParaReverter.id);
+      if (!result.success) throw new Error(result.error);
+      await refreshData();
+      setRecebimentoParaReverter(null);
+      aviso.sucesso('Recebimento revertido');
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao reverter recebimento');
+    } finally {
+      setRevertendo(false);
+    }
+  };
+
   return (
     <div className="bg-surface-card border border-border-subtle rounded-control p-3 space-y-2.5">
       <div className="flex items-center justify-between gap-3">
@@ -81,15 +102,58 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto }: { venda: Venda; saldo: 
             <History size={11} /> Recebido até agora
           </p>
           {historico.map((r) => (
-            <div key={r.id} className="flex items-center justify-between">
-              <span>
+            <div key={r.id} className="flex items-center justify-between gap-2">
+              <span className="min-w-0 truncate">
                 {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'} · {r.usuario?.nome_exibicao || 'Equipe'}
               </span>
-              <span className="text-text-secondary">{formatCurrency(r.valor)}</span>
+              <span className="flex items-center gap-1.5 shrink-0">
+                <span className="text-text-secondary">{formatCurrency(r.valor)}</span>
+                {podeReverter && (
+                  <button
+                    onClick={() => setRecebimentoParaReverter(r)}
+                    title="Reverter este recebimento"
+                    className="size-5 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised"
+                  >
+                    <Undo2 size={11} />
+                  </button>
+                )}
+              </span>
             </div>
           ))}
         </div>
       )}
+
+      <Modal
+        aberto={!!recebimentoParaReverter}
+        onFechar={() => setRecebimentoParaReverter(null)}
+        titulo="Reverter recebimento?"
+        icone={Undo2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button
+              onClick={() => setRecebimentoParaReverter(null)}
+              className="flex-1 h-11 rounded-control border border-border-default font-medium text-sm text-text-secondary hover:bg-surface-raised"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={reverterRecebimento}
+              disabled={revertendo}
+              className="flex-1 h-11 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {revertendo ? <Loader2 size={16} className="animate-spin" /> : 'Reverter'}
+            </button>
+          </div>
+        }
+      >
+        {recebimentoParaReverter && (
+          <p className="text-sm text-text-secondary">
+            O recebimento de <span className="text-text-primary font-medium">{formatCurrency(recebimentoParaReverter.valor)}</span> via{' '}
+            {recebimentoParaReverter.forma_pagamento?.nome || '—'} volta a ficar em aberto nesta venda, e a entrada correspondente no Caixa é desfeita.
+          </p>
+        )}
+      </Modal>
 
       <div className="flex items-center gap-2 pt-1">
         <input
@@ -123,8 +187,9 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto }: { venda: Venda; saldo: 
   );
 }
 
-export function FiadoView() {
+export function FiadoView({ userRoles = [] }: { userRoles?: Role[] }) {
   const { vendas, fiadoRecebimentos, loading } = useData();
+  const podeReverter = userRoles.includes('admin');
   const [clienteAberto, setClienteAberto] = useState<string | null>(null);
 
   const resumos = useMemo(() => resumoFiadoPorCliente(vendas, fiadoRecebimentos), [vendas, fiadoRecebimentos]);
@@ -234,7 +299,7 @@ export function FiadoView() {
               ) : (
                 vendasDoClienteAberto.map(({ venda, saldo, diasEmAberto }) => (
                   <div key={venda.id}>
-                    <LinhaVendaFiado venda={venda} saldo={saldo} diasEmAberto={diasEmAberto} />
+                    <LinhaVendaFiado venda={venda} saldo={saldo} diasEmAberto={diasEmAberto} podeReverter={podeReverter} />
                   </div>
                 ))
               )}

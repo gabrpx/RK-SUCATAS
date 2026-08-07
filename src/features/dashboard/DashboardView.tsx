@@ -22,10 +22,13 @@ import {
   Users,
   UserX,
   HandCoins,
+  ClipboardList,
+  X,
 } from 'lucide-react';
 import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
+import { useTarefas } from '../tarefas/useTarefas';
 import { NOME_LOJA } from '../../constants/loja';
 import { MetricCard } from '../../components/ui/MetricCard';
 import { AlertBar } from '../../components/ui/AlertBar';
@@ -33,15 +36,15 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { clientesSumidos, rankingTopClientes } from '../clientes/metricas';
 import { resumoFiadoPorCliente } from '../fiado/metricas';
+import { isEstoqueBaixo } from '../estoque/valorEstoque';
 import type { Estoque } from '../estoque/types';
 import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
+import type { Tarefa } from '../tarefas/types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
-// Mesmo critério usado no filtro "estoque baixo" da tela de Estoque —
-// mantido em sincronia com EstoqueView.tsx (busca "matchesEstoqueBaixo").
-const isEstoqueBaixo = (item: Estoque) => item.quantidade > 0 && item.quantidade <= 2;
+const PRIORIDADE_ORDEM: Record<Tarefa['prioridade'], number> = { alta: 0, media: 1, baixa: 2 };
 
 // Total de um orçamento após desconto — mesma fórmula de OrcamentosView.tsx
 // (subtotal dos itens menos desconto fixo ou percentual), duplicada aqui
@@ -197,7 +200,25 @@ export function DashboardView({
   onNavigateFiado?: () => void;
 }) {
   const { estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, loading } = useData();
+  const { tarefas } = useTarefas();
   const [searchTerm, setSearchTerm] = useState('');
+  const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
+
+  // Dashboard só é visível pra admin/equipe (ver TAB_ROLES) — quem chega
+  // aqui sempre vê TODAS as tarefas pendentes do sistema, não só as suas
+  // (mesmo escopo que o backend já devolve pra esses papéis em GET /tarefas).
+  const tarefasPendentes = useMemo(
+    () => tarefas.filter((t) => t.status === 'pendente').sort((a, b) => PRIORIDADE_ORDEM[a.prioridade] - PRIORIDADE_ORDEM[b.prioridade]),
+    [tarefas]
+  );
+  const tarefasPendentesPorResponsavel = useMemo(() => {
+    const contagem = new Map<string, number>();
+    for (const t of tarefasPendentes) {
+      const nome = t.atribuido?.nome_exibicao || 'Sem responsável';
+      contagem.set(nome, (contagem.get(nome) ?? 0) + 1);
+    }
+    return Array.from(contagem.entries()).sort((a, b) => b[1] - a[1]);
+  }, [tarefasPendentes]);
 
   const userName = (typeof window !== 'undefined' && localStorage.getItem('user_name')) || 'Admin';
   const iniciais = userName
@@ -277,7 +298,7 @@ export function DashboardView({
     return Array.from(porFormaPagamento.entries()).map(([name, value]) => ({ name, value }));
   }, [metrics.vendasMes]);
 
-  const temAlerta = metrics.itensEstoqueBaixo.length > 0 || metrics.pendencias.length > 0;
+  const temAlerta = metrics.itensEstoqueBaixo.length > 0 || metrics.pendencias.length > 0 || tarefasPendentes.length > 0;
 
   if (loading && estoque.length === 0) return <DashboardSkeleton />;
 
@@ -315,10 +336,74 @@ export function DashboardView({
             <Search size={16} />
           </button>
 
-          <button className="relative size-9 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center" aria-label="Notificações">
-            <Bell size={16} />
-            {temAlerta && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-danger" />}
-          </button>
+          <div className="relative">
+            <button
+              onClick={() => setNotificacoesAbertas((v) => !v)}
+              className="relative size-9 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center"
+              aria-label="Notificações"
+            >
+              <Bell size={16} />
+              {temAlerta && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-danger" />}
+            </button>
+
+            {notificacoesAbertas && (
+              <>
+                {/* Backdrop invisível só pra fechar ao clicar fora — o painel em si não precisa de overlay escuro */}
+                <div className="fixed inset-0 z-[70]" onClick={() => setNotificacoesAbertas(false)} />
+                <div className="absolute right-0 top-11 z-[80] w-80 max-w-[85vw] max-h-96 flex flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-card shadow-2xl">
+                  <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
+                    <h4 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Tarefas pendentes</h4>
+                    <button onClick={() => setNotificacoesAbertas(false)} className="text-text-faint hover:text-text-primary">
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <div className="overflow-y-auto flex-1">
+                    {tarefasPendentes.length === 0 ? (
+                      <div className="p-4">
+                        <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pendente." />
+                      </div>
+                    ) : (
+                      <div className="divide-y divide-border-subtle">
+                        {tarefasPendentes.slice(0, 8).map((t) => (
+                          <button
+                            key={t.id}
+                            onClick={() => {
+                              setNotificacoesAbertas(false);
+                              onTabChange('tarefas');
+                            }}
+                            className="w-full text-left px-4 py-3 hover:bg-surface-raised flex items-start gap-2.5"
+                          >
+                            <ClipboardList size={14} className="text-accent-soft-fg shrink-0 mt-0.5" />
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm text-text-primary truncate">{t.titulo}</p>
+                              <p className="text-[11px] text-text-faint truncate">
+                                {t.atribuido?.nome_exibicao || 'Sem responsável'}
+                                {t.prazo ? ` · ${new Date(t.prazo).toLocaleDateString('pt-BR')}` : ''}
+                              </p>
+                            </div>
+                            <span className="shrink-0">
+                              <StatusBadge texto={t.prioridade} tom={t.prioridade === 'alta' ? 'danger' : t.prioridade === 'media' ? 'warning' : 'neutral'} />
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <div className="p-3 border-t border-border-subtle shrink-0">
+                    <button
+                      onClick={() => {
+                        setNotificacoesAbertas(false);
+                        onTabChange('tarefas');
+                      }}
+                      className="w-full text-center text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80"
+                    >
+                      Ver todas as tarefas
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
           <div className="size-9 rounded-full bg-accent-soft-bg text-accent-soft-fg flex items-center justify-center text-xs font-semibold shrink-0">
             {iniciais || 'U'}
@@ -359,14 +444,27 @@ export function DashboardView({
       </div>
 
       {/* 3. Alertas */}
+      {/* Estoque baixo ganha um tratamento próprio (não o AlertBar genérico):
+          a contagem é o elemento mais forte, seguindo a regra do design
+          system de que número > label — a frase inteira competindo com o
+          número escondia o que mais importa aqui. */}
       {metrics.itensEstoqueBaixo.length > 0 && (
-        <AlertBar
-          tom="warning"
-          icone={AlertTriangle}
-          mensagem={`${metrics.itensEstoqueBaixo.length} peça(s) com estoque baixo (≤ 2 unidades)`}
-          acaoLabel="Ver itens"
-          onAcao={() => onNavigateEstoqueBaixo?.()}
-        />
+        <div className="flex items-center justify-between gap-3 border-l-2 border-l-warning bg-warning-bg pl-4 pr-3 py-3 rounded-[0_9px_9px_0]">
+          <div className="flex items-center gap-3 min-w-0">
+            <AlertTriangle size={18} className="text-warning shrink-0" />
+            <div className="min-w-0">
+              <p className="text-2xl font-semibold text-warning leading-none tabular-nums">{metrics.itensEstoqueBaixo.length}</p>
+              <p className="text-xs text-text-secondary mt-1 truncate">peça(s) com estoque baixo (≤ 2 unidades)</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigateEstoqueBaixo?.()}
+            className="shrink-0 text-xs font-semibold uppercase tracking-wide underline underline-offset-2 text-warning hover:opacity-80"
+          >
+            Ver itens
+          </button>
+        </div>
       )}
       {metrics.sumidos.length > 0 && (
         <AlertBar
@@ -495,6 +593,45 @@ export function DashboardView({
           )}
         </PanelCard>
       </div>
+
+      {/* 5.5 Tarefas pendentes — resumo de todos os usuários, só visível aqui
+          porque o Dashboard inteiro já é restrito a admin/equipe (TAB_ROLES). */}
+      <PanelCard titulo="Tarefas pendentes" acaoLabel="Ver todas" onAcao={() => onTabChange('tarefas')}>
+        {tarefasPendentes.length === 0 ? (
+          <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pendente no momento." />
+        ) : (
+          <>
+            <div className="px-5 py-3 border-b border-border-subtle flex items-center gap-2 flex-wrap">
+              {tarefasPendentesPorResponsavel.map(([nome, qtd]) => (
+                <span key={nome} className="text-xs text-text-secondary bg-surface-inset px-2.5 py-1 rounded-full">
+                  {nome}: <span className="font-medium text-text-primary">{qtd}</span>
+                </span>
+              ))}
+            </div>
+            <div className="divide-y divide-border-subtle">
+              {tarefasPendentes.slice(0, 5).map((t) => (
+                <div key={t.id} onClick={() => onTabChange('tarefas')} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-surface-raised">
+                  <div
+                    className={cn(
+                      'size-8 rounded-control flex items-center justify-center shrink-0',
+                      t.prioridade === 'alta' ? 'bg-danger-bg text-danger' : t.prioridade === 'media' ? 'bg-warning-bg text-warning' : 'bg-surface-inset text-text-muted'
+                    )}
+                  >
+                    <ClipboardList size={15} strokeWidth={2} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-text-primary truncate">{t.titulo}</p>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <StatusBadge texto={t.atribuido?.nome_exibicao || 'Sem responsável'} tom="neutral" />
+                      {t.prazo && <span className="text-[11px] text-text-faint">{new Date(t.prazo).toLocaleDateString('pt-BR')}</span>}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </PanelCard>
 
       {/* 6. Top clientes */}
       <PanelCard titulo="Top clientes" acaoLabel="Ver todos" onAcao={() => onTabChange('clientes')}>
