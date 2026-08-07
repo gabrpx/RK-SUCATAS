@@ -61,9 +61,6 @@ jobs:
           mkdir -p android/app
           printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
-      - name: Generate Android launcher icons
-        run: npx @capacitor/assets generate --android --icon icone_rk.png
-
       - name: Sync Capacitor
         run: npx cap sync android
 
