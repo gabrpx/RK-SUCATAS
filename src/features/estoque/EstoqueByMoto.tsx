@@ -16,6 +16,7 @@ import { Search, Bike, ArrowLeft, Layers } from 'lucide-react';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { getAncestorChain, getDepth, getDescendantIds, extrairAnoOrdenavel } from '../motos/motoTree';
+import { sumWithDescendants } from '../../utils/tree';
 import { MotoCard } from './MotoCard';
 import type { ModeloMoto } from '../../types/catalog';
 import type { Estoque } from './types';
@@ -115,8 +116,7 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
   // Peças de um grupo somam as de todas as variações abaixo dele — quem olha
   // o card de "CG 150" quer saber quantas peças existem no total, não achar
   // que não tem nenhuma só porque elas estão nas variações.
-  const contarComDescendentes = (id: string) =>
-    getDescendantIds(id, modelos).reduce((soma, descId) => soma + (contagemPorModelo.get(descId) ?? 0), 0);
+  const contarComDescendentes = (id: string) => sumWithDescendants(getDescendantIds(id, modelos), contagemPorModelo);
 
   const marcas = useMemo(
     () => modelos.filter((m) => !m.parent_id).sort((a, b) => a.nome.localeCompare(b.nome, 'pt')),

@@ -11,7 +11,7 @@
 // (EstoqueByMoto.tsx) mostra essas variações como cards ao clicar no modelo.
 // Por padrão toda a árvore começa recolhida (só as marcas aparecem).
 import React, { useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, Camera, ImageOff } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, Camera, ImageOff, List, Network } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
@@ -22,6 +22,7 @@ import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdo
 import { comprimirImagem } from '../../utils/comprimirImagem';
 import { uploadImagemModeloMoto } from '../motos/api';
 import { buildTree, filterTree, getDescendantIds, extrairAnoOrdenavel, type ModeloMotoNode } from '../motos/motoTree';
+import { MotoOrgChart } from '../motos/MotoOrgChart';
 import type { ModeloMoto } from '../../types/catalog';
 
 type ApiResult = { success: boolean; error?: string };
@@ -48,6 +49,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
   const [erroRapido, setErroRapido] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<'nome_asc' | 'nome_desc' | 'ano_desc' | 'ano_asc' | 'manual'>('nome_asc');
+  const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'organograma'>('lista');
 
   // Guarda quem está ABERTO (não recolhido) — começa vazio, ou seja, tudo
   // recolhido por padrão até o usuário clicar pra expandir.
@@ -197,18 +199,42 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
           <h3 className={cn('font-black text-sm', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Motos</h3>
           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{modelos.length} cadastrado(s) · {totalRaizes} marca(s)</p>
         </div>
-        {idsComFilhos.size > 0 && (
-          <button
-            onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
-            className={cn(
-              'ml-auto flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
-              theme === 'dark' ? 'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-zinc-500 hover:text-violet-600 hover:bg-violet-50'
-            )}
-          >
-            {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
-            <span className="hidden sm:inline">{tudoExpandido ? 'Recolher tudo' : 'Expandir tudo'}</span>
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
+            <button
+              type="button"
+              onClick={() => setModoVisualizacao('lista')}
+              className={cn(
+                'px-2.5 py-1.5 rounded-control text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                modoVisualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <List size={12} /> <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoVisualizacao('organograma')}
+              className={cn(
+                'px-2.5 py-1.5 rounded-control text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                modoVisualizacao === 'organograma' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <Network size={12} /> <span className="hidden sm:inline">Organograma</span>
+            </button>
+          </div>
+          {modoVisualizacao === 'lista' && idsComFilhos.size > 0 && (
+            <button
+              onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
+              className={cn(
+                'flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
+                theme === 'dark' ? 'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-zinc-500 hover:text-violet-600 hover:bg-violet-50'
+              )}
+            >
+              {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+              <span className="hidden sm:inline">{tudoExpandido ? 'Recolher tudo' : 'Expandir tudo'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-5 space-y-3">
@@ -242,45 +268,56 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
           />
         </div>
 
-        <div className={cn('rounded-2xl border p-4 space-y-2', theme === 'dark' ? 'border-zinc-800 bg-zinc-950/40' : 'border-zinc-100 bg-zinc-50')}>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Nova moto</p>
-          <div className="grid grid-cols-2 gap-2">
-            <input value={novaMarca} onChange={(e) => setNovaMarca(e.target.value)} placeholder="Marca (ex: Honda)" className={inputClass} />
-            <input value={novaCilindrada} onChange={(e) => setNovaCilindrada(e.target.value)} placeholder="Cilindrada (ex: 150)" className={inputClass} />
+        {modoVisualizacao === 'lista' && (
+          <div className={cn('rounded-2xl border p-4 space-y-2', theme === 'dark' ? 'border-zinc-800 bg-zinc-950/40' : 'border-zinc-100 bg-zinc-50')}>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Nova moto</p>
+            <div className="grid grid-cols-2 gap-2">
+              <input value={novaMarca} onChange={(e) => setNovaMarca(e.target.value)} placeholder="Marca (ex: Honda)" className={inputClass} />
+              <input value={novaCilindrada} onChange={(e) => setNovaCilindrada(e.target.value)} placeholder="Cilindrada (ex: 150)" className={inputClass} />
+            </div>
+            <div className="grid grid-cols-[1fr_auto_auto] gap-2">
+              <input
+                value={novoNomeMoto}
+                onChange={(e) => setNovoNomeMoto(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCriarRapido()}
+                placeholder="Nome da moto (ex: Bros NXR 150)"
+                className={inputClass}
+              />
+              <input
+                value={novoAnoMoto}
+                onChange={(e) => setNovoAnoMoto(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCriarRapido()}
+                placeholder="Ano"
+                className={cn(inputClass, 'flex-none w-20')}
+              />
+              <button
+                onClick={handleCriarRapido}
+                disabled={criandoRapido || !novaMarca.trim() || !novoNomeMoto.trim()}
+                className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
+              >
+                {criandoRapido ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              </button>
+            </div>
+            {erroRapido && <p className="text-xs text-rose-500">{erroRapido}</p>}
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              Moto com versões diferentes por ano (ex: carburada, mix, injetada)? Cadastre o modelo base aqui (sem ano) e depois clique no{' '}
+              <Plus size={11} className="inline -mt-0.5" /> dele pra adicionar cada versão como sub-nível, com nome ("Carburada") e período ("2004-2008") no campo Ano.
+            </p>
           </div>
-          <div className="grid grid-cols-[1fr_auto_auto] gap-2">
-            <input
-              value={novoNomeMoto}
-              onChange={(e) => setNovoNomeMoto(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCriarRapido()}
-              placeholder="Nome da moto (ex: Bros NXR 150)"
-              className={inputClass}
-            />
-            <input
-              value={novoAnoMoto}
-              onChange={(e) => setNovoAnoMoto(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleCriarRapido()}
-              placeholder="Ano"
-              className={cn(inputClass, 'flex-none w-20')}
-            />
-            <button
-              onClick={handleCriarRapido}
-              disabled={criandoRapido || !novaMarca.trim() || !novoNomeMoto.trim()}
-              className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
-            >
-              {criandoRapido ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-            </button>
-          </div>
-          {erroRapido && <p className="text-xs text-rose-500">{erroRapido}</p>}
-          <p className="text-[11px] text-zinc-500 leading-relaxed">
-            Moto com versões diferentes por ano (ex: carburada, mix, injetada)? Cadastre o modelo base aqui (sem ano) e depois clique no{' '}
-            <Plus size={11} className="inline -mt-0.5" /> dele pra adicionar cada versão como sub-nível, com nome ("Carburada") e período ("2004-2008") no campo Ano.
-          </p>
-        </div>
+        )}
 
         <input ref={inputImagemRef} type="file" accept="image/jpeg,image/png,image/webp,image/gif" className="hidden" onChange={handleSelecionarImagem} />
 
-        {arvore.length === 0 ? (
+        {modoVisualizacao === 'organograma' ? (
+          <div className="max-h-[34rem] overflow-y-auto pr-1 pt-2">
+            <MotoOrgChart
+              modelos={modelos}
+              arvore={arvore}
+              forceExpandedIds={idsExpandidosNaBusca}
+              emptyMessage={searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma moto cadastrada ainda.'}
+            />
+          </div>
+        ) : arvore.length === 0 ? (
           <p className="text-sm text-zinc-500 py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma moto cadastrada ainda.'}
           </p>

@@ -20,6 +20,7 @@ import {
   FileSpreadsheet,
   Download,
   Pencil,
+  Network,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
@@ -50,8 +51,11 @@ import { CondicaoNotaBadge } from './CondicaoNotaBadge';
 import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import { baixarCsv } from '../../utils/csv';
 import { aviso } from '../../components/ui/toast';
-import { getDescendantIds } from '../categorias/categoriaTree';
-import { getDescendantIds as getDescendantIdsMoto } from '../motos/motoTree';
+import { buildTree as buildCategoriaTree, getDescendantIds } from '../categorias/categoriaTree';
+import { buildTree as buildMotoTree, getDescendantIds as getDescendantIdsMoto } from '../motos/motoTree';
+import { CategoriaOrgChart } from '../categorias/CategoriaOrgChart';
+import { MotoOrgChart } from '../motos/MotoOrgChart';
+import { sumWithDescendants } from '../../utils/tree';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 import type { DataTableColumn } from '../../components/ui/DataTable';
@@ -137,7 +141,8 @@ export function EstoqueView({
   const { categorias, modelos, criarCategoria, criarNoMoto } = useCatalogos();
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto'>('lista');
+  const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto' | 'organograma'>('lista');
+  const [orgChartDominio, setOrgChartDominio] = useState<'categorias' | 'motos'>('categorias');
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
@@ -339,6 +344,45 @@ export function EstoqueView({
     () => modelos.map((m) => ({ id: m.id, nome: m.nome, parent_id: m.parent_id, ordem: m.ordem, secundario: m.ano })),
     [modelos]
   );
+
+  // Árvores completas pro modo "Organograma" — buildTree/sumWithDescendants
+  // já existentes em categoriaTree.ts/motoTree.ts, sem reimplementar nada.
+  const categoriaArvore = useMemo(() => buildCategoriaTree(categorias), [categorias]);
+  const motoArvoreOrg = useMemo(() => buildMotoTree(modelos), [modelos]);
+
+  const contagemPorCategoriaId = useMemo(() => {
+    const mapa = new Map<string, number>();
+    items.forEach((item) => {
+      if (!item.categoria_id) return;
+      mapa.set(item.categoria_id, (mapa.get(item.categoria_id) ?? 0) + 1);
+    });
+    return mapa;
+  }, [items]);
+
+  const contagemPorModeloIdOrg = useMemo(() => {
+    const mapa = new Map<string, number>();
+    items.forEach((item) => {
+      const ids = new Set<string>();
+      if (item.modelo_moto_id) ids.add(item.modelo_moto_id);
+      item.modelos_compativeis?.forEach((m) => ids.add(m.id));
+      ids.forEach((id) => mapa.set(id, (mapa.get(id) ?? 0) + 1));
+    });
+    return mapa;
+  }, [items]);
+
+  const handleSelecionarCategoria = (id: string) => {
+    setCategoriaFiltro(id);
+    setModeloFiltro('Todas');
+    setSearchTerm('');
+    setVisualizacao('lista');
+  };
+
+  const handleSelecionarModelo = (id: string) => {
+    setModeloFiltro(id);
+    setCategoriaFiltro('Todas');
+    setSearchTerm('');
+    setVisualizacao('lista');
+  };
 
   const itensEstoqueBaixo = useMemo(() => items.filter(isEstoqueBaixo).length, [items]);
   // Soma respeitando preço próprio de unidade avariada (ver valorEstoque.ts) —
@@ -821,42 +865,91 @@ export function EstoqueView({
         </div>
       )}
 
-      {/* Alternância Lista / Por Moto */}
-      <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
-        <button
-          type="button"
-          onClick={() => setVisualizacao('lista')}
-          className={cn(
-            'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
-            visualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
-          )}
-        >
-          Lista
-        </button>
-        <button
-          type="button"
-          onClick={() => setVisualizacao('por_moto')}
-          className={cn(
-            'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
-            visualizacao === 'por_moto' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
-          )}
-        >
-          <Bike size={13} /> Por moto
-        </button>
+      {/* Alternância Lista / Por Moto / Organograma */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
+          <button
+            type="button"
+            onClick={() => setVisualizacao('lista')}
+            className={cn(
+              'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
+              visualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+            )}
+          >
+            Lista
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisualizacao('por_moto')}
+            className={cn(
+              'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+              visualizacao === 'por_moto' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+            )}
+          >
+            <Bike size={13} /> Por moto
+          </button>
+          <button
+            type="button"
+            onClick={() => setVisualizacao('organograma')}
+            className={cn(
+              'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+              visualizacao === 'organograma' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+            )}
+          >
+            <Network size={13} /> Organograma
+          </button>
+        </div>
+
+        {visualizacao === 'organograma' && (
+          <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
+            <button
+              type="button"
+              onClick={() => setOrgChartDominio('categorias')}
+              className={cn(
+                'px-2.5 py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
+                orgChartDominio === 'categorias' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              Categorias
+            </button>
+            <button
+              type="button"
+              onClick={() => setOrgChartDominio('motos')}
+              className={cn(
+                'px-2.5 py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
+                orgChartDominio === 'motos' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              Motos
+            </button>
+          </div>
+        )}
       </div>
 
       {visualizacao === 'por_moto' ? (
-        <EstoqueByMoto
-          theme="dark"
-          modelos={modelos}
-          items={items}
-          onSelecionarModelo={(modeloId) => {
-            setModeloFiltro(modeloId);
-            setCategoriaFiltro('Todas');
-            setSearchTerm('');
-            setVisualizacao('lista');
-          }}
-        />
+        <EstoqueByMoto theme="dark" modelos={modelos} items={items} onSelecionarModelo={handleSelecionarModelo} />
+      ) : visualizacao === 'organograma' ? (
+        <div className="max-h-[34rem] overflow-y-auto pr-1">
+          {orgChartDominio === 'categorias' ? (
+            <CategoriaOrgChart
+              categorias={categorias}
+              arvore={categoriaArvore}
+              contar={(id) => sumWithDescendants(getDescendantIds(id, categorias), contagemPorCategoriaId)}
+              rotuloContagem={(n) => (n === 1 ? 'peça' : 'peças')}
+              onSelecionar={handleSelecionarCategoria}
+              emptyMessage="Nenhuma categoria cadastrada ainda."
+            />
+          ) : (
+            <MotoOrgChart
+              modelos={modelos}
+              arvore={motoArvoreOrg}
+              contar={(id) => sumWithDescendants(getDescendantIdsMoto(id, modelos), contagemPorModeloIdOrg)}
+              rotuloContagem={(n) => (n === 1 ? 'peça' : 'peças')}
+              onSelecionar={handleSelecionarModelo}
+              emptyMessage="Nenhuma moto cadastrada ainda."
+            />
+          )}
+        </div>
       ) : (
         <>
           {/* Filtros */}

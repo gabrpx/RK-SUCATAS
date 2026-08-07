@@ -6,7 +6,7 @@
 // Por padrão toda a árvore começa recolhida (só as raízes aparecem) — o
 // usuário abre só o que precisa, em vez de receber a lista inteira já expandida.
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, List, Network } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
@@ -15,6 +15,7 @@ import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import { buildTree, filterTree, getDescendantIds, type CategoriaNode } from '../categorias/categoriaTree';
+import { CategoriaOrgChart } from '../categorias/CategoriaOrgChart';
 import type { Categoria } from '../../types/catalog';
 
 type ApiResult = { success: boolean; error?: string };
@@ -37,6 +38,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
   const [erroCriar, setErroCriar] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<'nome_asc' | 'nome_desc' | 'manual'>('nome_asc');
+  const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'organograma'>('lista');
 
   // Guarda quem está ABERTO (não recolhido) — começa vazio, ou seja, tudo
   // recolhido por padrão até o usuário clicar pra expandir.
@@ -143,18 +145,42 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
           <h3 className={cn('font-black text-sm', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Categorias de Peça</h3>
           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{categorias.length} cadastrada(s) · {totalRaizes} raiz(es)</p>
         </div>
-        {idsComFilhos.size > 0 && (
-          <button
-            onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
-            className={cn(
-              'ml-auto flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
-              theme === 'dark' ? 'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-zinc-500 hover:text-violet-600 hover:bg-violet-50'
-            )}
-          >
-            {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
-            <span className="hidden sm:inline">{tudoExpandido ? 'Recolher tudo' : 'Expandir tudo'}</span>
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
+            <button
+              type="button"
+              onClick={() => setModoVisualizacao('lista')}
+              className={cn(
+                'px-2.5 py-1.5 rounded-control text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                modoVisualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <List size={12} /> <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoVisualizacao('organograma')}
+              className={cn(
+                'px-2.5 py-1.5 rounded-control text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                modoVisualizacao === 'organograma' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <Network size={12} /> <span className="hidden sm:inline">Organograma</span>
+            </button>
+          </div>
+          {modoVisualizacao === 'lista' && idsComFilhos.size > 0 && (
+            <button
+              onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
+              className={cn(
+                'flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
+                theme === 'dark' ? 'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-zinc-500 hover:text-violet-600 hover:bg-violet-50'
+              )}
+            >
+              {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+              <span className="hidden sm:inline">{tudoExpandido ? 'Recolher tudo' : 'Expandir tudo'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-5 space-y-3">
@@ -186,28 +212,41 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            value={novoNome}
-            onChange={(e) => setNovoNome(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCriarRaiz()}
-            placeholder="Nova categoria raiz..."
-            className={cn(
-              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
-            )}
-          />
-          <button
-            onClick={handleCriarRaiz}
-            disabled={criando || !novoNome.trim()}
-            className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
-          >
-            {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          </button>
-        </div>
-        {erroCriar && <p className="text-xs text-rose-500">{erroCriar}</p>}
+        {modoVisualizacao === 'lista' && (
+          <>
+            <div className="flex items-center gap-2">
+              <input
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCriarRaiz()}
+                placeholder="Nova categoria raiz..."
+                className={cn(
+                  'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
+                  theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+                )}
+              />
+              <button
+                onClick={handleCriarRaiz}
+                disabled={criando || !novoNome.trim()}
+                className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
+              >
+                {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              </button>
+            </div>
+            {erroCriar && <p className="text-xs text-rose-500">{erroCriar}</p>}
+          </>
+        )}
 
-        {arvore.length === 0 ? (
+        {modoVisualizacao === 'organograma' ? (
+          <div className="max-h-[34rem] overflow-y-auto pr-1 pt-2">
+            <CategoriaOrgChart
+              categorias={categorias}
+              arvore={arvore}
+              forceExpandedIds={idsExpandidosNaBusca}
+              emptyMessage={searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma categoria cadastrada ainda.'}
+            />
+          </div>
+        ) : arvore.length === 0 ? (
           <p className="text-sm text-zinc-500 py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma categoria cadastrada ainda.'}
           </p>

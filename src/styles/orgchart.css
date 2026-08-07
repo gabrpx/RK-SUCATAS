@@ -1,0 +1,116 @@
+/*
+ * Organograma vertical topo-base — técnica clássica de "pure CSS org chart"
+ * (<ul>/<li> aninhados + pseudo-elementos desenhando os conectores). Cor dos
+ * conectores vem do token --border-default (theme.css), nunca hex direto.
+ *
+ * Cada <li> reserva um espaço acima de si (padding-top) onde dois pedaços
+ * são desenhados: primeiro a barra vertical que desce do pai (::before do
+ * <ul> pai, a "trunk"), depois a meia-barra horizontal que liga esse <li>
+ * aos irmãos (::before/::after do próprio <li>). Um nó com um único filho
+ * não tem irmão pra ligar, então a barra horizontal é anulada — sem essa
+ * regra, sobra um traço "fantasma" saindo de nós sem irmão nenhum.
+ */
+
+.org-chart-scroll {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.org-chart {
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  width: max-content;
+  min-width: 100%;
+}
+
+.org-chart ul {
+  display: flex;
+  justify-content: center;
+  list-style: none;
+  margin: 0;
+  padding: 24px 0 0 0;
+  position: relative;
+  width: max-content;
+}
+
+.org-chart li {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  list-style: none;
+  position: relative;
+  padding: 24px 12px 0 12px;
+}
+
+/* Meia-barra horizontal ligando este nó aos irmãos */
+.org-chart li::before,
+.org-chart li::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 50%;
+  width: 50%;
+  height: 24px;
+  border-top: 1px solid var(--border-default);
+}
+.org-chart li::after {
+  right: auto;
+  left: 50%;
+  border-left: 1px solid var(--border-default);
+}
+
+/* Filho único: sem barra de irmão (não tem ninguém pra ligar) */
+.org-chart li:only-child::before,
+.org-chart li:only-child::after {
+  display: none;
+}
+.org-chart li:only-child {
+  padding-top: 0;
+}
+
+/* Bordas externas da fileira de irmãos não vazam pros lados */
+.org-chart li:first-child::before,
+.org-chart li:last-child::after {
+  border-color: transparent;
+}
+.org-chart li:last-child::before {
+  border-right: 1px solid var(--border-default);
+  border-radius: 0 6px 0 0;
+}
+.org-chart li:first-child::after {
+  border-radius: 6px 0 0 0;
+}
+
+/* Tronco vertical descendo do nó pai até a fileira de filhos */
+.org-chart ul::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 0;
+  height: 24px;
+  border-left: 1px solid var(--border-default);
+}
+
+/* Raízes (nível 0): sem conector acima — não têm pai em comum desenhado */
+.org-chart > li {
+  padding-top: 0;
+}
+.org-chart > li::before,
+.org-chart > li::after {
+  display: none;
+}
+
+.org-chart-node {
+  display: inline-flex;
+}
+
+.org-chart-node button:focus-visible,
+.org-chart-node [role='button']:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-control);
+}
