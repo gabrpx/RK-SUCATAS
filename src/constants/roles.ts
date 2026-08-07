@@ -23,6 +23,9 @@ export const TAB_ROLES: Record<string, Role[]> = {
   tarefas: ['admin', 'equipe', 'mandados', 'mecanico'],
   // Só informativo (changelog do produto) — visível pra todo mundo que faz login.
   patchnotes: ALL_ROLES,
+  // Visível pra todo mundo de propósito: é aqui que mandados/mecanico (que
+  // não têm acesso a Configurações) ativam a notificação de tarefa nova.
+  notificacoes: ALL_ROLES,
 };
 
 // Cargos "de campo" que só recebem tarefas e dão baixa nas próprias —

@@ -31,16 +31,18 @@ import { enviosRouter } from './src/server/routes/envios.js';
 import { uploadRouter } from './src/server/routes/upload.js';
 import { usuariosRouter } from './src/server/routes/usuarios.js';
 import { tarefasRouter } from './src/server/routes/tarefas.js';
+import { notificacoesRouter } from './src/server/routes/notificacoes.js';
 import { mercadolivreRouter, mercadolivreCallbackHandler, mercadolivreWebhookHandler } from './src/server/routes/mercadolivre.js';
 import { iniciarDetectorDePendenciasML } from './src/services/mercadolivreScheduler.js';
 import { iniciarRastreioAutomaticoDeEnvios } from './src/services/enviosScheduler.js';
+import { iniciarChecagemDiariaDeAlertas } from './src/services/notificacoesScheduler.js';
 import { EXECUTORES_TAREFA } from './src/constants/roles.js';
 
 dotenv.config();
 
 async function startServer() {
   console.log('🌐 Validando variáveis de ambiente...');
-  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'ADMIN_PASSWORD', 'MELHOR_ENVIO_TOKEN', 'MERCADOLIVRE_APP_ID', 'MERCADOLIVRE_CLIENT_SECRET', 'MERCADOLIVRE_REDIRECT_URI'].forEach((env) => {
+  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'ADMIN_PASSWORD', 'MELHOR_ENVIO_TOKEN', 'MERCADOLIVRE_APP_ID', 'MERCADOLIVRE_CLIENT_SECRET', 'MERCADOLIVRE_REDIRECT_URI', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'].forEach((env) => {
     if (!process.env[env]) console.warn(`⚠️ Variável de ambiente [${env}] não está definida!`);
     else console.log(`✅ [${env}] está presente.`);
   });
@@ -184,19 +186,10 @@ async function startServer() {
   app.use('/api', autenticar);
 
   // Exceção ao gate de /api/usuarios (admin-only, montado mais abaixo): todo
-  // usuário autenticado precisa poder registrar o próprio token de push.
-  app.post('/api/usuarios/me/push-token', async (req: AuthenticatedRequest, res) => {
-    try {
-      const { token } = req.body || {};
-      if (!token) return res.status(400).json({ success: false, error: 'Token é obrigatório' });
-      const { error } = await supabase.from('usuarios').update({ push_token: token }).eq('id', req.usuario!.id);
-      if (error) throw error;
-      res.json({ success: true });
-    } catch (err: any) {
-      console.error('Erro ao salvar push token:', err);
-      res.status(500).json({ success: false, error: 'Erro ao salvar token' });
-    }
-  });
+  // usuário autenticado precisa poder gerenciar as próprias subscriptions de
+  // push. Substitui o antigo POST /api/usuarios/me/push-token (nunca chegou
+  // a ser usado por nenhum client) — ver src/server/routes/notificacoes.ts.
+  app.use('/api/notificacoes', notificacoesRouter(supabase));
 
   // Lista enxuta (id + nome) de quem pode receber tarefa, pro <select> de
   // responsável na tela de Tarefas — admin/equipe precisam disso pra criar
@@ -287,6 +280,7 @@ async function startServer() {
   // humano (ver mercadolivreSync.ts > sincronizarAnuncio/importarPedidoComoVenda).
   iniciarDetectorDePendenciasML(supabase);
   iniciarRastreioAutomaticoDeEnvios(supabase);
+  iniciarChecagemDiariaDeAlertas(supabase);
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {

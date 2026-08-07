@@ -1,6 +1,6 @@
 // Gestão de usuários — rota inteira montada com autorizar('admin') em
-// server.ts (só o Ayrton mexe aqui), exceto /me/push-token que é montada
-// separadamente antes desse gate (todo usuário registra o próprio token).
+// server.ts (só o Ayrton mexe aqui). Subscriptions de push de cada usuário
+// ficam à parte, em src/server/routes/notificacoes.ts.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';

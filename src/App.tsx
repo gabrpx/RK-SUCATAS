@@ -54,6 +54,7 @@ import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
 import { TarefasView } from './features/tarefas/TarefasView';
 import { PatchNotesView } from './features/patchnotes/PatchNotesView';
+import { NotificacoesView } from './features/notificacoes/NotificacoesView';
 import { Toaster } from './components/ui/toast';
 import { SincronizacaoMlProvider } from './features/mercadolivre/SincronizacaoMlContext';
 import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
@@ -71,7 +72,7 @@ import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'fiado', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes'];
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'fiado', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes'];
 
 // Primeira aba visível pra quem tem esses papéis — usada como fallback
 // quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
@@ -542,7 +543,7 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades', notificacoes: 'Notificações' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
@@ -770,6 +771,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 <TarefasView userRoles={userRoles} />
               ) : activeTab === 'patchnotes' ? (
                 <PatchNotesView />
+              ) : activeTab === 'notificacoes' ? (
+                <NotificacoesView />
               ) : (
                 <ConfiguracoesView theme={theme} userRoles={userRoles} />
               )}

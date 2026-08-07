@@ -8,6 +8,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { EXECUTORES_TAREFA } from '../../constants/roles.js';
 import type { Role } from '../../constants/roles.js';
+import { notificarUsuario } from '../../services/pushNotificationService.js';
 
 const SELECT_COM_JOINS = '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone)';
 
@@ -109,6 +110,16 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
       const { data, error } = await supabase.from('tarefas').insert(payload).select(SELECT_COM_JOINS).single();
       if (error) throw error;
+
+      // Fire-and-forget: uma falha no push nunca pode derrubar a criação da
+      // tarefa (mesmo espírito de casarComPecasProcuradas em estoque.ts).
+      // Não notifica quem se autoatribuiu — a pessoa já sabe, acabou de criar.
+      if (atribuido_para !== req.usuario!.id) {
+        notificarUsuario(supabase, atribuido_para, { titulo: 'Nova tarefa', corpo: titulo, url: '/tarefas' }).catch((e) =>
+          console.error('Erro ao notificar nova tarefa:', e)
+        );
+      }
+
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao criar tarefa:', error);
