@@ -6,7 +6,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -44,39 +44,20 @@ jobs:
             npx cap add android
           fi
 
-      - name: Create google-services.json
+      # Credencial real do projeto Firebase dedicado (Cloud Messaging) — vem
+      # de secret, nunca fica versionada. Sem esse secret configurado, o
+      # arquivo fica vazio e o build do Android segue normal (o
+      # build.gradle já trata google-services.json ausente/vazio sem quebrar,
+      # só o push nativo FCM que não funciona até isso ser configurado).
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           mkdir -p android/app
-          cat > android/app/google-services.json << 'EOF'
-          {
-            "project_info": {
-              "project_number": "987595911324",
-              "project_id": "gen-lang-client-0969674405",
-              "storage_bucket": "gen-lang-client-0969674405.firebasestorage.app"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:987595911324:web:d45ad88174ddf2711abd59",
-                  "android_client_info": {
-                    "package_name": "com.rksucatas.app"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyDnKbxxwb1cs5MBEOIu7WcaKwKA2I5Iit4"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ]
-          }
-          EOF
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+      - name: Generate Android launcher icons
+        run: npx @capacitor/assets generate --android --icon icone_rk.png
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -88,10 +69,34 @@ jobs:
           ./gradlew assembleDebug --stacktrace
 
       - name: Verify APK output
-        run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
+        run: test -f android/app/build/outputs/apk/debug/app-debug.apk
 
-      - name: Upload APK
+      # Publica o bundle web (JS/CSS/assets) pro Capgo — apps já instalados
+      # baixam essa atualização sozinhos em background (CapacitorUpdater com
+      # autoUpdate:true, ver capacitor.config.ts) sem precisar reinstalar o
+      # APK. Só cobre mudança de JS/tela: mudança em código nativo (plugin
+      # novo, permissão nova, etc.) exige reinstalar o APK publicado abaixo.
+      - name: Publish OTA update (Capgo)
+        if: ${{ secrets.CAPGO_API_KEY != '' }}
+        env:
+          CAPGO_API_KEY: ${{ secrets.CAPGO_API_KEY }}
+        run: npx @capgo/cli@latest bundle upload com.rksucatas.app --path ./dist --channel production --apikey "$CAPGO_API_KEY"
+
+      # Release fixa (mesma tag sempre) com o APK mais recente — link estável
+      # pra instalar/reinstalar, em vez de depender do artifact do Actions
+      # (expira em 30 dias e exige estar logado no GitHub).
+      - name: Publish latest APK (GitHub Release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: APK mais recente
+          body: |
+            Build automático a partir do commit ${{ github.sha }}.
+
+            Reinstale este APK só quando a mudança envolver código nativo (novo plugin Capacitor, nova permissão, etc). Mudanças só de tela/JS chegam sozinhas no app já instalado via atualização automática (Capgo).
+          files: android/app/build/outputs/apk/debug/app-debug.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: rk-sucatas-apk

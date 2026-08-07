@@ -42,7 +42,7 @@ dotenv.config();
 
 async function startServer() {
   console.log('🌐 Validando variáveis de ambiente...');
-  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'ADMIN_PASSWORD', 'MELHOR_ENVIO_TOKEN', 'MERCADOLIVRE_APP_ID', 'MERCADOLIVRE_CLIENT_SECRET', 'MERCADOLIVRE_REDIRECT_URI', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT'].forEach((env) => {
+  ['SUPABASE_URL', 'SUPABASE_SERVICE_ROLE_KEY', 'JWT_SECRET', 'ADMIN_PASSWORD', 'MELHOR_ENVIO_TOKEN', 'MERCADOLIVRE_APP_ID', 'MERCADOLIVRE_CLIENT_SECRET', 'MERCADOLIVRE_REDIRECT_URI', 'VAPID_PUBLIC_KEY', 'VAPID_PRIVATE_KEY', 'VAPID_SUBJECT', 'FIREBASE_SERVICE_ACCOUNT'].forEach((env) => {
     if (!process.env[env]) console.warn(`⚠️ Variável de ambiente [${env}] não está definida!`);
     else console.log(`✅ [${env}] está presente.`);
   });

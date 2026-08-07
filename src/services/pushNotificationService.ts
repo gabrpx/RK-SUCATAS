@@ -1,11 +1,12 @@
-// Serviço central de envio de push — só Web Push por enquanto (branch 'fcm'
-// reservado pra quando o Android ganhar push nativo via Firebase, fora do
-// escopo desta entrega). Nenhum gatilho de negócio deve falar com `web-push`
-// direto: só chamar notificarUsuario/notificarUsuarios, sempre fire-and-forget
-// (.catch), mesmo padrão já usado em casarComPecasProcuradas
-// (src/server/routes/estoque.ts) — uma falha de push nunca pode derrubar a
-// operação principal (criar tarefa, etc).
+// Serviço central de envio de push — Web Push (navegador) e FCM (app Android
+// nativo, via Firebase Admin SDK). Nenhum gatilho de negócio deve falar com
+// `web-push`/`firebase-admin` direto: só chamar notificarUsuario/
+// notificarUsuarios, sempre fire-and-forget (.catch), mesmo padrão já usado
+// em casarComPecasProcuradas (src/server/routes/estoque.ts) — uma falha de
+// push nunca pode derrubar a operação principal (criar tarefa, etc).
 import webpush from 'web-push';
+import { initializeApp, cert, getApps } from 'firebase-admin/app';
+import { getMessaging } from 'firebase-admin/messaging';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 let vapidConfigurado = false;
@@ -17,6 +18,29 @@ function garantirVapidConfigurado(): boolean {
   webpush.setVapidDetails(VAPID_SUBJECT, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
   vapidConfigurado = true;
   return true;
+}
+
+let firebaseConfigurado = false;
+
+// FIREBASE_SERVICE_ACCOUNT guarda o JSON inteiro da service account (gerado
+// em Project Settings > Service Accounts > Generate new private key) como
+// string — mesmo padrão de env var sensível usado pro resto do projeto, sem
+// arquivo extra pra gerenciar no deploy.
+function garantirFirebaseConfigurado(): boolean {
+  if (firebaseConfigurado) return true;
+  const { FIREBASE_SERVICE_ACCOUNT } = process.env;
+  if (!FIREBASE_SERVICE_ACCOUNT) return false;
+  try {
+    const credenciais = JSON.parse(FIREBASE_SERVICE_ACCOUNT);
+    if (!getApps().length) {
+      initializeApp({ credential: cert(credenciais) });
+    }
+    firebaseConfigurado = true;
+    return true;
+  } catch (err: any) {
+    console.error('FIREBASE_SERVICE_ACCOUNT inválido (não é um JSON de service account válido):', err?.message || err);
+    return false;
+  }
 }
 
 export interface NotificacaoPayload {
@@ -38,18 +62,39 @@ interface PushSubscriptionRow {
 async function enviarParaUmaSubscription(supabase: SupabaseClient, sub: PushSubscriptionRow, payload: NotificacaoPayload): Promise<void> {
   try {
     if (sub.tipo === 'web') {
+      if (!garantirVapidConfigurado()) {
+        console.warn('⚠️ Push Web pulado: configure VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY/VAPID_SUBJECT no .env.');
+        return;
+      }
       if (!sub.endpoint || !sub.p256dh || !sub.auth_key) return;
       const subscription = { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth_key } };
       await webpush.sendNotification(subscription, JSON.stringify(payload));
       return;
     }
-    // tipo === 'fcm': sem SDK do Firebase integrado ainda (Fase 2), nada a
-    // fazer — a subscription já fica salva pra quando isso for ligado.
+
+    // tipo === 'fcm': app Android nativo, via Firebase Cloud Messaging.
+    if (!garantirFirebaseConfigurado()) {
+      console.warn('⚠️ Push FCM pulado: configure FIREBASE_SERVICE_ACCOUNT no .env.');
+      return;
+    }
+    if (!sub.fcm_token) return;
+    await getMessaging().send({
+      token: sub.fcm_token,
+      notification: { title: payload.titulo, body: payload.corpo },
+      data: { url: payload.url || '/' },
+    });
   } catch (err: any) {
     const statusCode = err?.statusCode;
-    if (statusCode === 404 || statusCode === 410) {
-      // Endpoint expirado/revogado pelo navegador — limpa pra não tentar de
-      // novo pra sempre num destino morto.
+    const firebaseCode = err?.code;
+    const tokenMorto =
+      statusCode === 404 ||
+      statusCode === 410 ||
+      firebaseCode === 'messaging/registration-token-not-registered' ||
+      firebaseCode === 'messaging/invalid-registration-token' ||
+      firebaseCode === 'messaging/invalid-argument';
+    if (tokenMorto) {
+      // Endpoint/token expirado/revogado — limpa pra não tentar de novo pra
+      // sempre num destino morto.
       await supabase.from('push_subscriptions').delete().eq('id', sub.id);
     } else {
       console.error(`Erro ao enviar push (subscription ${sub.id}):`, err?.message || err);
@@ -60,11 +105,6 @@ async function enviarParaUmaSubscription(supabase: SupabaseClient, sub: PushSubs
 // Envia pra um usuário em todos os dispositivos ativos dele. Nunca lança —
 // cada falha é isolada por subscription, quem chama não precisa tratar erro.
 export async function notificarUsuario(supabase: SupabaseClient, usuarioId: string, payload: NotificacaoPayload): Promise<void> {
-  if (!garantirVapidConfigurado()) {
-    console.warn('⚠️ Push notification pulado: configure VAPID_PUBLIC_KEY/VAPID_PRIVATE_KEY/VAPID_SUBJECT no .env.');
-    return;
-  }
-
   const { data: subs, error } = await supabase
     .from('push_subscriptions')
     .select('id, tipo, endpoint, p256dh, auth_key, fcm_token')

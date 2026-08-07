@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.0',
+    data: '2026-08-07',
+    titulo: 'Notificações no app Android + atualização automática',
+    itens: [
+      { tipo: 'feature', texto: 'Notificações (como "tarefa nova atribuída a você") agora chegam também no app Android instalado no celular, mesmo com o app fechado — antes só funcionava com o navegador aberto.' },
+      { tipo: 'melhoria', texto: 'O app Android passa a se atualizar sozinho quando sai uma mudança de tela/funcionalidade, sem precisar baixar e instalar o APK de novo. Só quando a mudança mexe em algo mais profundo do app é que é preciso reinstalar.' },
+    ],
+  },
+  {
     versao: '1.1.0',
     data: '2026-08-07',
     titulo: 'Fiado, fichas de estoque e tarefas no Dashboard',

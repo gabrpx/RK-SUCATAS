@@ -4,14 +4,21 @@
 // só), que Pitoco (mandados) e Itinho (mecanico) conseguem ativar a
 // notificação de tarefa nova atribuída a eles.
 import { useEffect, useState } from 'react';
+import { Capacitor } from '@capacitor/core';
 import { Bell, BellOff, BellRing, Loader2, Smartphone, Trash2 } from 'lucide-react';
 import { cn } from '../../utils';
 import { formatDateRelative } from '../../utils';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { aviso } from '../../components/ui/toast';
 import { ativarPushNesteDispositivo, suportaWebPush } from '../../services/pushClient';
+import { ativarPushNativoNesteDispositivo } from '../../services/pushClientNativo';
 import { notificacoesApi } from './api';
 import type { PushSubscriptionResumo } from './types';
+
+// No app empacotado (Capacitor), a notificação usa o SDK nativo (FCM) — a
+// Push API do navegador dentro do WebView não sobrevive ao app fechado de
+// forma confiável, por isso os dois fluxos são mantidos separados.
+const NATIVO = Capacitor.isNativePlatform();
 
 const TIPO_LABEL: Record<PushSubscriptionResumo['tipo'], string> = { web: 'Navegador', fcm: 'Celular (app)' };
 
@@ -39,12 +46,15 @@ export function NotificacoesView() {
 
   useEffect(() => {
     carregar();
-    if (typeof Notification !== 'undefined') setPermissaoNegada(Notification.permission === 'denied');
+    // No app nativo o estado de permissão é do SO, não do objeto Notification
+    // do WebView — não dá pra prever antes do clique, então não faz o
+    // pré-check aqui (o fluxo de ativação já reporta 'permissao_negada').
+    if (!NATIVO && typeof Notification !== 'undefined') setPermissaoNegada(Notification.permission === 'denied');
   }, []);
 
   const handleAtivar = async () => {
     setAtivando(true);
-    const resultado = await ativarPushNesteDispositivo();
+    const resultado = NATIVO ? await ativarPushNativoNesteDispositivo() : await ativarPushNesteDispositivo();
     setAtivando(false);
 
     if (resultado.success) {
@@ -105,7 +115,7 @@ export function NotificacoesView() {
           </div>
         </div>
 
-        {!suportaWebPush() ? (
+        {!NATIVO && !suportaWebPush() ? (
           <p className="text-xs text-text-faint">Este navegador não suporta notificações push.</p>
         ) : permissaoNegada ? (
           <p className="text-xs text-warning">
