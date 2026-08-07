@@ -11,6 +11,11 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    # `secrets` não pode ser lido direto num `if:` de step (não é um
+    # contexto disponível ali) — espelha pra uma env de job, que os steps
+    # já conseguem checar em `if: env.X != ''`.
+    env:
+      CAPGO_API_KEY: ${{ secrets.CAPGO_API_KEY }}
 
     steps:
       - name: Checkout code
@@ -77,9 +82,7 @@ jobs:
       # APK. Só cobre mudança de JS/tela: mudança em código nativo (plugin
       # novo, permissão nova, etc.) exige reinstalar o APK publicado abaixo.
       - name: Publish OTA update (Capgo)
-        if: ${{ secrets.CAPGO_API_KEY != '' }}
-        env:
-          CAPGO_API_KEY: ${{ secrets.CAPGO_API_KEY }}
+        if: ${{ env.CAPGO_API_KEY != '' }}
         run: npx @capgo/cli@latest bundle upload com.rksucatas.app --path ./dist --channel production --apikey "$CAPGO_API_KEY"
 
       # Release fixa (mesma tag sempre) com o APK mais recente — link estável
