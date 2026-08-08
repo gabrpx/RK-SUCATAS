@@ -18,6 +18,14 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.5',
+    data: '2026-08-08',
+    titulo: 'Corrige erro ao ativar notificações pelo navegador (Web Push)',
+    itens: [
+      { tipo: 'fix', texto: '"Ativar notificações" pelo navegador crashava com um erro técnico ("Cannot read properties of undefined") quando as chaves VAPID não estavam configuradas no servidor — agora mostra a mensagem correta.' },
+    ],
+  },
+  {
     versao: '1.2.4',
     data: '2026-08-08',
     titulo: 'Erro de "ativar notificações" agora mostra o motivo real',

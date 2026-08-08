@@ -42,7 +42,17 @@ export async function ativarPushNesteDispositivo(): Promise<AtivarResultado> {
     if (permissao !== 'granted') return { success: false, motivo: 'permissao_negada' };
 
     const registration = await registrarServiceWorker();
-    const { data } = await notificacoesApi.vapidPublicKey();
+    const respostaVapid = await notificacoesApi.vapidPublicKey();
+    // Mesmo motivo dos outros pontos: api.get não lança pra 503, então sem
+    // checar `success` aqui um servidor sem VAPID_PUBLIC_KEY configurada
+    // (ver rota /api/notificacoes/vapid-public-key) crashava com "Cannot
+    // read properties of undefined (reading 'publicKey')" em vez de mostrar
+    // um erro entendível.
+    if (!respostaVapid.success) {
+      console.error('Erro ao buscar chave VAPID:', respostaVapid.error);
+      return { success: false, motivo: 'erro', erro: respostaVapid.error };
+    }
+    const { data } = respostaVapid;
 
     let subscription = await registration.pushManager.getSubscription();
     if (!subscription) {
