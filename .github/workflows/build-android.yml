@@ -78,8 +78,14 @@ jobs:
       # autoUpdate:true, ver capacitor.config.ts) sem precisar reinstalar o
       # APK. Só cobre mudança de JS/tela: mudança em código nativo (plugin
       # novo, permissão nova, etc.) exige reinstalar o APK publicado abaixo.
+      # continue-on-error: um commit que não muda nada em dist/ (ex: só uma
+      # migration .sql) não tem por que travar o release do APK abaixo — sem
+      # isso, esquecer de subir a versão do package.json faz o Capgo recusar
+      # reenviar o mesmo número (“Version X já existe”) e os passos seguintes
+      # (release do APK, upload do artifact) ficam pulados de arrasto.
       - name: Publish OTA update (Capgo)
         if: ${{ env.CAPGO_API_KEY != '' }}
+        continue-on-error: true
         run: npx @capgo/cli@latest bundle upload com.rksucatas.app --path ./dist --channel production --apikey "$CAPGO_API_KEY"
 
       # Release fixa (mesma tag sempre) com o APK mais recente — link estável
