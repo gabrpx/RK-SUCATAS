@@ -18,6 +18,14 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.6',
+    data: '2026-08-08',
+    titulo: 'Sistema instalável direto do navegador (inclusive no iPhone)',
+    itens: [
+      { tipo: 'feature', texto: 'O site agora pode ser instalado como um app, sem precisar do APK: no navegador (Android/PC) aparece a opção de instalar, e no iPhone (Safari → Compartilhar → Adicionar à Tela de Início) o sistema vira um app de verdade na tela inicial, incluindo notificações.' },
+    ],
+  },
+  {
     versao: '1.2.5',
     data: '2026-08-08',
     titulo: 'Corrige erro ao ativar notificações pelo navegador (Web Push)',
