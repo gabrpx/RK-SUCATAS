@@ -1,6 +1,6 @@
 // Chamadas HTTP do módulo de Estoque. Fino de propósito: cada função mapeia
 // 1:1 pra uma rota do backend (src/server/routes/estoque.ts).
-import { api } from '../../utils/api';
+import { api, BASE_URL } from '../../utils/api';
 import type { Estoque, EstoqueInput, EstoqueUnidade, EstoqueUnidadeInput, EstoqueAnuncioMl, EstoqueAnuncioMlInput } from './types';
 
 interface ApiResult<T> {
@@ -52,7 +52,7 @@ export async function uploadImagemEstoque(file: File): Promise<{ success: boolea
   const formData = new FormData();
   formData.append('imagem', file);
 
-  const response = await fetch('/api/upload/imagem', {
+  const response = await fetch(`${BASE_URL}/api/upload/imagem`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,

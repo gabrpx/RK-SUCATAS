@@ -1,7 +1,7 @@
 import { Capacitor } from '@capacitor/core';
 
 const PROD_URL = 'https://rk-sucatas.onrender.com';
-const BASE_URL = Capacitor.isNativePlatform() ? PROD_URL : '';
+export const BASE_URL = Capacitor.isNativePlatform() ? PROD_URL : '';
 
 const REQUEST_TIMEOUT_MS = 15 * 1000;
 

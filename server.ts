@@ -56,7 +56,11 @@ async function startServer() {
 
   app.set('trust proxy', 1);
 
-  const allowedOrigins = ['http://localhost:3000', 'http://localhost', 'capacitor://localhost', 'https://rk-sucatas.onrender.com'];
+  // 'https://localhost' é a origem real do WebView no Android (Capacitor usa
+  // androidScheme 'https' por padrão, sem porta) — sem ela aqui, todo fetch
+  // do APK pro backend falha no CORS ("Failed to fetch") mesmo com o backend
+  // no ar, porque o navegador nunca chega a entregar a resposta ao JS.
+  const allowedOrigins = ['http://localhost:3000', 'http://localhost', 'https://localhost', 'capacitor://localhost', 'https://rk-sucatas.onrender.com'];
   if (process.env.APP_URL) allowedOrigins.push(process.env.APP_URL);
 
   app.use(

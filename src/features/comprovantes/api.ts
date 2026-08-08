@@ -1,4 +1,4 @@
-import { api } from '../../utils/api';
+import { api, BASE_URL } from '../../utils/api';
 import type { ComprovantePix } from './types';
 
 interface ApiResult<T> {
@@ -22,7 +22,7 @@ export async function anexarComprovantePix(vendaId: string, file: File): Promise
   const formData = new FormData();
   formData.append('arquivo', file);
 
-  const respostaUpload = await fetch('/api/upload/comprovante', {
+  const respostaUpload = await fetch(`${BASE_URL}/api/upload/comprovante`, {
     method: 'POST',
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     body: formData,

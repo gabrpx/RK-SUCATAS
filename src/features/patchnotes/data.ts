@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.2',
+    data: '2026-08-08',
+    titulo: 'Correção: login dando "Failed to fetch" no app Android',
+    itens: [
+      { tipo: 'fix', texto: 'Login no app Android instalado (APK) falhava com "Failed to fetch": o servidor passou a checar de verdade a origem das requisições (CORS) e a lista não incluía a origem real usada pelo app empacotado no Android. Login volta a funcionar normalmente.' },
+      { tipo: 'fix', texto: 'Envio de fotos de peça, foto de modelo de moto e comprovante Pix corrigido no app Android — usavam um endereço relativo que só funciona no navegador, não dentro do app empacotado.' },
+    ],
+  },
+  {
     versao: '1.2.1',
     data: '2026-08-08',
     titulo: 'Correção: login pulando a tela de senha no app Android',
