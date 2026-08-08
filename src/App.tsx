@@ -12,6 +12,7 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
+import { Capacitor } from '@capacitor/core';
 import {
   Package,
   TrendingUp,
@@ -103,10 +104,11 @@ function isVenda(item: DetailItem): item is Venda {
 // =============================================================================
 
 // Acesso via localhost pula a tela de login — conveniência de desenvolvimento
-// local, espelha o bypass equivalente em middleware/auth.ts no backend. Nunca
-// ativa fora da própria máquina, já que checa o hostname que o navegador
-// realmente carregou.
-const IS_LOCALHOST = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+// local, espelha o bypass equivalente em middleware/auth.ts no backend. Exclui
+// plataforma nativa de propósito: o Capacitor no Android serve o WebView em
+// https://localhost/ por padrão, então sem o !isNativePlatform() o app
+// empacotado (APK) também cairia nesse bypass e logaria como admin sozinho.
+const IS_LOCALHOST = !Capacitor.isNativePlatform() && ['localhost', '127.0.0.1'].includes(window.location.hostname);
 
 // Uma vez que alguém desloga explicitamente em localhost, o bypass acima para
 // de reautenticar sozinho nesta aba/sessão — senão o logout nunca "pega" (o
