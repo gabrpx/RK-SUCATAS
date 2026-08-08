@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "1.2.2",
+  "version": "1.2.3",
   "capgo": {
     "appId": "com.rksucatas.app",
     "channel": "production"

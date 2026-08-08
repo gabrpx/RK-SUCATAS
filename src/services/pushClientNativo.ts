@@ -34,7 +34,12 @@ export async function ativarPushNativoNesteDispositivo(): Promise<AtivarResultad
     if (permissao.receive !== 'granted') return { success: false, motivo: 'permissao_negada' };
 
     const token = await registrarEAguardarToken();
-    await notificacoesApi.registrarFcm(token, navigator.userAgent);
+    const resultado = await notificacoesApi.registrarFcm(token, navigator.userAgent);
+    // api.post nunca lança pra respostas de erro (só checa status pra 401/5xx,
+    // ver fetchWithRetry em utils/api.ts) — sem checar `success` aqui, um 400
+    // do backend (ex: token vazio) virava "sucesso" pro usuário mesmo sem
+    // nenhuma linha gravada em push_subscriptions.
+    if (!resultado.success) return { success: false, motivo: 'erro', erro: resultado.error };
     return { success: true };
   } catch (err: any) {
     console.error('Erro ao ativar push nativo neste dispositivo:', err);

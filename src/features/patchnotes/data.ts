@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.3',
+    data: '2026-08-08',
+    titulo: 'Correção: ativar notificações no app Android não registrava o dispositivo',
+    itens: [
+      { tipo: 'fix', texto: 'Faltava declarar a permissão de notificação (obrigatória a partir do Android 13) no app — o pedido de permissão era recusado por baixo dos panos mesmo com tudo certo do lado do servidor.' },
+      { tipo: 'fix', texto: 'O app avisava "notificações ativadas" mesmo quando o cadastro do dispositivo falhava no servidor — agora mostra o erro de verdade em vez de fingir sucesso.' },
+    ],
+  },
+  {
     versao: '1.2.2',
     data: '2026-08-08',
     titulo: 'Correção: login dando "Failed to fetch" no app Android',

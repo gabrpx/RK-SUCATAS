@@ -52,7 +52,12 @@ export async function ativarPushNesteDispositivo(): Promise<AtivarResultado> {
       });
     }
 
-    await notificacoesApi.registrarWeb(subscription.toJSON(), navigator.userAgent);
+    const resultado = await notificacoesApi.registrarWeb(subscription.toJSON(), navigator.userAgent);
+    // api.post nunca lança pra respostas de erro (só checa status pra 401/5xx,
+    // ver fetchWithRetry em utils/api.ts) — sem checar `success` aqui, um 400
+    // do backend virava "sucesso" pro usuário mesmo sem nenhuma linha gravada
+    // em push_subscriptions.
+    if (!resultado.success) return { success: false, motivo: 'erro', erro: resultado.error };
     return { success: true };
   } catch (err: any) {
     console.error('Erro ao ativar push neste dispositivo:', err);
