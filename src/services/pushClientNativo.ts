@@ -39,7 +39,10 @@ export async function ativarPushNativoNesteDispositivo(): Promise<AtivarResultad
     // ver fetchWithRetry em utils/api.ts) — sem checar `success` aqui, um 400
     // do backend (ex: token vazio) virava "sucesso" pro usuário mesmo sem
     // nenhuma linha gravada em push_subscriptions.
-    if (!resultado.success) return { success: false, motivo: 'erro', erro: resultado.error };
+    if (!resultado.success) {
+      console.error('Erro ao registrar subscription FCM no backend:', resultado.error);
+      return { success: false, motivo: 'erro', erro: resultado.error };
+    }
     return { success: true };
   } catch (err: any) {
     console.error('Erro ao ativar push nativo neste dispositivo:', err);

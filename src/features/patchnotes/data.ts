@@ -18,6 +18,14 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.4',
+    data: '2026-08-08',
+    titulo: 'Erro de "ativar notificações" agora mostra o motivo real',
+    itens: [
+      { tipo: 'melhoria', texto: 'Quando "Ativar notificações" falha, a mensagem agora inclui o motivo técnico entre parênteses, em vez de só "tente novamente" — ajuda a identificar o problema sem precisar de acesso ao console do celular.' },
+    ],
+  },
+  {
     versao: '1.2.3',
     data: '2026-08-08',
     titulo: 'Correção: ativar notificações no app Android não registrava o dispositivo',

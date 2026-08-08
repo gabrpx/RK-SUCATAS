@@ -57,7 +57,10 @@ export async function ativarPushNesteDispositivo(): Promise<AtivarResultado> {
     // ver fetchWithRetry em utils/api.ts) — sem checar `success` aqui, um 400
     // do backend virava "sucesso" pro usuário mesmo sem nenhuma linha gravada
     // em push_subscriptions.
-    if (!resultado.success) return { success: false, motivo: 'erro', erro: resultado.error };
+    if (!resultado.success) {
+      console.error('Erro ao registrar subscription Web Push no backend:', resultado.error);
+      return { success: false, motivo: 'erro', erro: resultado.error };
+    }
     return { success: true };
   } catch (err: any) {
     console.error('Erro ao ativar push neste dispositivo:', err);

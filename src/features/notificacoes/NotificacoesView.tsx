@@ -70,7 +70,11 @@ export function NotificacoesView() {
       setPermissaoNegada(true);
       aviso.atencao('Permissão de notificação negada pelo navegador.');
     } else {
-      aviso.erro('Não foi possível ativar as notificações. Tente novamente.');
+      // Mostra o motivo técnico junto (quando disponível) — sem isso, um erro
+      // de registro no FCM/backend fica indistinguível de qualquer outra
+      // falha, e não dá pra diagnosticar sem acesso ao console do celular.
+      const detalhe = 'erro' in resultado && resultado.erro ? ` (${resultado.erro})` : '';
+      aviso.erro(`Não foi possível ativar as notificações. Tente novamente.${detalhe}`);
     }
   };
 
