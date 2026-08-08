@@ -1,5 +1,18 @@
 apply plugin: 'com.android.application'
 
+// Assinatura de release de verdade (chave própria, estável entre builds) —
+// sem isso o CI caía no comportamento padrão do Gradle pra build debug: uma
+// keystore de debug gerada do zero a cada execução (runner efêmero do GitHub
+// Actions), o que faz o Google Play Protect desconfiar muito mais de um APK
+// distribuído fora da Play Store. Degrada com segurança (build local sem o
+// arquivo continua funcionando, só sai sem assinatura de release) igual ao
+// padrão já usado pro google-services.json logo abaixo.
+def keystorePropertiesFile = rootProject.file('keystore.properties')
+def keystoreProperties = new Properties()
+if (keystorePropertiesFile.exists()) {
+    keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+}
+
 android {
     namespace = "com.rksucatas.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -16,10 +29,23 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        release {
+            if (keystorePropertiesFile.exists()) {
+                storeFile rootProject.file(keystoreProperties['storeFile'])
+                storePassword keystoreProperties['storePassword']
+                keyAlias keystoreProperties['keyAlias']
+                keyPassword keystoreProperties['keyPassword']
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+            if (keystorePropertiesFile.exists()) {
+                signingConfig signingConfigs.release
+            }
         }
     }
 }

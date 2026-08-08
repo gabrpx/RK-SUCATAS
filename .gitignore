@@ -14,6 +14,8 @@ backup_ml_/
 # Credencial real do Firebase — cada dev/CI usa a própria (via secret no CI,
 # baixada do Console Firebase localmente). Nunca commitar.
 android/app/google-services.json
+android/keystore.properties
+android/app/*.keystore
 
 # Estado local da ferramenta de IA usada no desenvolvimento — específico de
 # cada máquina/sessão, não é configuração do projeto.

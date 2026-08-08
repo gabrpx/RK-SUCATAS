@@ -16,6 +16,7 @@ jobs:
     # já conseguem checar em `if: env.X != ''`.
     env:
       CAPGO_API_KEY: ${{ secrets.CAPGO_API_KEY }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
     steps:
       - name: Checkout code
@@ -61,6 +62,24 @@ jobs:
           mkdir -p android/app
           printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
 
+      # Chave de assinatura de release própria e estável (ver comentário em
+      # android/app/build.gradle) — sem secret configurado, o step é pulado e
+      # o build gradle abaixo segue sem signingConfig (gera um APK de release
+      # sem assinatura, só pra não quebrar builds de fork/PR sem os secrets).
+      - name: Write release keystore
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p android/app
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/rk-sucatas-release.keystore
+          cat > android/keystore.properties <<PROPS
+          storeFile=app/rk-sucatas-release.keystore
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=rk-sucatas
+          keyPassword=$ANDROID_KEYSTORE_PASSWORD
+          PROPS
+
       - name: Sync Capacitor
         run: npx cap sync android
 
@@ -68,10 +87,10 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease --stacktrace
 
       - name: Verify APK output
-        run: test -f android/app/build/outputs/apk/debug/app-debug.apk
+        run: test -f android/app/build/outputs/apk/release/app-release.apk
 
       # Publica o bundle web (JS/CSS/assets) pro Capgo — apps já instalados
       # baixam essa atualização sozinhos em background (CapacitorUpdater com
@@ -100,12 +119,12 @@ jobs:
             Build automático a partir do commit ${{ github.sha }}.
 
             Reinstale este APK só quando a mudança envolver código nativo (novo plugin Capacitor, nova permissão, etc). Mudanças só de tela/JS chegam sozinhas no app já instalado via atualização automática (Capgo).
-          files: android/app/build/outputs/apk/debug/app-debug.apk
+          files: android/app/build/outputs/apk/release/app-release.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: rk-sucatas-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
