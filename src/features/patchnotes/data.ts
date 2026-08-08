@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.1',
+    data: '2026-08-08',
+    titulo: 'Correção: login pulando a tela de senha no app Android',
+    itens: [
+      { tipo: 'fix', texto: 'No app Android instalado (APK), o sistema pulava direto pra dentro sem pedir a senha de admin, e os dados de estoque/vendas/caixa apareciam zerados — um atalho de desenvolvimento local acabava disparando também dentro do app empacotado. Login e dados voltam ao normal.' },
+      { tipo: 'fix', texto: 'Corrigido o botão "Ativar notificações" retornando "não foi possível" no app Android — era consequência do mesmo problema de login acima.' },
+    ],
+  },
+  {
     versao: '1.2.0',
     data: '2026-08-07',
     titulo: 'Notificações no app Android + atualização automática',
