@@ -765,7 +765,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               ) : activeTab === 'fiado' ? (
                 <FiadoView userRoles={userRoles} />
               ) : activeTab === 'caixa' ? (
-                <CaixaView theme={theme} />
+                <CaixaView theme={theme} userRoles={userRoles} />
               ) : activeTab === 'frete' ? (
                 <FreteView />
               ) : activeTab === 'mercadolivre' ? (

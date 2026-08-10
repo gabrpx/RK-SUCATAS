@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.7',
+    data: '2026-08-10',
+    titulo: 'Fiado/Pendência no Caixa e aba de Lembretes',
+    itens: [
+      { tipo: 'feature', texto: 'No Caixa, "Fiado/Pendência" agora é uma 3ª opção ao lado de Entrada/Saída — o valor só entra no saldo depois que o recebimento é confirmado (parcial ou total) na nova sub-aba "Pendências", dentro de Caixa.' },
+      { tipo: 'feature', texto: 'Nova aba "Lembretes", dentro de Tarefas: crie um aviso que repete a cada 5, 10, 25 minutos (ou outro intervalo) até você marcar como concluído, ou que dispara uma vez só num horário específico. Pode atribuir a qualquer usuário, não só a você mesmo.' },
+    ],
+  },
+  {
     versao: '1.2.6',
     data: '2026-08-08',
     titulo: 'Sistema instalável direto do navegador (inclusive no iPhone)',

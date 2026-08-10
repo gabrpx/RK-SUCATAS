@@ -26,17 +26,20 @@ import { vendasRouter } from './src/server/routes/vendas.js';
 import { orcamentosRouter } from './src/server/routes/orcamentos.js';
 import { clientesRouter } from './src/server/routes/clientes.js';
 import { caixaRouter } from './src/server/routes/caixa.js';
+import { caixaPendenciasRouter } from './src/server/routes/caixaPendencias.js';
 import { fiadoRouter } from './src/server/routes/fiado.js';
 import { enviosRouter } from './src/server/routes/envios.js';
 import { uploadRouter } from './src/server/routes/upload.js';
 import { usuariosRouter } from './src/server/routes/usuarios.js';
 import { tarefasRouter } from './src/server/routes/tarefas.js';
+import { lembretesRouter } from './src/server/routes/lembretes.js';
 import { notificacoesRouter } from './src/server/routes/notificacoes.js';
 import { mercadolivreRouter, mercadolivreCallbackHandler, mercadolivreWebhookHandler } from './src/server/routes/mercadolivre.js';
 import { iniciarDetectorDePendenciasML } from './src/services/mercadolivreScheduler.js';
 import { iniciarRastreioAutomaticoDeEnvios } from './src/services/enviosScheduler.js';
 import { iniciarChecagemDiariaDeAlertas } from './src/services/notificacoesScheduler.js';
-import { EXECUTORES_TAREFA } from './src/constants/roles.js';
+import { iniciarDisparoDeLembretes } from './src/services/lembretesScheduler.js';
+import { EXECUTORES_TAREFA, TAB_ROLES } from './src/constants/roles.js';
 
 dotenv.config();
 
@@ -217,6 +220,27 @@ async function startServer() {
     }
   });
 
+  // Lista enxuta (id + nome) de todo usuário ativo com algum papel que vê
+  // Tarefas, pro <select> de responsável na tela de Lembretes — diferente de
+  // responsaveis-tarefa acima, aqui NÃO filtra por EXECUTORES_TAREFA: um
+  // lembrete pode ser atribuído a qualquer um dos 4 papéis (admin/equipe/
+  // mandados/mecanico), não só quem executa mandado de campo.
+  app.get('/api/usuarios/ativos-resumo', autorizar(...TAB_ROLES.tarefas), async (_req: AuthenticatedRequest, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nome_exibicao')
+        .eq('ativo', true)
+        .or(`roles.ov.{${TAB_ROLES.tarefas.join(',')}}`)
+        .order('nome_exibicao');
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (err: any) {
+      console.error('Erro ao listar usuários ativos:', err);
+      res.status(500).json({ success: false, error: err.message });
+    }
+  });
+
   app.post('/api/frete/calculate', autorizar('admin', 'equipe'), async (req, res) => {
     try {
       const { cep_origem, cep_destino, peso, largura, altura, comprimento } = req.body || {};
@@ -271,10 +295,12 @@ async function startServer() {
   app.use('/api/orcamentos', autorizar('admin', 'equipe'), orcamentosRouter(supabase));
   app.use('/api/clientes', autorizar('admin', 'equipe'), clientesRouter(supabase));
   app.use('/api/caixa', autorizar('admin', 'equipe'), caixaRouter(supabase));
+  app.use('/api/caixa-pendencias', autorizar('admin', 'equipe'), caixaPendenciasRouter(supabase));
   app.use('/api/fiado', autorizar('admin', 'equipe'), fiadoRouter(supabase));
   app.use('/api/envios', autorizar('admin', 'equipe'), enviosRouter(supabase));
   app.use('/api/upload', autorizar('admin', 'equipe'), uploadRouter());
   app.use('/api/tarefas', tarefasRouter(supabase));
+  app.use('/api/lembretes', lembretesRouter(supabase));
   app.use('/api/mercadolivre', autorizar('admin', 'equipe'), mercadolivreRouter(supabase));
   app.use('/api/usuarios', autorizar('admin'), usuariosRouter(supabase));
 
@@ -285,6 +311,7 @@ async function startServer() {
   iniciarDetectorDePendenciasML(supabase);
   iniciarRastreioAutomaticoDeEnvios(supabase);
   iniciarChecagemDiariaDeAlertas(supabase);
+  iniciarDisparoDeLembretes(supabase);
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {

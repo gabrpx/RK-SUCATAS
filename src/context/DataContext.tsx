@@ -7,7 +7,7 @@ import { EXECUTORES_TAREFA } from '../constants/roles';
 import type { Role } from '../constants/roles';
 import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
-import type { CaixaEntry } from '../features/caixa/types';
+import type { CaixaEntry, CaixaPendencia, CaixaPendenciaRecebimento } from '../features/caixa/types';
 import type { Orcamento } from '../features/orcamentos/types';
 import type { Cliente, PecaProcuradaResumo } from '../features/clientes/types';
 import type { FiadoRecebimento } from '../features/fiado/types';
@@ -24,6 +24,8 @@ interface DataContextValue {
   clientes: Cliente[];
   pecasProcuradas: PecaProcuradaResumo[];
   fiadoRecebimentos: FiadoRecebimento[];
+  caixaPendencias: CaixaPendencia[];
+  caixaPendenciaRecebimentos: CaixaPendenciaRecebimento[];
   envios: Envio[];
   loading: boolean;
   /** true quando a última tentativa de buscar o estoque falhou — distingue
@@ -36,6 +38,8 @@ interface DataContextValue {
   setClientes: React.Dispatch<React.SetStateAction<Cliente[]>>;
   setPecasProcuradas: React.Dispatch<React.SetStateAction<PecaProcuradaResumo[]>>;
   setFiadoRecebimentos: React.Dispatch<React.SetStateAction<FiadoRecebimento[]>>;
+  setCaixaPendencias: React.Dispatch<React.SetStateAction<CaixaPendencia[]>>;
+  setCaixaPendenciaRecebimentos: React.Dispatch<React.SetStateAction<CaixaPendenciaRecebimento[]>>;
   setEnvios: React.Dispatch<React.SetStateAction<Envio[]>>;
   refreshData: () => Promise<void>;
   showSensitiveInfo: boolean;
@@ -50,6 +54,8 @@ export const DataContext = createContext<DataContextValue>({
   clientes: [],
   pecasProcuradas: [],
   fiadoRecebimentos: [],
+  caixaPendencias: [],
+  caixaPendenciaRecebimentos: [],
   envios: [],
   loading: false,
   estoqueError: false,
@@ -60,6 +66,8 @@ export const DataContext = createContext<DataContextValue>({
   setClientes: () => {},
   setPecasProcuradas: () => {},
   setFiadoRecebimentos: () => {},
+  setCaixaPendencias: () => {},
+  setCaixaPendenciaRecebimentos: () => {},
   setEnvios: () => {},
   refreshData: async () => {},
   showSensitiveInfo: true,
@@ -97,6 +105,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [clientes, setClientes] = useState<Cliente[]>(() => readCache('rk_clientes', []));
   const [pecasProcuradas, setPecasProcuradas] = useState<PecaProcuradaResumo[]>(() => readCache('rk_pecas_procuradas', []));
   const [fiadoRecebimentos, setFiadoRecebimentos] = useState<FiadoRecebimento[]>(() => readCache('rk_fiado_recebimentos', []));
+  const [caixaPendencias, setCaixaPendencias] = useState<CaixaPendencia[]>(() => readCache('rk_caixa_pendencias', []));
+  const [caixaPendenciaRecebimentos, setCaixaPendenciaRecebimentos] = useState<CaixaPendenciaRecebimento[]>(() => readCache('rk_caixa_pendencia_recebimentos', []));
   const [envios, setEnvios] = useState<Envio[]>(() => readCache('rk_envios', []));
   const [loading, setLoading] = useState(false);
   const [estoqueError, setEstoqueError] = useState(false);
@@ -143,10 +153,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes/pecas-procuradas/todas') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/fiado/recebimentos') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa-pendencias') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa-pendencias/recebimentos') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/envios') : Promise.resolve(null),
     ]);
 
-    const [estoqueRes, vendasRes, caixaRes, orcamentosRes, clientesRes, pecasProcuradasRes, fiadoRecebimentosRes, enviosRes] = results;
+    const [
+      estoqueRes,
+      vendasRes,
+      caixaRes,
+      orcamentosRes,
+      clientesRes,
+      pecasProcuradasRes,
+      fiadoRecebimentosRes,
+      caixaPendenciasRes,
+      caixaPendenciaRecebimentosRes,
+      enviosRes,
+    ] = results;
 
     let falhouEstoque = false;
     if (estoqueRes.status === 'fulfilled') {
@@ -241,6 +264,28 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar baixas de fiado:', fiadoRecebimentosRes.reason);
     }
 
+    if (caixaPendenciasRes.status === 'fulfilled' && caixaPendenciasRes.value) {
+      try {
+        const data = await parseJson(caixaPendenciasRes.value);
+        if (data.success) setCaixaPendencias(prev => applyIfChanged(prev, data.data, 'rk_caixa_pendencias'));
+      } catch (e) {
+        console.error('Erro ao processar pendências de caixa:', e);
+      }
+    } else if (caixaPendenciasRes.status === 'rejected') {
+      console.error('Erro ao buscar pendências de caixa:', caixaPendenciasRes.reason);
+    }
+
+    if (caixaPendenciaRecebimentosRes.status === 'fulfilled' && caixaPendenciaRecebimentosRes.value) {
+      try {
+        const data = await parseJson(caixaPendenciaRecebimentosRes.value);
+        if (data.success) setCaixaPendenciaRecebimentos(prev => applyIfChanged(prev, data.data, 'rk_caixa_pendencia_recebimentos'));
+      } catch (e) {
+        console.error('Erro ao processar recebimentos de pendência de caixa:', e);
+      }
+    } else if (caixaPendenciaRecebimentosRes.status === 'rejected') {
+      console.error('Erro ao buscar recebimentos de pendência de caixa:', caixaPendenciaRecebimentosRes.reason);
+    }
+
     if (enviosRes.status === 'fulfilled' && enviosRes.value) {
       try {
         const data = await parseJson(enviosRes.value);
@@ -277,6 +322,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         clientes,
         pecasProcuradas,
         fiadoRecebimentos,
+        caixaPendencias,
+        caixaPendenciaRecebimentos,
         envios,
         loading,
         estoqueError,
@@ -287,6 +334,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setClientes,
         setPecasProcuradas,
         setFiadoRecebimentos,
+        setCaixaPendencias,
+        setCaixaPendenciaRecebimentos,
         setEnvios,
         refreshData: () => loadData(true),
         showSensitiveInfo,

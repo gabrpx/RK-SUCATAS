@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { SeletorCliente } from '../clientes/SeletorCliente';
+import { LembretesView } from '../lembretes/LembretesView';
 import { useTarefas } from './useTarefas';
 import { tarefasApi } from './api';
 import { EXECUTORES_TAREFA } from '../../constants/roles';
@@ -42,6 +43,7 @@ function paraDatetimeLocal(iso: string | null) {
 }
 
 export function TarefasView({ userRoles }: { userRoles: string[] }) {
+  const [aba, setAba] = useState<'tarefas' | 'lembretes'>('tarefas');
   const { tarefas, setTarefas, loading, error, refetch } = useTarefas();
   // Admin/equipe sempre cai na visão de quem cria, mesmo se também tiver um
   // papel executor (mandados/mecanico) — só quem é EXCLUSIVAMENTE executor
@@ -50,8 +52,33 @@ export function TarefasView({ userRoles }: { userRoles: string[] }) {
   const ehResponsavel = !ehAdminOuEquipe && userRoles.some((r) => EXECUTORES_TAREFA.includes(r as Role));
   const meuId = localStorage.getItem('user_id');
 
-  if (ehResponsavel) return <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} />;
-  return <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} userRoles={userRoles} meuId={meuId} />;
+  return (
+    <div className="space-y-4 pb-24 md:pb-6">
+      {/* Sub-abas: Tarefas (o que já existia) / Lembretes (avisos pessoais/atribuíveis) */}
+      <div className="flex items-center gap-2">
+        {(['tarefas', 'lembretes'] as const).map((a) => (
+          <button
+            key={a}
+            onClick={() => setAba(a)}
+            className={cn(
+              'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
+              aba === a ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+            )}
+          >
+            {a === 'tarefas' ? 'Tarefas' : 'Lembretes'}
+          </button>
+        ))}
+      </div>
+
+      {aba === 'lembretes' ? (
+        <LembretesView userRoles={userRoles} />
+      ) : ehResponsavel ? (
+        <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} />
+      ) : (
+        <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} userRoles={userRoles} meuId={meuId} />
+      )}
+    </div>
+  );
 }
 
 // =============================================================================
@@ -84,7 +111,7 @@ function VisaoResponsavel({
   };
 
   return (
-    <div className="space-y-4 pb-24 md:pb-6">
+    <div className="space-y-4">
       <div>
         <h1 className="text-2xl font-medium text-text-primary">Minhas tarefas</h1>
         <p className="text-sm text-text-faint mt-0.5">O que precisa ser feito, na ordem de prazo</p>
@@ -412,7 +439,7 @@ function VisaoCriador({
   }
 
   return (
-    <div className="space-y-4 pb-24 md:pb-6">
+    <div className="space-y-4">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-medium text-text-primary">Tarefas</h1>

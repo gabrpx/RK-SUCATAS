@@ -24,7 +24,8 @@ import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { aviso } from '../../components/ui/toast';
-import { caixaApi } from './api';
+import { caixaApi, caixaPendenciasApi } from './api';
+import { PendenciasTab } from './PendenciasTab';
 import type { CaixaEntry, CaixaTipo } from './types';
 
 const formatCurrency = (value: number) =>
@@ -47,7 +48,7 @@ function isDentroDoPeriodo(dataStr: string, periodo: PeriodoFiltro): boolean {
   return true;
 }
 
-export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
+export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userRoles: string[] }) {
   const { caixa, setCaixa, showSensitiveInfo, setShowSensitiveInfo } = useData();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -55,6 +56,7 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<CaixaEntry | null>(null);
+  const [aba, setAba] = useState<'lancamentos' | 'pendencias'>('lancamentos');
 
   const filtered = useMemo(() => {
     return caixa
@@ -109,6 +111,32 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
         </button>
       </div>
 
+      {/* Sub-abas: Lançamentos (o que já existia) / Pendências (fiado do Caixa) */}
+      <div className={cn('inline-flex items-center gap-1 p-1.5 rounded-2xl border w-fit', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
+        <button
+          onClick={() => setAba('lancamentos')}
+          className={cn(
+            'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
+            aba === 'lancamentos' ? 'bg-emerald-500 text-white' : theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'
+          )}
+        >
+          Lançamentos
+        </button>
+        <button
+          onClick={() => setAba('pendencias')}
+          className={cn(
+            'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
+            aba === 'pendencias' ? 'bg-emerald-500 text-white' : theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'
+          )}
+        >
+          Pendências
+        </button>
+      </div>
+
+      {aba === 'pendencias' ? (
+        <PendenciasTab theme={theme} userRoles={userRoles} />
+      ) : (
+        <>
       {/* Totais */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className={cardClass}>
@@ -237,6 +265,8 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
           </div>
         )}
       </div>
+        </>
+      )}
 
       <LancamentoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} theme={theme} loading={loading} setLoading={setLoading} />
 
@@ -287,16 +317,16 @@ function LancamentoModal({
   loading: boolean;
   setLoading: (v: boolean) => void;
 }) {
-  const { setCaixa } = useData();
+  const { setCaixa, setCaixaPendencias } = useData();
   const { formasPagamento } = useCatalogos();
-  const [tipo, setTipo] = useState<CaixaTipo>('saida');
+  const [modo, setModo] = useState<CaixaTipo | 'pendencia'>('saida');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
 
   const reset = () => {
-    setTipo('saida');
+    setModo('saida');
     setDescricao('');
     setValor('');
     setFormaPagamentoId('');
@@ -312,16 +342,27 @@ function LancamentoModal({
     if (!descricao.trim() || !valor || Number(valor) <= 0) return;
     setLoading(true);
     try {
-      const result = await caixaApi.lancar({
-        tipo,
-        descricao: descricao.trim(),
-        valor: Number(valor),
-        forma_pagamento_id: formaPagamentoId || null,
-        data,
-      });
-      if (result.success) {
-        setCaixa((prev) => [result.data, ...prev]);
-        handleClose();
+      if (modo === 'pendencia') {
+        // "Fiado/Pendência" é sempre um valor a RECEBER no futuro — não
+        // lança em `caixa` agora, só quando um recebimento for confirmado
+        // na sub-aba Pendências (ver migration_041).
+        const result = await caixaPendenciasApi.criar({ descricao: descricao.trim(), valor_total: Number(valor), data });
+        if (result.success) {
+          setCaixaPendencias((prev) => [result.data, ...prev]);
+          handleClose();
+        }
+      } else {
+        const result = await caixaApi.lancar({
+          tipo: modo,
+          descricao: descricao.trim(),
+          valor: Number(valor),
+          forma_pagamento_id: formaPagamentoId || null,
+          data,
+        });
+        if (result.success) {
+          setCaixa((prev) => [result.data, ...prev]);
+          handleClose();
+        }
       }
     } catch (err) {
       console.error('Erro ao lançar no caixa:', err);
@@ -362,26 +403,36 @@ function LancamentoModal({
         </div>
 
         <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <button
               type="button"
-              onClick={() => setTipo('entrada')}
+              onClick={() => setModo('entrada')}
               className={cn(
-                'py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all',
-                tipo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
+                'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+                modo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
               )}
             >
               Entrada
             </button>
             <button
               type="button"
-              onClick={() => setTipo('saida')}
+              onClick={() => setModo('saida')}
               className={cn(
-                'py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all',
-                tipo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
+                'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+                modo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
               )}
             >
               Saída
+            </button>
+            <button
+              type="button"
+              onClick={() => setModo('pendencia')}
+              className={cn(
+                'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+                modo === 'pendencia' ? 'bg-amber-500 border-amber-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
+              )}
+            >
+              Fiado/Pendência
             </button>
           </div>
 
@@ -401,17 +452,23 @@ function LancamentoModal({
             </div>
           </div>
 
-          <div>
-            <label className={labelClass}>Forma de pagamento (opcional)</label>
-            <CustomDropdown
-              theme={theme}
-              variant="form"
-              value={formaPagamentoId}
-              onChange={setFormaPagamentoId}
-              placeholder="Selecione..."
-              options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))}
-            />
-          </div>
+          {modo === 'pendencia' ? (
+            <p className={cn('text-xs rounded-xl px-4 py-3', theme === 'dark' ? 'bg-zinc-900 text-zinc-400' : 'bg-zinc-100 text-zinc-600')}>
+              Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
+            </p>
+          ) : (
+            <div>
+              <label className={labelClass}>Forma de pagamento (opcional)</label>
+              <CustomDropdown
+                theme={theme}
+                variant="form"
+                value={formaPagamentoId}
+                onChange={setFormaPagamentoId}
+                placeholder="Selecione..."
+                options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))}
+              />
+            </div>
+          )}
 
           <button
             onClick={handleSubmit}

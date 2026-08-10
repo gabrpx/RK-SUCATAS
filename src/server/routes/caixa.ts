@@ -69,19 +69,23 @@ export function caixaRouter(supabase: SupabaseClient) {
 
   router.delete('/:id', async (req, res) => {
     try {
-      // Entrada gerada por um recebimento de fiado (ver migration_031) não
-      // leva venda_id, então não cai na trava de "somente-leitura" da UI —
-      // mas apagá-la direto aqui deixaria fiado_recebimentos.caixa_id órfão
-      // sem reverter o recebimento nem destravar a venda. Reverter é só pela
-      // aba Fiado (DELETE /api/fiado/recebimentos/:id), que apaga os dois juntos.
-      const { data: recebimentoVinculado, error: erroRecebimento } = await supabase
-        .from('fiado_recebimentos')
-        .select('id')
-        .eq('caixa_id', req.params.id)
-        .maybeSingle();
-      if (erroRecebimento) throw erroRecebimento;
-      if (recebimentoVinculado) {
+      // Entrada gerada por um recebimento de fiado (migration_031) ou de uma
+      // pendência de caixa (migration_041) não leva venda_id, então não cai
+      // na trava de "somente-leitura" da UI — mas apagá-la direto aqui
+      // deixaria o *_recebimentos.caixa_id correspondente órfão, sem
+      // reverter o recebimento. Reverter é só pela tela de origem (aba
+      // Fiado ou sub-aba Pendências do Caixa), que apaga os dois juntos.
+      const [{ data: viaFiado, error: erroFiado }, { data: viaPendencia, error: erroPendencia }] = await Promise.all([
+        supabase.from('fiado_recebimentos').select('id').eq('caixa_id', req.params.id).maybeSingle(),
+        supabase.from('caixa_pendencia_recebimentos').select('id').eq('caixa_id', req.params.id).maybeSingle(),
+      ]);
+      if (erroFiado) throw erroFiado;
+      if (erroPendencia) throw erroPendencia;
+      if (viaFiado) {
         return res.status(409).json({ success: false, error: 'Este lançamento veio de um recebimento de fiado — reverta-o pela aba Fiado.' });
+      }
+      if (viaPendencia) {
+        return res.status(409).json({ success: false, error: 'Este lançamento veio de um recebimento de pendência — reverta-o pela sub-aba Pendências, dentro de Caixa.' });
       }
 
       const { error } = await supabase.from('caixa').delete().eq('id', req.params.id);
