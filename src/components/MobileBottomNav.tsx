@@ -1,4 +1,4 @@
-import { MoreHorizontal, X } from 'lucide-react';
+import { LogOut, MoreHorizontal, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -14,7 +14,7 @@ function cn(...inputs: ClassValue[]) {
 // prioridade de uso mobile).
 const MOBILE_MAIN_IDS = ['dashboard', 'estoque', 'vendas', 'caixa'];
 
-export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isMoreOpen, setIsMoreOpen }: any) => {
+export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isMoreOpen, setIsMoreOpen, onLogoutClick }: any) => {
   const allowedItems = NAV_ITEMS.filter(item => item.roles.some((r: string) => userRoles.includes(r)));
 
   const mainItems = MOBILE_MAIN_IDS
@@ -37,6 +37,11 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
   const handleTabClick = (id: string) => {
     setActiveTab(id);
     setIsMoreOpen(false);
+  };
+
+  const handleLogoutClick = () => {
+    setIsMoreOpen(false);
+    onLogoutClick();
   };
 
   return (
@@ -148,6 +153,16 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                     </div>
                   </div>
                 ))}
+              </div>
+
+              <div className={cn('mt-5 pt-5 border-t', theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200')}>
+                <button
+                  onClick={handleLogoutClick}
+                  className="flex items-center gap-3 w-full px-2 py-2 rounded-xl text-danger hover:bg-danger-bg transition-colors"
+                >
+                  <LogOut size={20} />
+                  <span className="text-sm font-bold">Sair</span>
+                </button>
               </div>
             </motion.div>
           </>

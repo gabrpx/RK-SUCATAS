@@ -721,6 +721,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               {activeTab === 'dashboard' ? (
                 <DashboardView
                   theme={theme}
+                  userRoles={userRoles}
                   onSelectItem={setSelectedDetailItem}
                   onTabChange={(tab) => setActiveTab(tab as Tab)}
                   onOpenSearch={() => setIsSearchOpen(true)}
@@ -783,7 +784,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRoles={userRoles} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} />
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRoles={userRoles} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} onLogoutClick={() => setIsLogoutModalOpen(true)} />
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">

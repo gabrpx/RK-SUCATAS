@@ -25,7 +25,7 @@ import {
   ClipboardList,
   X,
 } from 'lucide-react';
-import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
+import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, ResponsiveContainer, YAxis } from 'recharts';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useTarefas } from '../tarefas/useTarefas';
@@ -37,12 +37,14 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { clientesSumidos, rankingTopClientes } from '../clientes/metricas';
 import { resumoFiadoPorCliente } from '../fiado/metricas';
 import { isEstoqueBaixo } from '../estoque/valorEstoque';
+import { VisaoDono } from './VisaoDono';
 import type { Estoque } from '../estoque/types';
 import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
 import type { Tarefa } from '../tarefas/types';
+import type { Role } from '../../constants/roles';
 
-const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
+export const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
 const PRIORIDADE_ORDEM: Record<Tarefa['prioridade'], number> = { alta: 0, media: 1, baixa: 2 };
 
@@ -61,8 +63,9 @@ function totalOrcamento(o: Orcamento): number {
 const PIE_COLORS = ['var(--accent)', 'var(--positive)', 'var(--warning)', 'var(--negative)', 'var(--text-muted)'];
 
 // Tooltip custom do gráfico de área: card no estilo do design system em vez
-// do balão cinza padrão do Recharts.
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
+// do balão cinza padrão do Recharts. Exportado porque a Visão do Dono
+// (VisaoDono.tsx) reaproveita nos próprios mini-gráficos.
+export function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="rounded-control border border-border-default bg-surface-raised px-3 py-2 shadow-lg">
@@ -73,20 +76,22 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 }
 
 // Dot custom da série de área: fica invisível em todo ponto, exceto no
-// último — é o "ponto destacado no último valor" pedido pro gráfico.
-function UltimoPontoDot(props: { cx?: number; cy?: number; index?: number; totalPontos: number }) {
-  const { cx, cy, index, totalPontos } = props;
+// último — é o "ponto destacado no último valor" pedido pro gráfico. A cor
+// segue o sinal do saldo daquele dia (verde = positivo, laranja = negativo).
+function UltimoPontoDot(props: { cx?: number; cy?: number; index?: number; totalPontos: number; cor: string }) {
+  const { cx, cy, index, totalPontos, cor } = props;
   if (index !== totalPontos - 1 || cx == null || cy == null) return null;
   return (
     <g>
-      <circle cx={cx} cy={cy} r={7} fill="var(--positive)" fillOpacity={0.18} />
-      <circle cx={cx} cy={cy} r={3.5} fill="var(--positive)" stroke="var(--surface-card)" strokeWidth={2} />
+      <circle cx={cx} cy={cy} r={7} fill={cor} fillOpacity={0.18} />
+      <circle cx={cx} cy={cy} r={3.5} fill={cor} stroke="var(--surface-card)" strokeWidth={2} />
     </g>
   );
 }
 
 // Card-container padrão usado pelas seções de gráfico/lista da tela.
-function PanelCard({ titulo, acaoLabel, onAcao, children }: { titulo: string; acaoLabel?: string; onAcao?: () => void; children: React.ReactNode }) {
+// Exportado pelo mesmo motivo de ChartTooltip acima.
+export function PanelCard({ titulo, acaoLabel, onAcao, children }: { titulo: string; acaoLabel?: string; onAcao?: () => void; children: React.ReactNode }) {
   return (
     <div className="bg-surface-card border border-border-subtle rounded-card overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
@@ -104,7 +109,8 @@ function PanelCard({ titulo, acaoLabel, onAcao, children }: { titulo: string; ac
 
 // Linha de lista compartilhada por "Últimas vendas" e "Pendências" — ícone
 // de status à esquerda, nome + meio/pagamento + data no meio, valor à direita.
-function LinhaAtividade({
+// Exportado pelo mesmo motivo de ChartTooltip acima.
+export function LinhaAtividade({
   icone: Icone,
   tom,
   titulo,
@@ -182,6 +188,7 @@ function DashboardSkeleton() {
 }
 
 export function DashboardView({
+  userRoles,
   onSelectItem,
   onTabChange,
   onOpenSearch,
@@ -191,6 +198,7 @@ export function DashboardView({
   onNavigateFiado,
 }: {
   theme?: 'light' | 'dark';
+  userRoles?: Role[];
   onSelectItem: (item: Estoque | Venda) => void;
   onTabChange: (tab: string) => void;
   onOpenSearch?: () => void;
@@ -289,6 +297,20 @@ export function DashboardView({
     return dias;
   }, [caixa]);
 
+  // Domínio do eixo Y do gráfico de desempenho: sempre inclui o zero, mesmo
+  // que os 30 dias sejam só positivos ou só negativos — é o que permite
+  // colorir o gradiente exatamente no ponto onde a linha cruza zero.
+  const chartDomain = useMemo(
+    () => [(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, 0)] as const,
+    []
+  );
+  const chartOffsetZero = useMemo(() => {
+    const valores = chartData.map((d) => d.valor);
+    const max = Math.max(...valores, 0);
+    const min = Math.min(...valores, 0);
+    return max === min ? 0 : max / (max - min);
+  }, [chartData]);
+
   const pieData = useMemo(() => {
     const porFormaPagamento = new Map<string, number>();
     for (const v of metrics.vendasMes) {
@@ -350,7 +372,7 @@ export function DashboardView({
               <>
                 {/* Backdrop invisível só pra fechar ao clicar fora — o painel em si não precisa de overlay escuro */}
                 <div className="fixed inset-0 z-[70]" onClick={() => setNotificacoesAbertas(false)} />
-                <div className="absolute right-0 top-11 z-[80] w-80 max-w-[85vw] max-h-96 flex flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-card shadow-2xl">
+                <div className="fixed inset-x-4 top-[calc(4rem+var(--safe-top))] sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 z-[80] sm:w-80 sm:max-w-[85vw] max-h-[min(24rem,70vh)] flex flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-card shadow-2xl">
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
                     <h4 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Tarefas pendentes</h4>
                     <button onClick={() => setNotificacoesAbertas(false)} className="text-text-faint hover:text-text-primary">
@@ -493,19 +515,38 @@ export function DashboardView({
               <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <defs>
                   <linearGradient id="corDesempenho" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="var(--positive)" stopOpacity={0.35} />
-                    <stop offset="95%" stopColor="var(--positive)" stopOpacity={0} />
+                    <stop offset={0} stopColor="var(--positive)" stopOpacity={0.35} />
+                    <stop offset={chartOffsetZero} stopColor="var(--positive)" stopOpacity={0} />
+                    <stop offset={chartOffsetZero} stopColor="var(--negative)" stopOpacity={0} />
+                    <stop offset={1} stopColor="var(--negative)" stopOpacity={0.35} />
+                  </linearGradient>
+                  <linearGradient id="linhaDesempenho" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset={chartOffsetZero} stopColor="var(--positive)" />
+                    <stop offset={chartOffsetZero} stopColor="var(--negative)" />
                   </linearGradient>
                 </defs>
+                <YAxis hide domain={chartDomain} />
                 <Tooltip content={<ChartTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="valor"
-                  stroke="var(--positive)"
+                  baseValue={0}
+                  stroke="url(#linhaDesempenho)"
                   fill="url(#corDesempenho)"
                   strokeWidth={2}
-                  dot={(props: any) => <UltimoPontoDot key={props.index} {...props} totalPontos={chartData.length} />}
-                  activeDot={{ r: 4, fill: 'var(--positive)', stroke: 'var(--surface-card)', strokeWidth: 2 }}
+                  dot={(props: any) => (
+                    <UltimoPontoDot
+                      key={props.index}
+                      {...props}
+                      totalPontos={chartData.length}
+                      cor={chartData[chartData.length - 1]?.valor >= 0 ? 'var(--positive)' : 'var(--negative)'}
+                    />
+                  )}
+                  activeDot={(props: any) => {
+                    const { key, ...rest } = props;
+                    const cor = props.payload?.valor >= 0 ? 'var(--positive)' : 'var(--negative)';
+                    return <circle key={key} {...rest} r={4} fill={cor} stroke="var(--surface-card)" strokeWidth={2} />;
+                  }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -655,6 +696,22 @@ export function DashboardView({
           </div>
         )}
       </PanelCard>
+
+      {/* 7. Visão do dono — só pra quem tem role admin (não pra 'equipe',
+          mesmo essa também vendo o resto do Dashboard). */}
+      {userRoles?.includes('admin') && (
+        <VisaoDono
+          estoque={estoque}
+          vendas={vendas}
+          caixa={caixa}
+          orcamentos={orcamentos}
+          clientes={clientes}
+          fiadoRecebimentos={fiadoRecebimentos}
+          tarefas={tarefas}
+          onTabChange={onTabChange}
+          onNavigateCliente={onNavigateCliente}
+        />
+      )}
     </div>
   );
 }
