@@ -13,16 +13,15 @@ import {
   Loader2,
   Search,
   Link2,
-  X,
   Calendar,
   Eye,
   EyeOff,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { CustomDropdown } from '../../components/CustomDropdown';
+import { Modal } from '../../components/ui/Modal';
 import { aviso } from '../../components/ui/toast';
 import { caixaApi, caixaPendenciasApi } from './api';
 import { PendenciasTab } from './PendenciasTab';
@@ -269,35 +268,28 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
       <LancamentoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} loading={loading} setLoading={setLoading} />
 
       {/* Confirmação de exclusão */}
-      <AnimatePresence>
-        {entryToDelete && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}
+      <Modal
+        aberto={!!entryToDelete}
+        onFechar={() => setEntryToDelete(null)}
+        titulo="Excluir lançamento?"
+        icone={Trash2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button
+              onClick={() => setEntryToDelete(null)}
+              className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-zinc-900 text-zinc-300')}
             >
-              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4">
-                <Trash2 size={28} />
-              </div>
-              <h3 className={cn('text-lg font-black mb-2', 'text-white')}>Excluir lançamento?</h3>
-              <p className="text-sm text-zinc-500 mb-6">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setEntryToDelete(null)}
-                  className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-zinc-900 text-zinc-300')}
-                >
-                  Cancelar
-                </button>
-                <button onClick={handleDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600">
-                  Excluir
-                </button>
-              </div>
-            </motion.div>
+              Cancelar
+            </button>
+            <button onClick={handleDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600">
+              Excluir
+            </button>
           </div>
-        )}
-      </AnimatePresence>
+        }
+      >
+        {entryToDelete && <p className="text-sm text-zinc-500">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>}
+      </Modal>
     </div>
   );
 }
@@ -373,107 +365,89 @@ function LancamentoModal({
   );
   const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
 
-  if (!isOpen) return null;
-
   return (
-    <div className="fixed inset-0 z-[2000] flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm">
-      <motion.div
-        initial={{ y: '100%', opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className={cn(
-          'w-full md:max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[90vh] overflow-y-auto',
-          'bg-zinc-950 border-zinc-800'
-        )}
-      >
-        <div className="md:hidden w-full flex justify-center -mt-2 mb-4">
-          <div className="w-12 h-1.5 rounded-full bg-zinc-800" />
-        </div>
-
-        <div className="flex items-center justify-between mb-6">
-          <h3 className={cn('text-xl font-black', 'text-white')}>Novo Lançamento</h3>
-          <button onClick={handleClose} className="p-2 rounded-full text-zinc-500 hover:bg-zinc-800/50">
-            <X size={20} />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3">
-            <button
-              type="button"
-              onClick={() => setModo('entrada')}
-              className={cn(
-                'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-                modo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-800 text-zinc-400'
-              )}
-            >
-              Entrada
-            </button>
-            <button
-              type="button"
-              onClick={() => setModo('saida')}
-              className={cn(
-                'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-                modo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : 'border-zinc-800 text-zinc-400'
-              )}
-            >
-              Saída
-            </button>
-            <button
-              type="button"
-              onClick={() => setModo('pendencia')}
-              className={cn(
-                'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-                modo === 'pendencia' ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-800 text-zinc-400'
-              )}
-            >
-              Fiado/Pendência
-            </button>
-          </div>
-
-          <div>
-            <label className={labelClass}>Descrição</label>
-            <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: Conta de luz, retirada..." className={inputClass} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Valor (R$)</label>
-              <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Data</label>
-              <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass} />
-            </div>
-          </div>
-
-          {modo === 'pendencia' ? (
-            <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-zinc-900 text-zinc-400')}>
-              Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
-            </p>
-          ) : (
-            <div>
-              <label className={labelClass}>Forma de pagamento (opcional)</label>
-              <CustomDropdown
-                variant="form"
-                value={formaPagamentoId}
-                onChange={setFormaPagamentoId}
-                placeholder="Selecione..."
-                options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))}
-              />
-            </div>
-          )}
-
+    <Modal
+      aberto={isOpen}
+      onFechar={handleClose}
+      titulo="Novo Lançamento"
+      tamanho="md"
+      rodape={
+        <button
+          onClick={handleSubmit}
+          disabled={loading || !descricao.trim() || !valor}
+          className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+        >
+          {loading ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Lançamento'}
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-3">
           <button
-            onClick={handleSubmit}
-            disabled={loading || !descricao.trim() || !valor}
-            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 mt-2"
+            type="button"
+            onClick={() => setModo('entrada')}
+            className={cn(
+              'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+              modo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-800 text-zinc-400'
+            )}
           >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Lançamento'}
+            Entrada
+          </button>
+          <button
+            type="button"
+            onClick={() => setModo('saida')}
+            className={cn(
+              'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+              modo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : 'border-zinc-800 text-zinc-400'
+            )}
+          >
+            Saída
+          </button>
+          <button
+            type="button"
+            onClick={() => setModo('pendencia')}
+            className={cn(
+              'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+              modo === 'pendencia' ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-800 text-zinc-400'
+            )}
+          >
+            Fiado/Pendência
           </button>
         </div>
-      </motion.div>
-    </div>
+
+        <div>
+          <label className={labelClass}>Descrição</label>
+          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: Conta de luz, retirada..." className={inputClass} />
+        </div>
+
+        <div className="grid grid-cols-2 gap-3">
+          <div>
+            <label className={labelClass}>Valor (R$)</label>
+            <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" className={inputClass} />
+          </div>
+          <div>
+            <label className={labelClass}>Data</label>
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass} />
+          </div>
+        </div>
+
+        {modo === 'pendencia' ? (
+          <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-zinc-900 text-zinc-400')}>
+            Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
+          </p>
+        ) : (
+          <div>
+            <label className={labelClass}>Forma de pagamento (opcional)</label>
+            <CustomDropdown
+              variant="form"
+              value={formaPagamentoId}
+              onChange={setFormaPagamentoId}
+              placeholder="Selecione..."
+              options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))}
+            />
+          </div>
+        )}
+      </div>
+    </Modal>
   );
 }
