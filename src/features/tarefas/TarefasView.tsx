@@ -11,6 +11,7 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { LembretesView } from '../lembretes/LembretesView';
 import { useTarefas } from './useTarefas';
@@ -496,118 +497,117 @@ function VisaoCriador({
         }
       />
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setIsFormOpen(false)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle"
-          >
-            <div className="p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">{editando ? 'Editar tarefa' : 'Nova tarefa'}</h2>
+      <Modal
+        aberto={isFormOpen}
+        onFechar={() => setIsFormOpen(false)}
+        titulo={editando ? 'Editar tarefa' : 'Nova tarefa'}
+        tamanho="md"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
+          <div className="flex items-center gap-2">
+            {(['geral', 'visita'] as const).map((tipo) => (
+              <button
+                key={tipo}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, tipo }))}
+                className={cn(
+                  'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                  form.tipo === tipo ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                )}
+              >
+                {tipo === 'visita' && <MapPin size={12} />}
+                {tipo === 'geral' ? 'Tarefa geral' : 'Visita à loja'}
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className={labelClass}>Título</label>
+            <input
+              value={form.titulo}
+              onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
+              className={inputClass}
+              placeholder={form.tipo === 'visita' ? 'ex: Visita pra ver a moto' : 'ex: Buscar peça no fornecedor'}
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Descrição</label>
+            <textarea
+              value={form.descricao || ''}
+              onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+              className={cn(inputClass, 'min-h-20 resize-none')}
+              placeholder="Detalhes do que precisa ser feito"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Prazo</label>
+              <input type="datetime-local" value={form.prazo || ''} onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))} className={inputClass} />
             </div>
-            <div className="p-6 space-y-4">
-              {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
-              <div className="flex items-center gap-2">
-                {(['geral', 'visita'] as const).map((tipo) => (
-                  <button
-                    key={tipo}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, tipo }))}
-                    className={cn(
-                      'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
-                      form.tipo === tipo ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                    )}
-                  >
-                    {tipo === 'visita' && <MapPin size={12} />}
-                    {tipo === 'geral' ? 'Tarefa geral' : 'Visita à loja'}
-                  </button>
+            <div>
+              <label className={labelClass}>Prioridade</label>
+              <select value={form.prioridade} onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value as TarefaPrioridade }))} className={inputClass}>
+                {(['baixa', 'media', 'alta'] as const).map((p) => (
+                  <option key={p} value={p}>
+                    {PRIORIDADE_LABELS[p]}
+                  </option>
                 ))}
-              </div>
-              <div>
-                <label className={labelClass}>Título</label>
-                <input
-                  value={form.titulo}
-                  onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
-                  className={inputClass}
-                  placeholder={form.tipo === 'visita' ? 'ex: Visita pra ver a moto' : 'ex: Buscar peça no fornecedor'}
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Descrição</label>
-                <textarea
-                  value={form.descricao || ''}
-                  onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
-                  className={cn(inputClass, 'min-h-20 resize-none')}
-                  placeholder="Detalhes do que precisa ser feito"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Prazo</label>
-                  <input type="datetime-local" value={form.prazo || ''} onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Prioridade</label>
-                  <select value={form.prioridade} onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value as TarefaPrioridade }))} className={inputClass}>
-                    {(['baixa', 'media', 'alta'] as const).map((p) => (
-                      <option key={p} value={p}>
-                        {PRIORIDADE_LABELS[p]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Responsável</label>
-                <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
-                  {responsaveis.map((r) => (
-                    <option key={r.id} value={r.id}>
-                      {r.nome_exibicao}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Cliente (opcional)</label>
-                <SeletorCliente
-                  clienteId={form.cliente_id || null}
-                  nome={clienteNomeTexto}
-                  onChange={(id, nome) => {
-                    setForm((f) => ({ ...f, cliente_id: id }));
-                    setClienteNomeTexto(nome);
-                  }}
-                  placeholder="Vincular a um cliente cadastrado"
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
+              </select>
             </div>
           </div>
+          <div>
+            <label className={labelClass}>Responsável</label>
+            <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
+              {responsaveis.map((r) => (
+                <option key={r.id} value={r.id}>
+                  {r.nome_exibicao}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Cliente (opcional)</label>
+            <SeletorCliente
+              clienteId={form.cliente_id || null}
+              nome={clienteNomeTexto}
+              onChange={(id, nome) => {
+                setForm((f) => ({ ...f, cliente_id: id }));
+                setClienteNomeTexto(nome);
+              }}
+              placeholder="Vincular a um cliente cadastrado"
+            />
+          </div>
         </div>
-      )}
+      </Modal>
 
-      {excluindo && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setExcluindo(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-sm flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle p-6 space-y-4">
-            <h2 className="text-lg font-medium">Excluir tarefa?</h2>
-            <p className="text-sm text-text-secondary">"{excluindo.titulo}" será removida definitivamente.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setExcluindo(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={confirmarExclusao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
-                Excluir
-              </button>
-            </div>
+      <Modal
+        aberto={!!excluindo}
+        onFechar={() => setExcluindo(null)}
+        titulo="Excluir tarefa?"
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setExcluindo(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={confirmarExclusao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+              Excluir
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        {excluindo && <p className="text-sm text-text-secondary">"{excluindo.titulo}" será removida definitivamente.</p>}
+      </Modal>
     </div>
   );
 }
