@@ -13,6 +13,7 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { AlertBar } from '../../components/ui/AlertBar';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
@@ -710,126 +711,152 @@ export function ClientesView({
         }
       />
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center overflow-y-auto" onClick={() => setIsFormOpen(false)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle my-auto"
-          >
-            <div className="p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">{editando ? 'Editar cliente' : 'Novo cliente'}</h2>
+      <Modal
+        aberto={isFormOpen}
+        onFechar={() => setIsFormOpen(false)}
+        titulo={editando ? 'Editar cliente' : 'Novo cliente'}
+        tamanho="md"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
+          <div>
+            <label className={labelClass}>Nome</label>
+            <input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} className={inputClass} placeholder="Nome do cliente" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Telefone</label>
+              <input
+                value={form.telefone || ''}
+                onChange={(e) => setForm((f) => ({ ...f, telefone: formatTelefoneBR(e.target.value) }))}
+                inputMode="numeric"
+                maxLength={15}
+                className={inputClass}
+                placeholder="(00) 00000-0000"
+              />
             </div>
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
-              <div>
-                <label className={labelClass}>Nome</label>
-                <input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} className={inputClass} placeholder="Nome do cliente" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Telefone</label>
-                  <input
-                    value={form.telefone || ''}
-                    onChange={(e) => setForm((f) => ({ ...f, telefone: formatTelefoneBR(e.target.value) }))}
-                    inputMode="numeric"
-                    maxLength={15}
-                    className={inputClass}
-                    placeholder="(00) 00000-0000"
-                  />
-                </div>
-                <div>
-                  <label className={labelClass}>CPF/CNPJ</label>
-                  <input
-                    value={form.documento || ''}
-                    onChange={(e) => setForm((f) => ({ ...f, documento: formatDocumentoBR(e.target.value) }))}
-                    inputMode="numeric"
-                    maxLength={18}
-                    className={inputClass}
-                    placeholder="Opcional"
-                  />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Aniversário</label>
-                  <input type="date" value={form.data_nascimento || ''} onChange={(e) => setForm((f) => ({ ...f, data_nascimento: e.target.value }))} className={inputClass} />
-                </div>
-                <div>
-                  <label className={labelClass}>Preferência de contato</label>
-                  <select
-                    value={form.preferencia_contato || ''}
-                    onChange={(e) => setForm((f) => ({ ...f, preferencia_contato: (e.target.value || null) as PreferenciaContato | null }))}
-                    className={inputClass}
-                  >
-                    <option value="">—</option>
-                    {(Object.keys(CONTATO_LABELS) as PreferenciaContato[]).map((k) => (
-                      <option key={k} value={k}>
-                        {CONTATO_LABELS[k]}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Como conheceu a loja</label>
-                <select value={form.origem || ''} onChange={(e) => setForm((f) => ({ ...f, origem: (e.target.value || null) as ClienteOrigem | null }))} className={inputClass}>
-                  <option value="">—</option>
-                  {(Object.keys(ORIGEM_LABELS) as ClienteOrigem[]).map((k) => (
-                    <option key={k} value={k}>
-                      {ORIGEM_LABELS[k]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className={labelClass}>Tags (separadas por vírgula)</label>
-                <input value={tagsTexto} onChange={(e) => setTagsTexto(e.target.value)} className={inputClass} placeholder="ex: revendedor, atacado" />
-              </div>
-              <div>
-                <label className={labelClass}>Observações</label>
-                <textarea
-                  value={form.observacoes || ''}
-                  onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
-                  className={cn(inputClass, 'min-h-20 resize-none')}
-                  placeholder='Nota fixa, ex: "só liga depois das 18h"'
-                />
-              </div>
-            </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
+            <div>
+              <label className={labelClass}>CPF/CNPJ</label>
+              <input
+                value={form.documento || ''}
+                onChange={(e) => setForm((f) => ({ ...f, documento: formatDocumentoBR(e.target.value) }))}
+                inputMode="numeric"
+                maxLength={18}
+                className={inputClass}
+                placeholder="Opcional"
+              />
             </div>
           </div>
-        </div>
-      )}
-
-      {clienteAberto && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center overflow-y-auto" onClick={() => setClienteAberto(null)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle my-auto"
-          >
-            <div className="p-6 border-b border-border-subtle flex items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-medium">{clienteAberto.nome}</h2>
-                <p className="text-xs text-text-faint mt-0.5">{clienteAberto.telefone ? formatTelefoneBR(clienteAberto.telefone) : 'Sem telefone cadastrado'}</p>
-              </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {(() => {
-                  const historico = historicoPorCliente.get(clienteAberto.id);
-                  if (!historico) return null;
-                  const segmento = calcularSegmento(historico);
-                  return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
-                })()}
-                {!clienteAberto.ativo && <StatusBadge texto="Inativo" tom="neutral" ativo={false} />}
-              </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Aniversário</label>
+              <input type="date" value={form.data_nascimento || ''} onChange={(e) => setForm((f) => ({ ...f, data_nascimento: e.target.value }))} className={inputClass} />
             </div>
-            <div className="p-6 space-y-5 max-h-[70vh] overflow-y-auto">
-              {(badgesPorCliente.get(clienteAberto.id) || []).length > 0 && (
+            <div>
+              <label className={labelClass}>Preferência de contato</label>
+              <select
+                value={form.preferencia_contato || ''}
+                onChange={(e) => setForm((f) => ({ ...f, preferencia_contato: (e.target.value || null) as PreferenciaContato | null }))}
+                className={inputClass}
+              >
+                <option value="">—</option>
+                {(Object.keys(CONTATO_LABELS) as PreferenciaContato[]).map((k) => (
+                  <option key={k} value={k}>
+                    {CONTATO_LABELS[k]}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className={labelClass}>Como conheceu a loja</label>
+            <select value={form.origem || ''} onChange={(e) => setForm((f) => ({ ...f, origem: (e.target.value || null) as ClienteOrigem | null }))} className={inputClass}>
+              <option value="">—</option>
+              {(Object.keys(ORIGEM_LABELS) as ClienteOrigem[]).map((k) => (
+                <option key={k} value={k}>
+                  {ORIGEM_LABELS[k]}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div>
+            <label className={labelClass}>Tags (separadas por vírgula)</label>
+            <input value={tagsTexto} onChange={(e) => setTagsTexto(e.target.value)} className={inputClass} placeholder="ex: revendedor, atacado" />
+          </div>
+          <div>
+            <label className={labelClass}>Observações</label>
+            <textarea
+              value={form.observacoes || ''}
+              onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
+              className={cn(inputClass, 'min-h-20 resize-none')}
+              placeholder='Nota fixa, ex: "só liga depois das 18h"'
+            />
+          </div>
+        </div>
+      </Modal>
+
+      <Modal
+        aberto={!!clienteAberto}
+        onFechar={() => setClienteAberto(null)}
+        titulo={clienteAberto?.nome || ''}
+        subtitulo={clienteAberto?.telefone ? formatTelefoneBR(clienteAberto.telefone) : 'Sem telefone cadastrado'}
+        tamanho="lg"
+        rodape={
+          clienteAberto && (
+            <div className="flex gap-3">
+              <button
+                onClick={() => {
+                  const cliente = clienteAberto;
+                  setClienteAberto(null);
+                  abrirEditar(cliente);
+                }}
+                className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised flex items-center justify-center gap-2"
+              >
+                <Pencil size={14} /> Editar
+              </button>
+              <button
+                onClick={() => alternarAtivo(clienteAberto)}
+                className={cn(
+                  'flex-1 py-3 rounded-control font-medium text-sm border flex items-center justify-center gap-2',
+                  clienteAberto.ativo ? 'border-danger/30 text-danger hover:bg-danger-bg' : 'border-positive/30 text-positive hover:bg-positive-bg'
+                )}
+              >
+                {clienteAberto.ativo ? (
+                  <>
+                    <Ban size={14} /> Desativar
+                  </>
+                ) : (
+                  <>
+                    <RotateCcw size={14} /> Reativar
+                  </>
+                )}
+              </button>
+            </div>
+          )
+        }
+      >
+        {clienteAberto && (
+          <div className="space-y-5">
+            <div className="flex flex-wrap items-center gap-2">
+              {(() => {
+                const historico = historicoPorCliente.get(clienteAberto.id);
+                if (!historico) return null;
+                const segmento = calcularSegmento(historico);
+                return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
+              })()}
+              {!clienteAberto.ativo && <StatusBadge texto="Inativo" tom="neutral" ativo={false} />}
+            </div>
+            {(badgesPorCliente.get(clienteAberto.id) || []).length > 0 && (
                 <div className="flex flex-wrap gap-1.5">
                   {(badgesPorCliente.get(clienteAberto.id) || []).map((b) => (
                     <span key={b.modeloMotoId} title="Moto procurada">
@@ -1139,37 +1166,10 @@ export function ClientesView({
                 )}
               </div>
             </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button
-                onClick={() => {
-                  setClienteAberto(null);
-                  abrirEditar(clienteAberto);
-                }}
-                className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised flex items-center justify-center gap-2"
-              >
-                <Pencil size={14} /> Editar
-              </button>
-              <button
-                onClick={() => alternarAtivo(clienteAberto)}
-                className={cn(
-                  'flex-1 py-3 rounded-control font-medium text-sm border flex items-center justify-center gap-2',
-                  clienteAberto.ativo ? 'border-danger/30 text-danger hover:bg-danger-bg' : 'border-positive/30 text-positive hover:bg-positive-bg'
-                )}
-              >
-                {clienteAberto.ativo ? (
-                  <>
-                    <Ban size={14} /> Desativar
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw size={14} /> Reativar
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+        )}
+      </Modal>
     </div>
   );
 }
+
+
