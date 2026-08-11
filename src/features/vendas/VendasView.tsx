@@ -111,19 +111,19 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-violet-500/10 rounded-2xl">
-            <ShoppingCart className="text-violet-500" size={28} />
+          <div className="p-3 bg-accent/10 rounded-2xl">
+            <ShoppingCart className="text-accent" size={28} />
           </div>
           <div>
-            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Vendas</h2>
-            <p className="text-sm text-zinc-500">
+            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-text-primary')}>Vendas</h2>
+            <p className="text-sm text-text-muted">
               {filtered.length} vendas · {formatCurrency(totalVendido)} no período
             </p>
           </div>
         </div>
         <button
           onClick={() => setIsNovaVendaOpen(true)}
-          className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-violet-500/20"
+          className="flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Nova Venda
         </button>
@@ -131,8 +131,8 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-zinc-900 border-zinc-800')}>
-          <Search size={16} className="text-zinc-500 shrink-0" />
+        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-surface-inset border-border-default')}>
+          <Search size={16} className="text-text-muted shrink-0" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por peça ou cliente..." className="bg-transparent outline-none text-sm w-full" />
         </div>
         <CustomDropdown
@@ -155,24 +155,24 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
       </div>
 
       {/* Lista */}
-      <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
+      <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
         {loading && vendas.length === 0 ? (
           <div className="p-12 flex justify-center">
-            <Loader2 className="animate-spin text-violet-500" size={28} />
+            <Loader2 className="animate-spin text-accent" size={28} />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-zinc-500 text-sm">Nenhuma venda encontrada para este filtro.</div>
+          <div className="p-12 text-center text-text-muted text-sm">Nenhuma venda encontrada para este filtro.</div>
         ) : (
-          <div className="divide-y divide-zinc-800/50">
+          <div className="divide-y divide-border-subtle">
             {filtered.map((venda) => (
-              <div key={venda.id} onClick={() => onSelectItem(venda)} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-zinc-800/20 transition-colors cursor-pointer">
+              <div key={venda.id} onClick={() => onSelectItem(venda)} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-surface-raised transition-colors cursor-pointer">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div className="w-9 h-9 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center shrink-0">
+                  <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
                     <Package size={16} />
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <p className={cn('font-bold text-sm truncate min-w-0', 'text-white')}>
+                      <p className={cn('font-bold text-sm truncate min-w-0', 'text-text-primary')}>
                         {venda.quantidade > 1 ? `${venda.quantidade}x ` : ''}
                         {venda.nome_item}
                       </p>
@@ -182,7 +182,7 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
                         </span>
                       )}
                     </div>
-                    <p className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
+                    <p className="text-xs text-text-muted flex items-center gap-2 flex-wrap">
                       {parseLocalDate(venda.data).toLocaleDateString('pt-BR')}
                       {(() => {
                         const efetiva = formaPagamentoEfetiva(venda, fiadoRecebimentos);
@@ -203,13 +203,13 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="font-black text-sm text-emerald-500">{formatCurrency(venda.valor_total)}</span>
+                  <span className="font-black text-sm text-text-primary">{formatCurrency(venda.valor_total)}</span>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       setVendaToCancel(venda);
                     }}
-                    className="p-2 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                    className="p-2 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg transition-colors"
                     title="Cancelar venda (devolve o estoque)"
                   >
                     <Trash2 size={14} />
@@ -232,13 +232,13 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setVendaToCancel(null)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
+            <button onClick={() => setVendaToCancel(null)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary">
               Voltar
             </button>
             <button
               onClick={handleCancelar}
               disabled={cancelando || (temRecebimentoFiado && !podeForcarCancelamento)}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {cancelando ? <Loader2 size={16} className="animate-spin" /> : temRecebimentoFiado ? 'Reverter e cancelar' : 'Cancelar venda'}
             </button>
@@ -247,11 +247,11 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
       >
         {vendaToCancel && (
           <div className="space-y-4">
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-text-muted">
               "{vendaToCancel.nome_item}" ({formatCurrency(vendaToCancel.valor_total)}) será removida. A quantidade volta pro estoque e a entrada no caixa é desfeita.
             </p>
             {temRecebimentoFiado && (
-              <p className="text-xs text-amber-500 bg-amber-500/10 border border-amber-500/20 rounded-xl px-3 py-2.5 text-left">
+              <p className="text-xs text-warning bg-warning/10 border border-warning/20 rounded-xl px-3 py-2.5 text-left">
                 Esta venda já tem {formatCurrency(recebidoDoVendaToCancel)} recebido(s) via fiado.
                 {podeForcarCancelamento
                   ? ' Cancelar aqui também reverte esse(s) recebimento(s) e as entradas de caixa vinculadas.'
@@ -396,10 +396,10 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   };
 
   const inputClass = cn(
-    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    'bg-zinc-950 border-zinc-800 text-zinc-200'
+    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50',
+    'bg-surface-inset border-border-default text-text-primary'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   return (
     <Modal
@@ -412,7 +412,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           <button
             onClick={handleSubmit}
             disabled={saving || !formaPagamentoId}
-            className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+            className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow flex items-center justify-center gap-2"
           >
             {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar Venda'}
           </button>
@@ -425,39 +425,39 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
             <label className={labelClass}>Buscar item no estoque</label>
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome ou código..." className={inputClass} autoFocus />
             {resultados.length > 0 && (
-              <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', 'border-zinc-800 divide-zinc-800')}>
+              <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', 'border-border-default divide-border-default')}>
                 {resultados.map((item) => (
                   <button
                     key={item.id}
                     type="button"
                     onClick={() => selecionarItem(item)}
-                    className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', 'hover:bg-zinc-900')}
+                    className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', 'hover:bg-surface-raised')}
                   >
                     <div className="min-w-0">
                       <p className="font-bold truncate">{item.nome}</p>
-                      <p className="text-xs text-zinc-500">
+                      <p className="text-xs text-text-muted">
                         {item.codigo} · {item.quantidade} em estoque
                       </p>
                     </div>
                     {item.promocao_ativa ? (
                       <div className="flex flex-col items-end shrink-0">
-                        <span className="text-[11px] text-zinc-500 line-through">{formatCurrency(item.valor)}</span>
-                        <span className="font-bold text-emerald-500">{formatCurrency(item.promocao_ativa.valor_promocional)}</span>
+                        <span className="text-[11px] text-text-muted line-through">{formatCurrency(item.valor)}</span>
+                        <span className="font-bold text-text-primary">{formatCurrency(item.promocao_ativa.valor_promocional)}</span>
                       </div>
                     ) : (
-                      <span className="font-bold text-emerald-500 shrink-0">{formatCurrency(item.valor)}</span>
+                      <span className="font-bold text-text-primary shrink-0">{formatCurrency(item.valor)}</span>
                     )}
                   </button>
                 ))}
               </div>
             )}
-            {busca.trim() && resultados.length === 0 && <p className="text-xs text-zinc-500 mt-2">Nenhum item disponível encontrado.</p>}
+            {busca.trim() && resultados.length === 0 && <p className="text-xs text-text-muted mt-2">Nenhum item disponível encontrado.</p>}
           </div>
         ) : (
-          <div className={cn('rounded-xl border p-4 flex items-center justify-between gap-3', 'border-violet-500/30 bg-violet-500/5')}>
+          <div className={cn('rounded-xl border p-4 flex items-center justify-between gap-3', 'border-accent/30 bg-accent/5')}>
             <div className="min-w-0">
               <p className="font-bold text-sm truncate">{itemSelecionado.nome}</p>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-text-muted">
                 {itemSelecionado.codigo} · {itemSelecionado.quantidade} disponíveis
                 {itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && ' · peça composta'}
               </p>
@@ -467,7 +467,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                 </div>
               )}
             </div>
-            <button onClick={() => setItemSelecionado(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+            <button onClick={() => setItemSelecionado(null)} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
               <Edit2 size={14} />
             </button>
           </div>
@@ -480,7 +480,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               <button
                 type="button"
                 onClick={() => selecionarComponente(null)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componenteSelecionado ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componenteSelecionado ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
               >
                 Item completo
               </button>
@@ -489,7 +489,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                   key={c}
                   type="button"
                   onClick={() => selecionarComponente(c)}
-                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componenteSelecionado === c ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componenteSelecionado === c ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
                 >
                   Só: {c}
                 </button>
@@ -500,13 +500,13 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               if (vendidoEmPartes <= 0) return null;
               const restante = valorRestanteEstimado(itemSelecionado.valor, itemSelecionado.id, vendas);
               return (
-                <p className="text-xs text-zinc-500 mt-2">
+                <p className="text-xs text-text-muted mt-2">
                   Valor original: {formatCurrency(itemSelecionado.valor)} · Já vendido em partes: {formatCurrency(vendidoEmPartes)} · Restante: {formatCurrency(restante)}
                 </p>
               );
             })()}
             {componenteSelecionado && (
-              <p className="text-xs text-amber-500 mt-2">
+              <p className="text-xs text-warning mt-2">
                 Vai vender só "{componenteSelecionado}" — o item some incompleto do estoque até o resto ser vendido também.
               </p>
             )}
@@ -522,7 +522,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               <button
                 type="button"
                 onClick={() => selecionarUnidade(null)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !unidadeSelecionadaId ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !unidadeSelecionadaId ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
               >
                 Unidade genérica
               </button>
@@ -531,7 +531,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                   key={u.id}
                   type="button"
                   onClick={() => selecionarUnidade(u.id)}
-                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', unidadeSelecionadaId === u.id ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', unidadeSelecionadaId === u.id ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
                 >
                   {u.apelido || 'Sem apelido'}
                   {u.avaria && ' · avaria'}
@@ -539,7 +539,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               ))}
             </div>
             {unidadeSelecionadaId && (
-              <p className="text-xs text-amber-500 mt-2">
+              <p className="text-xs text-warning mt-2">
                 Vai vender exatamente esta ficha — ela sai marcada como vendida (com o histórico de foto/avaria preservado), sem precisar apagar nada na mão.
               </p>
             )}
@@ -596,9 +596,9 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
               <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={2} className={inputClass} />
             </div>
 
-            <div className={cn('flex items-center justify-between p-4 rounded-xl', 'bg-zinc-900')}>
-              <span className="text-xs font-bold uppercase text-zinc-500">Total</span>
-              <span className="text-xl font-black text-emerald-500">{formatCurrency(Number(valorUnitario || 0) * Number(quantidade || 0))}</span>
+            <div className={cn('flex items-center justify-between p-4 rounded-xl', 'bg-surface-card')}>
+              <span className="text-xs font-bold uppercase text-text-muted">Total</span>
+              <span className="text-xl font-black text-text-primary">{formatCurrency(Number(valorUnitario || 0) * Number(quantidade || 0))}</span>
             </div>
           </>
         )}
