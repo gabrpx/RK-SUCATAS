@@ -93,7 +93,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMoreOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55] md:hidden"
+              className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm z-[55] md:hidden"
             />
             <motion.div
               initial={{ y: "100%" }}
