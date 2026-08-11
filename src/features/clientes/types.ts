@@ -64,6 +64,16 @@ export interface PecaProcuradaResumo {
   modelo_moto: { id: string; nome: string; ano: string | null } | null;
 }
 
+// Versão enxuta de ClienteMoto usada pelo filtro "moto que o cliente tem" na
+// listagem geral (GET /api/clientes/motos/todas) — diferente de
+// PecaProcuradaResumo, que é moto que o cliente está atrás de peça.
+export interface ClienteMotoResumo {
+  id: string;
+  cliente_id: string;
+  modelo_moto_id: string | null;
+  modelo_moto: { id: string; nome: string; ano: string | null } | null;
+}
+
 export interface PecaProcuradaInput {
   descricao: string;
   categoria_id?: string | null;

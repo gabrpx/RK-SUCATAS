@@ -64,6 +64,24 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
+  // Todas as motos vinculadas a clientes, com o modelo — usado pelo filtro
+  // "moto que o cliente tem" na listagem (diferente de "moto procurada", ver
+  // rota acima). Mesma ideia: evita abrir a ficha de cada cliente só pra
+  // saber quais motos ele tem. Precisa vir ANTES de '/:id'.
+  router.get('/motos/todas', async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes_motos')
+        .select('id, cliente_id, modelo_moto_id, modelo_moto:modelos_moto(id, nome, ano)')
+        .not('modelo_moto_id', 'is', null);
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao listar motos de clientes:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   router.get('/:id', async (req, res) => {
     try {
       const { data, error } = await supabase

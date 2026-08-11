@@ -6,7 +6,7 @@
 // convertido já vira venda, então somar os dois contaria a mesma compra em
 // dobro. Orçamentos em aberto do cliente aparecem à parte, como pendência.
 import type { StatusTone } from '../../components/ui/StatusBadge';
-import type { Cliente, PecaProcuradaResumo } from './types';
+import type { Cliente, PecaProcuradaResumo, ClienteMotoResumo } from './types';
 import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
 
@@ -105,6 +105,19 @@ export function motosDistintasProcuradas(pecasProcuradas: PecaProcuradaResumo[])
   const mapa = new Map<string, string>();
   for (const p of pecasProcuradas) {
     if (p.modelo_moto_id && p.modelo_moto) mapa.set(p.modelo_moto_id, p.modelo_moto.nome);
+  }
+  return Array.from(mapa.entries())
+    .map(([id, nome]) => ({ id, nome }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'pt'));
+}
+
+// Lista de motos distintas que algum cliente TEM (clientes_motos) — alimenta
+// o filtro "moto que o cliente tem" na listagem, diferente de
+// motosDistintasProcuradas (moto que o cliente está atrás de peça).
+export function motosDistintasDeClientes(motosClientes: ClienteMotoResumo[]): { id: string; nome: string }[] {
+  const mapa = new Map<string, string>();
+  for (const m of motosClientes) {
+    if (m.modelo_moto_id && m.modelo_moto) mapa.set(m.modelo_moto_id, m.modelo_moto.nome);
   }
   return Array.from(mapa.entries())
     .map(([id, nome]) => ({ id, nome }))

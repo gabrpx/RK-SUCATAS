@@ -9,7 +9,7 @@ import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 import type { CaixaEntry, CaixaPendencia, CaixaPendenciaRecebimento } from '../features/caixa/types';
 import type { Orcamento } from '../features/orcamentos/types';
-import type { Cliente, PecaProcuradaResumo } from '../features/clientes/types';
+import type { Cliente, PecaProcuradaResumo, ClienteMotoResumo } from '../features/clientes/types';
 import type { FiadoRecebimento } from '../features/fiado/types';
 import type { Envio } from '../features/frete/types';
 
@@ -23,6 +23,7 @@ interface DataContextValue {
   orcamentos: Orcamento[];
   clientes: Cliente[];
   pecasProcuradas: PecaProcuradaResumo[];
+  motosClientes: ClienteMotoResumo[];
   fiadoRecebimentos: FiadoRecebimento[];
   caixaPendencias: CaixaPendencia[];
   caixaPendenciaRecebimentos: CaixaPendenciaRecebimento[];
@@ -37,6 +38,7 @@ interface DataContextValue {
   setOrcamentos: React.Dispatch<React.SetStateAction<Orcamento[]>>;
   setClientes: React.Dispatch<React.SetStateAction<Cliente[]>>;
   setPecasProcuradas: React.Dispatch<React.SetStateAction<PecaProcuradaResumo[]>>;
+  setMotosClientes: React.Dispatch<React.SetStateAction<ClienteMotoResumo[]>>;
   setFiadoRecebimentos: React.Dispatch<React.SetStateAction<FiadoRecebimento[]>>;
   setCaixaPendencias: React.Dispatch<React.SetStateAction<CaixaPendencia[]>>;
   setCaixaPendenciaRecebimentos: React.Dispatch<React.SetStateAction<CaixaPendenciaRecebimento[]>>;
@@ -53,6 +55,7 @@ export const DataContext = createContext<DataContextValue>({
   orcamentos: [],
   clientes: [],
   pecasProcuradas: [],
+  motosClientes: [],
   fiadoRecebimentos: [],
   caixaPendencias: [],
   caixaPendenciaRecebimentos: [],
@@ -65,6 +68,7 @@ export const DataContext = createContext<DataContextValue>({
   setOrcamentos: () => {},
   setClientes: () => {},
   setPecasProcuradas: () => {},
+  setMotosClientes: () => {},
   setFiadoRecebimentos: () => {},
   setCaixaPendencias: () => {},
   setCaixaPendenciaRecebimentos: () => {},
@@ -104,6 +108,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>(() => readCache('rk_orcamentos', []));
   const [clientes, setClientes] = useState<Cliente[]>(() => readCache('rk_clientes', []));
   const [pecasProcuradas, setPecasProcuradas] = useState<PecaProcuradaResumo[]>(() => readCache('rk_pecas_procuradas', []));
+  const [motosClientes, setMotosClientes] = useState<ClienteMotoResumo[]>(() => readCache('rk_motos_clientes', []));
   const [fiadoRecebimentos, setFiadoRecebimentos] = useState<FiadoRecebimento[]>(() => readCache('rk_fiado_recebimentos', []));
   const [caixaPendencias, setCaixaPendencias] = useState<CaixaPendencia[]>(() => readCache('rk_caixa_pendencias', []));
   const [caixaPendenciaRecebimentos, setCaixaPendenciaRecebimentos] = useState<CaixaPendenciaRecebimento[]>(() => readCache('rk_caixa_pendencia_recebimentos', []));
@@ -150,8 +155,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/vendas') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes?incluir_inativos=true') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes/pecas-procuradas/todas') : Promise.resolve(null),
+      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes/motos/todas') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/fiado/recebimentos') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa-pendencias') : Promise.resolve(null),
       podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa-pendencias/recebimentos') : Promise.resolve(null),
@@ -165,6 +171,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       orcamentosRes,
       clientesRes,
       pecasProcuradasRes,
+      motosClientesRes,
       fiadoRecebimentosRes,
       caixaPendenciasRes,
       caixaPendenciaRecebimentosRes,
@@ -253,6 +260,17 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar peças procuradas:', pecasProcuradasRes.reason);
     }
 
+    if (motosClientesRes.status === 'fulfilled' && motosClientesRes.value) {
+      try {
+        const data = await parseJson(motosClientesRes.value);
+        if (data.success) setMotosClientes(prev => applyIfChanged(prev, data.data, 'rk_motos_clientes'));
+      } catch (e) {
+        console.error('Erro ao processar motos de clientes:', e);
+      }
+    } else if (motosClientesRes.status === 'rejected') {
+      console.error('Erro ao buscar motos de clientes:', motosClientesRes.reason);
+    }
+
     if (fiadoRecebimentosRes.status === 'fulfilled' && fiadoRecebimentosRes.value) {
       try {
         const data = await parseJson(fiadoRecebimentosRes.value);
@@ -321,6 +339,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         orcamentos,
         clientes,
         pecasProcuradas,
+        motosClientes,
         fiadoRecebimentos,
         caixaPendencias,
         caixaPendenciaRecebimentos,
@@ -333,6 +352,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setOrcamentos,
         setClientes,
         setPecasProcuradas,
+        setMotosClientes,
         setFiadoRecebimentos,
         setCaixaPendencias,
         setCaixaPendenciaRecebimentos,

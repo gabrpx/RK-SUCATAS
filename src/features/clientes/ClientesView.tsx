@@ -17,13 +17,37 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
 import { clientesApi } from './api';
-import { calcularHistoricoCliente, calcularSegmento, SEGMENTO_LABELS, SEGMENTO_TONS, badgesMotoProcurada, motosDistintasProcuradas } from './metricas';
+import {
+  calcularHistoricoCliente,
+  calcularSegmento,
+  SEGMENTO_LABELS,
+  SEGMENTO_TONS,
+  badgesMotoProcurada,
+  motosDistintasProcuradas,
+  motosDistintasDeClientes,
+  type SegmentoCliente,
+} from './metricas';
+import { preferenciasClientes, type OrdenacaoClientes } from './preferencias';
 import { gerarCsvHistoricoCliente, baixarCsv } from './exportarHistoricoCsv';
 import { useTarefas } from '../tarefas/useTarefas';
 import { comprovantesApi } from '../comprovantes/api';
 import { ComprovanteListItem } from '../comprovantes/ComprovantesPixVenda';
 import type { Cliente, ClienteInput, ClienteNota, ClienteOrigem, PreferenciaContato, ClienteMotoInput, PecaProcuradaInput, PecaProcuradaStatus } from './types';
 import type { Role } from '../../constants/roles';
+
+const ORDENACAO_LABELS: Record<OrdenacaoClientes, string> = {
+  recentes: 'Mais recentes',
+  nome: 'Nome (A-Z)',
+  maior_gasto: 'Quem mais gastou',
+  mais_compras: 'Mais compras',
+  ultima_compra: 'Última compra recente',
+};
+
+const STATUS_FILTRO_LABELS: Record<'ativos' | 'inativos' | 'todos', string> = {
+  ativos: 'Ativos',
+  inativos: 'Inativos',
+  todos: 'Todos',
+};
 
 const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = { aguardando: 'Aguardando', atendida: 'Atendida', cancelada: 'Cancelada' };
 const PECA_STATUS_TONS: Record<PecaProcuradaStatus, 'warning' | 'positive' | 'neutral'> = { aguardando: 'warning', atendida: 'positive', cancelada: 'neutral' };
@@ -85,15 +109,35 @@ export function ClientesView({
   userRoles?: Role[];
 }) {
   const podeExcluirComprovante = userRoles.includes('admin');
-  const { clientes, vendas, orcamentos, pecasProcuradas, setPecasProcuradas, refreshData, loading } = useData();
+  const { clientes, vendas, orcamentos, pecasProcuradas, setPecasProcuradas, motosClientes, refreshData, loading } = useData();
   const { tarefas } = useTarefas();
   const { modelos, categorias } = useCatalogos();
   const [busca, setBusca] = useState('');
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
   const [motoProcuradaFiltro, setMotoProcuradaFiltro] = useState<string | null>(null);
-  const [somenteSumidos, setSomenteSumidos] = useState(false);
+  const [motoClienteFiltro, setMotoClienteFiltro] = useState<string | null>(null);
+  const [segmentoFiltro, setSegmentoFiltro] = useState<SegmentoCliente | null>(null);
+  const [statusFiltro, setStatusFiltro] = useState<'ativos' | 'inativos' | 'todos'>('ativos');
+  const [ordenacao, setOrdenacaoState] = useState<OrdenacaoClientes>(() => preferenciasClientes.lerOrdenacaoPadrao());
+
+  // Salva automaticamente como padrão a cada troca — não tem botão "definir
+  // como padrão" separado, ver src/features/clientes/preferencias.ts.
+  const setOrdenacao = (valor: OrdenacaoClientes) => {
+    setOrdenacaoState(valor);
+    preferenciasClientes.salvarOrdenacaoPadrao(valor);
+  };
 
   const motosProcuradasOpcoes = useMemo(() => motosDistintasProcuradas(pecasProcuradas), [pecasProcuradas]);
+  const motosClientesOpcoes = useMemo(() => motosDistintasDeClientes(motosClientes), [motosClientes]);
+  const motoIdsPorCliente = useMemo(() => {
+    const mapa = new Map<string, Set<string>>();
+    for (const m of motosClientes) {
+      if (!m.modelo_moto_id) continue;
+      if (!mapa.has(m.cliente_id)) mapa.set(m.cliente_id, new Set());
+      mapa.get(m.cliente_id)!.add(m.modelo_moto_id);
+    }
+    return mapa;
+  }, [motosClientes]);
   const badgesPorCliente = useMemo(() => {
     const mapa = new Map<string, ReturnType<typeof badgesMotoProcurada>>();
     for (const c of clientes) mapa.set(c.id, badgesMotoProcurada(c.id, pecasProcuradas));
@@ -123,21 +167,58 @@ export function ClientesView({
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    return clientes.filter((c) => {
-      if (somenteSumidos && calcularSegmento(historicoPorCliente.get(c.id)!) !== 'sumido') return false;
+    const resultado = clientes.filter((c) => {
+      if (statusFiltro === 'ativos' && !c.ativo) return false;
+      if (statusFiltro === 'inativos' && c.ativo) return false;
+      if (segmentoFiltro && calcularSegmento(historicoPorCliente.get(c.id)!) !== segmentoFiltro) return false;
       if (tagFiltro && !c.tags.includes(tagFiltro)) return false;
       if (motoProcuradaFiltro && !(badgesPorCliente.get(c.id) || []).some((b) => b.modeloMotoId === motoProcuradaFiltro)) return false;
+      if (motoClienteFiltro && !(motoIdsPorCliente.get(c.id) || new Set()).has(motoClienteFiltro)) return false;
       if (!termo) return true;
       const digitosTermo = onlyDigits(termo);
       const matchDigitos = digitosTermo.length > 0 && (onlyDigits(c.telefone || '').includes(digitosTermo) || onlyDigits(c.documento || '').includes(digitosTermo));
       return c.nome.toLowerCase().includes(termo) || matchDigitos;
     });
-  }, [clientes, busca, tagFiltro, motoProcuradaFiltro, somenteSumidos, historicoPorCliente, badgesPorCliente]);
+
+    const historicoDe = (id: string) => historicoPorCliente.get(id)!;
+    resultado.sort((a, b) => {
+      switch (ordenacao) {
+        case 'nome':
+          return a.nome.localeCompare(b.nome, 'pt');
+        case 'maior_gasto':
+          return historicoDe(b.id).totalGasto - historicoDe(a.id).totalGasto;
+        case 'mais_compras':
+          return historicoDe(b.id).quantidadeCompras - historicoDe(a.id).quantidadeCompras;
+        case 'ultima_compra': {
+          const diasA = historicoDe(a.id).diasDesdeUltimaCompra;
+          const diasB = historicoDe(b.id).diasDesdeUltimaCompra;
+          if (diasA === null && diasB === null) return 0;
+          if (diasA === null) return 1;
+          if (diasB === null) return -1;
+          return diasA - diasB;
+        }
+        case 'recentes':
+        default:
+          return b.criado_em.localeCompare(a.criado_em);
+      }
+    });
+    return resultado;
+  }, [clientes, busca, tagFiltro, motoProcuradaFiltro, motoClienteFiltro, segmentoFiltro, statusFiltro, ordenacao, historicoPorCliente, badgesPorCliente, motoIdsPorCliente]);
+
+  const filtrosAtivos = !!(busca.trim() || tagFiltro || motoProcuradaFiltro || motoClienteFiltro || segmentoFiltro || statusFiltro !== 'ativos');
+  const limparFiltros = () => {
+    setBusca('');
+    setTagFiltro(null);
+    setMotoProcuradaFiltro(null);
+    setMotoClienteFiltro(null);
+    setSegmentoFiltro(null);
+    setStatusFiltro('ativos');
+  };
 
   // Deep-link vindo do alerta de "cliente sumido" no dashboard.
   useEffect(() => {
     if (!pendingFiltroSumidos) return;
-    setSomenteSumidos(true);
+    setSegmentoFiltro('sumido');
     setPendingFiltroSumidos?.(false);
   }, [pendingFiltroSumidos, setPendingFiltroSumidos]);
 
@@ -501,36 +582,87 @@ export function ClientesView({
         </button>
       </div>
 
-      {somenteSumidos && (
+      {segmentoFiltro === 'sumido' && (
         <AlertBar
           tom="warning"
           icone={UserX}
           mensagem="Filtrando: clientes sumidos (90+ dias sem comprar)"
           acaoLabel="Limpar filtro"
-          onAcao={() => setSomenteSumidos(false)}
+          onAcao={() => setSegmentoFiltro(null)}
         />
       )}
 
-      <div className="flex flex-col md:flex-row gap-2">
-        <div className="relative flex-1">
+      <div className="flex flex-col gap-2">
+        <div className="relative">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
           <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar por nome, telefone ou documento" className={cn(inputClass, 'pl-9')} />
         </div>
-        {motosProcuradasOpcoes.length > 0 && (
-          <select
-            value={motoProcuradaFiltro || ''}
-            onChange={(e) => setMotoProcuradaFiltro(e.target.value || null)}
-            className={cn(inputClass, 'md:w-56')}
-            title="Filtrar por moto procurada"
-          >
-            <option value="">Todas as motos procuradas</option>
-            {motosProcuradasOpcoes.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.nome}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <select value={ordenacao} onChange={(e) => setOrdenacao(e.target.value as OrdenacaoClientes)} className={cn(inputClass, 'w-auto')} title="Ordenar por">
+            {(Object.keys(ORDENACAO_LABELS) as OrdenacaoClientes[]).map((k) => (
+              <option key={k} value={k}>
+                Ordenar: {ORDENACAO_LABELS[k]}
               </option>
             ))}
           </select>
-        )}
+
+          <select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value as typeof statusFiltro)} className={cn(inputClass, 'w-auto')} title="Filtrar por status">
+            {(Object.keys(STATUS_FILTRO_LABELS) as (keyof typeof STATUS_FILTRO_LABELS)[]).map((k) => (
+              <option key={k} value={k}>
+                {STATUS_FILTRO_LABELS[k]}
+              </option>
+            ))}
+          </select>
+
+          <select value={segmentoFiltro || ''} onChange={(e) => setSegmentoFiltro((e.target.value || null) as SegmentoCliente | null)} className={cn(inputClass, 'w-auto')} title="Filtrar por segmento">
+            <option value="">Todos os segmentos</option>
+            {(Object.keys(SEGMENTO_LABELS) as SegmentoCliente[]).map((k) => (
+              <option key={k} value={k}>
+                {SEGMENTO_LABELS[k]}
+              </option>
+            ))}
+          </select>
+
+          {motosClientesOpcoes.length > 0 && (
+            <select
+              value={motoClienteFiltro || ''}
+              onChange={(e) => setMotoClienteFiltro(e.target.value || null)}
+              className={cn(inputClass, 'w-auto')}
+              title="Filtrar por moto que o cliente tem"
+            >
+              <option value="">Moto que tem: todas</option>
+              {motosClientesOpcoes.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nome}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {motosProcuradasOpcoes.length > 0 && (
+            <select
+              value={motoProcuradaFiltro || ''}
+              onChange={(e) => setMotoProcuradaFiltro(e.target.value || null)}
+              className={cn(inputClass, 'w-auto')}
+              title="Filtrar por moto procurada (peça pendente)"
+            >
+              <option value="">Peça procurada: todas</option>
+              {motosProcuradasOpcoes.map((m) => (
+                <option key={m.id} value={m.id}>
+                  {m.nome}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {filtrosAtivos && (
+            <button onClick={limparFiltros} className="h-9 px-3 rounded-control text-[11px] font-semibold uppercase tracking-wider text-accent-soft-fg hover:opacity-80 flex items-center gap-1">
+              <X size={12} /> Limpar filtros
+            </button>
+          )}
+        </div>
+
         {todasTags.length > 0 && (
           <div className="flex items-center gap-2 flex-wrap">
             <button
