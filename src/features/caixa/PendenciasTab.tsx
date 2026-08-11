@@ -11,6 +11,7 @@ import { Clock3, Loader2, Check, History, Undo2 } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
+import { Modal } from '../../components/ui/Modal';
 import { aviso } from '../../components/ui/toast';
 import { caixaPendenciasApi } from './api';
 import type { CaixaPendencia, CaixaPendenciaRecebimento } from './types';
@@ -118,35 +119,37 @@ function LinhaPendencia({
         </div>
       )}
 
-      {recebimentoParaReverter && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setRecebimentoParaReverter(null)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className={cn('w-full max-w-sm rounded-3xl border p-6 space-y-4', 'bg-zinc-950 border-zinc-800')}
-          >
-            <h3 className={cn('text-lg font-black', 'text-white')}>Reverter recebimento?</h3>
-            <p className="text-sm text-zinc-500">
-              O recebimento de <span className={'text-zinc-200 font-bold'}>{formatCurrency(recebimentoParaReverter.valor)}</span> via{' '}
-              {recebimentoParaReverter.forma_pagamento?.nome || '—'} volta a ficar em aberto nesta pendência, e a entrada correspondente no Caixa é desfeita.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setRecebimentoParaReverter(null)}
-                className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-zinc-900 text-zinc-300')}
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={reverterRecebimento}
-                disabled={revertendo}
-                className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
-              >
-                {revertendo ? <Loader2 size={16} className="animate-spin" /> : 'Reverter'}
-              </button>
-            </div>
+      <Modal
+        aberto={!!recebimentoParaReverter}
+        onFechar={() => setRecebimentoParaReverter(null)}
+        titulo="Reverter recebimento?"
+        icone={Undo2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button
+              onClick={() => setRecebimentoParaReverter(null)}
+              className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-zinc-900 text-zinc-300')}
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={reverterRecebimento}
+              disabled={revertendo}
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {revertendo ? <Loader2 size={16} className="animate-spin" /> : 'Reverter'}
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        {recebimentoParaReverter && (
+          <p className="text-sm text-zinc-500">
+            O recebimento de <span className="text-zinc-200 font-bold">{formatCurrency(recebimentoParaReverter.valor)}</span> via{' '}
+            {recebimentoParaReverter.forma_pagamento?.nome || '—'} volta a ficar em aberto nesta pendência, e a entrada correspondente no Caixa é desfeita.
+          </p>
+        )}
+      </Modal>
 
       <div className="flex items-center gap-2 pt-1">
         <input
