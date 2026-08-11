@@ -11,6 +11,7 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
 import { usuariosApi } from './api';
 import { ALL_ROLES } from '../../constants/roles';
 import type { Role, Usuario, UsuarioInput } from './types';
@@ -302,155 +303,150 @@ export function UsuariosView() {
         }
       />
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setIsFormOpen(false)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle"
-          >
-            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">{editando ? 'Editar usuário' : 'Novo usuário'}</h2>
-            </div>
-            <div className="p-6 space-y-4">
-              {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
-
-              <div>
-                <label className={labelClass}>Usuário</label>
-                <input
-                  value={form.username}
-                  onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.toLowerCase().trim() }))}
-                  className={inputClass}
-                  placeholder="ex: ryan"
-                  autoCapitalize="none"
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Nome de exibição</label>
-                <input
-                  value={form.nome_exibicao}
-                  onChange={(e) => setForm((f) => ({ ...f, nome_exibicao: e.target.value }))}
-                  className={inputClass}
-                  placeholder="ex: Ryan"
-                />
-              </div>
-              {!editando && (
-                <div>
-                  <label className={labelClass}>Senha</label>
-                  <input
-                    type="password"
-                    value={form.password}
-                    onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
-                    className={inputClass}
-                    placeholder="mínimo 6 caracteres"
-                  />
-                </div>
-              )}
-              <div>
-                <label className={labelClass}>Papéis</label>
-                <p className="text-xs text-text-faint mb-2">
-                  Pode marcar mais de um — ex: "Estoque (leitura)" + "Mandados" pra ver o estoque e também receber tarefas.
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {ALL_ROLES.map((r) => {
-                    const marcado = form.roles.includes(r);
-                    return (
-                      <button
-                        key={r}
-                        type="button"
-                        disabled={editando?.id === meuId}
-                        onClick={() =>
-                          setForm((f) => ({
-                            ...f,
-                            roles: marcado ? f.roles.filter((x) => x !== r) : [...f.roles, r],
-                          }))
-                        }
-                        className={cn(
-                          'flex items-center gap-2 py-2.5 px-3 rounded-control border text-sm text-left transition-colors disabled:opacity-50',
-                          marcado ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-secondary'
-                        )}
-                      >
-                        <span className={cn('size-4 rounded shrink-0 flex items-center justify-center border', marcado ? 'bg-accent border-accent text-white' : 'border-border-default')}>
-                          {marcado && <Check size={12} />}
-                        </span>
-                        {ROLE_LABEL[r]}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
-            </div>
+      <Modal
+        aberto={isFormOpen}
+        onFechar={() => setIsFormOpen(false)}
+        titulo={editando ? 'Editar usuário' : 'Novo usuário'}
+        tamanho="md"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <div className="space-y-4">
+          {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
 
-      {redefinindoSenhaDe && (
-        <div
-          className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center"
-          onClick={() => {
-            setRedefinindoSenhaDe(null);
-            setNovaSenha('');
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle"
-          >
-            <div className="p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">Redefinir senha de {redefinindoSenhaDe.nome_exibicao}</h2>
-            </div>
-            <div className="p-6">
-              <label className={labelClass}>Nova senha</label>
+          <div>
+            <label className={labelClass}>Usuário</label>
+            <input
+              value={form.username}
+              onChange={(e) => setForm((f) => ({ ...f, username: e.target.value.toLowerCase().trim() }))}
+              className={inputClass}
+              placeholder="ex: ryan"
+              autoCapitalize="none"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Nome de exibição</label>
+            <input
+              value={form.nome_exibicao}
+              onChange={(e) => setForm((f) => ({ ...f, nome_exibicao: e.target.value }))}
+              className={inputClass}
+              placeholder="ex: Ryan"
+            />
+          </div>
+          {!editando && (
+            <div>
+              <label className={labelClass}>Senha</label>
               <input
                 type="password"
-                value={novaSenha}
-                onChange={(e) => setNovaSenha(e.target.value)}
+                value={form.password}
+                onChange={(e) => setForm((f) => ({ ...f, password: e.target.value }))}
                 className={inputClass}
                 placeholder="mínimo 6 caracteres"
-                autoFocus
               />
             </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button
-                onClick={() => {
-                  setRedefinindoSenhaDe(null);
-                  setNovaSenha('');
-                }}
-                className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised"
-              >
-                Cancelar
-              </button>
-              <button onClick={confirmarRedefinicao} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90">
-                Confirmar
-              </button>
+          )}
+          <div>
+            <label className={labelClass}>Papéis</label>
+            <p className="text-xs text-text-faint mb-2">
+              Pode marcar mais de um — ex: "Estoque (leitura)" + "Mandados" pra ver o estoque e também receber tarefas.
+            </p>
+            <div className="grid grid-cols-2 gap-2">
+              {ALL_ROLES.map((r) => {
+                const marcado = form.roles.includes(r);
+                return (
+                  <button
+                    key={r}
+                    type="button"
+                    disabled={editando?.id === meuId}
+                    onClick={() =>
+                      setForm((f) => ({
+                        ...f,
+                        roles: marcado ? f.roles.filter((x) => x !== r) : [...f.roles, r],
+                      }))
+                    }
+                    className={cn(
+                      'flex items-center gap-2 py-2.5 px-3 rounded-control border text-sm text-left transition-colors disabled:opacity-50',
+                      marcado ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-secondary'
+                    )}
+                  >
+                    <span className={cn('size-4 rounded shrink-0 flex items-center justify-center border', marcado ? 'bg-accent border-accent text-white' : 'border-border-default')}>
+                      {marcado && <Check size={12} />}
+                    </span>
+                    {ROLE_LABEL[r]}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
-      )}
+      </Modal>
 
-      {desativando && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setDesativando(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="relative w-full max-w-sm flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle p-6 space-y-4">
-            <h2 className="text-lg font-medium">Desativar {desativando.nome_exibicao}?</h2>
-            <p className="text-sm text-text-secondary">A conta @{desativando.username} não vai conseguir mais entrar no sistema até ser reativada.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setDesativando(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={confirmarDesativacao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
-                Desativar
-              </button>
-            </div>
+      <Modal
+        aberto={!!redefinindoSenhaDe}
+        onFechar={() => {
+          setRedefinindoSenhaDe(null);
+          setNovaSenha('');
+        }}
+        titulo={redefinindoSenhaDe ? `Redefinir senha de ${redefinindoSenhaDe.nome_exibicao}` : 'Redefinir senha'}
+        icone={KeyRound}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setRedefinindoSenhaDe(null);
+                setNovaSenha('');
+              }}
+              className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised"
+            >
+              Cancelar
+            </button>
+            <button onClick={confirmarRedefinicao} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90">
+              Confirmar
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        <label className={labelClass}>Nova senha</label>
+        <input
+          type="password"
+          value={novaSenha}
+          onChange={(e) => setNovaSenha(e.target.value)}
+          className={inputClass}
+          placeholder="mínimo 6 caracteres"
+          autoFocus
+        />
+      </Modal>
+
+      <Modal
+        aberto={!!desativando}
+        onFechar={() => setDesativando(null)}
+        titulo={desativando ? `Desativar ${desativando.nome_exibicao}?` : 'Desativar?'}
+        icone={Ban}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setDesativando(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={confirmarDesativacao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+              Desativar
+            </button>
+          </div>
+        }
+      >
+        {desativando && (
+          <p className="text-sm text-text-secondary">A conta @{desativando.username} não vai conseguir mais entrar no sistema até ser reativada.</p>
+        )}
+      </Modal>
     </div>
   );
 }
