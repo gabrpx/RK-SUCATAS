@@ -149,27 +149,27 @@ export function OrcamentosView() {
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-violet-500/10 rounded-2xl">
-            <Receipt className="text-violet-500" size={28} />
+          <div className="p-3 bg-accent/10 rounded-2xl">
+            <Receipt className="text-accent" size={28} />
           </div>
           <div>
-            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Orçamentos</h2>
-            <p className="text-sm text-zinc-500">
+            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-text-primary')}>Orçamentos</h2>
+            <p className="text-sm text-text-muted">
               {filtered.length} orçamentos · {formatCurrency(totalAberto)} em aberto
             </p>
           </div>
         </div>
         <button
           onClick={abrirNovo}
-          className="flex items-center justify-center gap-2 bg-violet-600 hover:bg-violet-700 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-violet-500/20"
+          className="flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Novo Orçamento
         </button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-zinc-900 border-zinc-800')}>
-          <Search size={16} className="text-zinc-500 shrink-0" />
+        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-surface-inset border-border-default')}>
+          <Search size={16} className="text-text-muted shrink-0" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por cliente ou código..." className="bg-transparent outline-none text-sm w-full" />
         </div>
         <CustomDropdown
@@ -196,15 +196,15 @@ export function OrcamentosView() {
         />
       </div>
 
-      <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
+      <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
         {loading && orcamentos.length === 0 ? (
           <div className="p-12 flex justify-center">
-            <Loader2 className="animate-spin text-violet-500" size={28} />
+            <Loader2 className="animate-spin text-accent" size={28} />
           </div>
         ) : filtered.length === 0 ? (
-          <div className="p-12 text-center text-zinc-500 text-sm">Nenhum orçamento encontrado para este filtro.</div>
+          <div className="p-12 text-center text-text-muted text-sm">Nenhum orçamento encontrado para este filtro.</div>
         ) : (
-          <div className="divide-y divide-zinc-800/50">
+          <div className="divide-y divide-border-subtle">
             {filtered.map((orcamento) => {
               const subtotal = calcularSubtotal(orcamento.itens);
               const total = Math.max(0, subtotal - calcularDesconto(subtotal, orcamento.desconto_tipo, orcamento.desconto_valor));
@@ -213,35 +213,35 @@ export function OrcamentosView() {
                 <div
                   key={orcamento.id}
                   onClick={() => abrirExistente(orcamento)}
-                  className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-zinc-800/20 transition-colors cursor-pointer"
+                  className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-surface-raised transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-violet-500/10 text-violet-500 flex items-center justify-center shrink-0">
+                    <div className="w-9 h-9 rounded-xl bg-accent/10 text-accent flex items-center justify-center shrink-0">
                       <Receipt size={16} />
                     </div>
                     <div className="min-w-0">
-                      <p className={cn('font-bold text-sm truncate', 'text-white')}>
-                        <span className="font-mono text-violet-400 mr-1.5">{orcamento.codigo}</span>
+                      <p className={cn('font-bold text-sm truncate', 'text-text-primary')}>
+                        <span className="font-mono text-accent mr-1.5">{orcamento.codigo}</span>
                         {orcamento.cliente_nome}
                       </p>
-                      <p className="text-xs text-zinc-500 flex items-center gap-2 flex-wrap">
+                      <p className="text-xs text-text-muted flex items-center gap-2 flex-wrap">
                         {parseLocalDate(orcamento.criado_em).toLocaleDateString('pt-BR')}
                         <span>· {orcamento.itens.length} {orcamento.itens.length === 1 ? 'item' : 'itens'}</span>
                       </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
-                    <span className="font-black text-sm text-emerald-500">{formatCurrency(total)}</span>
+                    <span className="font-black text-sm text-text-primary">{formatCurrency(total)}</span>
                     <span
                       className={cn(
                         'text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full',
                         expirado
-                          ? 'bg-amber-500/10 text-amber-500'
+                          ? 'bg-warning/10 text-warning'
                           : orcamento.status === 'aberto'
-                          ? 'bg-violet-500/10 text-violet-500'
+                          ? 'bg-accent/10 text-accent'
                           : orcamento.status === 'convertido'
-                          ? 'bg-emerald-500/10 text-emerald-500'
-                          : 'bg-rose-500/10 text-rose-500'
+                          ? 'bg-positive/10 text-positive'
+                          : 'bg-danger/10 text-danger'
                       )}
                     >
                       {expirado ? 'Expirado' : orcamento.status === 'aberto' ? 'Aberto' : orcamento.status === 'convertido' ? 'Convertido' : 'Cancelado'}
@@ -490,10 +490,10 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
   };
 
   const inputClass = cn(
-    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    'bg-zinc-950 border-zinc-800 text-zinc-200'
+    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50',
+    'bg-surface-inset border-border-default text-text-primary'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   const pendenteHaItensAVender = isEdicao && atual!.status === 'aberto' && itens.some((i) => !i.venda_id);
   const expirado = atual ? isExpirado(atual) : false;
@@ -511,7 +511,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
             <button
               onClick={salvarHeader}
               disabled={salvando}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+              className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow flex items-center justify-center gap-2"
             >
               {salvando ? <Loader2 size={18} className="animate-spin" /> : isEdicao ? 'Salvar alterações' : 'Criar orçamento'}
             </button>
@@ -522,9 +522,9 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
           {atual && (expirado || atual.status !== 'aberto') && (
             <div className="flex items-center gap-2 -mt-1">
               {expirado ? (
-                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full bg-amber-500/10 text-amber-500">Expirado</span>
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full bg-warning/10 text-warning">Expirado</span>
               ) : (
-                <span className={cn('text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full', atual.status === 'convertido' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500')}>
+                <span className={cn('text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full', atual.status === 'convertido' ? 'bg-positive/10 text-positive' : 'bg-danger/10 text-danger')}>
                   {atual.status === 'convertido' ? 'Convertido' : 'Cancelado'}
                 </span>
               )}
@@ -565,34 +565,34 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                 <>
                   <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome ou código..." className={inputClass} />
                   {resultadosBusca.length > 0 && (
-                    <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', 'border-zinc-800 divide-zinc-800')}>
+                    <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', 'border-border-default divide-border-default')}>
                       {resultadosBusca.map((item) => (
                         <button
                           key={item.id}
                           type="button"
                           onClick={() => selecionarItemPendente(item)}
-                          className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', 'hover:bg-zinc-900')}
+                          className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', 'hover:bg-surface-raised')}
                         >
                           <div className="min-w-0">
                             <p className="font-bold truncate">{item.nome}</p>
-                            <p className="text-xs text-zinc-500">
+                            <p className="text-xs text-text-muted">
                               {item.codigo} · {item.quantidade} em estoque
                             </p>
                           </div>
-                          <span className="font-bold text-emerald-500 shrink-0">{formatCurrency(item.valor)}</span>
+                          <span className="font-bold text-text-primary shrink-0">{formatCurrency(item.valor)}</span>
                         </button>
                       ))}
                     </div>
                   )}
                 </>
               ) : (
-                <div className={cn('rounded-xl border p-4 space-y-3', 'border-violet-500/30 bg-violet-500/5')}>
+                <div className={cn('rounded-xl border p-4 space-y-3', 'border-accent/30 bg-accent/5')}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-bold text-sm truncate">{itemPendente.nome}</p>
-                      <p className="text-xs text-zinc-500">{itemPendente.codigo}</p>
+                      <p className="text-xs text-text-muted">{itemPendente.codigo}</p>
                     </div>
-                    <button onClick={cancelarPendente} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+                    <button onClick={cancelarPendente} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
                       <X size={14} />
                     </button>
                   </div>
@@ -604,7 +604,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                         <button
                           type="button"
                           onClick={() => selecionarComponentePendente(null)}
-                          className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componentePendente ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                          className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componentePendente ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
                         >
                           Item completo
                         </button>
@@ -613,7 +613,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                             key={c}
                             type="button"
                             onClick={() => selecionarComponentePendente(c)}
-                            className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componentePendente === c ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                            className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componentePendente === c ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
                           >
                             Só: {c}
                           </button>
@@ -643,7 +643,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                   <button
                     onClick={confirmarAdicionarItem}
                     disabled={salvando}
-                    className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-widest"
+                    className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-2.5 rounded-xl font-black text-xs uppercase tracking-widest"
                   >
                     Adicionar ao orçamento
                   </button>
@@ -657,12 +657,12 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
             <div className="flex items-center justify-between px-1 mb-2">
               <label className={cn(labelClass, 'mb-0')}>Peças no orçamento</label>
               {(isEdicao ? itens.length : rascunho.length) > 0 && (
-                <span className="text-[9px] font-bold px-2 py-0.5 bg-violet-500/10 text-violet-500 rounded-full">{isEdicao ? itens.length : rascunho.length} itens</span>
+                <span className="text-[9px] font-bold px-2 py-0.5 bg-accent/10 text-accent rounded-full">{isEdicao ? itens.length : rascunho.length} itens</span>
               )}
             </div>
 
             {(isEdicao ? itens.length : rascunho.length) === 0 ? (
-              <div className="flex flex-col items-center justify-center py-8 text-zinc-500 border-2 border-dashed border-zinc-800/30 rounded-2xl">
+              <div className="flex flex-col items-center justify-center py-8 text-text-muted border-2 border-dashed border-border-default/30 rounded-2xl">
                 <ShoppingCart className="mb-2 opacity-10" size={28} />
                 <p className="text-[10px]">Nenhuma peça adicionada</p>
               </div>
@@ -670,19 +670,19 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
               <div className="space-y-1.5">
                 {!isEdicao &&
                   rascunho.map((item) => (
-                    <div key={item._key} className={cn('p-3 rounded-xl border flex items-center justify-between gap-3', 'bg-zinc-900/40 border-zinc-800/60')}>
+                    <div key={item._key} className={cn('p-3 rounded-xl border flex items-center justify-between gap-3', 'bg-surface-card/40 border-border-default/60')}>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold truncate">
                           {item.nome_item}
-                          {item.componente && <span className="text-amber-500"> · Só: {item.componente}</span>}
+                          {item.componente && <span className="text-accent-soft-fg"> · Só: {item.componente}</span>}
                         </p>
-                        <p className="text-[10px] text-zinc-500">
+                        <p className="text-[10px] text-text-muted">
                           {item.quantidade}x {formatCurrency(item.valor_unitario)}
                         </p>
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
-                        <span className="font-black text-xs text-emerald-400">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
-                        <button onClick={() => removerRascunho(item._key)} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+                        <span className="font-black text-xs text-text-primary">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
+                        <button onClick={() => removerRascunho(item._key)} className="p-1.5 text-danger hover:bg-danger-bg rounded-lg transition-colors">
                           <Trash2 size={13} />
                         </button>
                       </div>
@@ -711,12 +711,12 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
           <div>
             <label className={labelClass}>Desconto</label>
             <div className="flex items-center gap-2">
-              <div className={cn('flex p-1 rounded-xl border', 'bg-black border-zinc-800')}>
+              <div className={cn('flex p-1 rounded-xl border', 'bg-surface-inset border-border-default')}>
                 <button
                   type="button"
                   disabled={isEdicao && atual!.status !== 'aberto'}
                   onClick={() => setDescontoTipo('fixo')}
-                  className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black transition-all', descontoTipo === 'fixo' ? 'bg-violet-600 text-white' : 'text-zinc-500')}
+                  className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black transition-all', descontoTipo === 'fixo' ? 'bg-accent text-white' : 'text-text-muted')}
                 >
                   R$
                 </button>
@@ -724,7 +724,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                   type="button"
                   disabled={isEdicao && atual!.status !== 'aberto'}
                   onClick={() => setDescontoTipo('percentual')}
-                  className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black transition-all', descontoTipo === 'percentual' ? 'bg-violet-600 text-white' : 'text-zinc-500')}
+                  className={cn('px-3 py-1.5 rounded-lg text-[10px] font-black transition-all', descontoTipo === 'percentual' ? 'bg-accent text-white' : 'text-text-muted')}
                 >
                   %
                 </button>
@@ -752,9 +752,9 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
             </div>
           </div>
 
-          <div className={cn('flex items-center justify-between p-4 rounded-xl', 'bg-zinc-900')}>
-            <span className="text-xs font-bold uppercase text-zinc-500">Total</span>
-            <span className="text-xl font-black text-emerald-500">{formatCurrency(total)}</span>
+          <div className={cn('flex items-center justify-between p-4 rounded-xl', 'bg-surface-card')}>
+            <span className="text-xs font-bold uppercase text-text-muted">Total</span>
+            <span className="text-xl font-black text-text-primary">{formatCurrency(total)}</span>
           </div>
 
           {isEdicao && (
@@ -762,7 +762,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
               {pendenteHaItensAVender && (
                 <button
                   onClick={() => setVendaAlvo({ tipo: 'tudo' })}
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+                  className="w-full bg-accent hover:opacity-90 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow flex items-center justify-center gap-2"
                 >
                   <Check size={16} /> Vender tudo
                 </button>
@@ -773,7 +773,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                   onClick={copiarTexto}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all',
-                    copiado ? 'bg-emerald-500 text-white' : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
+                    copiado ? 'bg-positive text-white' : 'bg-surface-card text-text-secondary hover:bg-surface-raised'
                   )}
                 >
                   {copiado ? <Check size={15} /> : <Copy size={15} />}
@@ -783,7 +783,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                   onClick={abrirWhatsapp}
                   disabled={!atual!.cliente_telefone}
                   title={!atual!.cliente_telefone ? 'Cadastre um telefone pra habilitar' : ''}
-                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-xs uppercase tracking-widest bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/20 disabled:opacity-40"
+                  className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-xs uppercase tracking-widest bg-accent/10 text-accent hover:bg-accent/20 disabled:opacity-40"
                 >
                   <MessageCircle size={15} /> Abrir WhatsApp
                 </button>
@@ -792,7 +792,7 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
               {atual!.status === 'aberto' && (
                 <button
                   onClick={() => setConfirmandoCancelamento(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest text-rose-500 hover:bg-rose-500/10"
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest text-danger hover:bg-danger-bg"
                 >
                   <Ban size={14} /> Cancelar orçamento
                 </button>
@@ -823,16 +823,16 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setConfirmandoCancelamento(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
+            <button onClick={() => setConfirmandoCancelamento(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary">
               Voltar
             </button>
-            <button onClick={cancelarOrcamento} disabled={salvando} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button onClick={cancelarOrcamento} disabled={salvando} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Cancelar orçamento'}
             </button>
           </div>
         }
       >
-        <p className="text-sm text-zinc-500">Itens ainda não vendidos deixam de poder ser convertidos. Vendas já realizadas não são afetadas.</p>
+        <p className="text-sm text-text-muted">Itens ainda não vendidos deixam de poder ser convertidos. Vendas já realizadas não são afetadas.</p>
       </Modal>
     </>
   );
@@ -865,27 +865,27 @@ function ItemPersistidoRow({
   };
 
   return (
-    <div className={cn('p-3 rounded-xl border', 'bg-zinc-900/40 border-zinc-800/60')}>
+    <div className={cn('p-3 rounded-xl border', 'bg-surface-card/40 border-border-default/60')}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold truncate flex items-center gap-2">
             {item.nome_item}
-            {item.componente && <span className="text-amber-500 font-normal">· Só: {item.componente}</span>}
-            {item.venda_id && <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-500">Vendido</span>}
+            {item.componente && <span className="text-accent-soft-fg font-normal">· Só: {item.componente}</span>}
+            {item.venda_id && <span className="text-[9px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-positive/10 text-positive">Vendido</span>}
           </p>
           <div className="flex items-center gap-2 mt-1">
             {podeEditar ? (
-              <div className={cn('flex items-center gap-1 rounded-lg p-0.5 border', 'bg-black border-zinc-800')}>
-                <button onClick={() => onAlterarQtd(-1)} className="p-1 rounded-md hover:bg-zinc-800">
+              <div className={cn('flex items-center gap-1 rounded-lg p-0.5 border', 'bg-surface-inset border-border-default')}>
+                <button onClick={() => onAlterarQtd(-1)} className="p-1 rounded-md hover:bg-surface-raised">
                   <Minus size={10} />
                 </button>
                 <span className="text-[10px] font-black w-4 text-center">{item.quantidade}</span>
-                <button onClick={() => onAlterarQtd(1)} className="p-1 rounded-md hover:bg-zinc-800">
+                <button onClick={() => onAlterarQtd(1)} className="p-1 rounded-md hover:bg-surface-raised">
                   <Plus size={10} />
                 </button>
               </div>
             ) : (
-              <span className="text-[10px] text-zinc-500">{item.quantidade}x</span>
+              <span className="text-[10px] text-text-muted">{item.quantidade}x</span>
             )}
             {editandoValor ? (
               <input
@@ -899,21 +899,21 @@ function ItemPersistidoRow({
                 className="w-24 text-[11px] px-2 py-1 rounded-md border bg-transparent"
               />
             ) : (
-              <button disabled={!podeEditar} onClick={() => podeEditar && setEditandoValor(true)} className="text-[10px] text-zinc-500 flex items-center gap-1 disabled:cursor-default">
+              <button disabled={!podeEditar} onClick={() => podeEditar && setEditandoValor(true)} className="text-[10px] text-text-muted flex items-center gap-1 disabled:cursor-default">
                 {formatCurrency(item.valor_unitario)} {podeEditar && <Edit2 size={9} />}
               </button>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="font-black text-xs text-emerald-400">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
+          <span className="font-black text-xs text-text-primary">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
           {podeVender && (
-            <button onClick={onVender} className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-violet-600 text-white hover:bg-violet-700">
+            <button onClick={onVender} className="px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider bg-accent text-white hover:opacity-90">
               Vender
             </button>
           )}
           {podeEditar && (
-            <button onClick={onRemover} className="p-1.5 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors">
+            <button onClick={onRemover} className="p-1.5 text-danger hover:bg-danger-bg rounded-lg transition-colors">
               <Trash2 size={13} />
             </button>
           )}
@@ -997,10 +997,10 @@ function VenderModal({
   };
 
   const inputClass = cn(
-    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    'bg-zinc-950 border-zinc-800 text-zinc-200'
+    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50',
+    'bg-surface-inset border-border-default text-text-primary'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   return (
     <Modal
@@ -1012,7 +1012,7 @@ function VenderModal({
         <button
           onClick={confirmar}
           disabled={enviando || !formaPagamentoId}
-          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+          className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2"
         >
           {enviando ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}
         </button>
@@ -1026,7 +1026,7 @@ function VenderModal({
               <button
                 type="button"
                 onClick={() => setComponenteEscolhido(null)}
-                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componenteEscolhido ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componenteEscolhido ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
               >
                 Item completo
               </button>
@@ -1035,13 +1035,13 @@ function VenderModal({
                   key={c}
                   type="button"
                   onClick={() => setComponenteEscolhido(c)}
-                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componenteEscolhido === c ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componenteEscolhido === c ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
                 >
                   Só: {c}
                 </button>
               ))}
             </div>
-            {componenteEscolhido && <p className="text-xs text-amber-500 mt-2">Vai vender só "{componenteEscolhido}" — o item fica incompleto no estoque até o resto ser vendido também.</p>}
+            {componenteEscolhido && <p className="text-xs text-warning mt-2">Vai vender só "{componenteEscolhido}" — o item fica incompleto no estoque até o resto ser vendido também.</p>}
           </div>
         )}
 
