@@ -12,6 +12,7 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { CEP_ORIGEM_LOJA } from '../../constants/loja';
 import { calcularFrete, buscarCidadePorCep, enviosApi, type FreteQuote } from './api';
@@ -671,77 +672,74 @@ function EnviosSection() {
         }
       />
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center overflow-y-auto" onClick={() => setIsFormOpen(false)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle my-auto"
-          >
-            <div className="p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">Registrar envio</h2>
+      <Modal
+        aberto={isFormOpen}
+        onFechar={() => setIsFormOpen(false)}
+        titulo="Registrar envio"
+        tamanho="md"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <div>
+            <label className={labelClass}>Cliente</label>
+            <SeletorCliente
+              clienteId={form.cliente_id || null}
+              nome={form.cliente_nome || ''}
+              onChange={(clienteId, nome) => setForm((f) => ({ ...f, cliente_id: clienteId, cliente_nome: nome }))}
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>Transportadora</label>
+              <input value={form.transportadora || ''} onChange={(e) => setForm((f) => ({ ...f, transportadora: e.target.value }))} className={inputClass} placeholder="Ex: Correios" />
             </div>
-            <div className="p-6 space-y-4 max-h-[70vh] overflow-y-auto">
-              <div>
-                <label className={labelClass}>Cliente</label>
-                <SeletorCliente
-                  clienteId={form.cliente_id || null}
-                  nome={form.cliente_nome || ''}
-                  onChange={(clienteId, nome) => setForm((f) => ({ ...f, cliente_id: clienteId, cliente_nome: nome }))}
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>Transportadora</label>
-                  <input value={form.transportadora || ''} onChange={(e) => setForm((f) => ({ ...f, transportadora: e.target.value }))} className={inputClass} placeholder="Ex: Correios" />
-                </div>
-                <div>
-                  <label className={labelClass}>Serviço</label>
-                  <input value={form.servico || ''} onChange={(e) => setForm((f) => ({ ...f, servico: e.target.value }))} className={inputClass} placeholder="Ex: SEDEX" />
-                </div>
-              </div>
-              <div>
-                <label className={labelClass}>Código de rastreio</label>
-                <input value={form.codigo_rastreio || ''} onChange={(e) => setForm((f) => ({ ...f, codigo_rastreio: e.target.value }))} className={inputClass} placeholder="Opcional" />
-              </div>
-              <div>
-                <label className={labelClass}>Nº do pedido no Melhor Envio</label>
-                <input
-                  value={form.melhor_envio_order_id || ''}
-                  onChange={(e) => setForm((f) => ({ ...f, melhor_envio_order_id: e.target.value }))}
-                  className={inputClass}
-                  placeholder="Só se foi comprado por lá — habilita rastreio automático"
-                />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className={labelClass}>CEP destino</label>
-                  <input value={form.cep_destino || ''} onChange={(e) => setForm((f) => ({ ...f, cep_destino: e.target.value }))} className={inputClass} placeholder="00000-000" />
-                </div>
-                <div>
-                  <label className={labelClass}>Valor do frete</label>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={form.valor_frete ?? ''}
-                    onChange={(e) => setForm((f) => ({ ...f, valor_frete: e.target.value === '' ? null : Number(e.target.value) }))}
-                    className={inputClass}
-                    placeholder="0,00"
-                  />
-                </div>
-              </div>
+            <div>
+              <label className={labelClass}>Serviço</label>
+              <input value={form.servico || ''} onChange={(e) => setForm((f) => ({ ...f, servico: e.target.value }))} className={inputClass} placeholder="Ex: SEDEX" />
             </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
+          </div>
+          <div>
+            <label className={labelClass}>Código de rastreio</label>
+            <input value={form.codigo_rastreio || ''} onChange={(e) => setForm((f) => ({ ...f, codigo_rastreio: e.target.value }))} className={inputClass} placeholder="Opcional" />
+          </div>
+          <div>
+            <label className={labelClass}>Nº do pedido no Melhor Envio</label>
+            <input
+              value={form.melhor_envio_order_id || ''}
+              onChange={(e) => setForm((f) => ({ ...f, melhor_envio_order_id: e.target.value }))}
+              className={inputClass}
+              placeholder="Só se foi comprado por lá — habilita rastreio automático"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className={labelClass}>CEP destino</label>
+              <input value={form.cep_destino || ''} onChange={(e) => setForm((f) => ({ ...f, cep_destino: e.target.value }))} className={inputClass} placeholder="00000-000" />
+            </div>
+            <div>
+              <label className={labelClass}>Valor do frete</label>
+              <input
+                type="number"
+                min="0"
+                step="0.01"
+                value={form.valor_frete ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, valor_frete: e.target.value === '' ? null : Number(e.target.value) }))}
+                className={inputClass}
+                placeholder="0,00"
+              />
             </div>
           </div>
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
