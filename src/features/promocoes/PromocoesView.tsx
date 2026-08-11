@@ -16,6 +16,7 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
@@ -341,21 +342,24 @@ export function PromocoesView() {
         </>
       )}
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setIsFormOpen(false)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg max-h-[90vh] overflow-y-auto flex flex-col rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle"
-          >
-            <div className="flex items-center justify-between p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">Nova promoção</h2>
-              <button onClick={() => setIsFormOpen(false)} className="p-1.5 rounded-full text-text-faint hover:bg-surface-raised">
-                <X size={18} />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
+      <Modal
+        aberto={isFormOpen}
+        onFechar={() => setIsFormOpen(false)}
+        titulo="Nova promoção"
+        tamanho="lg"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Criar promoção'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
 
               <div>
                 <label className={labelClass}>Aplicar em</label>
@@ -555,36 +559,29 @@ export function PromocoesView() {
                 />
                 Sem prazo definido — só termina quando eu encerrar
               </label>
-            </div>
-
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Criar promoção'}
-              </button>
-            </div>
-          </div>
         </div>
-      )}
+      </Modal>
 
-      {itemParaExcluir && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setItemParaExcluir(null)}>
-          <div onClick={(e) => e.stopPropagation()} className="w-full max-w-sm rounded-card border border-border-subtle bg-surface-page p-6 text-center">
-            <h3 className="text-lg font-medium mb-2">Excluir promoção?</h3>
-            <p className="text-sm text-text-faint mb-4">{itemParaExcluir.descricao || ESCOPO_LABEL[itemParaExcluir.escopo]} — essa ação não pode ser desfeita.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setItemParaExcluir(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={confirmarExclusao} disabled={excluindo} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50">
-                {excluindo ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Excluir'}
-              </button>
-            </div>
+      <Modal
+        aberto={!!itemParaExcluir}
+        onFechar={() => setItemParaExcluir(null)}
+        titulo="Excluir promoção?"
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setItemParaExcluir(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={confirmarExclusao} disabled={excluindo} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50">
+              {excluindo ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Excluir'}
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        {itemParaExcluir && (
+          <p className="text-sm text-text-faint">{itemParaExcluir.descricao || ESCOPO_LABEL[itemParaExcluir.escopo]} — essa ação não pode ser desfeita.</p>
+        )}
+      </Modal>
     </div>
   );
 }
