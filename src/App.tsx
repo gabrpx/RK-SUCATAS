@@ -34,7 +34,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
 import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
-import { useScrollLock } from './hooks/useScrollLock';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Modal } from './components/ui/Modal';
 import { Login } from './components/Login';
@@ -501,16 +500,13 @@ function DetailModal({
 // =============================================================================
 
 const LogoutModal = memo(({ isOpen, onClose, onLogout }: { isOpen: boolean; onClose: () => void; onLogout: () => void }) => {
-  if (!isOpen) return null;
   return (
-    <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('relative w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl p-8 text-center', 'bg-zinc-950 border border-zinc-800')}>
-        <div className="w-20 h-20 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-6">
-          <LogOut size={36} />
-        </div>
-        <h2 className={cn('text-2xl font-black tracking-tight mb-2', 'text-white')}>Sair da Conta?</h2>
-        <p className="text-zinc-500 text-sm font-medium mb-8">Tem certeza que deseja encerrar sua sessão atual?</p>
+    <Modal
+      aberto={isOpen}
+      onFechar={onClose}
+      titulo="Sair da conta?"
+      tamanho="sm"
+      rodape={
         <div className="flex flex-col gap-3">
           <button onClick={onLogout} className="w-full bg-rose-500 hover:bg-rose-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-500/20">
             Sim, Sair Agora
@@ -519,8 +515,10 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout }: { isOpen: boolean; onCl
             Cancelar
           </button>
         </div>
-      </motion.div>
-    </div>
+      }
+    >
+      <p className="text-sm text-text-secondary">Tem certeza que deseja encerrar sua sessão atual?</p>
+    </Modal>
   );
 });
 
@@ -591,8 +589,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     window.scrollTo(0, 0);
     contentRef.current?.scrollTo(0, 0);
   }, [activeTab]);
-
-  useScrollLock(isLogoutModalOpen);
 
   const itemActions = useMemo(() => {
     if (!selectedDetailItem) return { edit: undefined, delete: undefined };
@@ -778,7 +774,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         />
       )}
 
-      <AnimatePresence>{isLogoutModalOpen && <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} />}</AnimatePresence>
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} />
     </div>
   );
 }
