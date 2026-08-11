@@ -57,14 +57,9 @@ export const Login = ({ onLogin }: LoginProps) => {
     <div className="min-h-screen bg-[#09090b] font-sans relative overflow-x-hidden flex items-center justify-center p-4">
       <div className="hidden md:block">
         <motion.div
-          animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.15, 0.1], x: [0, 50, 0], y: [0, -30, 0] }}
+          animate={{ scale: [1, 1.2, 1], opacity: [0.1, 0.15, 0.1], x: [0, 40, 0], y: [0, -30, 0] }}
           transition={{ duration: 15, repeat: Infinity, ease: 'easeInOut' }}
-          className="absolute top-[-10%] left-[-10%] w-[60%] h-[60%] bg-violet-600/20 blur-[120px] rounded-full pointer-events-none"
-        />
-        <motion.div
-          animate={{ scale: [1, 1.3, 1], opacity: [0.1, 0.2, 0.1], x: [0, -60, 0], y: [0, 40, 0] }}
-          transition={{ duration: 20, repeat: Infinity, ease: 'easeInOut', delay: 2 }}
-          className="absolute bottom-[-10%] right-[-10%] w-[60%] h-[60%] bg-blue-600/20 blur-[120px] rounded-full pointer-events-none"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[70%] h-[70%] bg-accent/20 blur-[120px] rounded-full pointer-events-none"
         />
       </div>
 
@@ -81,7 +76,7 @@ export const Login = ({ onLogin }: LoginProps) => {
             </div>
             <h1 className="text-2xl font-black tracking-tighter uppercase leading-none">
               <span className="text-white">RK</span>
-              <span className="bg-gradient-to-r from-violet-400 to-blue-400 bg-clip-text text-transparent"> SUCATAS</span>
+              <span className="text-accent"> SUCATAS</span>
             </h1>
             <p className="text-zinc-500 text-xs font-medium mt-2">Controle de estoque, vendas e caixa</p>
           </div>
@@ -146,7 +141,7 @@ export const Login = ({ onLogin }: LoginProps) => {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-gradient-to-r from-violet-600 to-blue-600 text-white py-3.5 rounded-xl font-black uppercase tracking-widest hover:brightness-110 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-[0_0_20px_rgba(139,92,246,0.2)] disabled:opacity-50 text-xs"
+                className="w-full bg-accent text-white py-3.5 rounded-xl font-black uppercase tracking-widest hover:brightness-110 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-[0_0_20px_var(--color-accent-shadow)] disabled:opacity-50 text-xs"
               >
                 {loading ? <Loader2 className="animate-spin w-5 h-5" /> : 'Entrar no Sistema'}
               </button>
