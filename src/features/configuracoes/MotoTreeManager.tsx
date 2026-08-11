@@ -182,21 +182,21 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
   };
 
   const totalRaizes = arvoreCompleta.length;
-  const borderGuia = 'border-zinc-800';
+  const borderGuia = 'border-border-default';
   const inputClass = cn(
-    'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-    'bg-zinc-950 border-zinc-800 text-zinc-200'
+    'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
+    'bg-surface-inset border-border-default text-text-primary'
   );
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-zinc-800/50')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', 'bg-violet-500/10 text-violet-400')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-border-default/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', 'bg-accent/10 text-accent')}>
           <Bike size={18} />
         </div>
         <div className="min-w-0">
-          <h3 className={cn('font-black text-sm', 'text-white')}>Motos</h3>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{modelos.length} cadastrado(s) · {totalRaizes} marca(s)</p>
+          <h3 className={cn('font-black text-sm', 'text-text-primary')}>Motos</h3>
+          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{modelos.length} cadastrado(s) · {totalRaizes} marca(s)</p>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
           <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
@@ -226,7 +226,7 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
               onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
               className={cn(
                 'flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
-                'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10'
+                'text-text-muted hover:text-accent hover:bg-accent/10'
               )}
             >
               {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
@@ -238,8 +238,8 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-zinc-950 border-zinc-800')}>
-            <Search size={15} className="text-zinc-500 shrink-0" />
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-surface-inset border-border-default')}>
+            <Search size={15} className="text-text-muted shrink-0" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -247,7 +247,7 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
               className="flex-1 py-2.5 bg-transparent outline-none text-sm"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-surface-raised text-text-muted shrink-0">
                 <X size={13} />
               </button>
             )}
@@ -267,8 +267,8 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
         </div>
 
         {modoVisualizacao === 'lista' && (
-          <div className={cn('rounded-2xl border p-4 space-y-2', 'border-zinc-800 bg-zinc-950/40')}>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Nova moto</p>
+          <div className={cn('rounded-2xl border p-4 space-y-2', 'border-border-default bg-surface-inset/40')}>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-text-muted">Nova moto</p>
             <div className="grid grid-cols-2 gap-2">
               <input value={novaMarca} onChange={(e) => setNovaMarca(e.target.value)} placeholder="Marca (ex: Honda)" className={inputClass} />
               <input value={novaCilindrada} onChange={(e) => setNovaCilindrada(e.target.value)} placeholder="Cilindrada (ex: 150)" className={inputClass} />
@@ -291,13 +291,13 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
               <button
                 onClick={handleCriarRapido}
                 disabled={criandoRapido || !novaMarca.trim() || !novoNomeMoto.trim()}
-                className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
+                className="p-2.5 rounded-xl bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-colors shrink-0"
               >
                 {criandoRapido ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
               </button>
             </div>
-            {erroRapido && <p className="text-xs text-rose-500">{erroRapido}</p>}
-            <p className="text-[11px] text-zinc-500 leading-relaxed">
+            {erroRapido && <p className="text-xs text-danger">{erroRapido}</p>}
+            <p className="text-[11px] text-text-muted leading-relaxed">
               Moto com versões diferentes por ano (ex: carburada, mix, injetada)? Cadastre o modelo base aqui (sem ano) e depois clique no{' '}
               <Plus size={11} className="inline -mt-0.5" /> dele pra adicionar cada versão como sub-nível, com nome ("Carburada") e período ("2004-2008") no campo Ano.
             </p>
@@ -316,7 +316,7 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
             />
           </div>
         ) : arvore.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">
+          <p className="text-sm text-text-muted py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma moto cadastrada ainda.'}
           </p>
         ) : (
@@ -407,7 +407,7 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
                 setItemParaExcluir(null);
                 setErroExclusao(null);
               }}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300"
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary"
             >
               Cancelar
             </button>
@@ -422,7 +422,7 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
                 else setErroExclusao(result.error || 'Erro ao excluir');
               }}
               disabled={excluindo}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
             </button>
@@ -431,12 +431,12 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
       >
         {itemParaExcluir && (
           <>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-text-muted">
               {getDescendantIds(itemParaExcluir.id, modelos).length > 1
                 ? `Isso também excluirá os ${getDescendantIds(itemParaExcluir.id, modelos).length - 1} sub-nível(is) abaixo dele. Essa ação não pode ser desfeita.`
                 : 'Essa ação não pode ser desfeita.'}
             </p>
-            {erroExclusao && <p className="text-xs text-rose-500 mt-3">{erroExclusao}</p>}
+            {erroExclusao && <p className="text-xs text-danger mt-3">{erroExclusao}</p>}
           </>
         )}
       </Modal>
@@ -513,14 +513,14 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
       <div
         className={cn(
           'group flex items-center gap-1 rounded-xl',
-          'hover:bg-zinc-800/40'
+          'hover:bg-surface-raised'
         )}
       >
         <button
           {...(h.arrastavel ? { ...attributes, ...listeners } : {})}
           className={cn(
             'p-1.5 shrink-0 touch-none',
-            h.arrastavel ? 'text-zinc-500 cursor-grab active:cursor-grabbing' : 'text-zinc-500 opacity-40 cursor-not-allowed'
+            h.arrastavel ? 'text-text-muted cursor-grab active:cursor-grabbing' : 'text-text-muted opacity-40 cursor-not-allowed'
           )}
           title={h.arrastavel ? 'Arrastar para reordenar' : 'Disponível apenas em Ordem manual (arrastar)'}
         >
@@ -529,7 +529,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
 
         <button
           onClick={() => temFilhos && onToggleExpandido(node.id)}
-          className={cn('w-5 h-5 flex items-center justify-center shrink-0 text-zinc-500', !temFilhos && 'opacity-0 pointer-events-none')}
+          className={cn('w-5 h-5 flex items-center justify-center shrink-0 text-text-muted', !temFilhos && 'opacity-0 pointer-events-none')}
         >
           {expandido ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
@@ -547,7 +547,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 }}
                 className={cn(
                   'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                  'bg-zinc-950 border-violet-500/50 text-zinc-200'
+                  'bg-surface-inset border-accent/50 text-text-primary'
                 )}
               />
               <input
@@ -561,7 +561,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 title="Ano único (2015) ou período (2004-2008)"
                 className={cn(
                   'w-16 border rounded-lg py-1.5 px-2 text-sm outline-none shrink-0',
-                  'bg-zinc-950 border-violet-500/50 text-zinc-200'
+                  'bg-surface-inset border-accent/50 text-text-primary'
                 )}
               />
               {!temFilhos && (
@@ -572,27 +572,27 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   title={h.imagemEditada ? 'Trocar foto' : 'Adicionar foto'}
                   className={cn(
                     'size-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border',
-                    'border-zinc-800 bg-zinc-950'
+                    'border-border-default bg-surface-inset'
                   )}
                 >
                   {h.uploadandoImagem ? (
-                    <Loader2 size={13} className="animate-spin text-zinc-500" />
+                    <Loader2 size={13} className="animate-spin text-text-muted" />
                   ) : h.imagemEditada ? (
                     <img src={h.imagemEditada} alt="" className="w-full h-full object-cover" />
                   ) : (
-                    <Camera size={14} className="text-zinc-500" />
+                    <Camera size={14} className="text-text-muted" />
                   )}
                 </button>
               )}
               {!temFilhos && h.imagemEditada && (
-                <button onClick={h.onRemoverImagem} className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 shrink-0" title="Remover foto">
+                <button onClick={h.onRemoverImagem} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 shrink-0" title="Remover foto">
                   <ImageOff size={13} />
                 </button>
               )}
-              <button onClick={() => h.onSalvarEdicao(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
+              <button onClick={() => h.onSalvarEdicao(node.id)} className="p-1.5 rounded-lg text-positive hover:bg-positive/10 shrink-0">
                 <Check size={14} />
               </button>
-              <button onClick={h.onCancelarEdicao} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+              <button onClick={h.onCancelarEdicao} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
                 <X size={14} />
               </button>
             </>
@@ -607,7 +607,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 emptyOption={{ value: ROOT_OPTION_VALUE, label: '— Marca raiz —' }}
                 searchPlaceholder="Buscar moto..."
               />
-              <button onClick={() => h.setMovendoId(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+              <button onClick={() => h.setMovendoId(null)} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
                 <X size={14} />
               </button>
             </>
@@ -619,18 +619,18 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   'flex items-center gap-2 text-sm truncate min-w-0',
                   temFilhos && 'cursor-pointer',
                   temFilhos ? 'font-bold' : 'font-medium',
-                  'text-zinc-200'
+                  'text-text-primary'
                 )}
               >
                 <span className="truncate">
                   {node.nome}
-                  {node.ano && <span className="text-zinc-500 font-normal"> ({node.ano})</span>}
+                  {node.ano && <span className="text-text-muted font-normal"> ({node.ano})</span>}
                 </span>
                 {temFilhos && (
                   <span
                     className={cn(
                       'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                      'bg-zinc-800 text-zinc-400'
+                      'bg-surface-raised text-text-muted'
                     )}
                   >
                     {node.children.length}
@@ -638,16 +638,16 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 )}
               </span>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => h.onIniciarSub(node.id)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Adicionar sub-nível">
+                <button onClick={() => h.onIniciarSub(node.id)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors" title="Adicionar sub-nível">
                   <Plus size={13} />
                 </button>
-                <button onClick={() => h.setMovendoId(node.id)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Mover para outro nível">
+                <button onClick={() => h.setMovendoId(node.id)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors" title="Mover para outro nível">
                   <FolderInput size={13} />
                 </button>
-                <button onClick={() => h.onIniciarEdicao(node)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Renomear">
+                <button onClick={() => h.onIniciarEdicao(node)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors" title="Renomear">
                   <Pencil size={13} />
                 </button>
-                <button onClick={() => h.onPedirExclusao(node)} className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors" title="Excluir">
+                <button onClick={() => h.onPedirExclusao(node)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors" title="Excluir">
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -670,7 +670,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
               placeholder='Nome do sub-nível... (ex: "Carburada")'
               className={cn(
                 'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                'bg-zinc-950 border-violet-500/50 text-zinc-200'
+                'bg-surface-inset border-accent/50 text-text-primary'
               )}
             />
             <input
@@ -684,13 +684,13 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
               title="Ano único (2015) ou período (2004-2008)"
               className={cn(
                 'w-16 border rounded-lg py-1.5 px-2 text-sm outline-none shrink-0',
-                'bg-zinc-950 border-violet-500/50 text-zinc-200'
+                'bg-surface-inset border-accent/50 text-text-primary'
               )}
             />
-            <button onClick={() => h.onCriarSub(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
+            <button onClick={() => h.onCriarSub(node.id)} className="p-1.5 rounded-lg text-positive hover:bg-positive/10 shrink-0">
               <Check size={14} />
             </button>
-            <button onClick={h.onCancelarSub} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+            <button onClick={h.onCancelarSub} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
               <X size={14} />
             </button>
           </div>
