@@ -100,21 +100,21 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
   };
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-zinc-800/50')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', 'bg-violet-500/10 text-violet-400')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-border-default/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', 'bg-accent/10 text-accent')}>
           <Icone size={18} />
         </div>
         <div>
-          <h3 className={cn('font-black text-sm', 'text-white')}>{titulo}</h3>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{itens.length} cadastrado(s)</p>
+          <h3 className={cn('font-black text-sm', 'text-text-primary')}>{titulo}</h3>
+          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{itens.length} cadastrado(s)</p>
         </div>
       </div>
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-zinc-950 border-zinc-800')}>
-            <Search size={15} className="text-zinc-500 shrink-0" />
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-surface-inset border-border-default')}>
+            <Search size={15} className="text-text-muted shrink-0" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -122,7 +122,7 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
               className="flex-1 py-2.5 bg-transparent outline-none text-sm"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-surface-raised text-text-muted shrink-0">
                 <X size={13} />
               </button>
             )}
@@ -145,22 +145,22 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
             onKeyDown={(e) => e.key === 'Enter' && handleCriar()}
             placeholder="Nome novo..."
             className={cn(
-              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              'bg-zinc-950 border-zinc-800 text-zinc-200'
+              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
+              'bg-surface-inset border-border-default text-text-primary'
             )}
           />
           <button
             onClick={handleCriar}
             disabled={criando || !novoNome.trim()}
-            className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
+            className="p-2.5 rounded-xl bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-colors shrink-0"
           >
             {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
           </button>
         </div>
-        {erro && <p className="text-xs text-rose-500">{erro}</p>}
+        {erro && <p className="text-xs text-danger">{erro}</p>}
 
         {itensExibidos.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">
+          <p className="text-sm text-text-muted py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhum item cadastrado ainda.'}
           </p>
         ) : (
@@ -168,7 +168,7 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
             {itensExibidos.map((item) => (
               <div
                 key={item.id}
-                className={cn('flex items-center justify-between gap-2 px-3 py-2 rounded-xl', 'hover:bg-zinc-800/40')}
+                className={cn('flex items-center justify-between gap-2 px-3 py-2 rounded-xl', 'hover:bg-surface-raised')}
               >
                 {editandoId === item.id ? (
                   <>
@@ -180,18 +180,18 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
                         if (e.key === 'Enter') salvarEdicao(item.id);
                         if (e.key === 'Escape') setEditandoId(null);
                       }}
-                      className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', 'bg-zinc-950 border-violet-500/50 text-zinc-200')}
+                      className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', 'bg-surface-inset border-accent/50 text-text-primary')}
                     />
-                    <button onClick={() => salvarEdicao(item.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10">
+                    <button onClick={() => salvarEdicao(item.id)} className="p-1.5 rounded-lg text-positive hover:bg-positive/10">
                       <Check size={14} />
                     </button>
-                    <button onClick={() => setEditandoId(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50">
+                    <button onClick={() => setEditandoId(null)} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised">
                       <X size={14} />
                     </button>
                   </>
                 ) : (
                   <>
-                    <span className={cn('text-sm font-medium truncate', 'text-zinc-200')}>{item.nome}</span>
+                    <span className={cn('text-sm font-medium truncate', 'text-text-primary')}>{item.nome}</span>
                     <div className="flex items-center gap-1 shrink-0">
                       {toggle && (
                         <button
@@ -200,19 +200,19 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
                           className={cn(
                             'px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors',
                             toggle.ativo(item)
-                              ? 'bg-amber-500/15 text-amber-500'
-                              : 'bg-zinc-800/60 text-zinc-500 hover:text-zinc-300'
+                              ? 'bg-warning/15 text-warning'
+                              : 'bg-surface-raised text-text-muted hover:text-text-secondary'
                           )}
                         >
                           {toggle.rotulo}
                         </button>
                       )}
                       {onRenomear && (
-                        <button onClick={() => iniciarEdicao(item)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors">
+                        <button onClick={() => iniciarEdicao(item)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors">
                           <Pencil size={13} />
                         </button>
                       )}
-                      <button onClick={() => setItemParaExcluir(item)} className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors">
+                      <button onClick={() => setItemParaExcluir(item)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -240,18 +240,18 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
                 setItemParaExcluir(null);
                 setErroExclusao(null);
               }}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300"
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary"
             >
               Cancelar
             </button>
-            <button onClick={confirmarExclusao} disabled={excluindo} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2">
+            <button onClick={confirmarExclusao} disabled={excluindo} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
               {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
             </button>
           </div>
         }
       >
-        <p className="text-sm text-zinc-500">Essa ação não pode ser desfeita.</p>
-        {erroExclusao && <p className="text-xs text-rose-500 mt-3">{erroExclusao}</p>}
+        <p className="text-sm text-text-muted">Essa ação não pode ser desfeita.</p>
+        {erroExclusao && <p className="text-xs text-danger mt-3">{erroExclusao}</p>}
       </Modal>
     </div>
   );
