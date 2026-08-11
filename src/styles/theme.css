@@ -35,6 +35,17 @@
   --danger: #f09595;
   --danger-bg: #501313;
 
+  /* Overlays — fundo escurecido atrás de modais/lightbox e controles
+     translúcidos sobre foto. Opacidade fixa faz parte do valor, não é
+     aplicada via modificador Tailwind (/70 etc) no componente. */
+  --overlay-scrim: rgba(0, 0, 0, 0.7);
+  --overlay-scrim-strong: rgba(0, 0, 0, 0.95);
+  --overlay-control-bg: rgba(255, 255, 255, 0.1);
+
+  /* Sombras coloridas — mesmo tom do accent/positive, pra CTAs preenchidos */
+  --accent-shadow: rgba(91, 61, 240, 0.2);
+  --positive-shadow: rgba(93, 202, 165, 0.2);
+
   /* Raios */
   --radius-card: 11px;
   --radius-control: 8px;
@@ -73,6 +84,13 @@
 
   --color-danger: var(--danger);
   --color-danger-bg: var(--danger-bg);
+
+  --color-overlay-scrim: var(--overlay-scrim);
+  --color-overlay-scrim-strong: var(--overlay-scrim-strong);
+  --color-overlay-control-bg: var(--overlay-control-bg);
+
+  --color-accent-shadow: var(--accent-shadow);
+  --color-positive-shadow: var(--positive-shadow);
 
   --radius-card: var(--radius-card);
   --radius-control: var(--radius-control);

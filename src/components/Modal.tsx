@@ -34,8 +34,8 @@ export const Modal: React.FC<ModalProps> = ({
   return createPortal(
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4">
       {/* Backdrop */}
-      <div 
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200"
+      <div
+        className="absolute inset-0 bg-overlay-scrim backdrop-blur-sm animate-in fade-in duration-200"
         onClick={onClose}
       />
       

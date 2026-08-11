@@ -53,7 +53,7 @@ export function Modal({ aberto, onFechar, titulo, subtitulo, icone: Icone, taman
 
   return (
     <div
-      className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center md:p-4"
+      className="fixed inset-0 z-[3000] bg-overlay-scrim backdrop-blur-sm flex items-end md:items-center justify-center md:p-4"
       onClick={onFechar}
       role="presentation"
     >
