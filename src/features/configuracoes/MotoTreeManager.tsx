@@ -12,13 +12,13 @@
 // Por padrão toda a árvore começa recolhida (só as marcas aparecem).
 import React, { useMemo, useRef, useState } from 'react';
 import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, Camera, ImageOff, List, Network } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
+import { Modal } from '../../components/ui/Modal';
 import { comprimirImagem } from '../../utils/comprimirImagem';
 import { uploadImagemModeloMoto } from '../motos/api';
 import { buildTree, filterTree, getDescendantIds, extrairAnoOrdenavel, type ModeloMotoNode } from '../motos/motoTree';
@@ -391,52 +391,55 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
         )}
       </div>
 
-      <AnimatePresence>
-        {itemParaExcluir && (
-          <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}
+      <Modal
+        aberto={!!itemParaExcluir}
+        onFechar={() => {
+          setItemParaExcluir(null);
+          setErroExclusao(null);
+        }}
+        titulo={itemParaExcluir ? `Excluir "${itemParaExcluir.nome}"?` : 'Excluir?'}
+        icone={Trash2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button
+              onClick={() => {
+                setItemParaExcluir(null);
+                setErroExclusao(null);
+              }}
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300"
             >
-              <h3 className="text-lg font-black mb-2">Excluir "{itemParaExcluir.nome}"?</h3>
-              <p className="text-sm text-zinc-500 mb-4">
-                {getDescendantIds(itemParaExcluir.id, modelos).length > 1
-                  ? `Isso também excluirá os ${getDescendantIds(itemParaExcluir.id, modelos).length - 1} sub-nível(is) abaixo dele. Essa ação não pode ser desfeita.`
-                  : 'Essa ação não pode ser desfeita.'}
-              </p>
-              {erroExclusao && <p className="text-xs text-rose-500 mb-4">{erroExclusao}</p>}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setItemParaExcluir(null);
-                    setErroExclusao(null);
-                  }}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!itemParaExcluir) return;
-                    setExcluindo(true);
-                    setErroExclusao(null);
-                    const result = await onExcluir(itemParaExcluir.id);
-                    setExcluindo(false);
-                    if (result.success) setItemParaExcluir(null);
-                    else setErroExclusao(result.error || 'Erro ao excluir');
-                  }}
-                  disabled={excluindo}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
-                </button>
-              </div>
-            </motion.div>
+              Cancelar
+            </button>
+            <button
+              onClick={async () => {
+                if (!itemParaExcluir) return;
+                setExcluindo(true);
+                setErroExclusao(null);
+                const result = await onExcluir(itemParaExcluir.id);
+                setExcluindo(false);
+                if (result.success) setItemParaExcluir(null);
+                else setErroExclusao(result.error || 'Erro ao excluir');
+              }}
+              disabled={excluindo}
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
+            </button>
           </div>
+        }
+      >
+        {itemParaExcluir && (
+          <>
+            <p className="text-sm text-zinc-500">
+              {getDescendantIds(itemParaExcluir.id, modelos).length > 1
+                ? `Isso também excluirá os ${getDescendantIds(itemParaExcluir.id, modelos).length - 1} sub-nível(is) abaixo dele. Essa ação não pode ser desfeita.`
+                : 'Essa ação não pode ser desfeita.'}
+            </p>
+            {erroExclusao && <p className="text-xs text-rose-500 mt-3">{erroExclusao}</p>}
+          </>
         )}
-      </AnimatePresence>
+      </Modal>
     </div>
   );
 }
