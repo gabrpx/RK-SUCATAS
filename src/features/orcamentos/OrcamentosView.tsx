@@ -3,7 +3,6 @@
 // venda de verdade (via registrar_venda, mesma RPC da aba Vendas) — inteira
 // ou só uma parte complementar de um item composto.
 import { Fragment, useCallback, useMemo, useState } from 'react';
-import { motion, AnimatePresence } from 'motion/react';
 import {
   Receipt,
   Search,
@@ -28,6 +27,7 @@ import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
+import { Modal } from '../../components/ui/Modal';
 import { orcamentosApi } from './api';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
@@ -254,17 +254,15 @@ export function OrcamentosView() {
         )}
       </div>
 
-      <AnimatePresence>
-        {modalAberto && (
-          <OrcamentoFormModal
-            orcamento={orcamentoSelecionado}
-            onClose={() => setModalAberto(false)}
-            onChanged={async () => {
-              await refreshData();
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {modalAberto && (
+        <OrcamentoFormModal
+          orcamento={orcamentoSelecionado}
+          onClose={() => setModalAberto(false)}
+          onChanged={async () => {
+            await refreshData();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -501,36 +499,38 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
   const expirado = atual ? isExpirado(atual) : false;
 
   return (
-    <div className="fixed inset-0 z-[3000] flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm">
-      <motion.div
-        initial={{ y: '100%', opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        className={cn('w-full md:max-w-2xl rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[92vh] overflow-y-auto', 'bg-zinc-950 border-zinc-800')}
+    <>
+      <Modal
+        aberto={true}
+        onFechar={onClose}
+        titulo={atual ? atual.codigo : 'Novo Orçamento'}
+        icone={Receipt}
+        tamanho="lg"
+        rodape={
+          (!isEdicao || atual!.status === 'aberto') && (
+            <button
+              onClick={salvarHeader}
+              disabled={salvando}
+              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
+            >
+              {salvando ? <Loader2 size={18} className="animate-spin" /> : isEdicao ? 'Salvar alterações' : 'Criar orçamento'}
+            </button>
+          )
+        }
       >
-        <div className="md:hidden w-full flex justify-center -mt-2 mb-4">
-          <div className="w-12 h-1.5 rounded-full bg-zinc-800" />
-        </div>
-
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h3 className={cn('text-xl font-black flex items-center gap-2', 'text-white')}>
-              {atual ? <span className="font-mono text-violet-400">{atual.codigo}</span> : 'Novo Orçamento'}
-              {atual && expirado && <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full bg-amber-500/10 text-amber-500">Expirado</span>}
-              {atual && !expirado && atual.status !== 'aberto' && (
+        <div className="space-y-4">
+          {atual && (expirado || atual.status !== 'aberto') && (
+            <div className="flex items-center gap-2 -mt-1">
+              {expirado ? (
+                <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full bg-amber-500/10 text-amber-500">Expirado</span>
+              ) : (
                 <span className={cn('text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full', atual.status === 'convertido' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500')}>
                   {atual.status === 'convertido' ? 'Convertido' : 'Cancelado'}
                 </span>
               )}
-            </h3>
-          </div>
-          <button onClick={onClose} className="p-2 rounded-full text-zinc-500 hover:bg-zinc-800/50">
-            <X size={20} />
-          </button>
-        </div>
+            </div>
+          )}
 
-        <div className="space-y-4">
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={labelClass}>Nome do cliente</label>
@@ -757,16 +757,6 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
             <span className="text-xl font-black text-emerald-500">{formatCurrency(total)}</span>
           </div>
 
-          {(!isEdicao || atual!.status === 'aberto') && (
-            <button
-              onClick={salvarHeader}
-              disabled={salvando}
-              className="w-full bg-violet-600 hover:bg-violet-700 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-violet-500/20 flex items-center justify-center gap-2"
-            >
-              {salvando ? <Loader2 size={18} className="animate-spin" /> : isEdicao ? 'Salvar alterações' : 'Criar orçamento'}
-            </button>
-          )}
-
           {isEdicao && (
             <>
               {pendenteHaItensAVender && (
@@ -810,45 +800,41 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
             </>
           )}
         </div>
-      </motion.div>
+      </Modal>
 
-      <AnimatePresence>
-        {vendaAlvo && atual && (
-          <VenderModal
-            orcamento={atual}
-            alvo={vendaAlvo}
-            onClose={() => setVendaAlvo(null)}
-            onVendido={async (novoOrcamento) => {
-              setAtual(novoOrcamento);
-              setVendaAlvo(null);
-              await onChanged();
-            }}
-          />
-        )}
-      </AnimatePresence>
+      {vendaAlvo && atual && (
+        <VenderModal
+          orcamento={atual}
+          alvo={vendaAlvo}
+          onClose={() => setVendaAlvo(null)}
+          onVendido={async (novoOrcamento) => {
+            setAtual(novoOrcamento);
+            setVendaAlvo(null);
+            await onChanged();
+          }}
+        />
+      )}
 
-      <AnimatePresence>
-        {confirmandoCancelamento && (
-          <div className="fixed inset-0 z-[3200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}>
-              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4">
-                <AlertCircle size={28} />
-              </div>
-              <h3 className="text-lg font-black mb-2">Cancelar este orçamento?</h3>
-              <p className="text-sm text-zinc-500 mb-6">Itens ainda não vendidos deixam de poder ser convertidos. Vendas já realizadas não são afetadas.</p>
-              <div className="flex gap-3">
-                <button onClick={() => setConfirmandoCancelamento(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
-                  Voltar
-                </button>
-                <button onClick={cancelarOrcamento} disabled={salvando} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Cancelar orçamento'}
-                </button>
-              </div>
-            </motion.div>
+      <Modal
+        aberto={confirmandoCancelamento}
+        onFechar={() => setConfirmandoCancelamento(false)}
+        titulo="Cancelar este orçamento?"
+        icone={AlertCircle}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setConfirmandoCancelamento(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300">
+              Voltar
+            </button>
+            <button onClick={cancelarOrcamento} disabled={salvando} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2">
+              {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Cancelar orçamento'}
+            </button>
           </div>
-        )}
-      </AnimatePresence>
-    </div>
+        }
+      >
+        <p className="text-sm text-zinc-500">Itens ainda não vendidos deixam de poder ser convertidos. Vendas já realizadas não são afetadas.</p>
+      </Modal>
+    </>
   );
 }
 
@@ -1017,61 +1003,58 @@ function VenderModal({
   const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
 
   return (
-    <div className="fixed inset-0 z-[3100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6', 'bg-zinc-950 border-zinc-800')}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-black">{alvo.tipo === 'tudo' ? 'Vender tudo' : `Vender: ${item?.nome_item}`}</h3>
-          <button onClick={onClose} className="p-1.5 rounded-full text-zinc-500 hover:bg-zinc-800/50">
-            <X size={18} />
-          </button>
-        </div>
-
-        <div className="space-y-4">
-          {podeEscolherComponente && (
-            <div>
-              <label className={labelClass}>O que está sendo vendido?</label>
-              <div className="flex flex-wrap gap-2">
+    <Modal
+      aberto={true}
+      onFechar={onClose}
+      titulo={alvo.tipo === 'tudo' ? 'Vender tudo' : `Vender: ${item?.nome_item}`}
+      tamanho="sm"
+      rodape={
+        <button
+          onClick={confirmar}
+          disabled={enviando || !formaPagamentoId}
+          className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+        >
+          {enviando ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}
+        </button>
+      }
+    >
+      <div className="space-y-4">
+        {podeEscolherComponente && (
+          <div>
+            <label className={labelClass}>O que está sendo vendido?</label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setComponenteEscolhido(null)}
+                className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componenteEscolhido ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+              >
+                Item completo
+              </button>
+              {item!.componentes_disponiveis!.map((c) => (
                 <button
+                  key={c}
                   type="button"
-                  onClick={() => setComponenteEscolhido(null)}
-                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', !componenteEscolhido ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
+                  onClick={() => setComponenteEscolhido(c)}
+                  className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componenteEscolhido === c ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
                 >
-                  Item completo
+                  Só: {c}
                 </button>
-                {item!.componentes_disponiveis!.map((c) => (
-                  <button
-                    key={c}
-                    type="button"
-                    onClick={() => setComponenteEscolhido(c)}
-                    className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', componenteEscolhido === c ? 'bg-violet-600 border-violet-600 text-white' : 'border-zinc-800 text-zinc-400')}
-                  >
-                    Só: {c}
-                  </button>
-                ))}
-              </div>
-              {componenteEscolhido && <p className="text-xs text-amber-500 mt-2">Vai vender só "{componenteEscolhido}" — o item fica incompleto no estoque até o resto ser vendido também.</p>}
+              ))}
             </div>
-          )}
-
-          <div>
-            <label className={labelClass}>Forma de pagamento</label>
-            <CustomDropdown variant="form" value={formaPagamentoId} onChange={setFormaPagamentoId} placeholder="Selecione..." options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))} />
+            {componenteEscolhido && <p className="text-xs text-amber-500 mt-2">Vai vender só "{componenteEscolhido}" — o item fica incompleto no estoque até o resto ser vendido também.</p>}
           </div>
+        )}
 
-          <div>
-            <label className={labelClass}>Data</label>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass} />
-          </div>
-
-          <button
-            onClick={confirmar}
-            disabled={enviando || !formaPagamentoId}
-            className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2"
-          >
-            {enviando ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}
-          </button>
+        <div>
+          <label className={labelClass}>Forma de pagamento</label>
+          <CustomDropdown variant="form" value={formaPagamentoId} onChange={setFormaPagamentoId} placeholder="Selecione..." options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))} />
         </div>
-      </motion.div>
-    </div>
+
+        <div>
+          <label className={labelClass}>Data</label>
+          <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass} />
+        </div>
+      </div>
+    </Modal>
   );
 }
