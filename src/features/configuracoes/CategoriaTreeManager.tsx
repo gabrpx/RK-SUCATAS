@@ -132,17 +132,17 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
   };
 
   const totalRaizes = arvoreCompleta.length;
-  const borderGuia = 'border-zinc-800';
+  const borderGuia = 'border-border-default';
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-zinc-800/50')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', 'bg-violet-500/10 text-violet-400')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-border-default/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', 'bg-accent/10 text-accent')}>
           <Layers size={18} />
         </div>
         <div className="min-w-0">
-          <h3 className={cn('font-black text-sm', 'text-white')}>Categorias de Peça</h3>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{categorias.length} cadastrada(s) · {totalRaizes} raiz(es)</p>
+          <h3 className={cn('font-black text-sm', 'text-text-primary')}>Categorias de Peça</h3>
+          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{categorias.length} cadastrada(s) · {totalRaizes} raiz(es)</p>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
           <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
@@ -172,7 +172,7 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
               onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
               className={cn(
                 'flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
-                'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10'
+                'text-text-muted hover:text-accent hover:bg-accent/10'
               )}
             >
               {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
@@ -184,8 +184,8 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-zinc-950 border-zinc-800')}>
-            <Search size={15} className="text-zinc-500 shrink-0" />
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-surface-inset border-border-default')}>
+            <Search size={15} className="text-text-muted shrink-0" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -193,7 +193,7 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
               className="flex-1 py-2.5 bg-transparent outline-none text-sm"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-surface-raised text-text-muted shrink-0">
                 <X size={13} />
               </button>
             )}
@@ -219,19 +219,19 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
                 onKeyDown={(e) => e.key === 'Enter' && handleCriarRaiz()}
                 placeholder="Nova categoria raiz..."
                 className={cn(
-                  'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-                  'bg-zinc-950 border-zinc-800 text-zinc-200'
+                  'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
+                  'bg-surface-inset border-border-default text-text-primary'
                 )}
               />
               <button
                 onClick={handleCriarRaiz}
                 disabled={criando || !novoNome.trim()}
-                className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
+                className="p-2.5 rounded-xl bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-colors shrink-0"
               >
                 {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
               </button>
             </div>
-            {erroCriar && <p className="text-xs text-rose-500">{erroCriar}</p>}
+            {erroCriar && <p className="text-xs text-danger">{erroCriar}</p>}
           </>
         )}
 
@@ -245,7 +245,7 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
             />
           </div>
         ) : arvore.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">
+          <p className="text-sm text-text-muted py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma categoria cadastrada ainda.'}
           </p>
         ) : (
@@ -325,7 +325,7 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
                 setItemParaExcluir(null);
                 setErroExclusao(null);
               }}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300"
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary"
             >
               Cancelar
             </button>
@@ -340,7 +340,7 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
                 else setErroExclusao(result.error || 'Erro ao excluir');
               }}
               disabled={excluindo}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
             >
               {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
             </button>
@@ -349,12 +349,12 @@ export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover,
       >
         {itemParaExcluir && (
           <>
-            <p className="text-sm text-zinc-500">
+            <p className="text-sm text-text-muted">
               {getDescendantIds(itemParaExcluir.id, categorias).length > 1
                 ? `Isso também excluirá as ${getDescendantIds(itemParaExcluir.id, categorias).length - 1} subcategoria(s) abaixo dela. Essa ação não pode ser desfeita.`
                 : 'Essa ação não pode ser desfeita.'}
             </p>
-            {erroExclusao && <p className="text-xs text-rose-500 mt-3">{erroExclusao}</p>}
+            {erroExclusao && <p className="text-xs text-danger mt-3">{erroExclusao}</p>}
           </>
         )}
       </Modal>
@@ -423,14 +423,14 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
       <div
         className={cn(
           'group flex items-center gap-1 rounded-xl',
-          'hover:bg-zinc-800/40'
+          'hover:bg-surface-raised'
         )}
       >
         <button
           {...(h.arrastavel ? { ...attributes, ...listeners } : {})}
           className={cn(
             'p-1.5 shrink-0 touch-none',
-            h.arrastavel ? 'text-zinc-500 cursor-grab active:cursor-grabbing' : 'text-zinc-500 opacity-40 cursor-not-allowed'
+            h.arrastavel ? 'text-text-muted cursor-grab active:cursor-grabbing' : 'text-text-muted opacity-40 cursor-not-allowed'
           )}
           title={h.arrastavel ? 'Arrastar para reordenar' : 'Disponível apenas em Ordem manual (arrastar)'}
         >
@@ -439,7 +439,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
 
         <button
           onClick={() => temFilhos && onToggleExpandido(node.id)}
-          className={cn('w-5 h-5 flex items-center justify-center shrink-0 text-zinc-500', !temFilhos && 'opacity-0 pointer-events-none')}
+          className={cn('w-5 h-5 flex items-center justify-center shrink-0 text-text-muted', !temFilhos && 'opacity-0 pointer-events-none')}
         >
           {expandido ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
         </button>
@@ -457,13 +457,13 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                 }}
                 className={cn(
                   'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                  'bg-zinc-950 border-violet-500/50 text-zinc-200'
+                  'bg-surface-inset border-accent/50 text-text-primary'
                 )}
               />
-              <button onClick={() => h.onSalvarEdicao(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
+              <button onClick={() => h.onSalvarEdicao(node.id)} className="p-1.5 rounded-lg text-positive hover:bg-positive/10 shrink-0">
                 <Check size={14} />
               </button>
-              <button onClick={h.onCancelarEdicao} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+              <button onClick={h.onCancelarEdicao} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
                 <X size={14} />
               </button>
             </>
@@ -478,7 +478,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                 emptyOption={{ value: ROOT_OPTION_VALUE, label: '— Categoria raiz —' }}
                 searchPlaceholder="Buscar categoria..."
               />
-              <button onClick={() => h.setMovendoId(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+              <button onClick={() => h.setMovendoId(null)} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
                 <X size={14} />
               </button>
             </>
@@ -490,7 +490,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                   'flex items-center gap-2 text-sm truncate min-w-0',
                   temFilhos && 'cursor-pointer',
                   temFilhos ? 'font-bold' : 'font-medium',
-                  'text-zinc-200'
+                  'text-text-primary'
                 )}
               >
                 <span className="truncate">{node.nome}</span>
@@ -498,7 +498,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                   <span
                     className={cn(
                       'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                      'bg-zinc-800 text-zinc-400'
+                      'bg-surface-raised text-text-muted'
                     )}
                   >
                     {node.children.length}
@@ -506,16 +506,16 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                 )}
               </span>
               <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => h.onIniciarSub(node.id)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Adicionar subcategoria">
+                <button onClick={() => h.onIniciarSub(node.id)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors" title="Adicionar subcategoria">
                   <Plus size={13} />
                 </button>
-                <button onClick={() => h.setMovendoId(node.id)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Mover para outra categoria">
+                <button onClick={() => h.setMovendoId(node.id)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors" title="Mover para outra categoria">
                   <FolderInput size={13} />
                 </button>
-                <button onClick={() => h.onIniciarEdicao(node)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Renomear">
+                <button onClick={() => h.onIniciarEdicao(node)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors" title="Renomear">
                   <Pencil size={13} />
                 </button>
-                <button onClick={() => h.onPedirExclusao(node)} className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors" title="Excluir">
+                <button onClick={() => h.onPedirExclusao(node)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors" title="Excluir">
                   <Trash2 size={13} />
                 </button>
               </div>
@@ -538,13 +538,13 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
               placeholder="Nome da subcategoria..."
               className={cn(
                 'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                'bg-zinc-950 border-violet-500/50 text-zinc-200'
+                'bg-surface-inset border-accent/50 text-text-primary'
               )}
             />
-            <button onClick={() => h.onCriarSub(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
+            <button onClick={() => h.onCriarSub(node.id)} className="p-1.5 rounded-lg text-positive hover:bg-positive/10 shrink-0">
               <Check size={14} />
             </button>
-            <button onClick={h.onCancelarSub} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+            <button onClick={h.onCancelarSub} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
               <X size={14} />
             </button>
           </div>
