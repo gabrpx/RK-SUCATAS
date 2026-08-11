@@ -9,6 +9,7 @@ import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { Modal } from '../../components/ui/Modal';
 import { useLembretes } from './useLembretes';
 import { lembretesApi } from './api';
 import type { Lembrete, UsuarioResumo } from './types';
@@ -262,120 +263,116 @@ export function LembretesView({ userRoles }: { userRoles: string[] }) {
         </div>
       )}
 
-      {isFormOpen && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setIsFormOpen(false)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-md flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle max-h-[90vh]"
-          >
-            <div className="p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">{editando ? 'Editar lembrete' : 'Novo lembrete'}</h2>
-            </div>
-            <div className="p-6 space-y-4 overflow-y-auto">
-              {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
-              <div>
-                <label className={labelClass}>Título</label>
-                <input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} className={inputClass} placeholder="ex: Ligar pro fornecedor" />
-              </div>
-              <div>
-                <label className={labelClass}>Descrição</label>
-                <textarea
-                  value={form.descricao}
-                  onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
-                  className={cn(inputClass, 'min-h-16 resize-none')}
-                  placeholder="Detalhes (opcional)"
-                />
-              </div>
-              <div>
-                <label className={labelClass}>Responsável</label>
-                <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
-                  {usuarios.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.id === meuId ? `${u.nome_exibicao} (você)` : u.nome_exibicao}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div className="flex items-center gap-2">
-                {(['repetir', 'horario'] as const).map((modo) => (
+      <Modal
+        aberto={isFormOpen}
+        onFechar={() => setIsFormOpen(false)}
+        titulo={editando ? 'Editar lembrete' : 'Novo lembrete'}
+        tamanho="md"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+              {salvando ? 'Salvando...' : 'Salvar'}
+            </button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
+          <div>
+            <label className={labelClass}>Título</label>
+            <input value={form.titulo} onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))} className={inputClass} placeholder="ex: Ligar pro fornecedor" />
+          </div>
+          <div>
+            <label className={labelClass}>Descrição</label>
+            <textarea
+              value={form.descricao}
+              onChange={(e) => setForm((f) => ({ ...f, descricao: e.target.value }))}
+              className={cn(inputClass, 'min-h-16 resize-none')}
+              placeholder="Detalhes (opcional)"
+            />
+          </div>
+          <div>
+            <label className={labelClass}>Responsável</label>
+            <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
+              {usuarios.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.id === meuId ? `${u.nome_exibicao} (você)` : u.nome_exibicao}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2">
+            {(['repetir', 'horario'] as const).map((modo) => (
+              <button
+                key={modo}
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, modo }))}
+                className={cn(
+                  'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
+                  form.modo === modo ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                )}
+              >
+                {modo === 'repetir' ? 'Repetir' : 'Horário específico'}
+              </button>
+            ))}
+          </div>
+          {form.modo === 'repetir' ? (
+            <div>
+              <label className={labelClass}>Repetir a cada</label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {INTERVALOS_COMUNS.map((i) => (
                   <button
-                    key={modo}
+                    key={i.minutos}
                     type="button"
-                    onClick={() => setForm((f) => ({ ...f, modo }))}
+                    onClick={() => setForm((f) => ({ ...f, intervaloMinutos: i.minutos }))}
                     className={cn(
-                      'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
-                      form.modo === modo ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                      'h-9 px-3 rounded-control border text-[11px] font-semibold transition-colors',
+                      form.intervaloMinutos === i.minutos ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
                     )}
                   >
-                    {modo === 'repetir' ? 'Repetir' : 'Horário específico'}
+                    {i.label}
                   </button>
                 ))}
+                <input
+                  type="number"
+                  min={5}
+                  value={form.intervaloMinutos}
+                  onChange={(e) => setForm((f) => ({ ...f, intervaloMinutos: Math.max(5, Number(e.target.value) || 5) }))}
+                  className={cn(inputClass, 'w-24')}
+                />
+                <span className="text-xs text-text-faint">min (mín. 5)</span>
               </div>
-              {form.modo === 'repetir' ? (
-                <div>
-                  <label className={labelClass}>Repetir a cada</label>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {INTERVALOS_COMUNS.map((i) => (
-                      <button
-                        key={i.minutos}
-                        type="button"
-                        onClick={() => setForm((f) => ({ ...f, intervaloMinutos: i.minutos }))}
-                        className={cn(
-                          'h-9 px-3 rounded-control border text-[11px] font-semibold transition-colors',
-                          form.intervaloMinutos === i.minutos ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                        )}
-                      >
-                        {i.label}
-                      </button>
-                    ))}
-                    <input
-                      type="number"
-                      min={5}
-                      value={form.intervaloMinutos}
-                      onChange={(e) => setForm((f) => ({ ...f, intervaloMinutos: Math.max(5, Number(e.target.value) || 5) }))}
-                      className={cn(inputClass, 'w-24')}
-                    />
-                    <span className="text-xs text-text-faint">min (mín. 5)</span>
-                  </div>
-                </div>
-              ) : (
-                <div>
-                  <label className={labelClass}>Horário</label>
-                  <input type="datetime-local" value={form.horarioFixo} onChange={(e) => setForm((f) => ({ ...f, horarioFixo: e.target.value }))} className={inputClass} />
-                </div>
-              )}
             </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
-                {salvando ? 'Salvando...' : 'Salvar'}
-              </button>
+          ) : (
+            <div>
+              <label className={labelClass}>Horário</label>
+              <input type="datetime-local" value={form.horarioFixo} onChange={(e) => setForm((f) => ({ ...f, horarioFixo: e.target.value }))} className={inputClass} />
             </div>
-          </div>
+          )}
         </div>
-      )}
+      </Modal>
 
-      {excluindo && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center" onClick={() => setExcluindo(null)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-sm flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle p-6 space-y-4"
-          >
-            <h2 className="text-lg font-medium">Excluir lembrete?</h2>
-            <p className="text-sm text-text-secondary">"{excluindo.titulo}" será removido definitivamente.</p>
-            <div className="flex gap-3">
-              <button onClick={() => setExcluindo(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Cancelar
-              </button>
-              <button onClick={confirmarExclusao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
-                Excluir
-              </button>
-            </div>
+      <Modal
+        aberto={!!excluindo}
+        onFechar={() => setExcluindo(null)}
+        titulo="Excluir lembrete?"
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <button onClick={() => setExcluindo(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+              Cancelar
+            </button>
+            <button onClick={confirmarExclusao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+              Excluir
+            </button>
           </div>
-        </div>
-      )}
+        }
+      >
+        {excluindo && <p className="text-sm text-text-secondary">"{excluindo.titulo}" será removido definitivamente.</p>}
+      </Modal>
     </div>
   );
 }
