@@ -16,7 +16,6 @@ import { Capacitor } from '@capacitor/core';
 import {
   Package,
   TrendingUp,
-  X,
   ChevronRight,
   ChevronLeft,
   Loader2,
@@ -37,6 +36,7 @@ import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
 import { useScrollLock } from './hooks/useScrollLock';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { Modal } from './components/ui/Modal';
 import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
@@ -252,8 +252,6 @@ function DetailModal({
   fiadoRecebimentos?: FiadoRecebimento[];
   vendas?: Venda[];
 }) {
-  useScrollLock(true);
-
   const venda = isVenda(item) ? item : null;
   const estoque = !venda ? (item as Estoque) : null;
   const imagens = estoque?.imagens ?? [];
@@ -280,22 +278,57 @@ function DetailModal({
   const valor = venda ? venda.valor_total : estoque!.valor;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className={cn('w-[95%] md:max-w-2xl h-[90vh] md:h-auto md:max-h-[90vh] rounded-[2.5rem] overflow-hidden border shadow-2xl flex flex-col relative', 'bg-zinc-950 border-zinc-800')}
+    <>
+      <Modal
+        aberto={true}
+        onFechar={onClose}
+        titulo={titulo}
+        tamanho="lg"
+        rodape={
+          onEdit || onDelete || estoque ? (
+            <div className={cn('grid gap-3', onEdit && onDelete && estoque ? 'grid-cols-3' : 'grid-cols-2')}>
+              {onEdit && (
+                <button
+                  onClick={() => {
+                    onEdit(item);
+                    onClose();
+                  }}
+                  className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800')}
+                >
+                  <Edit size={16} /> Editar
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  // Sem window.confirm aqui: quem recebe o onDelete já abre
+                  // a própria confirmação (Estoque) ou o modal de
+                  // cancelamento (Vendas) — eram duas perguntas seguidas.
+                  onClick={() => {
+                    onDelete((item as any).id);
+                    onClose();
+                  }}
+                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500/20 flex items-center justify-center gap-2"
+                >
+                  <Trash2 size={16} /> Excluir
+                </button>
+              )}
+              {/* WhatsApp só faz sentido pra Estoque (falar sobre a peça) —
+                  numa venda já concluída não há nada a "compartilhar". Virou
+                  uma ação secundária pequena, não mais o CTA principal do modal. */}
+              {estoque && (
+                <button
+                  onClick={handleWhatsAppShare}
+                  title="Compartilhar no WhatsApp"
+                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 flex items-center justify-center gap-2"
+                >
+                  <MessageCircle size={16} /> WhatsApp
+                </button>
+              )}
+            </div>
+          ) : undefined
+        }
       >
-        <div className="md:hidden w-full flex justify-center pt-4 pb-2">
-          <div className="w-12 h-1.5 rounded-full bg-zinc-800/50" />
-        </div>
-        <button onClick={onClose} className={cn('absolute top-6 right-6 z-50 p-2 rounded-full shadow-xl border', 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white')}>
-          <X size={20} />
-        </button>
-
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
+        <div className="-mx-5 -mt-5 md:-mx-6 md:-mt-6">
           <div className="relative aspect-[4/3] w-full bg-zinc-950 overflow-hidden flex items-center justify-center">
             {imagens[indiceImagem] ? (
               <button type="button" onClick={() => setFotoCheiaAberta(true)} className="w-full h-full cursor-zoom-in">
@@ -320,7 +353,7 @@ function DetailModal({
           </div>
 
           {imagens.length > 1 && (
-            <div className="flex gap-2 px-8 pt-4 overflow-x-auto scrollbar-hide">
+            <div className="flex gap-2 px-5 md:px-6 pt-4 overflow-x-auto scrollbar-hide">
               {imagens.map((url, i) => (
                 <button
                   key={url}
@@ -333,178 +366,133 @@ function DetailModal({
               ))}
             </div>
           )}
-
-          <div className="p-8 space-y-8">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-3 py-1 bg-violet-500/10 text-violet-500 text-[10px] font-black uppercase tracking-widest rounded-full border border-violet-500/20">
-                    {venda ? 'Venda' : estoque?.categoria?.nome || 'Peça'}
-                  </span>
-                  {estoque && <NotaCadastroBadge value={estoque.nota_cadastro} />}
-                </div>
-                {estoque?.codigo && <span className="text-zinc-500 text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
-              </div>
-              <h2 className={cn('text-3xl md:text-4xl font-black tracking-tight uppercase leading-none', 'text-white')}>{titulo}</h2>
-              {estoque?.promocao_ativa ? (
-                <div className="flex items-end gap-3 flex-wrap">
-                  <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(estoque.promocao_ativa.valor_promocional)}</div>
-                  <div className="flex flex-col gap-1 pb-1">
-                    <span className="text-base font-bold text-zinc-500 line-through">{formatCurrency(valor)}</span>
-                    <PromocaoBadge promocao={estoque.promocao_ativa} />
-                  </div>
-                </div>
-              ) : (
-                <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(valor)}</div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              {estoque && (
-                <>
-                  <DetailItemBox
-                    label="Quantidade"
-                    value={contarAvarias(estoque) > 0 ? `${estoque.quantidade} · ${contarAvarias(estoque)} c/ avaria` : estoque.quantidade}
-                    icon={Package}
-                  />
-                  <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} />
-                  <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} />
-                  {estoque.condicao_nota != null && <DetailItemBox label="Estado físico" value={`${estoque.condicao_nota}/10`} icon={Gauge} />}
-                  <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} />
-                </>
-              )}
-              {venda && (
-                <>
-                  <DetailItemBox label="Quantidade" value={venda.quantidade} icon={Package} />
-                  {(() => {
-                    const efetiva = formaPagamentoEfetiva(venda, fiadoRecebimentos);
-                    const valorPagamento = efetiva ? `${efetiva.formas.join(', ')}${efetiva.quitadoTotal ? '' : ' (parcial)'}` : venda.forma_pagamento?.nome;
-                    return <DetailItemBox label="Pagamento" value={valorPagamento} icon={CreditCard} />;
-                  })()}
-                  <DetailItemBox label="Data" value={new Date(venda.data).toLocaleDateString('pt-BR')} icon={Calendar} />
-                  {venda.cliente_nome && <DetailItemBox label="Cliente" value={venda.cliente_nome} icon={Edit} />}
-                </>
-              )}
-            </div>
-
-            {venda && formaPagamentoEfetiva(venda, fiadoRecebimentos) && (
-              <div className={cn('p-4 rounded-3xl border space-y-1.5', 'bg-zinc-900/30 border-zinc-800')}>
-                <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em]">Recebimentos deste fiado</h4>
-                {fiadoRecebimentos
-                  .filter((r) => r.venda_id === venda.id)
-                  .sort((a, b) => new Date(b.recebido_em).getTime() - new Date(a.recebido_em).getTime())
-                  .map((r) => (
-                    <div key={r.id} className="flex items-center justify-between text-xs">
-                      <span className={'text-zinc-400'}>
-                        {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'}
-                      </span>
-                      <span className="font-medium text-emerald-500">{formatCurrency(r.valor)}</span>
-                    </div>
-                  ))}
-              </div>
-            )}
-
-            {venda && (
-              <div className="space-y-4">
-                <ComprovantesPixVenda vendaId={venda.id} podeExcluir={userRoles.includes('admin')} readOnly={readOnly} />
-                {venda.cliente_id && (
-                  <VendaClienteResumo
-                    clienteId={venda.cliente_id}
-                    venda={venda}
-                    podeExcluirComprovante={userRoles.includes('admin')}
-                    onAbrirFiado={
-                      onAbrirFiado
-                        ? () => {
-                            onAbrirFiado();
-                            onClose();
-                          }
-                        : undefined
-                    }
-                  />
-                )}
-              </div>
-            )}
-
-            {(estoque?.descricao || venda?.observacoes) && (
-              <div className={cn('p-6 rounded-3xl border space-y-2', 'bg-zinc-900/30 border-zinc-800')}>
-                <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] flex items-center gap-2">
-                  <FileText size={14} /> {venda ? 'Observações' : 'Descrição'}
-                </h4>
-                <p className={cn('text-sm leading-relaxed', 'text-zinc-400')}>{estoque?.descricao || venda?.observacoes}</p>
-              </div>
-            )}
-
-            {/* Venda em partes: mostra o cálculo antes mesmo de abrir uma
-                venda nova, não só no momento de vender (ver VendasView). */}
-            {estoque && (estoque.unidades_incompletas?.length ?? 0) > 0 && (
-              <div className={cn('p-4 rounded-3xl border', 'bg-zinc-900/30 border-zinc-800')}>
-                <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] mb-2">Venda em partes</h4>
-                <p className="text-xs text-zinc-500 mb-1">
-                  {estoque.unidades_incompletas.length} unidade(s) incompleta(s) — falta: {estoque.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}
-                </p>
-                <p className="text-xs text-zinc-500">
-                  Valor original: {formatCurrency(estoque.valor)} · Já vendido em partes: {formatCurrency(valorVendidoEmPartes(estoque.id, todasAsVendas))} · Restante:{' '}
-                  {formatCurrency(valorRestanteEstimado(estoque.valor, estoque.id, todasAsVendas))}
-                </p>
-              </div>
-            )}
-
-            {/* Unidades físicas desta peça: mesma peça, uma linha só no
-                estoque, mas cada unidade diferente (nota própria, avaria,
-                apelido ou preço) ganha ficha e foto. */}
-            {estoque && <UnidadesEstoque item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
-
-            <div className="flex flex-col gap-3 pt-4">
-              {(onEdit || onDelete || estoque) && (
-                <div className={cn('grid gap-3', onEdit && onDelete && estoque ? 'grid-cols-3' : 'grid-cols-2')}>
-                  {onEdit && (
-                    <button
-                      onClick={() => {
-                        onEdit(item);
-                        onClose();
-                      }}
-                      className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800')}
-                    >
-                      <Edit size={16} /> Editar
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      // Sem window.confirm aqui: quem recebe o onDelete já abre
-                      // a própria confirmação (Estoque) ou o modal de
-                      // cancelamento (Vendas) — eram duas perguntas seguidas.
-                      onClick={() => {
-                        onDelete((item as any).id);
-                        onClose();
-                      }}
-                      className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500/20 flex items-center justify-center gap-2"
-                    >
-                      <Trash2 size={16} /> Excluir
-                    </button>
-                  )}
-                  {/* WhatsApp só faz sentido pra Estoque (falar sobre a peça) —
-                      numa venda já concluída não há nada a "compartilhar". Virou
-                      uma ação secundária pequena, não mais o CTA principal do modal. */}
-                  {estoque && (
-                    <button
-                      onClick={handleWhatsAppShare}
-                      title="Compartilhar no WhatsApp"
-                      className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 flex items-center justify-center gap-2"
-                    >
-                      <MessageCircle size={16} /> WhatsApp
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
         </div>
-      </motion.div>
+
+        <div className="space-y-8 pt-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 bg-violet-500/10 text-violet-500 text-[10px] font-black uppercase tracking-widest rounded-full border border-violet-500/20">
+                  {venda ? 'Venda' : estoque?.categoria?.nome || 'Peça'}
+                </span>
+                {estoque && <NotaCadastroBadge value={estoque.nota_cadastro} />}
+              </div>
+              {estoque?.codigo && <span className="text-zinc-500 text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
+            </div>
+            {estoque?.promocao_ativa ? (
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(estoque.promocao_ativa.valor_promocional)}</div>
+                <div className="flex flex-col gap-1 pb-1">
+                  <span className="text-base font-bold text-zinc-500 line-through">{formatCurrency(valor)}</span>
+                  <PromocaoBadge promocao={estoque.promocao_ativa} />
+                </div>
+              </div>
+            ) : (
+              <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(valor)}</div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {estoque && (
+              <>
+                <DetailItemBox
+                  label="Quantidade"
+                  value={contarAvarias(estoque) > 0 ? `${estoque.quantidade} · ${contarAvarias(estoque)} c/ avaria` : estoque.quantidade}
+                  icon={Package}
+                />
+                <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} />
+                <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} />
+                {estoque.condicao_nota != null && <DetailItemBox label="Estado físico" value={`${estoque.condicao_nota}/10`} icon={Gauge} />}
+                <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} />
+              </>
+            )}
+            {venda && (
+              <>
+                <DetailItemBox label="Quantidade" value={venda.quantidade} icon={Package} />
+                {(() => {
+                  const efetiva = formaPagamentoEfetiva(venda, fiadoRecebimentos);
+                  const valorPagamento = efetiva ? `${efetiva.formas.join(', ')}${efetiva.quitadoTotal ? '' : ' (parcial)'}` : venda.forma_pagamento?.nome;
+                  return <DetailItemBox label="Pagamento" value={valorPagamento} icon={CreditCard} />;
+                })()}
+                <DetailItemBox label="Data" value={new Date(venda.data).toLocaleDateString('pt-BR')} icon={Calendar} />
+                {venda.cliente_nome && <DetailItemBox label="Cliente" value={venda.cliente_nome} icon={Edit} />}
+              </>
+            )}
+          </div>
+
+          {venda && formaPagamentoEfetiva(venda, fiadoRecebimentos) && (
+            <div className={cn('p-4 rounded-3xl border space-y-1.5', 'bg-zinc-900/30 border-zinc-800')}>
+              <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em]">Recebimentos deste fiado</h4>
+              {fiadoRecebimentos
+                .filter((r) => r.venda_id === venda.id)
+                .sort((a, b) => new Date(b.recebido_em).getTime() - new Date(a.recebido_em).getTime())
+                .map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-xs">
+                    <span className={'text-zinc-400'}>
+                      {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'}
+                    </span>
+                    <span className="font-medium text-emerald-500">{formatCurrency(r.valor)}</span>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {venda && (
+            <div className="space-y-4">
+              <ComprovantesPixVenda vendaId={venda.id} podeExcluir={userRoles.includes('admin')} readOnly={readOnly} />
+              {venda.cliente_id && (
+                <VendaClienteResumo
+                  clienteId={venda.cliente_id}
+                  venda={venda}
+                  podeExcluirComprovante={userRoles.includes('admin')}
+                  onAbrirFiado={
+                    onAbrirFiado
+                      ? () => {
+                          onAbrirFiado();
+                          onClose();
+                        }
+                      : undefined
+                  }
+                />
+              )}
+            </div>
+          )}
+
+          {(estoque?.descricao || venda?.observacoes) && (
+            <div className={cn('p-6 rounded-3xl border space-y-2', 'bg-zinc-900/30 border-zinc-800')}>
+              <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] flex items-center gap-2">
+                <FileText size={14} /> {venda ? 'Observações' : 'Descrição'}
+              </h4>
+              <p className={cn('text-sm leading-relaxed', 'text-zinc-400')}>{estoque?.descricao || venda?.observacoes}</p>
+            </div>
+          )}
+
+          {/* Venda em partes: mostra o cálculo antes mesmo de abrir uma
+              venda nova, não só no momento de vender (ver VendasView). */}
+          {estoque && (estoque.unidades_incompletas?.length ?? 0) > 0 && (
+            <div className={cn('p-4 rounded-3xl border', 'bg-zinc-900/30 border-zinc-800')}>
+              <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] mb-2">Venda em partes</h4>
+              <p className="text-xs text-zinc-500 mb-1">
+                {estoque.unidades_incompletas.length} unidade(s) incompleta(s) — falta: {estoque.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}
+              </p>
+              <p className="text-xs text-zinc-500">
+                Valor original: {formatCurrency(estoque.valor)} · Já vendido em partes: {formatCurrency(valorVendidoEmPartes(estoque.id, todasAsVendas))} · Restante:{' '}
+                {formatCurrency(valorRestanteEstimado(estoque.valor, estoque.id, todasAsVendas))}
+              </p>
+            </div>
+          )}
+
+          {/* Unidades físicas desta peça: mesma peça, uma linha só no
+              estoque, mas cada unidade diferente (nota própria, avaria,
+              apelido ou preço) ganha ficha e foto. */}
+          {estoque && <UnidadesEstoque item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
+        </div>
+      </Modal>
 
       {fotoCheiaAberta && imagens.length > 0 && (
         <VisualizadorFotos fotos={imagens} indice={indiceImagem} onTrocar={setIndiceImagem} onFechar={() => setFotoCheiaAberta(false)} />
       )}
-    </div>
+    </>
   );
 }
 
@@ -775,22 +763,20 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         </div>
       )}
 
-      <AnimatePresence>
-        {selectedDetailItem && (
-          <DetailModal
-            item={selectedDetailItem}
-                       onClose={() => setSelectedDetailItem(null)}
-            onEdit={itemActions.edit}
-            onDelete={itemActions.delete}
-            readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
-            onAlterado={refreshData}
-            userRoles={userRoles}
-            onAbrirFiado={() => setActiveTab('fiado')}
-            fiadoRecebimentos={fiadoRecebimentos}
-            vendas={todasAsVendas}
-          />
-        )}
-      </AnimatePresence>
+      {selectedDetailItem && (
+        <DetailModal
+          item={selectedDetailItem}
+          onClose={() => setSelectedDetailItem(null)}
+          onEdit={itemActions.edit}
+          onDelete={itemActions.delete}
+          readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
+          onAlterado={refreshData}
+          userRoles={userRoles}
+          onAbrirFiado={() => setActiveTab('fiado')}
+          fiadoRecebimentos={fiadoRecebimentos}
+          vendas={todasAsVendas}
+        />
+      )}
 
       <AnimatePresence>{isLogoutModalOpen && <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} />}</AnimatePresence>
     </div>
