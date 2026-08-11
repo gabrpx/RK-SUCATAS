@@ -87,36 +87,36 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
     }
   };
 
-  const cardClass = cn('rounded-3xl border p-5', 'bg-zinc-900/50 border-zinc-800');
+  const cardClass = cn('rounded-3xl border p-5', 'bg-surface-card border-border-subtle');
 
   return (
     <div className="space-y-6 pb-24 md:pb-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-emerald-500/10 rounded-2xl">
-            <Wallet className="text-emerald-500" size={28} />
+          <div className="p-3 bg-accent/10 rounded-2xl">
+            <Wallet className="text-accent" size={28} />
           </div>
           <div>
-            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Caixa</h2>
-            <p className={cn('text-sm', 'text-zinc-500')}>Entradas e saídas financeiras</p>
+            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-text-primary')}>Caixa</h2>
+            <p className={cn('text-sm', 'text-text-muted')}>Entradas e saídas financeiras</p>
           </div>
         </div>
         <button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20"
+          className="flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Novo Lançamento
         </button>
       </div>
 
       {/* Sub-abas: Lançamentos (o que já existia) / Pendências (fiado do Caixa) */}
-      <div className={cn('inline-flex items-center gap-1 p-1.5 rounded-2xl border w-fit', 'bg-zinc-900/50 border-zinc-800')}>
+      <div className={cn('inline-flex items-center gap-1 p-1.5 rounded-2xl border w-fit', 'bg-surface-card border-border-subtle')}>
         <button
           onClick={() => setAba('lancamentos')}
           className={cn(
             'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
-            aba === 'lancamentos' ? 'bg-emerald-500 text-white' : 'text-zinc-400'
+            aba === 'lancamentos' ? 'bg-accent text-white' : 'text-text-muted'
           )}
         >
           Lançamentos
@@ -125,7 +125,7 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
           onClick={() => setAba('pendencias')}
           className={cn(
             'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
-            aba === 'pendencias' ? 'bg-emerald-500 text-white' : 'text-zinc-400'
+            aba === 'pendencias' ? 'bg-accent text-white' : 'text-text-muted'
           )}
         >
           Pendências
@@ -140,37 +140,37 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className={cardClass}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Entradas</span>
-            <TrendingUp size={16} className="text-emerald-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Entradas</span>
+            <TrendingUp size={16} className="text-positive" />
           </div>
-          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-emerald-500' : 'blur-md select-none text-emerald-500')}>
+          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-positive' : 'blur-md select-none text-positive')}>
             {formatCurrency(totals.entradas)}
           </p>
         </div>
         <div className={cardClass}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saídas</span>
-            <TrendingDown size={16} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Saídas</span>
+            <TrendingDown size={16} className="text-negative" />
           </div>
-          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-rose-500' : 'blur-md select-none text-rose-500')}>
+          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-negative' : 'blur-md select-none text-negative')}>
             {formatCurrency(totals.saidas)}
           </p>
         </div>
         <div className={cardClass}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saldo</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Saldo</span>
             <div className="flex items-center gap-2">
-              <button onClick={() => setShowSensitiveInfo((v) => !v)} className="text-zinc-500 hover:text-zinc-300">
+              <button onClick={() => setShowSensitiveInfo((v) => !v)} className="text-text-muted hover:text-text-secondary">
                 {showSensitiveInfo ? <Eye size={14} /> : <EyeOff size={14} />}
               </button>
-              <Scale size={16} className={'text-zinc-400'} />
+              <Scale size={16} className={'text-text-muted'} />
             </div>
           </div>
           <p
             className={cn(
               'text-2xl font-black',
               !showSensitiveInfo && 'blur-md select-none',
-              totals.saldo >= 0 ? 'text-emerald-500' : 'text-rose-500'
+              totals.saldo >= 0 ? 'text-positive' : 'text-negative'
             )}
           >
             {formatCurrency(totals.saldo)}
@@ -180,8 +180,8 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-zinc-900 border-zinc-800')}>
-          <Search size={16} className="text-zinc-500 shrink-0" />
+        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-surface-inset border-border-default')}>
+          <Search size={16} className="text-text-muted shrink-0" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -215,29 +215,29 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
       </div>
 
       {/* Lista */}
-      <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
+      <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
         {filtered.length === 0 ? (
-          <div className="p-12 text-center text-zinc-500 text-sm">Nenhum lançamento encontrado para este filtro.</div>
+          <div className="p-12 text-center text-text-muted text-sm">Nenhum lançamento encontrado para este filtro.</div>
         ) : (
-          <div className="divide-y divide-zinc-800/50">
+          <div className="divide-y divide-border-subtle">
             {filtered.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-zinc-800/20 transition-colors">
+              <div key={entry.id} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-surface-raised transition-colors">
                 <div className="flex items-center gap-3 min-w-0">
                   <div
                     className={cn(
                       'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                      entry.tipo === 'entrada' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
+                      entry.tipo === 'entrada' ? 'bg-positive/10 text-positive' : 'bg-negative/10 text-negative'
                     )}
                   >
                     {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                   </div>
                   <div className="min-w-0">
-                    <p className={cn('font-bold text-sm truncate', 'text-white')}>{entry.descricao}</p>
-                    <p className="text-xs text-zinc-500 flex items-center gap-2">
+                    <p className={cn('font-bold text-sm truncate', 'text-text-primary')}>{entry.descricao}</p>
+                    <p className="text-xs text-text-muted flex items-center gap-2">
                       {parseLocalDate(entry.data).toLocaleDateString('pt-BR')}
                       {entry.forma_pagamento && <span>· {entry.forma_pagamento.nome}</span>}
                       {entry.venda_id && (
-                        <span className="flex items-center gap-1 text-violet-400">
+                        <span className="flex items-center gap-1 text-accent">
                           <Link2 size={11} /> venda
                         </span>
                       )}
@@ -245,13 +245,13 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
                   </div>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-emerald-500' : 'text-rose-500')}>
+                  <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-positive' : 'text-negative')}>
                     {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
                   </span>
                   {!entry.venda_id && (
                     <button
                       onClick={() => setEntryToDelete(entry)}
-                      className="p-2 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
+                      className="p-2 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg transition-colors"
                     >
                       <Trash2 size={14} />
                     </button>
@@ -278,17 +278,17 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
           <div className="flex gap-3">
             <button
               onClick={() => setEntryToDelete(null)}
-              className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-zinc-900 text-zinc-300')}
+              className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-surface-card text-text-secondary')}
             >
               Cancelar
             </button>
-            <button onClick={handleDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600">
+            <button onClick={handleDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90">
               Excluir
             </button>
           </div>
         }
       >
-        {entryToDelete && <p className="text-sm text-zinc-500">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>}
+        {entryToDelete && <p className="text-sm text-text-muted">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>}
       </Modal>
     </div>
   );
@@ -360,10 +360,10 @@ function LancamentoModal({
   };
 
   const inputClass = cn(
-    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    'bg-zinc-950 border-zinc-800 text-zinc-200'
+    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50',
+    'bg-surface-inset border-border-default text-text-primary'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   return (
     <Modal
@@ -375,7 +375,7 @@ function LancamentoModal({
         <button
           onClick={handleSubmit}
           disabled={loading || !descricao.trim() || !valor}
-          className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2"
+          className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-accent-shadow flex items-center justify-center gap-2"
         >
           {loading ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Lançamento'}
         </button>
@@ -388,7 +388,7 @@ function LancamentoModal({
             onClick={() => setModo('entrada')}
             className={cn(
               'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-              modo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-800 text-zinc-400'
+              modo === 'entrada' ? 'bg-positive border-positive text-surface-page' : 'border-border-default text-text-muted'
             )}
           >
             Entrada
@@ -398,7 +398,7 @@ function LancamentoModal({
             onClick={() => setModo('saida')}
             className={cn(
               'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-              modo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : 'border-zinc-800 text-zinc-400'
+              modo === 'saida' ? 'bg-negative border-negative text-surface-page' : 'border-border-default text-text-muted'
             )}
           >
             Saída
@@ -408,7 +408,7 @@ function LancamentoModal({
             onClick={() => setModo('pendencia')}
             className={cn(
               'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-              modo === 'pendencia' ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-800 text-zinc-400'
+              modo === 'pendencia' ? 'bg-warning border-warning text-surface-page' : 'border-border-default text-text-muted'
             )}
           >
             Fiado/Pendência
@@ -432,7 +432,7 @@ function LancamentoModal({
         </div>
 
         {modo === 'pendencia' ? (
-          <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-zinc-900 text-zinc-400')}>
+          <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-surface-card text-text-secondary')}>
             Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
           </p>
         ) : (
