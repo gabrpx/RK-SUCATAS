@@ -281,37 +281,30 @@ export function FiadoView({ userRoles = [] }: { userRoles?: Role[] }) {
         }
       />
 
-      {clienteAberto && (
-        <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-end md:items-center justify-center overflow-y-auto" onClick={() => setClienteAberto(null)}>
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="relative w-full max-w-lg flex flex-col overflow-hidden rounded-t-card md:rounded-card bg-surface-page text-text-primary border border-border-subtle my-auto"
-          >
-            <div className="p-6 border-b border-border-subtle">
-              <h2 className="text-lg font-medium">{nomeClienteAberto}</h2>
-              <p className="text-xs text-text-faint mt-0.5">
-                {formatCurrency(totalClienteAberto)} em aberto · {vendasDoClienteAberto.length} venda(s)
-              </p>
-            </div>
-            <div className="p-6 space-y-3 max-h-[65vh] overflow-y-auto">
-              {vendasDoClienteAberto.length === 0 ? (
-                <p className="text-sm text-text-faint text-center py-4">Tudo quitado — feche e volte pra lista.</p>
-              ) : (
-                vendasDoClienteAberto.map(({ venda, saldo, diasEmAberto }) => (
-                  <div key={venda.id}>
-                    <LinhaVendaFiado venda={venda} saldo={saldo} diasEmAberto={diasEmAberto} podeReverter={podeReverter} />
-                  </div>
-                ))
-              )}
-            </div>
-            <div className="flex gap-3 p-6 border-t border-border-subtle">
-              <button onClick={() => setClienteAberto(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
-                Fechar
-              </button>
-            </div>
-          </div>
+      <Modal
+        aberto={!!clienteAberto}
+        onFechar={() => setClienteAberto(null)}
+        titulo={nomeClienteAberto}
+        subtitulo={`${formatCurrency(totalClienteAberto)} em aberto · ${vendasDoClienteAberto.length} venda(s)`}
+        tamanho="lg"
+        rodape={
+          <button onClick={() => setClienteAberto(null)} className="w-full py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            Fechar
+          </button>
+        }
+      >
+        <div className="space-y-3">
+          {vendasDoClienteAberto.length === 0 ? (
+            <p className="text-sm text-text-faint text-center py-4">Tudo quitado — feche e volte pra lista.</p>
+          ) : (
+            vendasDoClienteAberto.map(({ venda, saldo, diasEmAberto }) => (
+              <div key={venda.id}>
+                <LinhaVendaFiado venda={venda} saldo={saldo} diasEmAberto={diasEmAberto} podeReverter={podeReverter} />
+              </div>
+            ))
+          )}
         </div>
-      )}
+      </Modal>
     </div>
   );
 }
