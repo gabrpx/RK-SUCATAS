@@ -161,8 +161,8 @@ export default function App() {
 
   if (isUserAuthenticated === null) {
     return (
-      <div className="min-h-screen bg-[#0f1115] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      <div className="min-h-screen bg-surface-page flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-accent animate-spin" />
       </div>
     );
   }
@@ -205,7 +205,7 @@ const SidebarItem = memo(({ icon: Icon, label, active, onClick, className }: { i
     onClick={onClick}
     className={cn(
       'w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-500 group relative overflow-hidden transform-gpu',
-      active ? 'bg-accent text-white shadow-[0_10px_30px_rgba(91,61,240,0.35)]' : 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300',
+      active ? 'bg-accent text-white shadow-[0_10px_30px_var(--color-accent-shadow)]' : 'text-text-muted hover:bg-surface-raised hover:text-text-secondary',
       className
     )}
   >
@@ -219,12 +219,12 @@ const SidebarItem = memo(({ icon: Icon, label, active, onClick, className }: { i
 // =============================================================================
 
 const DetailItemBox = ({ label, value, icon: Icon }: { label: string; value: any; icon: any }) => (
-  <div className={cn('p-4 rounded-2xl border flex flex-col gap-1.5', 'bg-zinc-900/40 border-zinc-800/50')}>
-    <div className="flex items-center gap-2 text-zinc-500">
+  <div className={cn('p-4 rounded-2xl border flex flex-col gap-1.5', 'bg-surface-card/40 border-border-default/50')}>
+    <div className="flex items-center gap-2 text-text-muted">
       <Icon size={14} strokeWidth={2.5} />
       <span className="text-[10px] uppercase font-black tracking-widest">{label}</span>
     </div>
-    <span className={cn('text-sm md:text-base font-black truncate uppercase', 'text-zinc-100')}>{value ?? '-'}</span>
+    <span className={cn('text-sm md:text-base font-black truncate uppercase', 'text-text-primary')}>{value ?? '-'}</span>
   </div>
 );
 
@@ -292,7 +292,7 @@ function DetailModal({
                     onEdit(item);
                     onClose();
                   }}
-                  className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800')}
+                  className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', 'bg-surface-card border-border-default text-text-primary hover:bg-surface-raised')}
                 >
                   <Edit size={16} /> Editar
                 </button>
@@ -306,7 +306,7 @@ function DetailModal({
                     onDelete((item as any).id);
                     onClose();
                   }}
-                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500/20 flex items-center justify-center gap-2"
+                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20 flex items-center justify-center gap-2"
                 >
                   <Trash2 size={16} /> Excluir
                 </button>
@@ -318,7 +318,7 @@ function DetailModal({
                 <button
                   onClick={handleWhatsAppShare}
                   title="Compartilhar no WhatsApp"
-                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 hover:bg-emerald-500/20 flex items-center justify-center gap-2"
+                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 flex items-center justify-center gap-2"
                 >
                   <MessageCircle size={16} /> WhatsApp
                 </button>
@@ -328,13 +328,13 @@ function DetailModal({
         }
       >
         <div className="-mx-5 -mt-5 md:-mx-6 md:-mt-6">
-          <div className="relative aspect-[4/3] w-full bg-zinc-950 overflow-hidden flex items-center justify-center">
+          <div className="relative aspect-[4/3] w-full bg-surface-inset overflow-hidden flex items-center justify-center">
             {imagens[indiceImagem] ? (
               <button type="button" onClick={() => setFotoCheiaAberta(true)} className="w-full h-full cursor-zoom-in">
                 <img src={imagens[indiceImagem]} className="w-full h-full object-contain" referrerPolicy="no-referrer" alt={titulo} />
               </button>
             ) : (
-              <Package size={64} strokeWidth={1} className="opacity-10 text-zinc-700" />
+              <Package size={64} strokeWidth={1} className="opacity-10 text-text-faint" />
             )}
             {imagens.length > 1 && (
               <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
@@ -344,7 +344,7 @@ function DetailModal({
                     type="button"
                     onClick={() => setIndiceImagem(i)}
                     aria-label={`Foto ${i + 1}`}
-                    className={cn('size-1.5 rounded-full transition-colors', i === indiceImagem ? 'bg-white' : 'bg-white/30')}
+                    className={cn('size-1.5 rounded-full transition-colors', i === indiceImagem ? 'bg-white' : 'bg-media-overlay-dot')}
                   />
                 ))}
               </div>
@@ -358,7 +358,7 @@ function DetailModal({
                   key={url}
                   type="button"
                   onClick={() => setIndiceImagem(i)}
-                  className={cn('size-14 rounded-xl overflow-hidden border-2 shrink-0 transition-colors', i === indiceImagem ? 'border-violet-500' : 'border-transparent')}
+                  className={cn('size-14 rounded-xl overflow-hidden border-2 shrink-0 transition-colors', i === indiceImagem ? 'border-accent' : 'border-transparent')}
                 >
                   <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={`${titulo} ${i + 1}`} />
                 </button>
@@ -371,23 +371,23 @@ function DetailModal({
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="px-3 py-1 bg-violet-500/10 text-violet-500 text-[10px] font-black uppercase tracking-widest rounded-full border border-violet-500/20">
+                <span className="px-3 py-1 bg-accent/10 text-accent text-[10px] font-black uppercase tracking-widest rounded-full border border-accent/20">
                   {venda ? 'Venda' : estoque?.categoria?.nome || 'Peça'}
                 </span>
                 {estoque && <NotaCadastroBadge value={estoque.nota_cadastro} />}
               </div>
-              {estoque?.codigo && <span className="text-zinc-500 text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
+              {estoque?.codigo && <span className="text-text-muted text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
             </div>
             {estoque?.promocao_ativa ? (
               <div className="flex items-end gap-3 flex-wrap">
-                <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(estoque.promocao_ativa.valor_promocional)}</div>
+                <div className="text-4xl md:text-5xl font-black tracking-tighter text-text-primary">{formatCurrency(estoque.promocao_ativa.valor_promocional)}</div>
                 <div className="flex flex-col gap-1 pb-1">
-                  <span className="text-base font-bold text-zinc-500 line-through">{formatCurrency(valor)}</span>
+                  <span className="text-base font-bold text-text-muted line-through">{formatCurrency(valor)}</span>
                   <PromocaoBadge promocao={estoque.promocao_ativa} />
                 </div>
               </div>
             ) : (
-              <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(valor)}</div>
+              <div className="text-4xl md:text-5xl font-black tracking-tighter text-text-primary">{formatCurrency(valor)}</div>
             )}
           </div>
 
@@ -420,17 +420,17 @@ function DetailModal({
           </div>
 
           {venda && formaPagamentoEfetiva(venda, fiadoRecebimentos) && (
-            <div className={cn('p-4 rounded-3xl border space-y-1.5', 'bg-zinc-900/30 border-zinc-800')}>
-              <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em]">Recebimentos deste fiado</h4>
+            <div className={cn('p-4 rounded-3xl border space-y-1.5', 'bg-surface-card/30 border-border-subtle')}>
+              <h4 className="text-[10px] font-black uppercase text-accent-soft-fg tracking-[0.1em]">Recebimentos deste fiado</h4>
               {fiadoRecebimentos
                 .filter((r) => r.venda_id === venda.id)
                 .sort((a, b) => new Date(b.recebido_em).getTime() - new Date(a.recebido_em).getTime())
                 .map((r) => (
                   <div key={r.id} className="flex items-center justify-between text-xs">
-                    <span className={'text-zinc-400'}>
+                    <span className={'text-text-faint'}>
                       {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'}
                     </span>
-                    <span className="font-medium text-emerald-500">{formatCurrency(r.valor)}</span>
+                    <span className="font-medium text-text-secondary">{formatCurrency(r.valor)}</span>
                   </div>
                 ))}
             </div>
@@ -458,23 +458,23 @@ function DetailModal({
           )}
 
           {(estoque?.descricao || venda?.observacoes) && (
-            <div className={cn('p-6 rounded-3xl border space-y-2', 'bg-zinc-900/30 border-zinc-800')}>
-              <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] flex items-center gap-2">
+            <div className={cn('p-6 rounded-3xl border space-y-2', 'bg-surface-card/30 border-border-subtle')}>
+              <h4 className="text-[10px] font-black uppercase text-accent-soft-fg tracking-[0.1em] flex items-center gap-2">
                 <FileText size={14} /> {venda ? 'Observações' : 'Descrição'}
               </h4>
-              <p className={cn('text-sm leading-relaxed', 'text-zinc-400')}>{estoque?.descricao || venda?.observacoes}</p>
+              <p className={cn('text-sm leading-relaxed', 'text-text-secondary')}>{estoque?.descricao || venda?.observacoes}</p>
             </div>
           )}
 
           {/* Venda em partes: mostra o cálculo antes mesmo de abrir uma
               venda nova, não só no momento de vender (ver VendasView). */}
           {estoque && (estoque.unidades_incompletas?.length ?? 0) > 0 && (
-            <div className={cn('p-4 rounded-3xl border', 'bg-zinc-900/30 border-zinc-800')}>
-              <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] mb-2">Venda em partes</h4>
-              <p className="text-xs text-zinc-500 mb-1">
+            <div className={cn('p-4 rounded-3xl border', 'bg-surface-card/30 border-border-subtle')}>
+              <h4 className="text-[10px] font-black uppercase text-accent-soft-fg tracking-[0.1em] mb-2">Venda em partes</h4>
+              <p className="text-xs text-text-muted mb-1">
                 {estoque.unidades_incompletas.length} unidade(s) incompleta(s) — falta: {estoque.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}
               </p>
-              <p className="text-xs text-zinc-500">
+              <p className="text-xs text-text-muted">
                 Valor original: {formatCurrency(estoque.valor)} · Já vendido em partes: {formatCurrency(valorVendidoEmPartes(estoque.id, todasAsVendas))} · Restante:{' '}
                 {formatCurrency(valorRestanteEstimado(estoque.valor, estoque.id, todasAsVendas))}
               </p>
@@ -508,10 +508,10 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout }: { isOpen: boolean; onCl
       tamanho="sm"
       rodape={
         <div className="flex flex-col gap-3">
-          <button onClick={onLogout} className="w-full bg-rose-500 hover:bg-rose-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-500/20">
+          <button onClick={onLogout} className="w-full bg-danger hover:opacity-90 text-surface-page py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl">
             Sim, Sair Agora
           </button>
-          <button onClick={onClose} className={cn('w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em]', 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800')}>
+          <button onClick={onClose} className={cn('w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em]', 'bg-surface-card text-text-secondary hover:bg-surface-raised')}>
             Cancelar
           </button>
         </div>
@@ -609,7 +609,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   }, [selectedDetailItem, estoqueActions, vendasActions, activeTab]);
 
   return (
-    <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', 'bg-[radial-gradient(ellipse_at_top,_#1a1b1f,_#09090b)] text-zinc-100')}>
+    <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', 'bg-[radial-gradient(ellipse_at_top,_var(--color-surface-raised),_var(--color-surface-page))] text-text-primary')}>
       <AnimatePresence>
         {isSidebarOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm z-40 lg:hidden" />}
       </AnimatePresence>
@@ -618,21 +618,21 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       <aside
         className={cn(
           'fixed top-0 h-screen inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out border-r hidden md:flex overflow-y-auto',
-          'bg-zinc-950/50 border-zinc-800/50 backdrop-blur-xl',
+          'bg-surface-inset/50 border-border-default/50 backdrop-blur-xl',
           isSidebarOpen ? 'w-64' : 'w-20'
         )}
       >
-        <div className={cn('h-full flex flex-col p-4', 'bg-zinc-950')}>
+        <div className={cn('h-full flex flex-col p-4', 'bg-surface-inset')}>
           <div className="flex items-center gap-3 px-2 mb-10 overflow-hidden">
-            <div className="w-10 h-10 shrink-0 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-              <Wrench className={'text-zinc-100'} size={20} />
+            <div className="w-10 h-10 shrink-0 rounded-xl bg-surface-card border border-border-default flex items-center justify-center">
+              <Wrench className={'text-text-primary'} size={20} />
             </div>
             {isSidebarOpen && (
               <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col min-w-0">
-                <span className={cn('font-black text-xl tracking-tighter truncate', 'text-white')}>
+                <span className={cn('font-black text-xl tracking-tighter truncate', 'text-text-primary')}>
                   RK <span className="text-accent">SUCATAS</span>
                 </span>
-                <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Gestão Inteligente</span>
+                <span className="text-[8px] font-bold text-text-muted uppercase tracking-[0.2em]">Gestão Inteligente</span>
               </motion.div>
             )}
           </div>
@@ -648,11 +648,11 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                     {showHeader && (
                       <div className={cn('pt-4 pb-1 first:pt-0', isSidebarOpen ? 'px-5' : 'flex justify-center')}>
                         {isSidebarOpen ? (
-                          <span className={cn('text-[10px] font-black uppercase tracking-[0.2em]', 'text-zinc-600')}>
+                          <span className={cn('text-[10px] font-black uppercase tracking-[0.2em]', 'text-text-faint')}>
                             {NAV_GROUP_LABELS[item.group as Exclude<NavGroup, null>]}
                           </span>
                         ) : (
-                          <span className={cn('block w-6 border-t', 'border-zinc-800')} />
+                          <span className={cn('block w-6 border-t', 'border-border-default')} />
                         )}
                       </div>
                     )}
@@ -666,11 +666,11 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 );
               });
             })()}
-            <div className={cn('my-2 border-t', 'border-zinc-800/70')} />
+            <div className={cn('my-2 border-t', 'border-border-default/70')} />
             <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} className="text-danger hover:bg-danger-bg hover:text-danger" />
           </nav>
 
-          <button onClick={() => setIsSidebarOpen((v) => !v)} className={cn('mt-4 p-3 rounded-xl flex items-center justify-center', 'text-zinc-500 hover:bg-zinc-900')}>
+          <button onClick={() => setIsSidebarOpen((v) => !v)} className={cn('mt-4 p-3 rounded-xl flex items-center justify-center', 'text-text-muted hover:bg-surface-card')}>
             {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
           </button>
         </div>
@@ -678,9 +678,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
       {/* Main Content */}
       <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-64' : 'md:ml-20')}>
-        <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-zinc-950/40 border-zinc-800/50')}>
+        <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-surface-inset/40 border-border-default/50')}>
           <div className="flex items-center gap-2 md:gap-4">
-            <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-white')}>{TAB_LABELS[activeTab]}</h2>
+            <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-text-primary')}>{TAB_LABELS[activeTab]}</h2>
           </div>
         </header>
 
