@@ -41,6 +41,8 @@
   --overlay-scrim: rgba(0, 0, 0, 0.7);
   --overlay-scrim-strong: rgba(0, 0, 0, 0.95);
   --overlay-control-bg: rgba(255, 255, 255, 0.1);
+  --media-overlay-badge: rgba(0, 0, 0, 0.6);
+  --media-overlay-dot: rgba(255, 255, 255, 0.3);
 
   /* Sombras coloridas — mesmo tom do accent/positive, pra CTAs preenchidos */
   --accent-shadow: rgba(91, 61, 240, 0.2);
@@ -88,6 +90,8 @@
   --color-overlay-scrim: var(--overlay-scrim);
   --color-overlay-scrim-strong: var(--overlay-scrim-strong);
   --color-overlay-control-bg: var(--overlay-control-bg);
+  --color-media-overlay-badge: var(--media-overlay-badge);
+  --color-media-overlay-dot: var(--media-overlay-dot);
 
   --color-accent-shadow: var(--accent-shadow);
   --color-positive-shadow: var(--positive-shadow);
