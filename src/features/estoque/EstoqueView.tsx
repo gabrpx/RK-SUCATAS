@@ -114,7 +114,6 @@ function AnuncioBadge({ label, canal, count, onAbrir }: { label: string; canal: 
 }
 
 interface EstoqueViewProps {
-  theme: 'light' | 'dark';
   onSelectItem: (item: Estoque) => void;
   onRegisterActions?: (actions: { edit: (item: Estoque) => void; delete: (id: string) => void; focusSearch?: () => void }) => void;
   pendingEditItem?: Estoque | null;
@@ -927,7 +926,7 @@ export function EstoqueView({
       </div>
 
       {visualizacao === 'por_moto' ? (
-        <EstoqueByMoto theme="dark" modelos={modelos} items={items} onSelecionarModelo={handleSelecionarModelo} />
+        <EstoqueByMoto modelos={modelos} items={items} onSelecionarModelo={handleSelecionarModelo} />
       ) : visualizacao === 'organograma' ? (
         <div className="max-h-[34rem] overflow-y-auto pr-1">
           {orgChartDominio === 'categorias' ? (
@@ -989,7 +988,6 @@ export function EstoqueView({
                 emptyMessage="Nenhuma moto encontrada."
               />
               <CustomDropdown
-                theme="dark"
                 value={sortKey}
                 onChange={(v) => setSortKey(v as typeof sortKey)}
                 options={[
@@ -1173,7 +1171,6 @@ export function EstoqueView({
                   <div>
                     <label className={labelClass}>Categoria *</label>
                     <CategoriaCascadeSelect
-                      theme="dark"
                       categorias={categorias}
                       value={formData.categoria_id || ''}
                       onChange={(id) => {
@@ -1186,7 +1183,6 @@ export function EstoqueView({
                   <div>
                     <label className={labelClass}>Modelo de Moto</label>
                     <MotoCascadeSelect
-                      theme="dark"
                       modelos={modelos}
                       value={formData.modelo_moto_id || ''}
                       onChange={(id) => {
@@ -1237,7 +1233,7 @@ export function EstoqueView({
                     )}
                     {adicionandoCompativel ? (
                       <div className="space-y-2">
-                        <MotoCascadeSelect theme="dark" modelos={modelos} value={compatTempId} onChange={setCompatTempId} onCreate={criarNoMoto} />
+                        <MotoCascadeSelect modelos={modelos} value={compatTempId} onChange={setCompatTempId} onCreate={criarNoMoto} />
                         <div className="flex gap-2">
                           <button
                             type="button"

@@ -197,7 +197,6 @@ export function DashboardView({
   onNavigateClientesSumidos,
   onNavigateFiado,
 }: {
-  theme?: 'light' | 'dark';
   userRoles?: Role[];
   onSelectItem: (item: Estoque | Venda) => void;
   onTabChange: (tab: string) => void;

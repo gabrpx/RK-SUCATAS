@@ -22,13 +22,11 @@ function formatarData(data: string) {
 }
 
 function LinhaPendencia({
-  theme,
   pendencia,
   saldo,
   historico,
   podeReverter,
 }: {
-  theme: 'light' | 'dark';
   pendencia: CaixaPendencia;
   saldo: number;
   historico: CaixaPendenciaRecebimento[];
@@ -81,20 +79,20 @@ function LinhaPendencia({
   };
 
   return (
-    <div className={cn('rounded-2xl border p-4 space-y-3', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
+    <div className={cn('rounded-2xl border p-4 space-y-3', 'bg-zinc-900/50 border-zinc-800')}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <p className={cn('text-sm font-bold truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{pendencia.descricao}</p>
+          <p className={cn('text-sm font-bold truncate', 'text-white')}>{pendencia.descricao}</p>
           <p className="text-xs text-zinc-500">{formatarData(pendencia.data)}</p>
         </div>
         <div className="text-right shrink-0">
-          <p className={cn('text-sm font-black', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{formatCurrency(saldo)}</p>
+          <p className={cn('text-sm font-black', 'text-white')}>{formatCurrency(saldo)}</p>
           <p className="text-[10px] text-zinc-500 uppercase tracking-wide">Saldo em aberto</p>
         </div>
       </div>
 
       {historico.length > 0 && (
-        <div className={cn('text-xs space-y-1 border-t pt-2', theme === 'dark' ? 'border-zinc-800/60 text-zinc-500' : 'border-zinc-200 text-zinc-500')}>
+        <div className={cn('text-xs space-y-1 border-t pt-2', 'border-zinc-800/60 text-zinc-500')}>
           <p className="flex items-center gap-1.5 text-[10px] uppercase tracking-wide font-bold">
             <History size={11} /> Recebido até agora
           </p>
@@ -104,7 +102,7 @@ function LinhaPendencia({
                 {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'} · {r.usuario?.nome_exibicao || 'Equipe'}
               </span>
               <span className="flex items-center gap-1.5 shrink-0">
-                <span className={theme === 'dark' ? 'text-zinc-300' : 'text-zinc-700'}>{formatCurrency(r.valor)}</span>
+                <span className={'text-zinc-300'}>{formatCurrency(r.valor)}</span>
                 {podeReverter && (
                   <button
                     onClick={() => setRecebimentoParaReverter(r)}
@@ -124,17 +122,17 @@ function LinhaPendencia({
         <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4" onClick={() => setRecebimentoParaReverter(null)}>
           <div
             onClick={(e) => e.stopPropagation()}
-            className={cn('w-full max-w-sm rounded-3xl border p-6 space-y-4', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+            className={cn('w-full max-w-sm rounded-3xl border p-6 space-y-4', 'bg-zinc-950 border-zinc-800')}
           >
-            <h3 className={cn('text-lg font-black', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Reverter recebimento?</h3>
+            <h3 className={cn('text-lg font-black', 'text-white')}>Reverter recebimento?</h3>
             <p className="text-sm text-zinc-500">
-              O recebimento de <span className={theme === 'dark' ? 'text-zinc-200 font-bold' : 'text-zinc-800 font-bold'}>{formatCurrency(recebimentoParaReverter.valor)}</span> via{' '}
+              O recebimento de <span className={'text-zinc-200 font-bold'}>{formatCurrency(recebimentoParaReverter.valor)}</span> via{' '}
               {recebimentoParaReverter.forma_pagamento?.nome || '—'} volta a ficar em aberto nesta pendência, e a entrada correspondente no Caixa é desfeita.
             </p>
             <div className="flex gap-3">
               <button
                 onClick={() => setRecebimentoParaReverter(null)}
-                className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', theme === 'dark' ? 'bg-zinc-900 text-zinc-300' : 'bg-zinc-100 text-zinc-700')}
+                className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-zinc-900 text-zinc-300')}
               >
                 Cancelar
               </button>
@@ -157,7 +155,7 @@ function LinhaPendencia({
           inputMode="decimal"
           className={cn(
             'w-24 border rounded-xl py-2 px-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500/50',
-            theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+            'bg-zinc-950 border-zinc-800 text-zinc-200'
           )}
           placeholder="0,00"
         />
@@ -166,7 +164,7 @@ function LinhaPendencia({
           onChange={(e) => setFormaPagamentoId(e.target.value)}
           className={cn(
             'flex-1 border rounded-xl py-2 px-2.5 text-xs outline-none focus:ring-2 focus:ring-violet-500/50',
-            theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+            'bg-zinc-950 border-zinc-800 text-zinc-200'
           )}
         >
           <option value="">Forma de pagamento...</option>
@@ -188,7 +186,7 @@ function LinhaPendencia({
   );
 }
 
-export function PendenciasTab({ theme, userRoles }: { theme: 'light' | 'dark'; userRoles: string[] }) {
+export function PendenciasTab({ userRoles }: { userRoles: string[] }) {
   const { caixaPendencias, caixaPendenciaRecebimentos, loading } = useData();
   const podeReverter = userRoles.includes('admin');
 
@@ -207,12 +205,12 @@ export function PendenciasTab({ theme, userRoles }: { theme: 'light' | 'dark'; u
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <p className={cn('text-xs rounded-xl px-4 py-2.5', theme === 'dark' ? 'bg-zinc-900 text-zinc-400' : 'bg-zinc-100 text-zinc-600')}>
+        <p className={cn('text-xs rounded-xl px-4 py-2.5', 'bg-zinc-900 text-zinc-400')}>
           Pendência não entra no Caixa na hora — só quando um recebimento é confirmado aqui. Pode ser parcial: cada confirmação abate o saldo em aberto.
         </p>
         {abertas.length > 0 && (
           <div className="text-right shrink-0">
-            <p className={cn('text-lg font-black', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{formatCurrency(totalEmAberto)}</p>
+            <p className={cn('text-lg font-black', 'text-white')}>{formatCurrency(totalEmAberto)}</p>
             <p className="text-[10px] text-zinc-500 uppercase tracking-wider">Saldo total em aberto</p>
           </div>
         )}
@@ -223,7 +221,7 @@ export function PendenciasTab({ theme, userRoles }: { theme: 'light' | 'dark'; u
           <Loader2 size={20} className="animate-spin" />
         </div>
       ) : abertas.length === 0 ? (
-        <div className={cn('rounded-3xl border p-12 text-center', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
+        <div className={cn('rounded-3xl border p-12 text-center', 'bg-zinc-900/50 border-zinc-800')}>
           <Clock3 size={28} className="mx-auto mb-3 text-zinc-500" />
           <p className="text-sm text-zinc-500">Nenhuma pendência em aberto.</p>
         </div>
@@ -237,7 +235,7 @@ export function PendenciasTab({ theme, userRoles }: { theme: 'light' | 'dark'; u
             const saldo = Number(pendencia.valor_total) - recebido;
             return (
               <div key={pendencia.id}>
-                <LinhaPendencia theme={theme} pendencia={pendencia} saldo={saldo} historico={historico} podeReverter={podeReverter} />
+                <LinhaPendencia pendencia={pendencia} saldo={saldo} historico={historico} podeReverter={podeReverter} />
               </div>
             );
           })}

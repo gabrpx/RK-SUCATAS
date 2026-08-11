@@ -18,7 +18,7 @@ import { PromocoesView } from '../promocoes/PromocoesView';
 
 type Aba = 'categorias' | 'motos' | 'pagamento' | 'promocoes' | 'usuarios';
 
-export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 'dark'; userRoles?: string[] }) {
+export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) {
   const {
     categorias,
     modelos,
@@ -54,10 +54,10 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex items-center gap-4">
         <div className="p-3 bg-zinc-500/10 rounded-2xl">
-          <Settings className={theme === 'dark' ? 'text-zinc-300' : 'text-zinc-600'} size={28} />
+          <Settings className={'text-zinc-300'} size={28} />
         </div>
         <div>
-          <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Configurações</h2>
+          <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Configurações</h2>
           <p className="text-sm text-zinc-500">Categorias, motos e formas de pagamento do sistema</p>
         </div>
       </div>
@@ -65,7 +65,7 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
       <div
         className={cn(
           'flex items-center gap-1 p-1.5 rounded-2xl border overflow-x-auto',
-          theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-zinc-100/70 border-zinc-200'
+          'bg-zinc-900/50 border-zinc-800'
         )}
       >
         {abas.map((item) => {
@@ -79,9 +79,7 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
                 'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shrink-0',
                 ativo
                   ? 'bg-violet-600 text-white shadow-sm'
-                  : theme === 'dark'
-                  ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
-                  : 'text-zinc-500 hover:text-zinc-800 hover:bg-white'
+                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
               )}
             >
               <Icone size={16} />
@@ -90,7 +88,7 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
                 <span
                   className={cn(
                     'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                    ativo ? 'bg-white/20 text-white' : theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
+                    ativo ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-400'
                   )}
                 >
                   {item.total}
@@ -103,7 +101,6 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
 
       {aba === 'categorias' && (
         <CategoriaTreeManager
-          theme={theme}
           categorias={categorias}
           onCriar={criarCategoria}
           onRenomear={renomearCategoria}
@@ -114,7 +111,6 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
       )}
       {aba === 'motos' && (
         <MotoTreeManager
-          theme={theme}
           modelos={modelos}
           onCriar={criarNoMoto}
           onCriarRapido={criarMotoRapido}
@@ -126,7 +122,6 @@ export function ConfiguracoesView({ theme, userRoles = [] }: { theme: 'light' | 
       )}
       {aba === 'pagamento' && (
         <ManageListSection
-          theme={theme}
           titulo="Formas de Pagamento"
           icone={Wallet}
           itens={formasPagamento}

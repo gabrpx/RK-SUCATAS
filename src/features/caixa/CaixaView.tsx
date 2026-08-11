@@ -48,7 +48,7 @@ function isDentroDoPeriodo(dataStr: string, periodo: PeriodoFiltro): boolean {
   return true;
 }
 
-export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userRoles: string[] }) {
+export function CaixaView({ userRoles }: { userRoles: string[] }) {
   const { caixa, setCaixa, showSensitiveInfo, setShowSensitiveInfo } = useData();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -88,7 +88,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
     }
   };
 
-  const cardClass = cn('rounded-3xl border p-5', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200');
+  const cardClass = cn('rounded-3xl border p-5', 'bg-zinc-900/50 border-zinc-800');
 
   return (
     <div className="space-y-6 pb-24 md:pb-6">
@@ -99,8 +99,8 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
             <Wallet className="text-emerald-500" size={28} />
           </div>
           <div>
-            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Caixa</h2>
-            <p className={cn('text-sm', theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500')}>Entradas e saídas financeiras</p>
+            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Caixa</h2>
+            <p className={cn('text-sm', 'text-zinc-500')}>Entradas e saídas financeiras</p>
           </div>
         </div>
         <button
@@ -112,12 +112,12 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
       </div>
 
       {/* Sub-abas: Lançamentos (o que já existia) / Pendências (fiado do Caixa) */}
-      <div className={cn('inline-flex items-center gap-1 p-1.5 rounded-2xl border w-fit', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
+      <div className={cn('inline-flex items-center gap-1 p-1.5 rounded-2xl border w-fit', 'bg-zinc-900/50 border-zinc-800')}>
         <button
           onClick={() => setAba('lancamentos')}
           className={cn(
             'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
-            aba === 'lancamentos' ? 'bg-emerald-500 text-white' : theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'
+            aba === 'lancamentos' ? 'bg-emerald-500 text-white' : 'text-zinc-400'
           )}
         >
           Lançamentos
@@ -126,7 +126,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
           onClick={() => setAba('pendencias')}
           className={cn(
             'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
-            aba === 'pendencias' ? 'bg-emerald-500 text-white' : theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'
+            aba === 'pendencias' ? 'bg-emerald-500 text-white' : 'text-zinc-400'
           )}
         >
           Pendências
@@ -134,7 +134,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
       </div>
 
       {aba === 'pendencias' ? (
-        <PendenciasTab theme={theme} userRoles={userRoles} />
+        <PendenciasTab userRoles={userRoles} />
       ) : (
         <>
       {/* Totais */}
@@ -164,7 +164,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
               <button onClick={() => setShowSensitiveInfo((v) => !v)} className="text-zinc-500 hover:text-zinc-300">
                 {showSensitiveInfo ? <Eye size={14} /> : <EyeOff size={14} />}
               </button>
-              <Scale size={16} className={theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'} />
+              <Scale size={16} className={'text-zinc-400'} />
             </div>
           </div>
           <p
@@ -181,7 +181,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200')}>
+        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-zinc-900 border-zinc-800')}>
           <Search size={16} className="text-zinc-500 shrink-0" />
           <input
             value={search}
@@ -191,7 +191,6 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
           />
         </div>
         <CustomDropdown
-          theme={theme}
           variant="pill"
           icon={<Calendar size={14} />}
           value={periodo}
@@ -205,7 +204,6 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
           ]}
         />
         <CustomDropdown
-          theme={theme}
           variant="pill"
           value={tipoFiltro}
           onChange={(v) => setTipoFiltro(v as 'todos' | CaixaTipo)}
@@ -218,7 +216,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
       </div>
 
       {/* Lista */}
-      <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
+      <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
         {filtered.length === 0 ? (
           <div className="p-12 text-center text-zinc-500 text-sm">Nenhum lançamento encontrado para este filtro.</div>
         ) : (
@@ -235,7 +233,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
                     {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
                   </div>
                   <div className="min-w-0">
-                    <p className={cn('font-bold text-sm truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{entry.descricao}</p>
+                    <p className={cn('font-bold text-sm truncate', 'text-white')}>{entry.descricao}</p>
                     <p className="text-xs text-zinc-500 flex items-center gap-2">
                       {parseLocalDate(entry.data).toLocaleDateString('pt-BR')}
                       {entry.forma_pagamento && <span>· {entry.forma_pagamento.nome}</span>}
@@ -268,7 +266,7 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
         </>
       )}
 
-      <LancamentoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} theme={theme} loading={loading} setLoading={setLoading} />
+      <LancamentoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} loading={loading} setLoading={setLoading} />
 
       {/* Confirmação de exclusão */}
       <AnimatePresence>
@@ -278,17 +276,17 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}
             >
               <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4">
                 <Trash2 size={28} />
               </div>
-              <h3 className={cn('text-lg font-black mb-2', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Excluir lançamento?</h3>
+              <h3 className={cn('text-lg font-black mb-2', 'text-white')}>Excluir lançamento?</h3>
               <p className="text-sm text-zinc-500 mb-6">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>
               <div className="flex gap-3">
                 <button
                   onClick={() => setEntryToDelete(null)}
-                  className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', theme === 'dark' ? 'bg-zinc-900 text-zinc-300' : 'bg-zinc-100 text-zinc-700')}
+                  className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-zinc-900 text-zinc-300')}
                 >
                   Cancelar
                 </button>
@@ -307,13 +305,11 @@ export function CaixaView({ theme, userRoles }: { theme: 'light' | 'dark'; userR
 function LancamentoModal({
   isOpen,
   onClose,
-  theme,
   loading,
   setLoading,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  theme: 'light' | 'dark';
   loading: boolean;
   setLoading: (v: boolean) => void;
 }) {
@@ -373,9 +369,9 @@ function LancamentoModal({
 
   const inputClass = cn(
     'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+    'bg-zinc-950 border-zinc-800 text-zinc-200'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
 
   if (!isOpen) return null;
 
@@ -388,7 +384,7 @@ function LancamentoModal({
         transition={{ type: 'spring', damping: 30, stiffness: 300 }}
         className={cn(
           'w-full md:max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[90vh] overflow-y-auto',
-          theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200'
+          'bg-zinc-950 border-zinc-800'
         )}
       >
         <div className="md:hidden w-full flex justify-center -mt-2 mb-4">
@@ -396,7 +392,7 @@ function LancamentoModal({
         </div>
 
         <div className="flex items-center justify-between mb-6">
-          <h3 className={cn('text-xl font-black', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Novo Lançamento</h3>
+          <h3 className={cn('text-xl font-black', 'text-white')}>Novo Lançamento</h3>
           <button onClick={handleClose} className="p-2 rounded-full text-zinc-500 hover:bg-zinc-800/50">
             <X size={20} />
           </button>
@@ -409,7 +405,7 @@ function LancamentoModal({
               onClick={() => setModo('entrada')}
               className={cn(
                 'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-                modo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
+                modo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : 'border-zinc-800 text-zinc-400'
               )}
             >
               Entrada
@@ -419,7 +415,7 @@ function LancamentoModal({
               onClick={() => setModo('saida')}
               className={cn(
                 'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-                modo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
+                modo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : 'border-zinc-800 text-zinc-400'
               )}
             >
               Saída
@@ -429,7 +425,7 @@ function LancamentoModal({
               onClick={() => setModo('pendencia')}
               className={cn(
                 'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
-                modo === 'pendencia' ? 'bg-amber-500 border-amber-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
+                modo === 'pendencia' ? 'bg-amber-500 border-amber-500 text-white' : 'border-zinc-800 text-zinc-400'
               )}
             >
               Fiado/Pendência
@@ -453,14 +449,13 @@ function LancamentoModal({
           </div>
 
           {modo === 'pendencia' ? (
-            <p className={cn('text-xs rounded-xl px-4 py-3', theme === 'dark' ? 'bg-zinc-900 text-zinc-400' : 'bg-zinc-100 text-zinc-600')}>
+            <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-zinc-900 text-zinc-400')}>
               Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
             </p>
           ) : (
             <div>
               <label className={labelClass}>Forma de pagamento (opcional)</label>
               <CustomDropdown
-                theme={theme}
                 variant="form"
                 value={formaPagamentoId}
                 onChange={setFormaPagamentoId}

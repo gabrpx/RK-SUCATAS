@@ -108,11 +108,7 @@ function montarTextoOrcamento(orcamento: Orcamento, itens: { nome_item: string; 
   );
 }
 
-interface OrcamentosViewProps {
-  theme: 'light' | 'dark';
-}
-
-export function OrcamentosView({ theme }: OrcamentosViewProps) {
+export function OrcamentosView() {
   const { orcamentos, refreshData, loading } = useData();
   const [search, setSearch] = useState('');
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
@@ -157,7 +153,7 @@ export function OrcamentosView({ theme }: OrcamentosViewProps) {
             <Receipt className="text-violet-500" size={28} />
           </div>
           <div>
-            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Orçamentos</h2>
+            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Orçamentos</h2>
             <p className="text-sm text-zinc-500">
               {filtered.length} orçamentos · {formatCurrency(totalAberto)} em aberto
             </p>
@@ -172,12 +168,11 @@ export function OrcamentosView({ theme }: OrcamentosViewProps) {
       </div>
 
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200')}>
+        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-zinc-900 border-zinc-800')}>
           <Search size={16} className="text-zinc-500 shrink-0" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por cliente ou código..." className="bg-transparent outline-none text-sm w-full" />
         </div>
         <CustomDropdown
-          theme={theme}
           icon={<Calendar size={14} />}
           value={periodo}
           onChange={(v) => setPeriodo(v as PeriodoFiltro)}
@@ -190,7 +185,6 @@ export function OrcamentosView({ theme }: OrcamentosViewProps) {
           ]}
         />
         <CustomDropdown
-          theme={theme}
           value={statusFiltro}
           onChange={setStatusFiltro}
           options={[
@@ -202,7 +196,7 @@ export function OrcamentosView({ theme }: OrcamentosViewProps) {
         />
       </div>
 
-      <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
+      <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
         {loading && orcamentos.length === 0 ? (
           <div className="p-12 flex justify-center">
             <Loader2 className="animate-spin text-violet-500" size={28} />
@@ -226,7 +220,7 @@ export function OrcamentosView({ theme }: OrcamentosViewProps) {
                       <Receipt size={16} />
                     </div>
                     <div className="min-w-0">
-                      <p className={cn('font-bold text-sm truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
+                      <p className={cn('font-bold text-sm truncate', 'text-white')}>
                         <span className="font-mono text-violet-400 mr-1.5">{orcamento.codigo}</span>
                         {orcamento.cliente_nome}
                       </p>
@@ -263,7 +257,6 @@ export function OrcamentosView({ theme }: OrcamentosViewProps) {
       <AnimatePresence>
         {modalAberto && (
           <OrcamentoFormModal
-            theme={theme}
             orcamento={orcamentoSelecionado}
             onClose={() => setModalAberto(false)}
             onChanged={async () => {
@@ -284,7 +277,7 @@ interface RascunhoItem extends OrcamentoItemInput {
   _key: string;
 }
 
-function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: 'light' | 'dark'; orcamento: Orcamento | null; onClose: () => void; onChanged: () => Promise<void> }) {
+function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orcamento | null; onClose: () => void; onChanged: () => Promise<void> }) {
   const { estoque } = useData();
   const [atual, setAtual] = useState<Orcamento | null>(orcamento);
   const isEdicao = !!atual;
@@ -500,9 +493,9 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
 
   const inputClass = cn(
     'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+    'bg-zinc-950 border-zinc-800 text-zinc-200'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
 
   const pendenteHaItensAVender = isEdicao && atual!.status === 'aberto' && itens.some((i) => !i.venda_id);
   const expirado = atual ? isExpirado(atual) : false;
@@ -514,7 +507,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        className={cn('w-full md:max-w-2xl rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[92vh] overflow-y-auto', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+        className={cn('w-full md:max-w-2xl rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[92vh] overflow-y-auto', 'bg-zinc-950 border-zinc-800')}
       >
         <div className="md:hidden w-full flex justify-center -mt-2 mb-4">
           <div className="w-12 h-1.5 rounded-full bg-zinc-800" />
@@ -522,7 +515,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
 
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h3 className={cn('text-xl font-black flex items-center gap-2', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
+            <h3 className={cn('text-xl font-black flex items-center gap-2', 'text-white')}>
               {atual ? <span className="font-mono text-violet-400">{atual.codigo}</span> : 'Novo Orçamento'}
               {atual && expirado && <span className="text-[9px] font-black uppercase tracking-wider px-2 py-1 rounded-full bg-amber-500/10 text-amber-500">Expirado</span>}
               {atual && !expirado && atual.status !== 'aberto' && (
@@ -572,13 +565,13 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
                 <>
                   <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome ou código..." className={inputClass} />
                   {resultadosBusca.length > 0 && (
-                    <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', theme === 'dark' ? 'border-zinc-800 divide-zinc-800' : 'border-zinc-200 divide-zinc-100')}>
+                    <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', 'border-zinc-800 divide-zinc-800')}>
                       {resultadosBusca.map((item) => (
                         <button
                           key={item.id}
                           type="button"
                           onClick={() => selecionarItemPendente(item)}
-                          className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', theme === 'dark' ? 'hover:bg-zinc-900' : 'hover:bg-zinc-50')}
+                          className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', 'hover:bg-zinc-900')}
                         >
                           <div className="min-w-0">
                             <p className="font-bold truncate">{item.nome}</p>
@@ -593,7 +586,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
                   )}
                 </>
               ) : (
-                <div className={cn('rounded-xl border p-4 space-y-3', theme === 'dark' ? 'border-violet-500/30 bg-violet-500/5' : 'border-violet-200 bg-violet-50')}>
+                <div className={cn('rounded-xl border p-4 space-y-3', 'border-violet-500/30 bg-violet-500/5')}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="font-bold text-sm truncate">{itemPendente.nome}</p>
@@ -677,7 +670,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
               <div className="space-y-1.5">
                 {!isEdicao &&
                   rascunho.map((item) => (
-                    <div key={item._key} className={cn('p-3 rounded-xl border flex items-center justify-between gap-3', theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/60' : 'bg-zinc-50 border-zinc-200')}>
+                    <div key={item._key} className={cn('p-3 rounded-xl border flex items-center justify-between gap-3', 'bg-zinc-900/40 border-zinc-800/60')}>
                       <div className="min-w-0 flex-1">
                         <p className="text-xs font-bold truncate">
                           {item.nome_item}
@@ -701,7 +694,6 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
                     <Fragment key={item.id}>
                       <ItemPersistidoRow
                         item={item}
-                        theme={theme}
                         podeEditar={atual!.status === 'aberto' && !item.venda_id}
                         podeVender={atual!.status === 'aberto' && !item.venda_id}
                         onRemover={() => removerItemPersistido(item)}
@@ -719,7 +711,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
           <div>
             <label className={labelClass}>Desconto</label>
             <div className="flex items-center gap-2">
-              <div className={cn('flex p-1 rounded-xl border', theme === 'dark' ? 'bg-black border-zinc-800' : 'bg-zinc-100 border-zinc-200')}>
+              <div className={cn('flex p-1 rounded-xl border', 'bg-black border-zinc-800')}>
                 <button
                   type="button"
                   disabled={isEdicao && atual!.status !== 'aberto'}
@@ -760,7 +752,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
             </div>
           </div>
 
-          <div className={cn('flex items-center justify-between p-4 rounded-xl', theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100')}>
+          <div className={cn('flex items-center justify-between p-4 rounded-xl', 'bg-zinc-900')}>
             <span className="text-xs font-bold uppercase text-zinc-500">Total</span>
             <span className="text-xl font-black text-emerald-500">{formatCurrency(total)}</span>
           </div>
@@ -791,7 +783,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
                   onClick={copiarTexto}
                   className={cn(
                     'flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all',
-                    copiado ? 'bg-emerald-500 text-white' : theme === 'dark' ? 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800' : 'bg-zinc-100 text-zinc-700 hover:bg-zinc-200'
+                    copiado ? 'bg-emerald-500 text-white' : 'bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
                   )}
                 >
                   {copiado ? <Check size={15} /> : <Copy size={15} />}
@@ -823,7 +815,6 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       <AnimatePresence>
         {vendaAlvo && atual && (
           <VenderModal
-            theme={theme}
             orcamento={atual}
             alvo={vendaAlvo}
             onClose={() => setVendaAlvo(null)}
@@ -839,7 +830,7 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
       <AnimatePresence>
         {confirmandoCancelamento && (
           <div className="fixed inset-0 z-[3200] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}>
               <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4">
                 <AlertCircle size={28} />
               </div>
@@ -863,7 +854,6 @@ function OrcamentoFormModal({ theme, orcamento, onClose, onChanged }: { theme: '
 
 function ItemPersistidoRow({
   item,
-  theme,
   podeEditar,
   podeVender,
   onRemover,
@@ -872,7 +862,6 @@ function ItemPersistidoRow({
   onVender,
 }: {
   item: OrcamentoItem;
-  theme: 'light' | 'dark';
   podeEditar: boolean;
   podeVender: boolean;
   onRemover: () => void;
@@ -890,7 +879,7 @@ function ItemPersistidoRow({
   };
 
   return (
-    <div className={cn('p-3 rounded-xl border', theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/60' : 'bg-zinc-50 border-zinc-200')}>
+    <div className={cn('p-3 rounded-xl border', 'bg-zinc-900/40 border-zinc-800/60')}>
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs font-bold truncate flex items-center gap-2">
@@ -900,7 +889,7 @@ function ItemPersistidoRow({
           </p>
           <div className="flex items-center gap-2 mt-1">
             {podeEditar ? (
-              <div className={cn('flex items-center gap-1 rounded-lg p-0.5 border', theme === 'dark' ? 'bg-black border-zinc-800' : 'bg-white border-zinc-200')}>
+              <div className={cn('flex items-center gap-1 rounded-lg p-0.5 border', 'bg-black border-zinc-800')}>
                 <button onClick={() => onAlterarQtd(-1)} className="p-1 rounded-md hover:bg-zinc-800">
                   <Minus size={10} />
                 </button>
@@ -953,13 +942,11 @@ function ItemPersistidoRow({
 // =============================================================================
 
 function VenderModal({
-  theme,
   orcamento,
   alvo,
   onClose,
   onVendido,
 }: {
-  theme: 'light' | 'dark';
   orcamento: Orcamento;
   alvo: { tipo: 'item' | 'tudo'; item?: OrcamentoItem };
   onClose: () => void;
@@ -1025,13 +1012,13 @@ function VenderModal({
 
   const inputClass = cn(
     'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+    'bg-zinc-950 border-zinc-800 text-zinc-200'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
 
   return (
     <div className="fixed inset-0 z-[3100] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6', 'bg-zinc-950 border-zinc-800')}>
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-black">{alvo.tipo === 'tudo' ? 'Vender tudo' : `Vender: ${item?.nome_item}`}</h3>
           <button onClick={onClose} className="p-1.5 rounded-full text-zinc-500 hover:bg-zinc-800/50">
@@ -1068,7 +1055,7 @@ function VenderModal({
 
           <div>
             <label className={labelClass}>Forma de pagamento</label>
-            <CustomDropdown theme={theme} variant="form" value={formaPagamentoId} onChange={setFormaPagamentoId} placeholder="Selecione..." options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))} />
+            <CustomDropdown variant="form" value={formaPagamentoId} onChange={setFormaPagamentoId} placeholder="Selecione..." options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))} />
           </div>
 
           <div>

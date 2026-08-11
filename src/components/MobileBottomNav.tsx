@@ -14,7 +14,7 @@ function cn(...inputs: ClassValue[]) {
 // prioridade de uso mobile).
 const MOBILE_MAIN_IDS = ['dashboard', 'estoque', 'vendas', 'caixa'];
 
-export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isMoreOpen, setIsMoreOpen, onLogoutClick }: any) => {
+export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen, setIsMoreOpen, onLogoutClick }: any) => {
   const allowedItems = NAV_ITEMS.filter(item => item.roles.some((r: string) => userRoles.includes(r)));
 
   const mainItems = MOBILE_MAIN_IDS
@@ -48,7 +48,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
     <>
       <div className={cn(
         "fixed bottom-0 left-0 right-0 z-50 md:hidden border-t pb-safe",
-        theme === 'dark' ? "bg-zinc-950 border-zinc-800" : "bg-white border-zinc-200"
+        "bg-zinc-950 border-zinc-800"
       )}>
         <div className="flex justify-around items-center h-16">
           {mainItems.map(item => (
@@ -59,7 +59,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
                 activeTab === item.id
                   ? "text-accent"
-                  : theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
+                  : "text-zinc-500"
               )}
             >
               <item.icon size={22} />
@@ -74,7 +74,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
                 isMoreOpen || moreItems.some(i => i.id === activeTab)
                   ? "text-accent"
-                  : theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
+                  : "text-zinc-500"
               )}
             >
               <MoreHorizontal size={22} />
@@ -102,13 +102,13 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className={cn(
                 "fixed bottom-0 left-0 right-0 z-[60] md:hidden rounded-t-3xl p-6 pb-nav-safe max-h-[80vh] overflow-y-auto",
-                theme === 'dark' ? "bg-zinc-900 border-t border-zinc-800" : "bg-white border-t border-zinc-200"
+                "bg-zinc-900 border-t border-zinc-800"
               )}
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className={cn(
                   "text-lg font-bold",
-                  theme === 'dark' ? "text-white" : "text-zinc-900"
+                  "text-white"
                 )}>
                   Mais Opções
                 </h3>
@@ -116,7 +116,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                   onClick={() => setIsMoreOpen(false)}
                   className={cn(
                     "p-2 rounded-full",
-                    theme === 'dark' ? "bg-zinc-800 text-zinc-400" : "bg-zinc-100 text-zinc-500"
+                    "bg-zinc-800 text-zinc-400"
                   )}
                 >
                   <X size={20} />
@@ -129,7 +129,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                     {section.group && (
                       <span className={cn(
                         "block mb-2 text-[10px] font-black uppercase tracking-[0.2em]",
-                        theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
+                        "text-zinc-500"
                       )}>
                         {NAV_GROUP_LABELS[section.group]}
                       </span>
@@ -143,7 +143,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                             "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl transition-all",
                             activeTab === item.id
                               ? "bg-accent/10 text-accent border border-accent/20"
-                              : theme === 'dark' ? "bg-zinc-800/50 text-zinc-400 border border-transparent" : "bg-zinc-50 text-zinc-500 border border-transparent"
+                              : "bg-zinc-800/50 text-zinc-400 border border-transparent"
                           )}
                         >
                           <item.icon size={24} />
@@ -155,7 +155,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRoles, isM
                 ))}
               </div>
 
-              <div className={cn('mt-5 pt-5 border-t', theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200')}>
+              <div className={cn('mt-5 pt-5 border-t', 'border-zinc-800')}>
                 <button
                   onClick={handleLogoutClick}
                   className="flex items-center gap-3 w-full px-2 py-2 rounded-xl text-danger hover:bg-danger-bg transition-colors"

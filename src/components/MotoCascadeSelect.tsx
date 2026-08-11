@@ -17,7 +17,6 @@ import { getAncestorChain } from '../features/motos/motoTree';
 import type { ModeloMoto } from '../types/catalog';
 
 interface MotoCascadeSelectProps {
-  theme: 'light' | 'dark';
   modelos: ModeloMoto[];
   value: string;
   onChange: (id: string) => void;
@@ -28,7 +27,7 @@ interface MotoCascadeSelectProps {
 
 const EMPTY_VALUE = '';
 
-export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, allowEmpty, emptyLabel = 'Nenhum' }: MotoCascadeSelectProps) {
+export function MotoCascadeSelect({ modelos, value, onChange, onCreate, allowEmpty, emptyLabel = 'Nenhum' }: MotoCascadeSelectProps) {
   const [adicionandoParentId, setAdicionandoParentId] = useState<string | null | undefined>(undefined);
   const [novoNome, setNovoNome] = useState('');
   const [novoAno, setNovoAno] = useState('');
@@ -75,7 +74,6 @@ export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, a
       {niveis.map((nivel, index) => (
         <div key={nivel.parentId ?? 'raiz'} className="flex items-center gap-2">
           <CustomDropdown
-            theme={theme}
             variant="form"
             className="flex-1"
             value={nivel.valorSelecionado}
@@ -97,7 +95,7 @@ export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, a
             title={index === 0 ? 'Adicionar marca' : 'Adicionar neste nível'}
             className={cn(
               'p-2.5 rounded-xl border transition-colors shrink-0',
-              theme === 'dark' ? 'border-zinc-800 text-zinc-400 hover:text-violet-400 hover:border-violet-500/50' : 'border-zinc-200 text-zinc-500 hover:text-violet-600 hover:border-violet-300'
+              'border-zinc-800 text-zinc-400 hover:text-violet-400 hover:border-violet-500/50'
             )}
           >
             <Plus size={16} />
@@ -121,7 +119,7 @@ export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, a
             placeholder="Nome (marca, cilindrada, modelo ou variação)..."
             className={cn(
               'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400 text-zinc-900'
+              'bg-zinc-950 border-violet-500/50 text-zinc-200'
             )}
           />
           <input
@@ -137,7 +135,7 @@ export function MotoCascadeSelect({ theme, modelos, value, onChange, onCreate, a
             placeholder="Ano (opcional, ex: 2004-2008)"
             className={cn(
               'w-24 border rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-violet-500/50 shrink-0',
-              theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400 text-zinc-900'
+              'bg-zinc-950 border-violet-500/50 text-zinc-200'
             )}
           />
           <button

@@ -86,12 +86,7 @@ input[type=number] {
   }
   
   /* Gradientes elegantes para tema escuro */
-  .dark .bg-zinc-900\/40, 
-  .dark .bg-zinc-900\/50, 
-  .dark .bg-zinc-900\/80, 
-  .dark .bg-zinc-900\/90,
-  .dark .bg-zinc-950\/50,
-  .bg-zinc-900\/40, 
+  .bg-zinc-900\/40,
   .bg-zinc-900\/50, 
   .bg-zinc-900\/80, 
   .bg-zinc-900\/90,

@@ -21,8 +21,6 @@ import {
   ChevronLeft,
   Loader2,
   Wrench,
-  Sun,
-  Moon,
   Trash2,
   Edit,
   Truck,
@@ -201,14 +199,14 @@ export default function App() {
 // SIDEBAR ITEM
 // =============================================================================
 
-const SidebarItem = memo(({ icon: Icon, label, active, onClick, theme, className }: { icon: any; label: string; active: boolean; onClick: () => void; theme: 'light' | 'dark'; className?: string }) => (
+const SidebarItem = memo(({ icon: Icon, label, active, onClick, className }: { icon: any; label: string; active: boolean; onClick: () => void; className?: string }) => (
   <motion.button
     whileHover={{ x: 4 }}
     whileTap={{ scale: 0.98 }}
     onClick={onClick}
     className={cn(
       'w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-500 group relative overflow-hidden transform-gpu',
-      active ? 'bg-accent text-white shadow-[0_10px_30px_rgba(91,61,240,0.35)]' : theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900',
+      active ? 'bg-accent text-white shadow-[0_10px_30px_rgba(91,61,240,0.35)]' : 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300',
       className
     )}
   >
@@ -221,20 +219,19 @@ const SidebarItem = memo(({ icon: Icon, label, active, onClick, theme, className
 // DETAIL MODAL — mostra um item de Estoque ou uma Venda
 // =============================================================================
 
-const DetailItemBox = ({ label, value, icon: Icon, theme }: { label: string; value: any; icon: any; theme: 'light' | 'dark' }) => (
-  <div className={cn('p-4 rounded-2xl border flex flex-col gap-1.5', theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/50' : 'bg-zinc-50 border-zinc-200')}>
+const DetailItemBox = ({ label, value, icon: Icon }: { label: string; value: any; icon: any }) => (
+  <div className={cn('p-4 rounded-2xl border flex flex-col gap-1.5', 'bg-zinc-900/40 border-zinc-800/50')}>
     <div className="flex items-center gap-2 text-zinc-500">
       <Icon size={14} strokeWidth={2.5} />
       <span className="text-[10px] uppercase font-black tracking-widest">{label}</span>
     </div>
-    <span className={cn('text-sm md:text-base font-black truncate uppercase', theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900')}>{value ?? '-'}</span>
+    <span className={cn('text-sm md:text-base font-black truncate uppercase', 'text-zinc-100')}>{value ?? '-'}</span>
   </div>
 );
 
 function DetailModal({
   item,
   onClose,
-  theme,
   onEdit,
   onDelete,
   readOnly,
@@ -246,7 +243,6 @@ function DetailModal({
 }: {
   item: DetailItem;
   onClose: () => void;
-  theme: 'light' | 'dark';
   onEdit?: (item: DetailItem) => void;
   onDelete?: (id: string) => void;
   readOnly?: boolean;
@@ -290,12 +286,12 @@ function DetailModal({
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
         transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className={cn('w-[95%] md:max-w-2xl h-[90vh] md:h-auto md:max-h-[90vh] rounded-[2.5rem] overflow-hidden border shadow-2xl flex flex-col relative', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+        className={cn('w-[95%] md:max-w-2xl h-[90vh] md:h-auto md:max-h-[90vh] rounded-[2.5rem] overflow-hidden border shadow-2xl flex flex-col relative', 'bg-zinc-950 border-zinc-800')}
       >
         <div className="md:hidden w-full flex justify-center pt-4 pb-2">
           <div className="w-12 h-1.5 rounded-full bg-zinc-800/50" />
         </div>
-        <button onClick={onClose} className={cn('absolute top-6 right-6 z-50 p-2 rounded-full shadow-xl border', theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 border-zinc-200 text-zinc-500')}>
+        <button onClick={onClose} className={cn('absolute top-6 right-6 z-50 p-2 rounded-full shadow-xl border', 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white')}>
           <X size={20} />
         </button>
 
@@ -349,7 +345,7 @@ function DetailModal({
                 </div>
                 {estoque?.codigo && <span className="text-zinc-500 text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
               </div>
-              <h2 className={cn('text-3xl md:text-4xl font-black tracking-tight uppercase leading-none', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{titulo}</h2>
+              <h2 className={cn('text-3xl md:text-4xl font-black tracking-tight uppercase leading-none', 'text-white')}>{titulo}</h2>
               {estoque?.promocao_ativa ? (
                 <div className="flex items-end gap-3 flex-wrap">
                   <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(estoque.promocao_ativa.valor_promocional)}</div>
@@ -370,37 +366,36 @@ function DetailModal({
                     label="Quantidade"
                     value={contarAvarias(estoque) > 0 ? `${estoque.quantidade} · ${contarAvarias(estoque)} c/ avaria` : estoque.quantidade}
                     icon={Package}
-                    theme={theme}
                   />
-                  <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} theme={theme} />
-                  <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} theme={theme} />
-                  {estoque.condicao_nota != null && <DetailItemBox label="Estado físico" value={`${estoque.condicao_nota}/10`} icon={Gauge} theme={theme} />}
-                  <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} theme={theme} />
+                  <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} />
+                  <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} />
+                  {estoque.condicao_nota != null && <DetailItemBox label="Estado físico" value={`${estoque.condicao_nota}/10`} icon={Gauge} />}
+                  <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} />
                 </>
               )}
               {venda && (
                 <>
-                  <DetailItemBox label="Quantidade" value={venda.quantidade} icon={Package} theme={theme} />
+                  <DetailItemBox label="Quantidade" value={venda.quantidade} icon={Package} />
                   {(() => {
                     const efetiva = formaPagamentoEfetiva(venda, fiadoRecebimentos);
                     const valorPagamento = efetiva ? `${efetiva.formas.join(', ')}${efetiva.quitadoTotal ? '' : ' (parcial)'}` : venda.forma_pagamento?.nome;
-                    return <DetailItemBox label="Pagamento" value={valorPagamento} icon={CreditCard} theme={theme} />;
+                    return <DetailItemBox label="Pagamento" value={valorPagamento} icon={CreditCard} />;
                   })()}
-                  <DetailItemBox label="Data" value={new Date(venda.data).toLocaleDateString('pt-BR')} icon={Calendar} theme={theme} />
-                  {venda.cliente_nome && <DetailItemBox label="Cliente" value={venda.cliente_nome} icon={Edit} theme={theme} />}
+                  <DetailItemBox label="Data" value={new Date(venda.data).toLocaleDateString('pt-BR')} icon={Calendar} />
+                  {venda.cliente_nome && <DetailItemBox label="Cliente" value={venda.cliente_nome} icon={Edit} />}
                 </>
               )}
             </div>
 
             {venda && formaPagamentoEfetiva(venda, fiadoRecebimentos) && (
-              <div className={cn('p-4 rounded-3xl border space-y-1.5', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}>
+              <div className={cn('p-4 rounded-3xl border space-y-1.5', 'bg-zinc-900/30 border-zinc-800')}>
                 <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em]">Recebimentos deste fiado</h4>
                 {fiadoRecebimentos
                   .filter((r) => r.venda_id === venda.id)
                   .sort((a, b) => new Date(b.recebido_em).getTime() - new Date(a.recebido_em).getTime())
                   .map((r) => (
                     <div key={r.id} className="flex items-center justify-between text-xs">
-                      <span className={theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600'}>
+                      <span className={'text-zinc-400'}>
                         {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'}
                       </span>
                       <span className="font-medium text-emerald-500">{formatCurrency(r.valor)}</span>
@@ -431,18 +426,18 @@ function DetailModal({
             )}
 
             {(estoque?.descricao || venda?.observacoes) && (
-              <div className={cn('p-6 rounded-3xl border space-y-2', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}>
+              <div className={cn('p-6 rounded-3xl border space-y-2', 'bg-zinc-900/30 border-zinc-800')}>
                 <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] flex items-center gap-2">
                   <FileText size={14} /> {venda ? 'Observações' : 'Descrição'}
                 </h4>
-                <p className={cn('text-sm leading-relaxed', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600')}>{estoque?.descricao || venda?.observacoes}</p>
+                <p className={cn('text-sm leading-relaxed', 'text-zinc-400')}>{estoque?.descricao || venda?.observacoes}</p>
               </div>
             )}
 
             {/* Venda em partes: mostra o cálculo antes mesmo de abrir uma
                 venda nova, não só no momento de vender (ver VendasView). */}
             {estoque && (estoque.unidades_incompletas?.length ?? 0) > 0 && (
-              <div className={cn('p-4 rounded-3xl border', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}>
+              <div className={cn('p-4 rounded-3xl border', 'bg-zinc-900/30 border-zinc-800')}>
                 <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] mb-2">Venda em partes</h4>
                 <p className="text-xs text-zinc-500 mb-1">
                   {estoque.unidades_incompletas.length} unidade(s) incompleta(s) — falta: {estoque.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}
@@ -468,7 +463,7 @@ function DetailModal({
                         onEdit(item);
                         onClose();
                       }}
-                      className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800' : 'bg-white border-zinc-200 text-zinc-900')}
+                      className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800')}
                     >
                       <Edit size={16} /> Editar
                     </button>
@@ -517,22 +512,22 @@ function DetailModal({
 // LOGOUT MODAL
 // =============================================================================
 
-const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolean; onClose: () => void; onLogout: () => void; theme: 'light' | 'dark' }) => {
+const LogoutModal = memo(({ isOpen, onClose, onLogout }: { isOpen: boolean; onClose: () => void; onLogout: () => void }) => {
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4">
       <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('relative w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl p-8 text-center', theme === 'dark' ? 'bg-zinc-950 border border-zinc-800' : 'bg-white')}>
+      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('relative w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl p-8 text-center', 'bg-zinc-950 border border-zinc-800')}>
         <div className="w-20 h-20 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-6">
           <LogOut size={36} />
         </div>
-        <h2 className={cn('text-2xl font-black tracking-tight mb-2', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Sair da Conta?</h2>
+        <h2 className={cn('text-2xl font-black tracking-tight mb-2', 'text-white')}>Sair da Conta?</h2>
         <p className="text-zinc-500 text-sm font-medium mb-8">Tem certeza que deseja encerrar sua sessão atual?</p>
         <div className="flex flex-col gap-3">
           <button onClick={onLogout} className="w-full bg-rose-500 hover:bg-rose-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-500/20">
             Sim, Sair Agora
           </button>
-          <button onClick={onClose} className={cn('w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em]', theme === 'dark' ? 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800' : 'bg-zinc-100 text-zinc-600')}>
+          <button onClick={onClose} className={cn('w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em]', 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800')}>
             Cancelar
           </button>
         </div>
@@ -591,7 +586,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'dark');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -609,11 +603,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     window.scrollTo(0, 0);
     contentRef.current?.scrollTo(0, 0);
   }, [activeTab]);
-
-  useEffect(() => {
-    localStorage.setItem('theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
 
   useScrollLock(isLogoutModalOpen);
 
@@ -636,7 +625,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   }, [selectedDetailItem, estoqueActions, vendasActions, activeTab]);
 
   return (
-    <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', theme === 'dark' ? 'bg-[radial-gradient(ellipse_at_top,_#1a1b1f,_#09090b)] text-zinc-100' : 'bg-zinc-50 text-zinc-900')}>
+    <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', 'bg-[radial-gradient(ellipse_at_top,_#1a1b1f,_#09090b)] text-zinc-100')}>
       <AnimatePresence>
         {isSidebarOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" />}
       </AnimatePresence>
@@ -645,18 +634,18 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       <aside
         className={cn(
           'fixed top-0 h-screen inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out border-r hidden md:flex overflow-y-auto',
-          theme === 'dark' ? 'bg-zinc-950/50 border-zinc-800/50 backdrop-blur-xl' : 'bg-white border-zinc-200 shadow-xl',
+          'bg-zinc-950/50 border-zinc-800/50 backdrop-blur-xl',
           isSidebarOpen ? 'w-64' : 'w-20'
         )}
       >
-        <div className={cn('h-full flex flex-col p-4', theme === 'dark' ? 'bg-zinc-950' : 'bg-white')}>
+        <div className={cn('h-full flex flex-col p-4', 'bg-zinc-950')}>
           <div className="flex items-center gap-3 px-2 mb-10 overflow-hidden">
             <div className="w-10 h-10 shrink-0 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-              <Wrench className={theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900'} size={20} />
+              <Wrench className={'text-zinc-100'} size={20} />
             </div>
             {isSidebarOpen && (
               <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col min-w-0">
-                <span className={cn('font-black text-xl tracking-tighter truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
+                <span className={cn('font-black text-xl tracking-tighter truncate', 'text-white')}>
                   RK <span className="text-accent">SUCATAS</span>
                 </span>
                 <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Gestão Inteligente</span>
@@ -675,11 +664,11 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                     {showHeader && (
                       <div className={cn('pt-4 pb-1 first:pt-0', isSidebarOpen ? 'px-5' : 'flex justify-center')}>
                         {isSidebarOpen ? (
-                          <span className={cn('text-[10px] font-black uppercase tracking-[0.2em]', theme === 'dark' ? 'text-zinc-600' : 'text-zinc-400')}>
+                          <span className={cn('text-[10px] font-black uppercase tracking-[0.2em]', 'text-zinc-600')}>
                             {NAV_GROUP_LABELS[item.group as Exclude<NavGroup, null>]}
                           </span>
                         ) : (
-                          <span className={cn('block w-6 border-t', theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200')} />
+                          <span className={cn('block w-6 border-t', 'border-zinc-800')} />
                         )}
                       </div>
                     )}
@@ -688,17 +677,16 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                       label={isSidebarOpen ? item.label : ''}
                       active={activeTab === item.id}
                       onClick={() => setActiveTab(item.id)}
-                      theme={theme}
-                    />
+                                         />
                   </React.Fragment>
                 );
               });
             })()}
-            <div className={cn('my-2 border-t', theme === 'dark' ? 'border-zinc-800/70' : 'border-zinc-200')} />
-            <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} theme={theme} className="text-danger hover:bg-danger-bg hover:text-danger" />
+            <div className={cn('my-2 border-t', 'border-zinc-800/70')} />
+            <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} className="text-danger hover:bg-danger-bg hover:text-danger" />
           </nav>
 
-          <button onClick={() => setIsSidebarOpen((v) => !v)} className={cn('mt-4 p-3 rounded-xl flex items-center justify-center', theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-900' : 'text-zinc-400 hover:bg-zinc-100')}>
+          <button onClick={() => setIsSidebarOpen((v) => !v)} className={cn('mt-4 p-3 rounded-xl flex items-center justify-center', 'text-zinc-500 hover:bg-zinc-900')}>
             {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
           </button>
         </div>
@@ -706,13 +694,10 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
       {/* Main Content */}
       <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-64' : 'md:ml-20')}>
-        <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', theme === 'dark' ? 'bg-zinc-950/40 border-zinc-800/50' : 'bg-white/50 border-zinc-200')}>
+        <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-zinc-950/40 border-zinc-800/50')}>
           <div className="flex items-center gap-2 md:gap-4">
-            <h2 className={cn('text-base md:text-lg font-semibold capitalize', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{TAB_LABELS[activeTab]}</h2>
+            <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-white')}>{TAB_LABELS[activeTab]}</h2>
           </div>
-          <button onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} className={cn('p-2 rounded-lg transition-all', theme === 'dark' ? 'hover:bg-zinc-800 text-amber-400' : 'hover:bg-zinc-100 text-violet-600')}>
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
         </header>
 
         <div ref={contentRef} className="p-4 md:p-6 pb-32 md:pb-6 overflow-y-auto flex-1">
@@ -720,8 +705,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
               {activeTab === 'dashboard' ? (
                 <DashboardView
-                  theme={theme}
-                  userRoles={userRoles}
+                                   userRoles={userRoles}
                   onSelectItem={setSelectedDetailItem}
                   onTabChange={(tab) => setActiveTab(tab as Tab)}
                   onOpenSearch={() => setIsSearchOpen(true)}
@@ -741,8 +725,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 />
               ) : activeTab === 'estoque' ? (
                 <EstoqueView
-                  theme={theme}
-                  onSelectItem={setSelectedDetailItem}
+                                   onSelectItem={setSelectedDetailItem}
                   onRegisterActions={setEstoqueActions}
                   pendingEditItem={pendingEditItem}
                   setPendingEditItem={setPendingEditItem}
@@ -751,9 +734,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
                 />
               ) : activeTab === 'vendas' ? (
-                <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} userRoles={userRoles} />
+                <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} userRoles={userRoles} />
               ) : activeTab === 'orcamentos' ? (
-                <OrcamentosView theme={theme} />
+                <OrcamentosView />
               ) : activeTab === 'clientes' ? (
                 <ClientesView
                   pendingClienteId={pendingClienteId}
@@ -765,7 +748,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               ) : activeTab === 'fiado' ? (
                 <FiadoView userRoles={userRoles} />
               ) : activeTab === 'caixa' ? (
-                <CaixaView theme={theme} userRoles={userRoles} />
+                <CaixaView userRoles={userRoles} />
               ) : activeTab === 'frete' ? (
                 <FreteView />
               ) : activeTab === 'mercadolivre' ? (
@@ -777,18 +760,18 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               ) : activeTab === 'notificacoes' ? (
                 <NotificacoesView />
               ) : (
-                <ConfiguracoesView theme={theme} userRoles={userRoles} />
+                <ConfiguracoesView userRoles={userRoles} />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRoles={userRoles} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} onLogoutClick={() => setIsLogoutModalOpen(true)} />
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} userRoles={userRoles} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} onLogoutClick={() => setIsLogoutModalOpen(true)} />
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
-          <GlobalSearch theme={theme} onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />
+          <GlobalSearch onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />
         </div>
       )}
 
@@ -796,8 +779,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         {selectedDetailItem && (
           <DetailModal
             item={selectedDetailItem}
-            theme={theme}
-            onClose={() => setSelectedDetailItem(null)}
+                       onClose={() => setSelectedDetailItem(null)}
             onEdit={itemActions.edit}
             onDelete={itemActions.delete}
             readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
@@ -810,7 +792,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         )}
       </AnimatePresence>
 
-      <AnimatePresence>{isLogoutModalOpen && <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} theme={theme} />}</AnimatePresence>
+      <AnimatePresence>{isLogoutModalOpen && <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} />}</AnimatePresence>
     </div>
   );
 }

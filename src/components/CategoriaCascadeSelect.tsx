@@ -11,7 +11,6 @@ import { getAncestorChain } from '../features/categorias/categoriaTree';
 import type { Categoria } from '../types/catalog';
 
 interface CategoriaCascadeSelectProps {
-  theme: 'light' | 'dark';
   categorias: Categoria[];
   value: string;
   onChange: (id: string) => void;
@@ -22,7 +21,7 @@ interface CategoriaCascadeSelectProps {
 
 const EMPTY_VALUE = '';
 
-export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onCreate, allowEmpty, emptyLabel = 'Nenhuma' }: CategoriaCascadeSelectProps) {
+export function CategoriaCascadeSelect({ categorias, value, onChange, onCreate, allowEmpty, emptyLabel = 'Nenhuma' }: CategoriaCascadeSelectProps) {
   const [adicionandoParentId, setAdicionandoParentId] = useState<string | null | undefined>(undefined);
   const [novoNome, setNovoNome] = useState('');
   const [salvando, setSalvando] = useState(false);
@@ -67,7 +66,6 @@ export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onC
       {niveis.map((nivel, index) => (
         <div key={nivel.parentId ?? 'raiz'} className="flex items-center gap-2">
           <CustomDropdown
-            theme={theme}
             variant="form"
             className="flex-1"
             value={nivel.valorSelecionado}
@@ -88,7 +86,7 @@ export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onC
             title="Adicionar nesta categoria"
             className={cn(
               'p-2.5 rounded-xl border transition-colors shrink-0',
-              theme === 'dark' ? 'border-zinc-800 text-zinc-400 hover:text-violet-400 hover:border-violet-500/50' : 'border-zinc-200 text-zinc-500 hover:text-violet-600 hover:border-violet-300'
+              'border-zinc-800 text-zinc-400 hover:text-violet-400 hover:border-violet-500/50'
             )}
           >
             <Plus size={16} />
@@ -112,7 +110,7 @@ export function CategoriaCascadeSelect({ theme, categorias, value, onChange, onC
             placeholder="Nome da nova categoria/subcategoria..."
             className={cn(
               'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400 text-zinc-900'
+              'bg-zinc-950 border-violet-500/50 text-zinc-200'
             )}
           />
           <button

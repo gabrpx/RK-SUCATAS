@@ -33,7 +33,6 @@ interface ToggleConfig {
 }
 
 interface ManageListSectionProps {
-  theme: 'light' | 'dark';
   titulo: string;
   icone: any;
   itens: Item[];
@@ -43,7 +42,7 @@ interface ManageListSectionProps {
   toggle?: ToggleConfig;
 }
 
-export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar, onExcluir, onRenomear, toggle }: ManageListSectionProps) {
+export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcluir, onRenomear, toggle }: ManageListSectionProps) {
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -101,20 +100,20 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
   };
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200 shadow-sm')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', theme === 'dark' ? 'border-zinc-800/50' : 'border-zinc-100')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', theme === 'dark' ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-zinc-800/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', 'bg-violet-500/10 text-violet-400')}>
           <Icone size={18} />
         </div>
         <div>
-          <h3 className={cn('font-black text-sm', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{titulo}</h3>
+          <h3 className={cn('font-black text-sm', 'text-white')}>{titulo}</h3>
           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{itens.length} cadastrado(s)</p>
         </div>
       </div>
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-zinc-950 border-zinc-800')}>
             <Search size={15} className="text-zinc-500 shrink-0" />
             <input
               value={searchTerm}
@@ -129,7 +128,6 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
             )}
           </div>
           <CustomDropdown
-            theme={theme}
             icon={<ArrowDownAZ size={14} />}
             value={sortKey}
             onChange={(v) => setSortKey(v as typeof sortKey)}
@@ -148,7 +146,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
             placeholder="Nome novo..."
             className={cn(
               'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+              'bg-zinc-950 border-zinc-800 text-zinc-200'
             )}
           />
           <button
@@ -170,7 +168,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
             {itensExibidos.map((item) => (
               <div
                 key={item.id}
-                className={cn('flex items-center justify-between gap-2 px-3 py-2 rounded-xl', theme === 'dark' ? 'hover:bg-zinc-800/40' : 'hover:bg-zinc-50')}
+                className={cn('flex items-center justify-between gap-2 px-3 py-2 rounded-xl', 'hover:bg-zinc-800/40')}
               >
                 {editandoId === item.id ? (
                   <>
@@ -182,7 +180,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
                         if (e.key === 'Enter') salvarEdicao(item.id);
                         if (e.key === 'Escape') setEditandoId(null);
                       }}
-                      className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400')}
+                      className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', 'bg-zinc-950 border-violet-500/50 text-zinc-200')}
                     />
                     <button onClick={() => salvarEdicao(item.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10">
                       <Check size={14} />
@@ -193,7 +191,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
                   </>
                 ) : (
                   <>
-                    <span className={cn('text-sm font-medium truncate', theme === 'dark' ? 'text-zinc-200' : 'text-zinc-700')}>{item.nome}</span>
+                    <span className={cn('text-sm font-medium truncate', 'text-zinc-200')}>{item.nome}</span>
                     <div className="flex items-center gap-1 shrink-0">
                       {toggle && (
                         <button
@@ -203,9 +201,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
                             'px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors',
                             toggle.ativo(item)
                               ? 'bg-amber-500/15 text-amber-500'
-                              : theme === 'dark'
-                                ? 'bg-zinc-800/60 text-zinc-500 hover:text-zinc-300'
-                                : 'bg-zinc-100 text-zinc-400 hover:text-zinc-600'
+                              : 'bg-zinc-800/60 text-zinc-500 hover:text-zinc-300'
                           )}
                         >
                           {toggle.rotulo}
@@ -231,7 +227,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
       <AnimatePresence>
         {itemParaExcluir && (
           <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}>
               <h3 className="text-lg font-black mb-2">Excluir "{itemParaExcluir.nome}"?</h3>
               <p className="text-sm text-zinc-500 mb-4">Essa ação não pode ser desfeita.</p>
               {erroExclusao && <p className="text-xs text-rose-500 mb-4">{erroExclusao}</p>}

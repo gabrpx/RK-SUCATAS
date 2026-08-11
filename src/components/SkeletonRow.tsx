@@ -4,12 +4,8 @@ import { cn } from '../utils';
 // SkeletonRow: linha de loading animada pra tabela de Estoque. Colunas batem
 // com EstoqueView.tsx (checkbox, Peça com miniatura+código, Categoria, Moto,
 // Condição, Valor, Qtd, Ações) pra não pular o layout quando os dados chegam.
-interface SkeletonRowProps {
-  theme: 'light' | 'dark';
-}
-
-export const SkeletonRow = memo(({ theme }: SkeletonRowProps) => {
-  const bar = theme === 'dark' ? 'bg-zinc-800' : 'bg-zinc-200';
+export const SkeletonRow = memo(() => {
+  const bar = 'bg-zinc-800';
   return (
     <tr className="animate-pulse transform-gpu">
       <td className="px-3 py-2.5">

@@ -22,7 +22,6 @@ import type { ModeloMoto } from '../../types/catalog';
 import type { Estoque } from './types';
 
 interface EstoqueByMotoProps {
-  theme: 'light' | 'dark';
   modelos: ModeloMoto[];
   items: Estoque[];
   onSelecionarModelo: (modeloId: string) => void;
@@ -37,7 +36,7 @@ function normalizar(texto: string) {
     .replace(/[̀-ͯ]/g, '');
 }
 
-export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: EstoqueByMotoProps) {
+export function EstoqueByMoto({ modelos, items, onSelecionarModelo }: EstoqueByMotoProps) {
   const [busca, setBusca] = useState('');
   const [marcaFiltro, setMarcaFiltro] = useState(TODAS);
   const [cilindradaFiltro, setCilindradaFiltro] = useState(TODAS);
@@ -238,7 +237,6 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
           />
         </div>
         <CustomDropdown
-          theme={theme}
           variant="form"
           className="sm:w-48"
           value={marcaFiltro}
@@ -250,7 +248,6 @@ export function EstoqueByMoto({ theme, modelos, items, onSelecionarModelo }: Est
         />
         {cilindradas.length > 0 && (
           <CustomDropdown
-            theme={theme}
             variant="form"
             className="sm:w-40"
             value={cilindradaFiltro}

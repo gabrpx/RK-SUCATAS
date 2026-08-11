@@ -21,7 +21,6 @@ import type { Categoria } from '../../types/catalog';
 type ApiResult = { success: boolean; error?: string };
 
 interface CategoriaTreeManagerProps {
-  theme: 'light' | 'dark';
   categorias: Categoria[];
   onCriar: (nome: string, parentId?: string | null) => Promise<ApiResult>;
   onRenomear: (id: string, nome: string) => Promise<ApiResult>;
@@ -32,7 +31,7 @@ interface CategoriaTreeManagerProps {
 
 const ROOT_OPTION_VALUE = '__raiz__';
 
-export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, onMover, onReordenar, onExcluir }: CategoriaTreeManagerProps) {
+export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover, onReordenar, onExcluir }: CategoriaTreeManagerProps) {
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erroCriar, setErroCriar] = useState<string | null>(null);
@@ -133,16 +132,16 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
   };
 
   const totalRaizes = arvoreCompleta.length;
-  const borderGuia = theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200';
+  const borderGuia = 'border-zinc-800';
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200 shadow-sm')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', theme === 'dark' ? 'border-zinc-800/50' : 'border-zinc-100')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', theme === 'dark' ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-zinc-800/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', 'bg-violet-500/10 text-violet-400')}>
           <Layers size={18} />
         </div>
         <div className="min-w-0">
-          <h3 className={cn('font-black text-sm', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Categorias de Peça</h3>
+          <h3 className={cn('font-black text-sm', 'text-white')}>Categorias de Peça</h3>
           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{categorias.length} cadastrada(s) · {totalRaizes} raiz(es)</p>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -173,7 +172,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
               onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
               className={cn(
                 'flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
-                theme === 'dark' ? 'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-zinc-500 hover:text-violet-600 hover:bg-violet-50'
+                'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10'
               )}
             >
               {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
@@ -185,7 +184,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-zinc-950 border-zinc-800')}>
             <Search size={15} className="text-zinc-500 shrink-0" />
             <input
               value={searchTerm}
@@ -200,7 +199,6 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
             )}
           </div>
           <CustomDropdown
-            theme={theme}
             icon={<ArrowDownAZ size={14} />}
             value={sortKey}
             onChange={(v) => setSortKey(v as typeof sortKey)}
@@ -222,7 +220,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
                 placeholder="Nova categoria raiz..."
                 className={cn(
                   'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-                  theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+                  'bg-zinc-950 border-zinc-800 text-zinc-200'
                 )}
               />
               <button
@@ -258,7 +256,6 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
                 parentId={null}
                 depth={0}
                 h={{
-                  theme,
                   borderGuia,
                   arrastavel: sortKey === 'manual',
                   expandidoIds: idsExpandidosNaBusca ?? expandidoIds,
@@ -319,7 +316,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}
             >
               <h3 className="text-lg font-black mb-2">Excluir "{itemParaExcluir.nome}"?</h3>
               <p className="text-sm text-zinc-500 mb-4">
@@ -365,7 +362,6 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
 // Handlers/estado compartilhados por toda a árvore — passados por referência
 // (não espalhados via JSX spread) pra cada nível/linha recursiva.
 interface ArvoreHandlers {
-  theme: 'light' | 'dark';
   borderGuia: string;
   arrastavel: boolean;
   expandidoIds: Set<string>;
@@ -409,7 +405,7 @@ function CategoriaNivel({ nodes, parentId, depth, h }: CategoriaNivelProps) {
 }
 
 function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; parentId: string | null; depth: number; h: ArvoreHandlers }) {
-  const { theme, borderGuia, expandidoIds, onToggleExpandido } = h;
+  const { borderGuia, expandidoIds, onToggleExpandido } = h;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
     data: { parentId },
@@ -424,7 +420,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
       <div
         className={cn(
           'group flex items-center gap-1 rounded-xl',
-          theme === 'dark' ? 'hover:bg-zinc-800/40' : 'hover:bg-zinc-50'
+          'hover:bg-zinc-800/40'
         )}
       >
         <button
@@ -458,7 +454,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                 }}
                 className={cn(
                   'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                  theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                  'bg-zinc-950 border-violet-500/50 text-zinc-200'
                 )}
               />
               <button onClick={() => h.onSalvarEdicao(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
@@ -491,7 +487,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                   'flex items-center gap-2 text-sm truncate min-w-0',
                   temFilhos && 'cursor-pointer',
                   temFilhos ? 'font-bold' : 'font-medium',
-                  theme === 'dark' ? 'text-zinc-200' : 'text-zinc-700'
+                  'text-zinc-200'
                 )}
               >
                 <span className="truncate">{node.nome}</span>
@@ -499,7 +495,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                   <span
                     className={cn(
                       'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                      theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+                      'bg-zinc-800 text-zinc-400'
                     )}
                   >
                     {node.children.length}
@@ -539,7 +535,7 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
               placeholder="Nome da subcategoria..."
               className={cn(
                 'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                'bg-zinc-950 border-violet-500/50 text-zinc-200'
               )}
             />
             <button onClick={() => h.onCriarSub(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">

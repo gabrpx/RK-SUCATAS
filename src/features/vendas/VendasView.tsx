@@ -40,13 +40,12 @@ function isDentroDoPeriodo(dataStr: string, periodo: PeriodoFiltro): boolean {
 }
 
 interface VendasViewProps {
-  theme: 'light' | 'dark';
   onSelectItem: (item: Venda) => void;
   onRegisterActions?: (actions: { edit: (item: Venda) => void; delete: (id: string) => void }) => void;
   userRoles?: Role[];
 }
 
-export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles = [] }: VendasViewProps) {
+export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: VendasViewProps) {
   const { vendas, setVendas, estoque, fiadoRecebimentos, refreshData, loading } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
@@ -116,7 +115,7 @@ export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles =
             <ShoppingCart className="text-violet-500" size={28} />
           </div>
           <div>
-            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Vendas</h2>
+            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Vendas</h2>
             <p className="text-sm text-zinc-500">
               {filtered.length} vendas · {formatCurrency(totalVendido)} no período
             </p>
@@ -132,12 +131,11 @@ export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles =
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200')}>
+        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-zinc-900 border-zinc-800')}>
           <Search size={16} className="text-zinc-500 shrink-0" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por peça ou cliente..." className="bg-transparent outline-none text-sm w-full" />
         </div>
         <CustomDropdown
-          theme={theme}
           icon={<Calendar size={14} />}
           value={periodo}
           onChange={(v) => setPeriodo(v as PeriodoFiltro)}
@@ -150,7 +148,6 @@ export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles =
           ]}
         />
         <CustomDropdown
-          theme={theme}
           value={pagamentoFiltro}
           onChange={setPagamentoFiltro}
           options={[{ value: 'Todos', label: 'Todas formas' }, ...formasPagamento.map((p) => ({ value: p.id, label: p.nome }))]}
@@ -158,7 +155,7 @@ export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles =
       </div>
 
       {/* Lista */}
-      <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
+      <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
         {loading && vendas.length === 0 ? (
           <div className="p-12 flex justify-center">
             <Loader2 className="animate-spin text-violet-500" size={28} />
@@ -175,7 +172,7 @@ export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles =
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <p className={cn('font-bold text-sm truncate min-w-0', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
+                      <p className={cn('font-bold text-sm truncate min-w-0', 'text-white')}>
                         {venda.quantidade > 1 ? `${venda.quantidade}x ` : ''}
                         {venda.nome_item}
                       </p>
@@ -224,13 +221,13 @@ export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles =
         )}
       </div>
 
-      <NovaVendaModal isOpen={isNovaVendaOpen} onClose={() => setIsNovaVendaOpen(false)} theme={theme} />
+      <NovaVendaModal isOpen={isNovaVendaOpen} onClose={() => setIsNovaVendaOpen(false)} />
 
       {/* Confirmação de cancelamento */}
       <AnimatePresence>
         {vendaToCancel && (
           <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}>
               <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4">
                 <AlertCircle size={28} />
               </div>
@@ -266,7 +263,7 @@ export function VendasView({ theme, onSelectItem, onRegisterActions, userRoles =
   );
 }
 
-function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: () => void; theme: 'light' | 'dark' }) {
+function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { estoque, vendas, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
@@ -398,9 +395,9 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
 
   const inputClass = cn(
     'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+    'bg-zinc-950 border-zinc-800 text-zinc-200'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600');
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-zinc-400');
 
   if (!isOpen) return null;
 
@@ -411,14 +408,14 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
         animate={{ y: 0, opacity: 1 }}
         exit={{ y: '100%', opacity: 0 }}
         transition={{ type: 'spring', damping: 28, stiffness: 300 }}
-        className={cn('w-full md:max-w-lg rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[90vh] overflow-y-auto', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+        className={cn('w-full md:max-w-lg rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[90vh] overflow-y-auto', 'bg-zinc-950 border-zinc-800')}
       >
         <div className="md:hidden w-full flex justify-center -mt-2 mb-4">
           <div className="w-12 h-1.5 rounded-full bg-zinc-800" />
         </div>
 
         <div className="flex items-center justify-between mb-6">
-          <h3 className={cn('text-xl font-black', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Nova Venda</h3>
+          <h3 className={cn('text-xl font-black', 'text-white')}>Nova Venda</h3>
           <button onClick={handleClose} className="p-2 rounded-full text-zinc-500 hover:bg-zinc-800/50">
             <X size={20} />
           </button>
@@ -430,13 +427,13 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
               <label className={labelClass}>Buscar item no estoque</label>
               <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome ou código..." className={inputClass} autoFocus />
               {resultados.length > 0 && (
-                <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', theme === 'dark' ? 'border-zinc-800 divide-zinc-800' : 'border-zinc-200 divide-zinc-100')}>
+                <div className={cn('mt-2 rounded-xl border divide-y overflow-hidden', 'border-zinc-800 divide-zinc-800')}>
                   {resultados.map((item) => (
                     <button
                       key={item.id}
                       type="button"
                       onClick={() => selecionarItem(item)}
-                      className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', theme === 'dark' ? 'hover:bg-zinc-900' : 'hover:bg-zinc-50')}
+                      className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', 'hover:bg-zinc-900')}
                     >
                       <div className="min-w-0">
                         <p className="font-bold truncate">{item.nome}</p>
@@ -459,7 +456,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
               {busca.trim() && resultados.length === 0 && <p className="text-xs text-zinc-500 mt-2">Nenhum item disponível encontrado.</p>}
             </div>
           ) : (
-            <div className={cn('rounded-xl border p-4 flex items-center justify-between gap-3', theme === 'dark' ? 'border-violet-500/30 bg-violet-500/5' : 'border-violet-200 bg-violet-50')}>
+            <div className={cn('rounded-xl border p-4 flex items-center justify-between gap-3', 'border-violet-500/30 bg-violet-500/5')}>
               <div className="min-w-0">
                 <p className="font-bold text-sm truncate">{itemSelecionado.nome}</p>
                 <p className="text-xs text-zinc-500">
@@ -574,7 +571,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
 
               <div>
                 <label className={labelClass}>Forma de pagamento</label>
-                <CustomDropdown theme={theme} variant="form" value={formaPagamentoId} onChange={setFormaPagamentoId} placeholder="Selecione..." options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))} />
+                <CustomDropdown variant="form" value={formaPagamentoId} onChange={setFormaPagamentoId} placeholder="Selecione..." options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))} />
               </div>
 
               <div className="grid grid-cols-2 gap-3">
@@ -601,7 +598,7 @@ function NovaVendaModal({ isOpen, onClose, theme }: { isOpen: boolean; onClose: 
                 <textarea value={observacoes} onChange={(e) => setObservacoes(e.target.value)} rows={2} className={inputClass} />
               </div>
 
-              <div className={cn('flex items-center justify-between p-4 rounded-xl', theme === 'dark' ? 'bg-zinc-900' : 'bg-zinc-100')}>
+              <div className={cn('flex items-center justify-between p-4 rounded-xl', 'bg-zinc-900')}>
                 <span className="text-xs font-bold uppercase text-zinc-500">Total</span>
                 <span className="text-xl font-black text-emerald-500">{formatCurrency(Number(valorUnitario || 0) * Number(quantidade || 0))}</span>
               </div>

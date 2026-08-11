@@ -9,7 +9,6 @@ interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  theme?: 'light' | 'dark';
   maxWidth?: string;
   icon?: React.ReactNode;
   iconBgColor?: string;
@@ -22,7 +21,6 @@ export const Modal: React.FC<ModalProps> = ({
   onClose,
   title,
   children,
-  theme = 'dark',
   maxWidth = 'max-w-2xl',
   icon,
   iconBgColor = 'bg-zinc-800/50',
@@ -45,12 +43,12 @@ export const Modal: React.FC<ModalProps> = ({
       <div className={cn(
         "relative w-full rounded-3xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col",
         maxWidth,
-        theme === 'dark' ? "bg-zinc-900 border-zinc-800 text-white" : "bg-white border-zinc-200 text-zinc-900"
+        "bg-zinc-900 border-zinc-800 text-white"
       )}>
         {/* Header */}
         <div className={cn(
           "p-6 border-b flex items-center justify-between shrink-0",
-          theme === 'dark' ? "border-zinc-800/50" : "border-zinc-100"
+          "border-zinc-800/50"
         )}>
           <div className="flex items-center gap-3">
             {icon && (
@@ -64,7 +62,7 @@ export const Modal: React.FC<ModalProps> = ({
             onClick={onClose}
             className={cn(
               "p-2 rounded-xl transition-colors",
-              theme === 'dark' ? "hover:bg-zinc-800 text-zinc-500" : "hover:bg-zinc-100 text-zinc-400"
+              "hover:bg-zinc-800 text-zinc-500"
             )}
           >
             <X size={20} />
@@ -80,7 +78,7 @@ export const Modal: React.FC<ModalProps> = ({
         {footer && (
           <div className={cn(
             "p-6 border-t flex items-center justify-end gap-3 shrink-0",
-            theme === 'dark' ? "border-zinc-800/50 bg-zinc-950/20" : "border-zinc-100 bg-zinc-50/50"
+            "border-zinc-800/50 bg-zinc-950/20"
           )}>
             {footer}
           </div>

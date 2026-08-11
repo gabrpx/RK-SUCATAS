@@ -28,7 +28,6 @@ import type { ModeloMoto } from '../../types/catalog';
 type ApiResult = { success: boolean; error?: string };
 
 interface MotoTreeManagerProps {
-  theme: 'light' | 'dark';
   modelos: ModeloMoto[];
   onCriar: (nome: string, parentId?: string | null, ano?: string | null) => Promise<ApiResult>;
   onCriarRapido: (marca: string, cilindrada: string | null, nome: string, ano?: string | null) => Promise<ApiResult>;
@@ -40,7 +39,7 @@ interface MotoTreeManagerProps {
 
 const ROOT_OPTION_VALUE = '__raiz__';
 
-export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onRenomear, onMover, onReordenar, onExcluir }: MotoTreeManagerProps) {
+export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, onMover, onReordenar, onExcluir }: MotoTreeManagerProps) {
   const [novaMarca, setNovaMarca] = useState('');
   const [novaCilindrada, setNovaCilindrada] = useState('');
   const [novoNomeMoto, setNovoNomeMoto] = useState('');
@@ -183,20 +182,20 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
   };
 
   const totalRaizes = arvoreCompleta.length;
-  const borderGuia = theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200';
+  const borderGuia = 'border-zinc-800';
   const inputClass = cn(
     'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-    theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+    'bg-zinc-950 border-zinc-800 text-zinc-200'
   );
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200 shadow-sm')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', theme === 'dark' ? 'border-zinc-800/50' : 'border-zinc-100')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', theme === 'dark' ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-zinc-900/50 border-zinc-800')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-zinc-800/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', 'bg-violet-500/10 text-violet-400')}>
           <Bike size={18} />
         </div>
         <div className="min-w-0">
-          <h3 className={cn('font-black text-sm', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Motos</h3>
+          <h3 className={cn('font-black text-sm', 'text-white')}>Motos</h3>
           <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{modelos.length} cadastrado(s) · {totalRaizes} marca(s)</p>
         </div>
         <div className="ml-auto flex items-center gap-2 shrink-0">
@@ -227,7 +226,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
               onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
               className={cn(
                 'flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
-                theme === 'dark' ? 'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-zinc-500 hover:text-violet-600 hover:bg-violet-50'
+                'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10'
               )}
             >
               {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
@@ -239,7 +238,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-zinc-950 border-zinc-800')}>
             <Search size={15} className="text-zinc-500 shrink-0" />
             <input
               value={searchTerm}
@@ -254,7 +253,6 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
             )}
           </div>
           <CustomDropdown
-            theme={theme}
             icon={<ArrowDownAZ size={14} />}
             value={sortKey}
             onChange={(v) => setSortKey(v as typeof sortKey)}
@@ -269,7 +267,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
         </div>
 
         {modoVisualizacao === 'lista' && (
-          <div className={cn('rounded-2xl border p-4 space-y-2', theme === 'dark' ? 'border-zinc-800 bg-zinc-950/40' : 'border-zinc-100 bg-zinc-50')}>
+          <div className={cn('rounded-2xl border p-4 space-y-2', 'border-zinc-800 bg-zinc-950/40')}>
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Nova moto</p>
             <div className="grid grid-cols-2 gap-2">
               <input value={novaMarca} onChange={(e) => setNovaMarca(e.target.value)} placeholder="Marca (ex: Honda)" className={inputClass} />
@@ -329,7 +327,6 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
                 parentId={null}
                 depth={0}
                 h={{
-                  theme,
                   borderGuia,
                   arrastavel: sortKey === 'manual',
                   expandidoIds: idsExpandidosNaBusca ?? expandidoIds,
@@ -401,7 +398,7 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
               initial={{ scale: 0.9, opacity: 0 }}
               animate={{ scale: 1, opacity: 1 }}
               exit={{ scale: 0.9, opacity: 0 }}
-              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', 'bg-zinc-950 border-zinc-800')}
             >
               <h3 className="text-lg font-black mb-2">Excluir "{itemParaExcluir.nome}"?</h3>
               <p className="text-sm text-zinc-500 mb-4">
@@ -447,7 +444,6 @@ export function MotoTreeManager({ theme, modelos, onCriar, onCriarRapido, onReno
 // Handlers/estado compartilhados por toda a árvore — passados por referência
 // (não espalhados via JSX spread) pra cada nível/linha recursiva.
 interface ArvoreHandlers {
-  theme: 'light' | 'dark';
   borderGuia: string;
   arrastavel: boolean;
   expandidoIds: Set<string>;
@@ -499,7 +495,7 @@ function MotoNivel({ nodes, parentId, depth, h }: MotoNivelProps) {
 }
 
 function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId: string | null; depth: number; h: ArvoreHandlers }) {
-  const { theme, borderGuia, expandidoIds, onToggleExpandido } = h;
+  const { borderGuia, expandidoIds, onToggleExpandido } = h;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
     data: { parentId },
@@ -514,7 +510,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
       <div
         className={cn(
           'group flex items-center gap-1 rounded-xl',
-          theme === 'dark' ? 'hover:bg-zinc-800/40' : 'hover:bg-zinc-50'
+          'hover:bg-zinc-800/40'
         )}
       >
         <button
@@ -548,7 +544,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 }}
                 className={cn(
                   'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                  theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                  'bg-zinc-950 border-violet-500/50 text-zinc-200'
                 )}
               />
               <input
@@ -562,7 +558,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 title="Ano único (2015) ou período (2004-2008)"
                 className={cn(
                   'w-16 border rounded-lg py-1.5 px-2 text-sm outline-none shrink-0',
-                  theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                  'bg-zinc-950 border-violet-500/50 text-zinc-200'
                 )}
               />
               {!temFilhos && (
@@ -573,7 +569,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   title={h.imagemEditada ? 'Trocar foto' : 'Adicionar foto'}
                   className={cn(
                     'size-8 rounded-lg overflow-hidden shrink-0 flex items-center justify-center border',
-                    theme === 'dark' ? 'border-zinc-800 bg-zinc-950' : 'border-zinc-200 bg-white'
+                    'border-zinc-800 bg-zinc-950'
                   )}
                 >
                   {h.uploadandoImagem ? (
@@ -620,7 +616,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   'flex items-center gap-2 text-sm truncate min-w-0',
                   temFilhos && 'cursor-pointer',
                   temFilhos ? 'font-bold' : 'font-medium',
-                  theme === 'dark' ? 'text-zinc-200' : 'text-zinc-700'
+                  'text-zinc-200'
                 )}
               >
                 <span className="truncate">
@@ -631,7 +627,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   <span
                     className={cn(
                       'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                      theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+                      'bg-zinc-800 text-zinc-400'
                     )}
                   >
                     {node.children.length}
@@ -671,7 +667,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
               placeholder='Nome do sub-nível... (ex: "Carburada")'
               className={cn(
                 'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                'bg-zinc-950 border-violet-500/50 text-zinc-200'
               )}
             />
             <input
@@ -685,7 +681,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
               title="Ano único (2015) ou período (2004-2008)"
               className={cn(
                 'w-16 border rounded-lg py-1.5 px-2 text-sm outline-none shrink-0',
-                theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                'bg-zinc-950 border-violet-500/50 text-zinc-200'
               )}
             />
             <button onClick={() => h.onCriarSub(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
