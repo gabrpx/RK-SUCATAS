@@ -611,7 +611,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   return (
     <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', 'bg-[radial-gradient(ellipse_at_top,_#1a1b1f,_#09090b)] text-zinc-100')}>
       <AnimatePresence>
-        {isSidebarOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" />}
+        {isSidebarOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm z-40 lg:hidden" />}
       </AnimatePresence>
 
       {/* Sidebar */}
