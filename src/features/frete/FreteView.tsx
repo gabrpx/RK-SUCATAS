@@ -13,6 +13,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { CEP_ORIGEM_LOJA } from '../../constants/loja';
 import { calcularFrete, buscarCidadePorCep, enviosApi, type FreteQuote } from './api';
@@ -225,16 +226,18 @@ function CotacaoSection() {
                 <p className="text-sm text-text-primary truncate">{pecaEscolhida.nome}</p>
                 <p className="text-xs text-text-faint">{formatCurrency(pecaEscolhida.valor)}</p>
               </div>
-              <button
+              <Button
                 type="button"
+                variant="ghost"
+                size="icon"
                 onClick={() => {
                   setPecaEscolhida(null);
                   setBuscaPeca('');
                 }}
-                className="shrink-0 size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised"
+                className="shrink-0 size-7 rounded-control text-text-muted"
               >
                 <X size={14} />
-              </button>
+              </Button>
             </div>
           ) : (
             <div className="relative">
@@ -306,24 +309,27 @@ function CotacaoSection() {
                 >
                   {preset.nome}
                 </button>
-                <button
+                <Button
                   type="button"
+                  variant="ghost"
+                  size="icon"
                   onClick={() => removerPreset(preset.id)}
                   title="Remover caixa"
-                  className="px-2 py-2 text-text-faint hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="size-7 rounded-none text-text-faint hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
                 >
                   <X size={12} />
-                </button>
+                </Button>
               </span>
             ))}
             {dimensoesPreenchidas && (
-              <button
+              <Button
                 type="button"
+                variant="outline"
                 onClick={salvarComoPreset}
-                className="inline-flex items-center gap-1.5 rounded-control border border-dashed border-border-default px-3 py-2 text-xs font-medium text-text-muted hover:text-accent-soft-fg hover:border-accent/50"
+                className="h-auto rounded-control border-dashed border-border-default px-3 py-2 text-xs font-medium text-text-muted hover:text-accent-soft-fg hover:border-accent/50"
               >
                 <Save size={12} /> Salvar esta
-              </button>
+              </Button>
             )}
           </div>
         </div>
@@ -351,13 +357,9 @@ function CotacaoSection() {
           ))}
         </div>
 
-        <button
-          onClick={handleCalculate}
-          disabled={loading}
-          className="w-full h-12 rounded-control bg-accent text-white font-semibold text-xs uppercase tracking-[0.2em] shadow-sm hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-        >
+        <Button onClick={handleCalculate} disabled={loading} className="h-12 w-full rounded-control font-semibold text-xs uppercase tracking-[0.2em] shadow-sm">
           {loading ? <Loader2 size={18} className="animate-spin" /> : <><Truck size={16} /> Calcular frete</>}
-        </button>
+        </Button>
       </div>
 
       {/* ------------------------------------------------------- resultados */}
@@ -391,14 +393,15 @@ function CotacaoSection() {
               >
                 <Clock size={13} /> Mais rápido
               </button>
-              <button
+              <Button
+                variant="outline"
                 onClick={copiarResumo}
                 title="Copiar as 3 melhores pro WhatsApp"
-                className="h-9 px-3 rounded-control border border-border-default bg-surface-inset text-text-muted hover:text-text-primary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5"
+                className="h-9 px-3 rounded-control border-border-default bg-surface-inset text-text-muted hover:text-text-primary text-[11px] font-semibold uppercase tracking-wider"
               >
                 {copiado ? <Check size={13} className="text-positive" /> : <Copy size={13} />}
                 <span className="hidden sm:inline">{copiado ? 'Copiado' : 'Copiar'}</span>
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -445,15 +448,16 @@ function CotacaoSection() {
             <h2 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted flex items-center gap-2">
               <History size={13} /> Últimas cotações
             </h2>
-            <button
+            <Button
+              variant="ghost"
               onClick={() => {
                 historicoCotacoes.limpar();
                 setHistorico([]);
               }}
-              className="text-xs text-text-faint hover:text-danger"
+              className="h-auto p-0 text-xs text-text-faint hover:bg-transparent hover:text-danger"
             >
               Limpar
-            </button>
+            </Button>
           </div>
           <ul className="divide-y divide-border-subtle/60">
             {historico.map((h) => (
@@ -606,18 +610,13 @@ function EnviosSection() {
       render: (e) => (
         <div className="flex items-center justify-end gap-1" onClick={(ev) => ev.stopPropagation()}>
           {e.melhor_envio_order_id && (
-            <button
-              onClick={() => rastrear(e)}
-              disabled={rastreandoId === e.id}
-              title="Atualizar status via Melhor Envio"
-              className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary disabled:opacity-50"
-            >
+            <Button variant="ghost" size="icon" onClick={() => rastrear(e)} disabled={rastreandoId === e.id} title="Atualizar status via Melhor Envio" className="size-7 rounded-control text-text-muted">
               {rastreandoId === e.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-            </button>
+            </Button>
           )}
-          <button onClick={() => excluir(e)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-danger">
+          <Button variant="ghost" size="icon" onClick={() => excluir(e)} title="Excluir" className="size-7 rounded-control text-text-muted hover:text-danger">
             <Trash2 size={13} />
-          </button>
+          </Button>
         </div>
       ),
     },
@@ -638,19 +637,17 @@ function EnviosSection() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-end gap-2">
-        <button
+        <Button
+          variant="outline"
           onClick={rastrearTodos}
           disabled={rastreandoTodos}
-          className="h-10 px-4 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider hover:bg-surface-raised disabled:opacity-50 flex items-center gap-2"
+          className="h-10 px-4 rounded-control border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider"
         >
           {rastreandoTodos ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />} Atualizar todos
-        </button>
-        <button
-          onClick={() => setIsFormOpen(true)}
-          className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90"
-        >
+        </Button>
+        <Button onClick={() => setIsFormOpen(true)} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm">
           <PackagePlus size={16} /> Registrar envio
-        </button>
+        </Button>
       </div>
 
       <DataTable
@@ -679,12 +676,12 @@ function EnviosSection() {
         tamanho="md"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+            </Button>
+            <Button onClick={salvar} disabled={salvando} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
+            </Button>
           </div>
         }
       >
