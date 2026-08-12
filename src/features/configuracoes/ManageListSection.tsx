@@ -7,6 +7,7 @@ import { Plus, Trash2, Pencil, Check, X, Loader2, Search, ArrowDownAZ } from 'lu
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 
 function normalizarTexto(texto: string) {
   return (texto || '')
@@ -122,9 +123,9 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
               className="flex-1 py-2.5 bg-transparent outline-none text-sm"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-surface-raised text-text-muted shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => setSearchTerm('')} className="size-5 rounded-full text-text-muted hover:text-text-muted shrink-0">
                 <X size={13} />
-              </button>
+              </Button>
             )}
           </div>
           <CustomDropdown
@@ -149,13 +150,14 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
               'bg-surface-inset border-border-default text-text-primary'
             )}
           />
-          <button
+          <Button
+            size="icon"
             onClick={handleCriar}
             disabled={criando || !novoNome.trim()}
-            className="p-2.5 rounded-xl bg-accent text-white hover:opacity-90 disabled:opacity-50 transition-colors shrink-0"
+            className="rounded-xl shrink-0"
           >
             {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          </button>
+          </Button>
         </div>
         {erro && <p className="text-xs text-danger">{erro}</p>}
 
@@ -182,12 +184,12 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
                       }}
                       className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', 'bg-surface-inset border-accent/50 text-text-primary')}
                     />
-                    <button onClick={() => salvarEdicao(item.id)} className="p-1.5 rounded-lg text-positive hover:bg-positive/10">
+                    <Button variant="ghost" size="icon" onClick={() => salvarEdicao(item.id)} className="size-7 rounded-lg text-positive hover:text-positive hover:bg-positive/10">
                       <Check size={14} />
-                    </button>
-                    <button onClick={() => setEditandoId(null)} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised">
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setEditandoId(null)} className="size-7 rounded-lg text-text-muted">
                       <X size={14} />
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
@@ -208,13 +210,13 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
                         </button>
                       )}
                       {onRenomear && (
-                        <button onClick={() => iniciarEdicao(item)} className="p-1.5 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10 transition-colors">
+                        <Button variant="ghost" size="icon" onClick={() => iniciarEdicao(item)} className="size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10">
                           <Pencil size={13} />
-                        </button>
+                        </Button>
                       )}
-                      <button onClick={() => setItemParaExcluir(item)} className="p-1.5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10 transition-colors">
+                      <Button variant="ghost" size="icon" onClick={() => setItemParaExcluir(item)} className="size-7 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10">
                         <Trash2 size={13} />
-                      </button>
+                      </Button>
                     </div>
                   </>
                 )}
@@ -235,18 +237,19 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button
+            <Button
+              variant="secondary"
               onClick={() => {
                 setItemParaExcluir(null);
                 setErroExclusao(null);
               }}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary"
+              className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm"
             >
               Cancelar
-            </button>
-            <button onClick={confirmarExclusao} disabled={excluindo} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+            </Button>
+            <Button variant="destructive" onClick={confirmarExclusao} disabled={excluindo} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
               {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
-            </button>
+            </Button>
           </div>
         }
       >
