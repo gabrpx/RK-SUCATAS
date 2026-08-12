@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { Loader2, Wrench, KeyRound, User, Eye, EyeOff } from 'lucide-react';
 import { fetchWithRetry, parseJson } from '../lib/apiClient';
+import { Button } from './ui/button';
 
 interface LoginProps {
   onLogin: () => void;
@@ -138,13 +139,13 @@ export const Login = ({ onLogin }: LoginProps) => {
             </div>
 
             <div className="pt-2">
-              <button
+              <Button
                 type="submit"
                 disabled={loading}
-                className="w-full bg-accent text-white py-3.5 rounded-xl font-black uppercase tracking-widest hover:brightness-110 transition-all active:scale-[0.98] flex items-center justify-center gap-2.5 shadow-[0_0_20px_var(--color-accent-shadow)] disabled:opacity-50 text-xs"
+                className="w-full h-auto py-3.5 !rounded-xl font-black uppercase tracking-widest hover:bg-primary hover:brightness-110 active:scale-[0.98] gap-2.5 shadow-[0_0_20px_var(--color-accent-shadow)] text-xs"
               >
                 {loading ? <Loader2 className="animate-spin w-5 h-5" /> : 'Entrar no Sistema'}
-              </button>
+              </Button>
             </div>
           </form>
 
