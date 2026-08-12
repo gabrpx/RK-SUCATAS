@@ -53,19 +53,19 @@ export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) 
   return (
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex items-center gap-4">
-        <div className="p-3 bg-zinc-500/10 rounded-2xl">
-          <Settings className={'text-zinc-300'} size={28} />
+        <div className="p-3 bg-accent/10 rounded-2xl">
+          <Settings className={'text-accent'} size={28} />
         </div>
         <div>
-          <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-white')}>Configurações</h2>
-          <p className="text-sm text-zinc-500">Categorias, motos e formas de pagamento do sistema</p>
+          <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-text-primary')}>Configurações</h2>
+          <p className="text-sm text-text-muted">Categorias, motos e formas de pagamento do sistema</p>
         </div>
       </div>
 
       <div
         className={cn(
           'flex items-center gap-1 p-1.5 rounded-2xl border overflow-x-auto',
-          'bg-zinc-900/50 border-zinc-800'
+          'bg-surface-card border-border-subtle'
         )}
       >
         {abas.map((item) => {
@@ -78,8 +78,8 @@ export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) 
               className={cn(
                 'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shrink-0',
                 ativo
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised'
               )}
             >
               <Icone size={16} />
@@ -88,7 +88,7 @@ export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) 
                 <span
                   className={cn(
                     'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                    ativo ? 'bg-white/20 text-white' : 'bg-zinc-800 text-zinc-400'
+                    ativo ? 'bg-white/20 text-white' : 'bg-surface-raised text-text-muted'
                   )}
                 >
                   {item.total}
