@@ -25,12 +25,12 @@ export function VisualizadorFotos({ fotos, indice, onTrocar, onFechar, legenda =
   }, [indice, fotos.length, onTrocar, onFechar]);
 
   return (
-    <div className="fixed inset-0 z-[4000] bg-black/95 flex items-center justify-center" onClick={onFechar} role="presentation">
+    <div className="fixed inset-0 z-[4000] bg-overlay-scrim-strong flex items-center justify-center" onClick={onFechar} role="presentation">
       <button
         type="button"
         onClick={onFechar}
         aria-label="Fechar"
-        className="absolute top-4 right-4 size-10 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
+        className="absolute top-4 right-4 size-10 rounded-full bg-overlay-control-bg text-white flex items-center justify-center hover:bg-white/20"
       >
         <X size={20} />
       </button>
@@ -56,7 +56,7 @@ export function VisualizadorFotos({ fotos, indice, onTrocar, onFechar, legenda =
               onTrocar((indice - 1 + fotos.length) % fotos.length);
             }}
             aria-label="Foto anterior"
-            className="absolute left-2 top-1/2 -translate-y-1/2 size-12 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
+            className="absolute left-2 top-1/2 -translate-y-1/2 size-12 rounded-full bg-overlay-control-bg text-white flex items-center justify-center hover:bg-white/20"
           >
             <ChevronLeft size={22} />
           </button>
@@ -67,11 +67,11 @@ export function VisualizadorFotos({ fotos, indice, onTrocar, onFechar, legenda =
               onTrocar((indice + 1) % fotos.length);
             }}
             aria-label="Próxima foto"
-            className="absolute right-2 top-1/2 -translate-y-1/2 size-12 rounded-full bg-white/10 text-white flex items-center justify-center hover:bg-white/20"
+            className="absolute right-2 top-1/2 -translate-y-1/2 size-12 rounded-full bg-overlay-control-bg text-white flex items-center justify-center hover:bg-white/20"
           >
             <ChevronRight size={22} />
           </button>
-          <span className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-white/10 px-3 py-1 text-xs text-white tabular-nums">
+          <span className="absolute bottom-6 left-1/2 -translate-x-1/2 rounded-full bg-overlay-control-bg px-3 py-1 text-xs text-white tabular-nums">
             {indice + 1} / {fotos.length}
           </span>
         </>
