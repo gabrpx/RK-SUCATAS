@@ -13,6 +13,7 @@ import type { DataTableColumn } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { fiadoApi } from './api';
 import { vendasFiadoEmAberto, resumoFiadoPorCliente } from './metricas';
@@ -109,13 +110,9 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto, podeReverter }: { venda: 
               <span className="flex items-center gap-1.5 shrink-0">
                 <span className="text-text-secondary">{formatCurrency(r.valor)}</span>
                 {podeReverter && (
-                  <button
-                    onClick={() => setRecebimentoParaReverter(r)}
-                    title="Reverter este recebimento"
-                    className="size-5 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => setRecebimentoParaReverter(r)} title="Reverter este recebimento" className="size-5 rounded-control text-text-faint hover:text-danger">
                     <Undo2 size={11} />
-                  </button>
+                  </Button>
                 )}
               </span>
             </div>
@@ -131,19 +128,12 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto, podeReverter }: { venda: 
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button
-              onClick={() => setRecebimentoParaReverter(null)}
-              className="flex-1 h-11 rounded-control border border-border-default font-medium text-sm text-text-secondary hover:bg-surface-raised"
-            >
+            <Button variant="outline" onClick={() => setRecebimentoParaReverter(null)} className="h-11 flex-1 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button
-              onClick={reverterRecebimento}
-              disabled={revertendo}
-              className="flex-1 h-11 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
-            >
+            </Button>
+            <Button variant="destructive" onClick={reverterRecebimento} disabled={revertendo} className="h-11 flex-1 rounded-control font-medium text-sm">
               {revertendo ? <Loader2 size={16} className="animate-spin" /> : 'Reverter'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -175,13 +165,9 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto, podeReverter }: { venda: 
             </option>
           ))}
         </select>
-        <button
-          onClick={confirmar}
-          disabled={enviando}
-          className="shrink-0 h-8 px-3 rounded-control bg-positive text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 flex items-center gap-1.5"
-        >
+        <Button onClick={confirmar} disabled={enviando} className="shrink-0 h-8 px-3 rounded-control bg-positive text-xs font-semibold hover:bg-positive/90">
           {enviando ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Confirmar
-        </button>
+        </Button>
       </div>
     </div>
   );
@@ -288,9 +274,9 @@ export function FiadoView({ userRoles = [] }: { userRoles?: Role[] }) {
         subtitulo={`${formatCurrency(totalClienteAberto)} em aberto · ${vendasDoClienteAberto.length} venda(s)`}
         tamanho="lg"
         rodape={
-          <button onClick={() => setClienteAberto(null)} className="w-full py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+          <Button variant="outline" onClick={() => setClienteAberto(null)} className="h-auto w-full py-3 rounded-control font-medium text-sm border-border-default">
             Fechar
-          </button>
+          </Button>
         }
       >
         <div className="space-y-3">
