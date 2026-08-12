@@ -28,6 +28,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { orcamentosApi } from './api';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
@@ -159,12 +160,12 @@ export function OrcamentosView() {
             </p>
           </div>
         </div>
-        <button
+        <Button
           onClick={abrirNovo}
-          className="flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
+          className="h-auto px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Novo Orçamento
-        </button>
+        </Button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
@@ -508,13 +509,13 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
         tamanho="lg"
         rodape={
           (!isEdicao || atual!.status === 'aberto') && (
-            <button
+            <Button
               onClick={salvarHeader}
               disabled={salvando}
-              className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow flex items-center justify-center gap-2"
+              className="h-auto w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow"
             >
               {salvando ? <Loader2 size={18} className="animate-spin" /> : isEdicao ? 'Salvar alterações' : 'Criar orçamento'}
-            </button>
+            </Button>
           )
         }
       >
@@ -592,9 +593,9 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                       <p className="font-bold text-sm truncate">{itemPendente.nome}</p>
                       <p className="text-xs text-text-muted">{itemPendente.codigo}</p>
                     </div>
-                    <button onClick={cancelarPendente} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
+                    <Button variant="ghost" size="icon" onClick={cancelarPendente} className="size-7 rounded-lg text-text-muted shrink-0">
                       <X size={14} />
-                    </button>
+                    </Button>
                   </div>
 
                   {itemPendente.componentes && itemPendente.componentes.length > 0 && (
@@ -682,9 +683,9 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
                       </div>
                       <div className="flex items-center gap-2 shrink-0">
                         <span className="font-black text-xs text-text-primary">{formatCurrency(item.quantidade * item.valor_unitario)}</span>
-                        <button onClick={() => removerRascunho(item._key)} className="p-1.5 text-danger hover:bg-danger-bg rounded-lg transition-colors">
+                        <Button variant="ghost" size="icon" onClick={() => removerRascunho(item._key)} className="size-7 text-danger hover:text-danger hover:bg-danger-bg rounded-lg">
                           <Trash2 size={13} />
-                        </button>
+                        </Button>
                       </div>
                     </div>
                   ))}
@@ -790,12 +791,13 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
               </div>
 
               {atual!.status === 'aberto' && (
-                <button
+                <Button
+                  variant="ghost"
                   onClick={() => setConfirmandoCancelamento(true)}
-                  className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-xs uppercase tracking-widest text-danger hover:bg-danger-bg"
+                  className="h-auto w-full py-3 rounded-2xl font-bold text-xs uppercase tracking-widest text-danger hover:text-danger hover:bg-danger-bg"
                 >
                   <Ban size={14} /> Cancelar orçamento
-                </button>
+                </Button>
               )}
             </>
           )}
@@ -823,12 +825,12 @@ function OrcamentoFormModal({ orcamento, onClose, onChanged }: { orcamento: Orca
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setConfirmandoCancelamento(false)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary">
+            <Button variant="secondary" onClick={() => setConfirmandoCancelamento(false)} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
               Voltar
-            </button>
-            <button onClick={cancelarOrcamento} disabled={salvando} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2">
+            </Button>
+            <Button variant="destructive" onClick={cancelarOrcamento} disabled={salvando} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
               {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Cancelar orçamento'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -913,9 +915,9 @@ function ItemPersistidoRow({
             </button>
           )}
           {podeEditar && (
-            <button onClick={onRemover} className="p-1.5 text-danger hover:bg-danger-bg rounded-lg transition-colors">
+            <Button variant="ghost" size="icon" onClick={onRemover} className="size-7 text-danger hover:text-danger hover:bg-danger-bg rounded-lg">
               <Trash2 size={13} />
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -1009,13 +1011,13 @@ function VenderModal({
       titulo={alvo.tipo === 'tudo' ? 'Vender tudo' : `Vender: ${item?.nome_item}`}
       tamanho="sm"
       rodape={
-        <button
+        <Button
           onClick={confirmar}
           disabled={enviando || !formaPagamentoId}
-          className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] flex items-center justify-center gap-2"
+          className="h-auto w-full py-3.5 rounded-2xl font-black text-xs uppercase tracking-[0.2em]"
         >
           {enviando ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}
-        </button>
+        </Button>
       }
     >
       <div className="space-y-4">
