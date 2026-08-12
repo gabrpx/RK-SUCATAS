@@ -5,6 +5,7 @@ import { useData } from '../context/DataContext';
 import { cn, formatDateRelative, parseLocalDate } from '../utils';
 import { NotaCadastroBadge } from './NotaCadastroBadge';
 import { Modal } from './ui/Modal';
+import { Button, buttonVariants } from './ui/button';
 import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
 
@@ -107,9 +108,14 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onSelectItem, isOpen
 
   return (
     <>
+      {/* buttonVariants num motion.button puro (não o componente Button em
+          si) — mesmo raciocínio do SidebarItem em App.tsx, mantém a
+          animação de scale do FAB sem precisar de ref no Button. */}
       <motion.button
+        type="button"
         className={cn(
-          'relative w-14 h-14 rounded-full flex items-center justify-center z-50 transition-all duration-300 group',
+          buttonVariants({ variant: 'ghost', size: 'icon' }),
+          'relative w-14 h-14 !rounded-full z-50 transition-all duration-300 group',
           'bg-surface-card hover:bg-surface-raised border border-border-default shadow-xl'
         )}
         whileHover={{ scale: 1.02 }}
@@ -147,9 +153,15 @@ export const GlobalSearch: React.FC<GlobalSearchProps> = ({ onSelectItem, isOpen
               )}
             />
             {query && (
-              <button onClick={() => setQuery('')} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 rounded-md hover:bg-surface-raised text-text-muted">
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setQuery('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 size-6 text-text-muted"
+              >
                 <X size={16} />
-              </button>
+              </Button>
             )}
           </div>
         }
