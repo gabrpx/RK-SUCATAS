@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { usuariosApi } from './api';
 import { ALL_ROLES } from '../../constants/roles';
 import type { Role, Usuario, UsuarioInput } from './types';
@@ -188,31 +189,37 @@ export function UsuariosView() {
       align: 'right',
       render: (u) => (
         <div className="flex items-center justify-end gap-1">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => abrirEditar(u)}
             title="Editar"
-            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary"
+            className="size-7 rounded-control text-text-muted"
           >
             <Pencil size={14} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setRedefinindoSenhaDe(u)}
             title="Redefinir senha"
-            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary"
+            className="size-7 rounded-control text-text-muted"
           >
             <KeyRound size={14} />
-          </button>
+          </Button>
           {u.id !== meuId && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
               title={u.ativo ? 'Desativar' : 'Reativar'}
-              className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', u.ativo ? 'text-danger' : 'text-positive')}
+              className={cn('size-7 rounded-control', u.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
             >
               {u.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-            </button>
+            </Button>
           )}
         </div>
       ),
@@ -236,31 +243,37 @@ export function UsuariosView() {
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => abrirEditar(u)}
             title="Editar"
-            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary"
+            className="size-7 rounded-control text-text-muted"
           >
             <Pencil size={14} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => setRedefinindoSenhaDe(u)}
             title="Redefinir senha"
-            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary"
+            className="size-7 rounded-control text-text-muted"
           >
             <KeyRound size={14} />
-          </button>
+          </Button>
           {u.id !== meuId && (
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
               title={u.ativo ? 'Desativar' : 'Reativar'}
-              className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', u.ativo ? 'text-danger' : 'text-positive')}
+              className={cn('size-7 rounded-control', u.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
             >
               {u.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-            </button>
+            </Button>
           )}
         </div>
       </div>
@@ -274,12 +287,9 @@ export function UsuariosView() {
           <h3 className="text-lg font-medium text-text-primary">Usuários</h3>
           <p className="text-sm text-text-faint mt-0.5">{usuarios.length} conta(s) — login individual por pessoa</p>
         </div>
-        <button
-          onClick={abrirCriar}
-          className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90"
-        >
+        <Button onClick={abrirCriar} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm">
           <UserPlus size={16} /> Novo usuário
-        </button>
+        </Button>
       </div>
 
       {erro && <p className="text-sm text-danger">{erro}</p>}
@@ -310,12 +320,12 @@ export function UsuariosView() {
         tamanho="md"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+            </Button>
+            <Button onClick={salvar} disabled={salvando} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -400,18 +410,19 @@ export function UsuariosView() {
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button
+            <Button
+              variant="outline"
               onClick={() => {
                 setRedefinindoSenhaDe(null);
                 setNovaSenha('');
               }}
-              className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised"
+              className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default"
             >
               Cancelar
-            </button>
-            <button onClick={confirmarRedefinicao} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90">
+            </Button>
+            <Button onClick={confirmarRedefinicao} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               Confirmar
-            </button>
+            </Button>
           </div>
         }
       >
@@ -434,12 +445,12 @@ export function UsuariosView() {
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setDesativando(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setDesativando(null)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={confirmarDesativacao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+            </Button>
+            <Button variant="destructive" onClick={confirmarDesativacao} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               Desativar
-            </button>
+            </Button>
           </div>
         }
       >
