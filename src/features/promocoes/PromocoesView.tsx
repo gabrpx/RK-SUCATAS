@@ -17,6 +17,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
@@ -240,22 +241,19 @@ export function PromocoesView() {
       align: 'right',
       render: (p) => (
         <div className="flex items-center justify-end gap-1">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => alternarAtivo(p)}
             title={p.ativo ? 'Encerrar agora' : 'Reativar'}
-            className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', p.ativo ? 'text-danger' : 'text-positive')}
+            className={cn('size-7 rounded-control', p.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
           >
             {p.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setItemParaExcluir(p)}
-            title="Excluir"
-            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-danger"
-          >
+          </Button>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setItemParaExcluir(p)} title="Excluir" className="size-7 rounded-control text-text-muted hover:text-danger">
             <Trash2 size={14} />
-          </button>
+          </Button>
         </div>
       ),
     },
@@ -276,22 +274,19 @@ export function PromocoesView() {
           </div>
         </div>
         <div className="flex items-center gap-1 shrink-0">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => alternarAtivo(p)}
             title={p.ativo ? 'Encerrar agora' : 'Reativar'}
-            className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', p.ativo ? 'text-danger' : 'text-positive')}
+            className={cn('size-7 rounded-control', p.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
           >
             {p.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-          </button>
-          <button
-            type="button"
-            onClick={() => setItemParaExcluir(p)}
-            title="Excluir"
-            className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-danger"
-          >
+          </Button>
+          <Button type="button" variant="ghost" size="icon" onClick={() => setItemParaExcluir(p)} title="Excluir" className="size-7 rounded-control text-text-muted hover:text-danger">
             <Trash2 size={14} />
-          </button>
+          </Button>
         </div>
       </div>
     );
@@ -304,12 +299,9 @@ export function PromocoesView() {
           <h3 className="text-lg font-medium text-text-primary">Promoções</h3>
           <p className="text-sm text-text-faint mt-0.5">Desconto com prazo em uma peça, um modelo, uma categoria ou o estoque inteiro</p>
         </div>
-        <button
-          onClick={abrirCriar}
-          className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90 shrink-0"
-        >
+        <Button onClick={abrirCriar} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm shrink-0">
           <Plus size={16} /> Nova promoção
-        </button>
+        </Button>
       </div>
 
       {migracaoPendente ? (
@@ -349,12 +341,12 @@ export function PromocoesView() {
         tamanho="lg"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+            </Button>
+            <Button onClick={salvar} disabled={salvando} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               {salvando ? 'Salvando...' : 'Criar promoção'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -391,9 +383,9 @@ export function PromocoesView() {
                           {pecaSelecionada.codigo} · {formatCurrency(pecaSelecionada.valor)}
                         </p>
                       </div>
-                      <button type="button" onClick={() => setForm((f) => ({ ...f, alvoId: '' }))} className="p-1.5 rounded-control text-text-faint hover:bg-surface-raised shrink-0">
+                      <Button type="button" variant="ghost" size="icon" onClick={() => setForm((f) => ({ ...f, alvoId: '' }))} className="size-7 rounded-control text-text-faint shrink-0">
                         <X size={14} />
-                      </button>
+                      </Button>
                     </div>
                   ) : (
                     <div>
@@ -569,12 +561,12 @@ export function PromocoesView() {
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setItemParaExcluir(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setItemParaExcluir(null)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={confirmarExclusao} disabled={excluindo} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50">
+            </Button>
+            <Button variant="destructive" onClick={confirmarExclusao} disabled={excluindo} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               {excluindo ? <Loader2 size={16} className="animate-spin mx-auto" /> : 'Excluir'}
-            </button>
+            </Button>
           </div>
         }
       >
