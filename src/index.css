@@ -1,7 +1,18 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@import "tw-animate-css";
 @import "./styles/theme.css";
 @import "./styles/orgchart.css";
+
+/* shadcn/ui base reset — só a cor de borda/ring padrão pra elementos que
+   não especificam a própria (ver theme.css pro mapeamento dos tokens).
+   Sem o bg-background/text-foreground do template padrão: o body abaixo
+   já define fundo (gradiente) e cor de texto próprios. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
 
 :root {
   --safe-top: env(safe-area-inset-top, 0px);
