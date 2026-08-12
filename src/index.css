@@ -24,8 +24,8 @@
 .right-safe { right: var(--safe-right); }
 
 body {
-  @apply font-sans antialiased bg-[#0a0a0c] text-zinc-200;
-  background: radial-gradient(ellipse at top, #1a1b1f, #0a0a0c);
+  @apply font-sans antialiased text-text-secondary;
+  background: radial-gradient(ellipse at top, var(--surface-raised), var(--surface-page));
   min-height: 100vh;
 }
 
@@ -36,11 +36,11 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-zinc-950/50;
+  @apply bg-surface-inset/50;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-700 rounded-full hover:bg-violet-500 transition-colors duration-300;
+  @apply bg-border-default rounded-full hover:bg-accent transition-colors duration-300;
 }
 
 
@@ -85,25 +85,26 @@ input[type=number] {
     -webkit-backdrop-filter: none !important;
   }
   
-  /* Gradientes elegantes para tema escuro */
+  /* Gradientes elegantes pra evitar composição pesada de blur no mobile —
+     seleciona tanto as classes zinc antigas quanto os tokens que as
+     substituíram, já que nem todo arquivo usa o mesmo nível de opacidade. */
   .bg-zinc-900\/40,
-  .bg-zinc-900\/50, 
-  .bg-zinc-900\/80, 
+  .bg-zinc-900\/50,
+  .bg-zinc-900\/80,
   .bg-zinc-900\/90,
-  .bg-zinc-950\/50 {
-    background: linear-gradient(135deg, #18181b 0%, #09090b 100%) !important;
-  }
-
-  /* Gradientes elegantes para tema claro */
-  .bg-white\/50, 
-  .bg-white\/80, 
-  .bg-white\/90 {
-    background: linear-gradient(135deg, #ffffff 0%, #f4f4f5 100%) !important;
+  .bg-zinc-950\/50,
+  .bg-surface-card\/40,
+  .bg-surface-card\/50,
+  .bg-surface-card\/80,
+  .bg-surface-card\/90,
+  .bg-surface-inset\/50 {
+    background: linear-gradient(135deg, var(--surface-raised) 0%, var(--surface-page) 100%) !important;
   }
 
   /* Overlay de modais mais sólido */
-  .bg-black\/60, .bg-black\/80 {
-    background: rgba(0,0,0,0.9) !important;
+  .bg-black\/60, .bg-black\/80,
+  .bg-media-overlay-badge {
+    background: var(--overlay-scrim-strong) !important;
   }
   
   /* Reduzir sombras pesadas */
