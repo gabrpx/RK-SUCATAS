@@ -10,6 +10,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { vendasApi } from './api';
 import { SeletorCliente } from '../clientes/SeletorCliente';
@@ -121,12 +122,12 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
             </p>
           </div>
         </div>
-        <button
+        <Button
           onClick={() => setIsNovaVendaOpen(true)}
-          className="flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
+          className="h-auto px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Nova Venda
-        </button>
+        </Button>
       </div>
 
       {/* Filtros */}
@@ -204,16 +205,18 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
                   <span className="font-black text-sm text-text-primary">{formatCurrency(venda.valor_total)}</span>
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={(e) => {
                       e.stopPropagation();
                       setVendaToCancel(venda);
                     }}
-                    className="p-2 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg transition-colors"
+                    className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
                     title="Cancelar venda (devolve o estoque)"
                   >
                     <Trash2 size={14} />
-                  </button>
+                  </Button>
                 </div>
               </div>
             ))}
@@ -232,16 +235,17 @@ export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: 
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setVendaToCancel(null)} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-surface-card text-text-secondary">
+            <Button variant="secondary" onClick={() => setVendaToCancel(null)} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
               Voltar
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="destructive"
               onClick={handleCancelar}
               disabled={cancelando || (temRecebimentoFiado && !podeForcarCancelamento)}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm"
             >
               {cancelando ? <Loader2 size={16} className="animate-spin" /> : temRecebimentoFiado ? 'Reverter e cancelar' : 'Cancelar venda'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -409,13 +413,13 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
       tamanho="md"
       rodape={
         itemSelecionado ? (
-          <button
+          <Button
             onClick={handleSubmit}
             disabled={saving || !formaPagamentoId}
-            className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow flex items-center justify-center gap-2"
+            className="h-auto w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow"
           >
             {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar Venda'}
-          </button>
+          </Button>
         ) : undefined
       }
     >
@@ -467,9 +471,9 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                 </div>
               )}
             </div>
-            <button onClick={() => setItemSelecionado(null)} className="p-1.5 rounded-lg text-text-muted hover:bg-surface-raised shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => setItemSelecionado(null)} className="size-7 rounded-lg text-text-muted shrink-0">
               <Edit2 size={14} />
-            </button>
+            </Button>
           </div>
         )}
 
