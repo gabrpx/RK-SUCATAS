@@ -48,7 +48,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
     <>
       <div className={cn(
         "fixed bottom-0 left-0 right-0 z-50 md:hidden border-t pb-safe",
-        "bg-zinc-950 border-zinc-800"
+        "bg-surface-inset border-border-default"
       )}>
         <div className="flex justify-around items-center h-16">
           {mainItems.map(item => (
@@ -59,7 +59,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
                 activeTab === item.id
                   ? "text-accent"
-                  : "text-zinc-500"
+                  : "text-text-muted"
               )}
             >
               <item.icon size={22} />
@@ -74,7 +74,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
                 isMoreOpen || moreItems.some(i => i.id === activeTab)
                   ? "text-accent"
-                  : "text-zinc-500"
+                  : "text-text-muted"
               )}
             >
               <MoreHorizontal size={22} />
@@ -102,13 +102,13 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className={cn(
                 "fixed bottom-0 left-0 right-0 z-[60] md:hidden rounded-t-3xl p-6 pb-nav-safe max-h-[80vh] overflow-y-auto",
-                "bg-zinc-900 border-t border-zinc-800"
+                "bg-surface-card border-t border-border-subtle"
               )}
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className={cn(
                   "text-lg font-bold",
-                  "text-white"
+                  "text-text-primary"
                 )}>
                   Mais Opções
                 </h3>
@@ -116,7 +116,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                   onClick={() => setIsMoreOpen(false)}
                   className={cn(
                     "p-2 rounded-full",
-                    "bg-zinc-800 text-zinc-400"
+                    "bg-surface-raised text-text-muted"
                   )}
                 >
                   <X size={20} />
@@ -129,7 +129,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                     {section.group && (
                       <span className={cn(
                         "block mb-2 text-[10px] font-black uppercase tracking-[0.2em]",
-                        "text-zinc-500"
+                        "text-text-muted"
                       )}>
                         {NAV_GROUP_LABELS[section.group]}
                       </span>
@@ -143,7 +143,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                             "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl transition-all",
                             activeTab === item.id
                               ? "bg-accent/10 text-accent border border-accent/20"
-                              : "bg-zinc-800/50 text-zinc-400 border border-transparent"
+                              : "bg-surface-raised/50 text-text-muted border border-transparent"
                           )}
                         >
                           <item.icon size={24} />
@@ -155,7 +155,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                 ))}
               </div>
 
-              <div className={cn('mt-5 pt-5 border-t', 'border-zinc-800')}>
+              <div className={cn('mt-5 pt-5 border-t', 'border-border-default')}>
                 <button
                   onClick={handleLogoutClick}
                   className="flex items-center gap-3 w-full px-2 py-2 rounded-xl text-danger hover:bg-danger-bg transition-colors"
