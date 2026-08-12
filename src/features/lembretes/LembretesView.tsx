@@ -10,6 +10,7 @@ import { aviso } from '../../components/ui/toast';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { useLembretes } from './useLembretes';
 import { lembretesApi } from './api';
 import type { Lembrete, UsuarioResumo } from './types';
@@ -166,12 +167,9 @@ export function LembretesView({ userRoles }: { userRoles: string[] }) {
           <h2 className="text-lg font-medium text-text-primary">Lembretes</h2>
           <p className="text-sm text-text-faint mt-0.5">Avisos que repetem até você resolver, ou tocam uma vez num horário</p>
         </div>
-        <button
-          onClick={abrirCriar}
-          className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90 self-start md:self-auto"
-        >
+        <Button onClick={abrirCriar} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm self-start md:self-auto">
           <Plus size={16} /> Novo lembrete
-        </button>
+        </Button>
       </div>
 
       <div className="flex items-center gap-2">
@@ -222,37 +220,36 @@ export function LembretesView({ userRoles }: { userRoles: string[] }) {
 
                   <div className="flex items-center gap-1 shrink-0">
                     {!concluido && (
-                      <button
+                      <Button
+                        variant="outline"
                         onClick={() => alternarStatus(l)}
                         disabled={alterandoStatus === l.id}
                         title="Marcar como concluído"
-                        className="h-9 px-3 rounded-control border border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 hover:opacity-80 disabled:opacity-50"
+                        className="h-9 px-3 rounded-control border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider hover:text-positive"
                       >
                         {alterandoStatus === l.id ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Concluir
-                      </button>
+                      </Button>
                     )}
                     {concluido && (
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => alternarStatus(l)}
                         disabled={alterandoStatus === l.id}
                         title="Reabrir"
-                        className="size-8 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary disabled:opacity-50"
+                        className="size-8 rounded-control text-text-muted"
                       >
                         {alterandoStatus === l.id ? <Loader2 size={14} className="animate-spin" /> : <RotateCcw size={14} />}
-                      </button>
+                      </Button>
                     )}
                     {podeEditar(l) && (
                       <>
-                        <button
-                          onClick={() => abrirEditar(l)}
-                          title="Editar"
-                          className="size-8 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary"
-                        >
+                        <Button variant="ghost" size="icon" onClick={() => abrirEditar(l)} title="Editar" className="size-8 rounded-control text-text-muted">
                           <Pencil size={14} />
-                        </button>
-                        <button onClick={() => setExcluindo(l)} title="Excluir" className="size-8 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => setExcluindo(l)} title="Excluir" className="size-8 rounded-control text-danger hover:text-danger">
                           <Trash2 size={14} />
-                        </button>
+                        </Button>
                       </>
                     )}
                   </div>
@@ -270,12 +267,12 @@ export function LembretesView({ userRoles }: { userRoles: string[] }) {
         tamanho="md"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+            </Button>
+            <Button onClick={salvar} disabled={salvando} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -362,12 +359,12 @@ export function LembretesView({ userRoles }: { userRoles: string[] }) {
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setExcluindo(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setExcluindo(null)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={confirmarExclusao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+            </Button>
+            <Button variant="destructive" onClick={confirmarExclusao} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               Excluir
-            </button>
+            </Button>
           </div>
         }
       >
