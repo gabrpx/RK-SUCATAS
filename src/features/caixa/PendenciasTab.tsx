@@ -13,6 +13,7 @@ import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { Modal } from '../../components/ui/Modal';
 import { aviso } from '../../components/ui/toast';
+import { Button } from '@/src/components/ui/button';
 import { caixaPendenciasApi } from './api';
 import type { CaixaPendencia, CaixaPendenciaRecebimento } from './types';
 
@@ -105,13 +106,15 @@ function LinhaPendencia({
               <span className="flex items-center gap-1.5 shrink-0">
                 <span className={'text-text-secondary'}>{formatCurrency(r.valor)}</span>
                 {podeReverter && (
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => setRecebimentoParaReverter(r)}
                     title="Reverter este recebimento"
-                    className="size-5 flex items-center justify-center rounded-lg text-text-muted hover:text-danger hover:bg-danger/10"
+                    className="size-5 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10"
                   >
                     <Undo2 size={11} />
-                  </button>
+                  </Button>
                 )}
               </span>
             </div>
@@ -127,19 +130,17 @@ function LinhaPendencia({
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button
-              onClick={() => setRecebimentoParaReverter(null)}
-              className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-surface-card text-text-secondary')}
-            >
+            <Button variant="secondary" onClick={() => setRecebimentoParaReverter(null)} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
               Cancelar
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="destructive"
               onClick={reverterRecebimento}
               disabled={revertendo}
-              className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90 disabled:opacity-50 flex items-center justify-center gap-2"
+              className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm"
             >
               {revertendo ? <Loader2 size={16} className="animate-spin" /> : 'Reverter'}
-            </button>
+            </Button>
           </div>
         }
       >
