@@ -1246,7 +1246,7 @@ export function EstoqueView({
                               setAdicionandoCompativel(false);
                               setCompatTempId('');
                             }}
-                            className="flex-1 py-2 rounded-control bg-emerald-500 text-white text-xs font-semibold uppercase tracking-wider hover:bg-emerald-600 disabled:opacity-50"
+                            className="flex-1 py-2 rounded-control bg-accent text-white text-xs font-semibold uppercase tracking-wider hover:opacity-90 disabled:opacity-50"
                           >
                             Adicionar
                           </button>
@@ -1394,13 +1394,13 @@ export function EstoqueView({
                         <div key={url} className="relative size-20 rounded-control overflow-hidden border border-border-default">
                           <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
                           {i === 0 && (
-                            <span className="absolute bottom-0 inset-x-0 bg-black/60 text-white text-[9px] font-semibold uppercase tracking-wide text-center py-0.5">Capa</span>
+                            <span className="absolute bottom-0 inset-x-0 bg-media-overlay-badge text-white text-[9px] font-semibold uppercase tracking-wide text-center py-0.5">Capa</span>
                           )}
                           <button
                             type="button"
                             onClick={() => setFormData((prev) => ({ ...prev, imagens: prev.imagens.filter((u) => u !== url) }))}
                             title="Remover foto"
-                            className="absolute top-1 right-1 size-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-danger"
+                            className="absolute top-1 right-1 size-6 rounded-full bg-overlay-scrim text-white flex items-center justify-center hover:bg-danger"
                           >
                             <X size={12} />
                           </button>
