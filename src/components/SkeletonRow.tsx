@@ -5,7 +5,7 @@ import { cn } from '../utils';
 // com EstoqueView.tsx (checkbox, Peça com miniatura+código, Categoria, Moto,
 // Condição, Valor, Qtd, Ações) pra não pular o layout quando os dados chegam.
 export const SkeletonRow = memo(() => {
-  const bar = 'bg-zinc-800';
+  const bar = 'bg-surface-raised';
   return (
     <tr className="animate-pulse transform-gpu">
       <td className="px-3 py-2.5">
