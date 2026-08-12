@@ -36,6 +36,7 @@ import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { Modal } from './components/ui/Modal';
+import { Button, buttonVariants } from './components/ui/button';
 import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
@@ -198,14 +199,19 @@ export default function App() {
 // SIDEBAR ITEM
 // =============================================================================
 
+// buttonVariants (mesma fonte de verdade do token "ghost" que o Button usa)
+// aplicado num motion.button puro, não o componente Button em si — evita ter
+// que fazer o Button aceitar ref só pra isso, mas mantém a física de
+// hover/tap (whileHover/whileTap) que a sidebar já tinha.
 const SidebarItem = memo(({ icon: Icon, label, active, onClick, className }: { icon: any; label: string; active: boolean; onClick: () => void; className?: string }) => (
   <motion.button
     whileHover={{ x: 4 }}
     whileTap={{ scale: 0.98 }}
     onClick={onClick}
     className={cn(
-      'w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-500 group relative overflow-hidden transform-gpu',
-      active ? 'bg-accent text-white shadow-[0_10px_30px_var(--color-accent-shadow)]' : 'text-text-muted hover:bg-surface-raised hover:text-text-secondary',
+      buttonVariants({ variant: 'ghost' }),
+      'w-full h-auto justify-start gap-4 px-5 py-4 rounded-control transition-all duration-500 group relative overflow-hidden transform-gpu',
+      active ? 'bg-accent text-white shadow-[0_10px_30px_var(--color-accent-shadow)] hover:bg-accent hover:text-white' : 'text-text-muted hover:bg-surface-raised hover:text-text-secondary',
       className
     )}
   >
@@ -287,18 +293,20 @@ function DetailModal({
           onEdit || onDelete || estoque ? (
             <div className={cn('grid gap-3', onEdit && onDelete && estoque ? 'grid-cols-3' : 'grid-cols-2')}>
               {onEdit && (
-                <button
+                <Button
+                  variant="outline"
                   onClick={() => {
                     onEdit(item);
                     onClose();
                   }}
-                  className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', 'bg-surface-card border-border-default text-text-primary hover:bg-surface-raised')}
+                  className="h-auto py-4 rounded-control gap-2 font-black text-xs uppercase tracking-[0.2em] bg-surface-card border-border-default text-text-primary hover:bg-surface-raised"
                 >
                   <Edit size={16} /> Editar
-                </button>
+                </Button>
               )}
               {onDelete && (
-                <button
+                <Button
+                  variant="destructive"
                   // Sem window.confirm aqui: quem recebe o onDelete já abre
                   // a própria confirmação (Estoque) ou o modal de
                   // cancelamento (Vendas) — eram duas perguntas seguidas.
@@ -306,22 +314,25 @@ function DetailModal({
                     onDelete((item as any).id);
                     onClose();
                   }}
-                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20 flex items-center justify-center gap-2"
+                  className="h-auto py-4 rounded-control gap-2 font-black text-xs uppercase tracking-[0.2em] bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20"
                 >
                   <Trash2 size={16} /> Excluir
-                </button>
+                </Button>
               )}
               {/* WhatsApp só faz sentido pra Estoque (falar sobre a peça) —
                   numa venda já concluída não há nada a "compartilhar". Virou
-                  uma ação secundária pequena, não mais o CTA principal do modal. */}
+                  uma ação secundária pequena, não mais o CTA principal do modal —
+                  por isso a cor positive/emerald (nem erro, nem o acento
+                  principal da tela) em vez do accent usado antes. */}
               {estoque && (
-                <button
+                <Button
+                  variant="outline"
                   onClick={handleWhatsAppShare}
                   title="Compartilhar no WhatsApp"
-                  className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-accent/10 border border-accent/20 text-accent hover:bg-accent/20 flex items-center justify-center gap-2"
+                  className="h-auto py-4 rounded-control gap-2 font-black text-xs uppercase tracking-[0.2em] bg-positive/10 border-positive/20 text-positive hover:bg-positive/20"
                 >
                   <MessageCircle size={16} /> WhatsApp
-                </button>
+                </Button>
               )}
             </div>
           ) : undefined
@@ -670,9 +681,14 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} className="text-danger hover:bg-danger-bg hover:text-danger" />
           </nav>
 
-          <button onClick={() => setIsSidebarOpen((v) => !v)} className={cn('mt-4 p-3 rounded-xl flex items-center justify-center', 'text-text-muted hover:bg-surface-card')}>
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setIsSidebarOpen((v) => !v)}
+            className="mt-4 text-text-muted hover:bg-surface-card hover:text-text-muted"
+          >
             {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
+          </Button>
         </div>
       </aside>
 
