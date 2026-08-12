@@ -95,7 +95,7 @@ export function MotoCascadeSelect({ modelos, value, onChange, onCreate, allowEmp
             title={index === 0 ? 'Adicionar marca' : 'Adicionar neste nível'}
             className={cn(
               'p-2.5 rounded-xl border transition-colors shrink-0',
-              'border-zinc-800 text-zinc-400 hover:text-violet-400 hover:border-violet-500/50'
+              'border-border-default text-text-muted hover:text-accent hover:border-accent/50'
             )}
           >
             <Plus size={16} />
@@ -118,8 +118,8 @@ export function MotoCascadeSelect({ modelos, value, onChange, onCreate, allowEmp
             }}
             placeholder="Nome (marca, cilindrada, modelo ou variação)..."
             className={cn(
-              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              'bg-zinc-950 border-violet-500/50 text-zinc-200'
+              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
+              'bg-surface-inset border-accent/50 text-text-primary'
             )}
           />
           <input
@@ -134,24 +134,24 @@ export function MotoCascadeSelect({ modelos, value, onChange, onCreate, allowEmp
             }}
             placeholder="Ano (opcional, ex: 2004-2008)"
             className={cn(
-              'w-24 border rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-violet-500/50 shrink-0',
-              'bg-zinc-950 border-violet-500/50 text-zinc-200'
+              'w-24 border rounded-xl py-2.5 px-3 text-sm outline-none focus:ring-2 focus:ring-accent/50 shrink-0',
+              'bg-surface-inset border-accent/50 text-text-primary'
             )}
           />
           <button
             type="button"
             onClick={handleCreate}
             disabled={salvando || !novoNome.trim()}
-            className="p-2.5 rounded-xl bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors shrink-0"
+            className="p-2.5 rounded-xl bg-positive text-white hover:opacity-90 disabled:opacity-50 transition-colors shrink-0"
           >
             {salvando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}
           </button>
-          <button type="button" onClick={() => setAdicionandoParentId(undefined)} className="p-2.5 rounded-xl bg-zinc-800 text-zinc-400 hover:bg-zinc-700 transition-colors shrink-0">
+          <button type="button" onClick={() => setAdicionandoParentId(undefined)} className="p-2.5 rounded-xl bg-surface-card text-text-muted hover:bg-surface-raised transition-colors shrink-0">
             <X size={16} />
           </button>
         </div>
       )}
-      {erro && <p className="text-xs text-rose-500">{erro}</p>}
+      {erro && <p className="text-xs text-danger">{erro}</p>}
     </div>
   );
 }
