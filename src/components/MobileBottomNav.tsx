@@ -4,6 +4,7 @@ import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { NAV_ITEMS, NAV_GROUP_LABELS } from '../constants/navigation';
 import type { NavGroup } from '../constants/navigation';
+import { Button } from './ui/button';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -112,15 +113,14 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                 )}>
                   Mais Opções
                 </h3>
-                <button
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setIsMoreOpen(false)}
-                  className={cn(
-                    "p-2 rounded-full",
-                    "bg-surface-raised text-text-muted"
-                  )}
+                  className="!rounded-full bg-surface-raised text-text-muted hover:bg-surface-raised hover:text-text-muted"
                 >
                   <X size={20} />
-                </button>
+                </Button>
               </div>
 
               <div className="space-y-5">
@@ -136,19 +136,20 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
                     )}
                     <div className="grid grid-cols-3 gap-4">
                       {section.items.map(item => (
-                        <button
+                        <Button
                           key={item.id}
+                          variant="ghost"
                           onClick={() => handleTabClick(item.id)}
                           className={cn(
-                            "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl transition-all",
+                            "h-auto flex-col gap-3 p-4 rounded-control transition-all",
                             activeTab === item.id
-                              ? "bg-accent/10 text-accent border border-accent/20"
-                              : "bg-surface-raised/50 text-text-muted border border-transparent"
+                              ? "bg-accent/10 text-accent border border-accent/20 hover:bg-accent/10 hover:text-accent"
+                              : "bg-surface-raised/50 text-text-muted border border-transparent hover:bg-surface-raised/50 hover:text-text-muted"
                           )}
                         >
                           <item.icon size={24} />
                           <span className="text-[11px] font-bold text-center">{item.mobileLabel ?? item.label}</span>
-                        </button>
+                        </Button>
                       ))}
                     </div>
                   </div>
