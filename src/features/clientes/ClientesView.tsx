@@ -14,6 +14,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { AlertBar } from '../../components/ui/AlertBar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
@@ -510,17 +511,19 @@ export function ClientesView({
       align: 'right',
       render: (c) => (
         <div className="flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <button type="button" onClick={() => abrirEditar(c)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
+          <Button type="button" variant="ghost" size="icon" onClick={() => abrirEditar(c)} title="Editar" className="size-7 rounded-control text-text-muted">
             <Pencil size={14} />
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => alternarAtivo(c)}
             title={c.ativo ? 'Desativar' : 'Reativar'}
-            className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', c.ativo ? 'text-danger' : 'text-positive')}
+            className={cn('size-7 rounded-control', c.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
           >
             {c.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-          </button>
+          </Button>
         </div>
       ),
     },
@@ -535,17 +538,19 @@ export function ClientesView({
             <p className="text-xs text-text-faint">{c.telefone ? formatTelefoneBR(c.telefone) : '—'}</p>
           </div>
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
-            <button type="button" onClick={() => abrirEditar(c)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
+            <Button type="button" variant="ghost" size="icon" onClick={() => abrirEditar(c)} title="Editar" className="size-7 rounded-control text-text-muted">
               <Pencil size={14} />
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => alternarAtivo(c)}
               title={c.ativo ? 'Desativar' : 'Reativar'}
-              className={cn('size-7 flex items-center justify-center rounded-control hover:bg-surface-raised', c.ativo ? 'text-danger' : 'text-positive')}
+              className={cn('size-7 rounded-control', c.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
             >
               {c.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-            </button>
+            </Button>
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
@@ -575,12 +580,9 @@ export function ClientesView({
           <h1 className="text-2xl font-medium text-text-primary">Clientes</h1>
           <p className="text-sm text-text-faint mt-0.5">Cadastro, histórico e atendimento</p>
         </div>
-        <button
-          onClick={abrirCriar}
-          className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90 self-start md:self-auto"
-        >
+        <Button onClick={abrirCriar} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm self-start md:self-auto">
           <Plus size={16} /> Novo cliente
-        </button>
+        </Button>
       </div>
 
       {segmentoFiltro === 'sumido' && (
@@ -658,9 +660,9 @@ export function ClientesView({
           )}
 
           {filtrosAtivos && (
-            <button onClick={limparFiltros} className="h-9 px-3 rounded-control text-[11px] font-semibold uppercase tracking-wider text-accent-soft-fg hover:opacity-80 flex items-center gap-1">
+            <Button variant="ghost" onClick={limparFiltros} className="h-9 px-3 rounded-control text-[11px] font-semibold uppercase tracking-wider text-accent-soft-fg hover:text-accent-soft-fg">
               <X size={12} /> Limpar filtros
-            </button>
+            </Button>
           )}
         </div>
 
@@ -718,12 +720,12 @@ export function ClientesView({
         tamanho="md"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+            </Button>
+            <Button onClick={salvar} disabled={salvando} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -814,21 +816,23 @@ export function ClientesView({
         rodape={
           clienteAberto && (
             <div className="flex gap-3">
-              <button
+              <Button
+                variant="outline"
                 onClick={() => {
                   const cliente = clienteAberto;
                   setClienteAberto(null);
                   abrirEditar(cliente);
                 }}
-                className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised flex items-center justify-center gap-2"
+                className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default"
               >
                 <Pencil size={14} /> Editar
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
                 onClick={() => alternarAtivo(clienteAberto)}
                 className={cn(
-                  'flex-1 py-3 rounded-control font-medium text-sm border flex items-center justify-center gap-2',
-                  clienteAberto.ativo ? 'border-danger/30 text-danger hover:bg-danger-bg' : 'border-positive/30 text-positive hover:bg-positive-bg'
+                  'h-auto flex-1 py-3 rounded-control font-medium text-sm',
+                  clienteAberto.ativo ? 'border-danger/30 text-danger hover:bg-danger-bg hover:text-danger' : 'border-positive/30 text-positive hover:bg-positive-bg hover:text-positive'
                 )}
               >
                 {clienteAberto.ativo ? (
@@ -840,7 +844,7 @@ export function ClientesView({
                     <RotateCcw size={14} /> Reativar
                   </>
                 )}
-              </button>
+              </Button>
             </div>
           )
         }
@@ -905,12 +909,13 @@ export function ClientesView({
                         <ShoppingBag size={12} /> Histórico de compras
                       </p>
                       {historico.vendas.length > 0 && (
-                        <button
+                        <Button
+                          variant="ghost"
                           onClick={() => baixarCsv(`historico-${clienteAberto.nome.replace(/\s+/g, '-').toLowerCase()}.csv`, gerarCsvHistoricoCliente(clienteAberto, historico))}
-                          className="text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 flex items-center gap-1"
+                          className="h-auto p-0 text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:bg-transparent hover:text-accent-soft-fg hover:opacity-80"
                         >
                           <Download size={12} /> Exportar CSV
-                        </button>
+                        </Button>
                       )}
                     </div>
                     {historico.vendas.length === 0 ? (
@@ -1006,9 +1011,9 @@ export function ClientesView({
                         </p>
                         <p className="text-text-faint truncate">{[m.placa, m.chassi, m.cor].filter(Boolean).join(' · ') || 'Sem detalhes'}</p>
                       </div>
-                      <button onClick={() => removerMoto(m.id)} className="shrink-0 size-6 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised">
+                      <Button variant="ghost" size="icon" onClick={() => removerMoto(m.id)} className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
                         <Trash2 size={12} />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                   {(clienteAberto.motos || []).length === 0 && <p className="text-xs text-text-faint">Nenhuma moto cadastrada.</p>}
@@ -1026,13 +1031,14 @@ export function ClientesView({
                   <input value={novaMoto.ano || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, ano: e.target.value }))} placeholder="Ano" className={cn(inputClass, 'text-xs py-2')} />
                   <input value={novaMoto.chassi || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, chassi: e.target.value }))} placeholder="Chassi" className={cn(inputClass, 'text-xs py-2')} />
                   <input value={novaMoto.cor || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, cor: e.target.value }))} placeholder="Cor" className={cn(inputClass, 'text-xs py-2')} />
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={enviarMoto}
                     disabled={enviandoMoto}
-                    className="col-span-2 h-9 rounded-control bg-surface-inset border border-border-default text-text-secondary text-xs font-medium hover:bg-surface-raised disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="col-span-2 h-9 rounded-control bg-surface-inset border-border-default text-text-secondary text-xs font-medium"
                   >
                     {enviandoMoto ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Cadastrar moto
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -1049,13 +1055,13 @@ export function ClientesView({
                       </div>
                       <StatusBadge texto={PECA_STATUS_LABELS[p.status]} tom={PECA_STATUS_TONS[p.status]} />
                       {p.status === 'aguardando' && (
-                        <button onClick={() => atualizarStatusPeca(p.id, 'cancelada')} title="Cancelar pedido" className="shrink-0 size-6 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised">
+                        <Button variant="ghost" size="icon" onClick={() => atualizarStatusPeca(p.id, 'cancelada')} title="Cancelar pedido" className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
                           <X size={12} />
-                        </button>
+                        </Button>
                       )}
-                      <button onClick={() => removerPeca(p.id)} title="Excluir" className="shrink-0 size-6 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised">
+                      <Button variant="ghost" size="icon" onClick={() => removerPeca(p.id)} title="Excluir" className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
                         <Trash2 size={12} />
-                      </button>
+                      </Button>
                     </div>
                   ))}
                   {(clienteAberto.pecas_procuradas || []).length === 0 && <p className="text-xs text-text-faint">Nenhum pedido em aberto.</p>}
@@ -1085,13 +1091,14 @@ export function ClientesView({
                       ))}
                     </select>
                   </div>
-                  <button
+                  <Button
+                    variant="outline"
                     onClick={enviarPeca}
                     disabled={enviandoPeca || !novaPeca.descricao.trim()}
-                    className="w-full h-9 rounded-control bg-surface-inset border border-border-default text-text-secondary text-xs font-medium hover:bg-surface-raised disabled:opacity-50 flex items-center justify-center gap-1.5"
+                    className="w-full h-9 rounded-control bg-surface-inset border-border-default text-text-secondary text-xs font-medium"
                   >
                     {enviandoPeca ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Registrar pedido
-                  </button>
+                  </Button>
                 </div>
               </div>
 
@@ -1107,13 +1114,9 @@ export function ClientesView({
                     className={inputClass}
                     placeholder="Registrar uma anotação..."
                   />
-                  <button
-                    onClick={enviarNota}
-                    disabled={enviandoNota || !novaNota.trim()}
-                    className="shrink-0 size-10 rounded-control bg-accent text-white flex items-center justify-center hover:opacity-90 disabled:opacity-50"
-                  >
+                  <Button size="icon" onClick={enviarNota} disabled={enviandoNota || !novaNota.trim()} className="shrink-0 size-10 rounded-control">
                     {enviandoNota ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                  </button>
+                  </Button>
                 </div>
                 {carregandoFicha ? (
                   <div className="py-4 flex items-center justify-center text-text-faint">
@@ -1129,9 +1132,9 @@ export function ClientesView({
                             {nota.autor?.nome_exibicao || 'Equipe'} · {new Date(nota.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
                           </p>
                         </div>
-                        <button onClick={() => excluirNota(nota.id)} className="shrink-0 size-6 flex items-center justify-center rounded-control text-text-faint hover:text-danger hover:bg-surface-raised">
+                        <Button variant="ghost" size="icon" onClick={() => excluirNota(nota.id)} className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
                           <Trash2 size={12} />
-                        </button>
+                        </Button>
                       </div>
                     ))}
                   </div>
