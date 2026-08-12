@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { LembretesView } from '../lembretes/LembretesView';
 import { useTarefas } from './useTarefas';
@@ -177,13 +178,14 @@ function VisaoResponsavel({
                     // ter várias tarefas pendentes ao mesmo tempo, e o design system
                     // permite no máximo um botão de acento preenchido por tela — aqui
                     // o verde (positive) já carrega o significado de "concluir".
-                    <button
+                    <Button
+                      variant="outline"
                       onClick={() => concluir(tarefa)}
                       disabled={concluindo === tarefa.id}
-                      className="h-9 px-4 rounded-control border border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 hover:opacity-80 disabled:opacity-50"
+                      className="h-9 px-4 rounded-control border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider hover:text-positive"
                     >
                       <CheckCircle2 size={14} /> {concluindo === tarefa.id ? 'Concluindo...' : 'Concluir'}
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -358,26 +360,25 @@ function VisaoCriador({
       align: 'right',
       render: (t) => (
         <div className="flex items-center justify-end gap-1">
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => alternarStatus(t)}
             disabled={alterandoStatus === t.id}
             title={t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
-            className={cn(
-              'size-7 flex items-center justify-center rounded-control hover:bg-surface-raised disabled:opacity-50',
-              t.status === 'concluida' ? 'text-text-muted hover:text-text-primary' : 'text-positive'
-            )}
+            className={cn('size-7 rounded-control', t.status === 'concluida' ? 'text-text-muted' : 'text-positive hover:text-positive')}
           >
             {alterandoStatus === t.id ? <Loader2 size={14} className="animate-spin" /> : t.status === 'concluida' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
-          </button>
+          </Button>
           {podeEditar(t) && (
             <>
-              <button type="button" onClick={() => abrirEditar(t)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
+              <Button type="button" variant="ghost" size="icon" onClick={() => abrirEditar(t)} title="Editar" className="size-7 rounded-control text-text-muted">
                 <Pencil size={14} />
-              </button>
-              <button type="button" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
+              </Button>
+              <Button type="button" variant="ghost" size="icon" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 rounded-control text-danger hover:text-danger">
                 <Trash2 size={14} />
-              </button>
+              </Button>
             </>
           )}
         </div>
@@ -399,26 +400,25 @@ function VisaoCriador({
             {t.cliente && <p className="text-xs text-text-faint">{t.cliente.nome}</p>}
           </div>
           <div className="flex items-center gap-1 shrink-0">
-            <button
+            <Button
               type="button"
+              variant="ghost"
+              size="icon"
               onClick={() => alternarStatus(t)}
               disabled={alterandoStatus === t.id}
               title={t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
-              className={cn(
-                'size-7 flex items-center justify-center rounded-control hover:bg-surface-raised disabled:opacity-50',
-                t.status === 'concluida' ? 'text-text-muted hover:text-text-primary' : 'text-positive'
-              )}
+              className={cn('size-7 rounded-control', t.status === 'concluida' ? 'text-text-muted' : 'text-positive hover:text-positive')}
             >
               {alterandoStatus === t.id ? <Loader2 size={14} className="animate-spin" /> : t.status === 'concluida' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
-            </button>
+            </Button>
             {podeEditar(t) && (
               <>
-                <button type="button" onClick={() => abrirEditar(t)} title="Editar" className="size-7 flex items-center justify-center rounded-control text-text-muted hover:bg-surface-raised hover:text-text-primary">
+                <Button type="button" variant="ghost" size="icon" onClick={() => abrirEditar(t)} title="Editar" className="size-7 rounded-control text-text-muted">
                   <Pencil size={14} />
-                </button>
-                <button type="button" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised">
+                </Button>
+                <Button type="button" variant="ghost" size="icon" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 rounded-control text-danger hover:text-danger">
                   <Trash2 size={14} />
-                </button>
+                </Button>
               </>
             )}
           </div>
@@ -446,13 +446,13 @@ function VisaoCriador({
           <h1 className="text-2xl font-medium text-text-primary">Tarefas</h1>
           <p className="text-sm text-text-faint mt-0.5">Mandados pra equipe de campo (Itinho, Pitoco e outros mecânicos/mandados)</p>
         </div>
-        <button
+        <Button
           onClick={abrirCriar}
           disabled={responsaveis.length === 0}
-          className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90 disabled:opacity-50 self-start md:self-auto"
+          className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm self-start md:self-auto"
         >
           <Plus size={16} /> Nova tarefa
-        </button>
+        </Button>
       </div>
 
       <div className="flex items-center gap-2">
@@ -504,12 +504,12 @@ function VisaoCriador({
         tamanho="md"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setIsFormOpen(false)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={salvar} disabled={salvando} className="flex-1 py-3 rounded-control font-medium text-sm bg-accent text-white hover:opacity-90 disabled:opacity-50">
+            </Button>
+            <Button onClick={salvar} disabled={salvando} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               {salvando ? 'Salvando...' : 'Salvar'}
-            </button>
+            </Button>
           </div>
         }
       >
@@ -597,12 +597,12 @@ function VisaoCriador({
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button onClick={() => setExcluindo(null)} className="flex-1 py-3 rounded-control font-medium text-sm border border-border-default text-text-secondary hover:bg-surface-raised">
+            <Button variant="outline" onClick={() => setExcluindo(null)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
               Cancelar
-            </button>
-            <button onClick={confirmarExclusao} className="flex-1 py-3 rounded-control font-medium text-sm bg-danger text-surface-page hover:opacity-90">
+            </Button>
+            <Button variant="destructive" onClick={confirmarExclusao} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
               Excluir
-            </button>
+            </Button>
           </div>
         }
       >
