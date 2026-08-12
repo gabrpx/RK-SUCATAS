@@ -23,6 +23,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { Modal } from '../../components/ui/Modal';
 import { aviso } from '../../components/ui/toast';
+import { Button } from '@/src/components/ui/button';
 import { caixaApi, caixaPendenciasApi } from './api';
 import { PendenciasTab } from './PendenciasTab';
 import type { CaixaEntry, CaixaTipo } from './types';
@@ -102,12 +103,12 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
             <p className={cn('text-sm', 'text-text-muted')}>Entradas e saídas financeiras</p>
           </div>
         </div>
-        <button
+        <Button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-accent hover:opacity-90 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-accent-shadow"
+          className="h-auto px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Novo Lançamento
-        </button>
+        </Button>
       </div>
 
       {/* Sub-abas: Lançamentos (o que já existia) / Pendências (fiado do Caixa) */}
@@ -160,9 +161,9 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
           <div className="flex items-center justify-between mb-2">
             <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Saldo</span>
             <div className="flex items-center gap-2">
-              <button onClick={() => setShowSensitiveInfo((v) => !v)} className="text-text-muted hover:text-text-secondary">
+              <Button variant="ghost" size="icon" onClick={() => setShowSensitiveInfo((v) => !v)} className="size-6 text-text-muted hover:text-text-secondary">
                 {showSensitiveInfo ? <Eye size={14} /> : <EyeOff size={14} />}
-              </button>
+              </Button>
               <Scale size={16} className={'text-text-muted'} />
             </div>
           </div>
@@ -249,12 +250,14 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
                     {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
                   </span>
                   {!entry.venda_id && (
-                    <button
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => setEntryToDelete(entry)}
-                      className="p-2 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg transition-colors"
+                      className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
                     >
                       <Trash2 size={14} />
-                    </button>
+                    </Button>
                   )}
                 </div>
               </div>
@@ -276,15 +279,12 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
         tamanho="sm"
         rodape={
           <div className="flex gap-3">
-            <button
-              onClick={() => setEntryToDelete(null)}
-              className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', 'bg-surface-card text-text-secondary')}
-            >
+            <Button variant="secondary" onClick={() => setEntryToDelete(null)} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
               Cancelar
-            </button>
-            <button onClick={handleDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-danger text-surface-page hover:opacity-90">
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
               Excluir
-            </button>
+            </Button>
           </div>
         }
       >
@@ -372,13 +372,13 @@ function LancamentoModal({
       titulo="Novo Lançamento"
       tamanho="md"
       rodape={
-        <button
+        <Button
           onClick={handleSubmit}
           disabled={loading || !descricao.trim() || !valor}
-          className="w-full bg-accent hover:opacity-90 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-accent-shadow flex items-center justify-center gap-2"
+          className="h-auto w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow"
         >
           {loading ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Lançamento'}
-        </button>
+        </Button>
       }
     >
       <div className="space-y-4">
