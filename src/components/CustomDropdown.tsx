@@ -48,17 +48,16 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
   const selectedOption = options.find(opt => opt.value === value);
   const isDefault = value === 'Todas' || value === 'criado_em' || value === '';
 
-  // Estilo padronizado (fundo branco, borda #eef2f6, border-radius 12px)
   const pillStyles = cn(
     "flex items-center gap-2 px-4 py-2.5 rounded-xl transition-all duration-300 border text-sm font-medium whitespace-nowrap shadow-sm",
-    "bg-zinc-900 border-zinc-800 text-zinc-200 hover:border-zinc-700"
+    "bg-surface-inset border-border-default text-text-primary hover:border-border-default"
   );
 
   // Estilo "Form" para modais
   const formStyles = cn(
     "w-full border rounded-xl py-2.5 px-4 text-sm focus:outline-none transition-all flex items-center justify-between",
-    "bg-zinc-900 border-zinc-800 text-zinc-200 hover:border-zinc-700",
-    isOpen && "border-violet-500 ring-1 ring-violet-500/20"
+    "bg-surface-inset border-border-default text-text-primary hover:border-border-default",
+    isOpen && "border-accent ring-1 ring-accent/20"
   );
 
   return (
@@ -69,13 +68,13 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
         title={selectedOption?.label}
         className={cn(
           variant === 'form' ? formStyles : (compact ? "w-10 h-10 rounded-xl flex items-center justify-center border transition-all shadow-sm" : pillStyles),
-          isOpen && variant !== 'form' && "ring-2 ring-violet-500/20 border-violet-500/50",
-          compact && !isDefault ? ("bg-violet-500/10 border-violet-500/30 text-violet-500") : compact ? ("bg-zinc-900 border-zinc-800 text-zinc-400") : ""
+          isOpen && variant !== 'form' && "ring-2 ring-accent/20 border-accent/50",
+          compact && !isDefault ? ("bg-accent/10 border-accent/30 text-accent") : compact ? ("bg-surface-inset border-border-default text-text-muted") : ""
         )}
       >
         <div className="flex items-center justify-between w-full gap-2">
           <div className="flex items-center gap-2 overflow-hidden">
-            {icon && <span className={cn("transition-colors shrink-0", !isDefault && variant !== 'form' && "text-violet-500")}>{icon}</span>}
+            {icon && <span className={cn("transition-colors shrink-0", !isDefault && variant !== 'form' && "text-accent")}>{icon}</span>}
             {!compact && <span className="truncate">{selectedOption?.label || placeholder || 'Selecione...'}</span>}
           </div>
           {!compact && <ChevronDown size={14} className={cn("transition-transform opacity-50 shrink-0", isOpen ? "rotate-180" : "")} />}
@@ -86,7 +85,7 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
         <div className={cn(
           "absolute top-full mt-2 rounded-2xl border shadow-2xl z-[150] overflow-y-auto max-h-60 py-2 animate-in fade-in slide-in-from-top-2 duration-200",
           compact ? "right-0 w-48" : "left-0 min-w-[180px] w-full",
-          "bg-zinc-900/95 border-zinc-800 shadow-black/50",
+          "bg-surface-raised/95 border-border-default shadow-black/50",
           "backdrop-blur-xl"
         )}>
           {options.map((option) => (
@@ -100,13 +99,13 @@ export const CustomDropdown: React.FC<CustomDropdownProps> = ({
               className={cn(
                 "w-full text-left px-4 py-2.5 text-xs transition-colors flex items-center justify-between",
                 value === option.value
-                  ? ("bg-violet-500/10 text-violet-400 font-bold")
-                  : ("text-zinc-400 hover:bg-zinc-800/50")
+                  ? ("bg-accent/10 text-accent font-bold")
+                  : ("text-text-muted hover:bg-surface-inset")
               )}
             >
               {option.label}
               {value === option.value && (
-                <div className={cn("w-1.5 h-1.5 rounded-full", "bg-violet-400")} />
+                <div className={cn("w-1.5 h-1.5 rounded-full", "bg-accent")} />
               )}
             </button>
           ))}
