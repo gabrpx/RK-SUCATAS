@@ -362,7 +362,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
                         type="button"
                         onClick={() => setForm((f) => ({ ...f, fotos: f.fotos.filter((u) => u !== foto) }))}
                         title="Remover foto"
-                        className="absolute top-1 right-1 size-6 rounded-full bg-black/70 text-white flex items-center justify-center hover:bg-danger"
+                        className="absolute top-1 right-1 size-6 rounded-full bg-overlay-scrim text-white flex items-center justify-center hover:bg-danger"
                       >
                         <X size={12} />
                       </button>
