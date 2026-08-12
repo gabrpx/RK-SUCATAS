@@ -23,8 +23,8 @@ export const Modal: React.FC<ModalProps> = ({
   children,
   maxWidth = 'max-w-2xl',
   icon,
-  iconBgColor = 'bg-zinc-800/50',
-  iconColor = 'text-zinc-400',
+  iconBgColor = 'bg-surface-raised/50',
+  iconColor = 'text-text-muted',
   footer
 }) => {
   useScrollLock(isOpen);
@@ -43,12 +43,12 @@ export const Modal: React.FC<ModalProps> = ({
       <div className={cn(
         "relative w-full rounded-3xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col",
         maxWidth,
-        "bg-zinc-900 border-zinc-800 text-white"
+        "bg-surface-card border-border-default text-text-primary"
       )}>
         {/* Header */}
         <div className={cn(
           "p-6 border-b flex items-center justify-between shrink-0",
-          "border-zinc-800/50"
+          "border-border-default/50"
         )}>
           <div className="flex items-center gap-3">
             {icon && (
@@ -62,7 +62,7 @@ export const Modal: React.FC<ModalProps> = ({
             onClick={onClose}
             className={cn(
               "p-2 rounded-xl transition-colors",
-              "hover:bg-zinc-800 text-zinc-500"
+              "hover:bg-surface-raised text-text-muted"
             )}
           >
             <X size={20} />
@@ -78,7 +78,7 @@ export const Modal: React.FC<ModalProps> = ({
         {footer && (
           <div className={cn(
             "p-6 border-t flex items-center justify-end gap-3 shrink-0",
-            "border-zinc-800/50 bg-zinc-950/20"
+            "border-border-default/50 bg-surface-inset/20"
           )}>
             {footer}
           </div>
