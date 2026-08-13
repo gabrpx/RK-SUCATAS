@@ -8,7 +8,7 @@ vi.mock('./mercadolivreApi.js', () => ({
 }));
 
 import { buscarCategoriasRaizML, buscarCategoriaML, buscarTiposAnuncioML, buscarProdutosCatalogoML } from './mercadolivreApi.js';
-import { listarFilhosCategoria, buscarTiposAnuncioDisponiveis, buscarProdutosCatalogo } from './mercadolivrePublicacao.js';
+import { listarFilhosCategoria, buscarTiposAnuncioDisponiveis, buscarProdutosCatalogo, montarPayloadPublicacao } from './mercadolivrePublicacao.js';
 
 describe('listarFilhosCategoria', () => {
   it('sem categoriaId, busca as categorias raiz do site MLB e mapeia pra {id, nome}', async () => {
@@ -122,5 +122,54 @@ describe('buscarProdutosCatalogo', () => {
       { id: 'MLB123456', nome: 'Carenagem CB 300R Vermelha', foto: 'https://http2.mlstatic.com/foto1.jpg' },
       { id: 'MLB123457', nome: 'Carenagem CB 300R Preta', foto: null },
     ]);
+  });
+});
+
+describe('montarPayloadPublicacao', () => {
+  const item = { nome: 'Carenagem CB 300R', valor: 100, quantidade: 1 };
+  const unidades = [
+    { id: 'u1', valor: 90, fotos: ['foto1.jpg'] },
+    { id: 'u2', valor: 95, fotos: ['foto2.jpg'] },
+  ];
+  const variacoes = [
+    { unidadeId: 'u1', atributos: [{ id: 'COLOR', value_name: 'Preta' }] },
+    { unidadeId: 'u2', atributos: [{ id: 'COLOR', value_name: 'Vermelha' }] },
+  ];
+
+  it('com catalogoProdutoId, payload leva catalog_product_id/catalog_listing e NUNCA variations, mesmo com 2+ variações válidas', () => {
+    const config = {
+      categoriaMlId: 'MLB46593',
+      condicaoMl: 'used' as const,
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: ['capa.jpg'],
+      catalogoProdutoId: 'MLB123456',
+      variacoes,
+    };
+
+    const resultado = montarPayloadPublicacao(item, unidades, config, 30);
+
+    expect(resultado.usaVariacoes).toBe(false);
+    expect(resultado.payload.catalog_product_id).toBe('MLB123456');
+    expect(resultado.payload.catalog_listing).toBe(true);
+    expect(resultado.payload.variations).toBeUndefined();
+  });
+
+  it('sem catalogoProdutoId, payload não leva campos de catálogo e variações continuam funcionando', () => {
+    const config = {
+      categoriaMlId: 'MLB46593',
+      condicaoMl: 'used' as const,
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: ['capa.jpg'],
+      variacoes,
+    };
+
+    const resultado = montarPayloadPublicacao(item, unidades, config, 30);
+
+    expect(resultado.usaVariacoes).toBe(true);
+    expect(resultado.payload.catalog_product_id).toBeUndefined();
+    expect(resultado.payload.catalog_listing).toBeUndefined();
+    expect(resultado.payload.variations).toHaveLength(2);
   });
 });

@@ -193,6 +193,11 @@ export interface ConfiguracaoAnuncioMl {
   // Presente = tentar publicar com variações reais (2+ fichas com atributo
   // escolhido); ausente/vazio = item simples.
   variacoes?: VariacaoConfig[];
+  // Produto de catálogo escolhido na busca inline (categorias
+  // catalog_required) — presente força item simples (o Mercado Livre não
+  // aceita variations[] em anúncio catalog_listing:true), ver
+  // montarPayloadPublicacao abaixo.
+  catalogoProdutoId?: string;
 }
 
 interface ItemParaPublicar {
@@ -227,7 +232,7 @@ function mapearAtributo({ id, value_id, value_name, value_struct }: AtributoValo
 // sincronização (mesma fórmula de mercadolivreSync.ts:
 // precoNovoSistema = precoEfetivoSistema * (1 + margem/100)) — não existe um
 // segundo cálculo de preço em lugar nenhum deste módulo.
-function montarPayloadPublicacao(
+export function montarPayloadPublicacao(
   item: ItemParaPublicar,
   unidades: UnidadeParaPublicar[],
   config: ConfiguracaoAnuncioMl,
@@ -247,10 +252,19 @@ function montarPayloadPublicacao(
     shipping: { mode: 'me2' },
   };
 
+  if (config.catalogoProdutoId) {
+    base.catalog_product_id = config.catalogoProdutoId;
+    base.catalog_listing = true;
+  }
+
   // Menos de 2 fichas com atributo de variação escolhido não é variação de
   // verdade — vira item simples com o preço/estoque da peça inteira (mesmo
   // critério da Parte 3.2 da proposta: "2+ fichas com valor/apelido próprios").
-  const variacoesValidas = (config.variacoes ?? []).filter((v) => v.atributos.length > 0 && unidadesPorId.has(v.unidadeId));
+  // Produto de catálogo escolhido = nunca variations[] (o Mercado Livre não
+  // aceita variação em item catalog_listing:true — cada ficha viraria um
+  // anúncio catálogo separado, fora de escopo). A UI já evita chegar aqui
+  // com variações preenchidas; isto é defesa em profundidade.
+  const variacoesValidas = config.catalogoProdutoId ? [] : (config.variacoes ?? []).filter((v) => v.atributos.length > 0 && unidadesPorId.has(v.unidadeId));
   if (variacoesValidas.length < 2) {
     return {
       usaVariacoes: false,
@@ -340,7 +354,11 @@ async function gravarResultadoPublicacao(
       status_ml: criado.status ?? null,
       // Metadado leve só pro caso de fallback (anúncio separado por ficha) —
       // não é uma "variação" real do ML, mas registra de qual ficha ele veio.
-      atributos_ml: origemUnidadeId ? { origem_unidade_id: origemUnidadeId } : null,
+      atributos_ml: origemUnidadeId
+        ? { origem_unidade_id: origemUnidadeId }
+        : config.catalogoProdutoId
+          ? { catalog_product_id: config.catalogoProdutoId }
+          : null,
       publicado_em: new Date().toISOString(),
     })
     .select('id')
