@@ -15,7 +15,7 @@ import { cn } from '../../utils';
 import { estoqueApi } from './api';
 import { mercadolivreApi } from '../mercadolivre/api';
 import { categoriasApi } from '../../lib/catalogApi';
-import type { AtributoMl, AtributoValorInput, CategoriaMlNo, CategoriaMlSugerida, ConfiguracaoAnuncioMlInput, Estoque, EstoqueAnuncioMl, TipoAnuncioMl, VariacaoMlInput } from './types';
+import type { AtributoMl, AtributoValorInput, CategoriaMlNo, CategoriaMlSugerida, ConfiguracaoAnuncioMlInput, Estoque, EstoqueAnuncioMl, ProdutoCatalogoMl, TipoAnuncioMl, VariacaoMlInput } from './types';
 
 const inputClass =
   'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
@@ -301,6 +301,33 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   );
   const exigeCatalogo = useMemo(() => atributos.some((a) => a.tags?.catalog_required), [atributos]);
 
+  // --- Vínculo com produto de catálogo (categorias catalog_required) --------
+  const [produtosCatalogo, setProdutosCatalogo] = useState<ProdutoCatalogoMl[]>([]);
+  const [buscandoCatalogo, setBuscandoCatalogo] = useState(false);
+  const [produtoCatalogoSelecionado, setProdutoCatalogoSelecionado] = useState<ProdutoCatalogoMl | null>(null);
+  const [naoEhCatalogo, setNaoEhCatalogo] = useState(false);
+
+  useEffect(() => {
+    setProdutoCatalogoSelecionado(null);
+    setNaoEhCatalogo(false);
+    setProdutosCatalogo([]);
+    if (!categoriaSelecionada || !exigeCatalogo) return;
+    let cancelado = false;
+    setBuscandoCatalogo(true);
+    mercadolivreApi
+      .buscarProdutosCatalogo(buscaCategoria.trim())
+      .then((res) => {
+        if (!cancelado && res.success && res.data) setProdutosCatalogo(res.data);
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelado) setBuscandoCatalogo(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+  }, [categoriaSelecionada, exigeCatalogo]);
+
   // SELLER_SKU sai do grid genérico e ganha linha própria (destaque visual,
   // já pré-preenchido acima) — o restante é dividido em principais/secundários
   // por classificarAtributos (baseado em tags.hidden/read_only da própria API,
@@ -375,8 +402,9 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   // --- Publicar ---------------------------------------------------------------
   const [publicando, setPublicando] = useState(false);
 
+  const catalogoResolvido = !exigeCatalogo || !!produtoCatalogoSelecionado || naoEhCatalogo;
   const podePublicar =
-    !!categoriaSelecionada && !!listingTypeId && fotosSelecionadas.length > 0 && atributosObrigatoriosFaltando.length === 0 && !exigeCatalogo && precoBase > 0;
+    !!categoriaSelecionada && !!listingTypeId && fotosSelecionadas.length > 0 && atributosObrigatoriosFaltando.length === 0 && catalogoResolvido && precoBase > 0;
 
   async function publicar() {
     if (!categoriaSelecionada) return;
@@ -614,13 +642,63 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
           </ModalSection>
 
           <ModalSection titulo="Atributos da categoria" descricao="Gerado a partir do que o Mercado Livre exige pra esta categoria específica.">
-            {exigeCatalogo && (
-              <div className="rounded-control border border-warning/30 bg-warning-bg/40 p-3 flex items-start gap-2.5">
-                <AlertTriangle size={15} className="text-warning shrink-0 mt-0.5" />
-                <p className="text-xs text-warning">
-                  Esta categoria exige vincular a um produto do catálogo do Mercado Livre — este formulário ainda não suporta isso. Publique pelo site do
-                  Mercado Livre e cole o link abaixo em "Anúncios no Mercado Livre".
-                </p>
+            {exigeCatalogo && !naoEhCatalogo && (
+              <div className="rounded-control border border-border-default bg-surface-inset p-3 space-y-3">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle size={15} className="text-warning shrink-0 mt-0.5" />
+                  <p className="text-xs text-text-muted">
+                    Esta categoria pede um produto do catálogo do Mercado Livre. Escolha o que mais parece com a peça, ou avise que não é nenhum deles.
+                  </p>
+                </div>
+
+                {buscandoCatalogo && (
+                  <p className="text-xs text-text-faint flex items-center gap-1.5">
+                    <Loader2 size={12} className="animate-spin" /> Buscando produtos parecidos...
+                  </p>
+                )}
+
+                {!buscandoCatalogo && produtosCatalogo.length > 0 && (
+                  <div className="space-y-1.5">
+                    {produtosCatalogo.map((p) => {
+                      const ativo = produtoCatalogoSelecionado?.id === p.id;
+                      return (
+                        <button
+                          key={p.id}
+                          type="button"
+                          onClick={() => setProdutoCatalogoSelecionado(p)}
+                          className={cn(
+                            'w-full text-left flex items-center gap-2.5 rounded-control border px-3.5 py-2.5 transition-colors',
+                            ativo ? 'border-accent bg-accent-soft-bg' : 'border-border-default hover:bg-surface-raised'
+                          )}
+                        >
+                          {p.foto ? (
+                            <img src={p.foto} alt="" className="size-9 rounded object-cover shrink-0" referrerPolicy="no-referrer" />
+                          ) : (
+                            <div className="size-9 rounded bg-surface-raised shrink-0" />
+                          )}
+                          <span className={cn('text-sm truncate', ativo ? 'text-accent-soft-fg font-medium' : 'text-text-primary')}>{p.nome}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {!buscandoCatalogo && produtosCatalogo.length === 0 && (
+                  <p className="text-xs text-text-faint">Nenhum produto parecido encontrado no catálogo.</p>
+                )}
+
+                <button type="button" onClick={() => setNaoEhCatalogo(true)} className="text-xs font-medium text-accent-soft-fg hover:underline">
+                  Não é o que eu vendo — publicar sem vincular ao catálogo
+                </button>
+              </div>
+            )}
+
+            {exigeCatalogo && naoEhCatalogo && (
+              <div className="rounded-control border border-border-default bg-surface-inset p-3 flex items-center justify-between gap-2.5">
+                <p className="text-xs text-text-muted">Publicando sem vínculo ao catálogo — igual a qualquer outro anúncio.</p>
+                <button type="button" onClick={() => setNaoEhCatalogo(false)} className="text-xs font-medium text-accent-soft-fg hover:underline shrink-0">
+                  Desfazer
+                </button>
               </div>
             )}
             {carregandoAtributos ? (
