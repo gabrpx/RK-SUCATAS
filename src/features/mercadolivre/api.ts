@@ -13,6 +13,11 @@ import type {
   ContagemPendencias,
   GrupoAnuncioDuplicado,
 } from './types';
+// Tipos de publicação vivem em estoque/types.ts (é lá que o formulário que os
+// consome mora, EstoquePublicarMlModal.tsx) — as rotas em si é que ficam
+// aninhadas aqui em /api/mercadolivre, por serem sobre a categoria/conta ML,
+// não sobre uma peça específica.
+import type { CategoriaMlSugerida, CategoriaMlNo, AtributoMl, TipoAnuncioMl } from '../estoque/types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -102,4 +107,13 @@ export const mercadolivreApi = {
   // Anúncios duplicados no próprio catálogo do ML (títulos parecidos).
   buscarAnunciosDuplicados: () => api.get('/api/mercadolivre/anuncios-duplicados') as Promise<ApiResult<GrupoAnuncioDuplicado[]>>,
   pausarAnuncio: (mlbId: string) => api.post(`/api/mercadolivre/anuncios/${mlbId}/pausar`) as Promise<ApiResult<null>>,
+
+  // Publicação de anúncios novos (migration_043) — categoria, atributos e
+  // tipos de anúncio pro formulário dinâmico de EstoquePublicarMlModal.
+  sugerirCategoria: (titulo: string) => api.get(`/api/mercadolivre/categorias/sugerir?titulo=${encodeURIComponent(titulo)}`) as Promise<ApiResult<CategoriaMlSugerida[]>>,
+  // Navegação manual em árvore — sem categoriaId devolve a raiz do site.
+  buscarSubcategorias: (categoriaId?: string) =>
+    api.get(`/api/mercadolivre/categorias/filhos${categoriaId ? `?categoria_id=${encodeURIComponent(categoriaId)}` : ''}`) as Promise<ApiResult<CategoriaMlNo[]>>,
+  buscarAtributosCategoria: (categoriaId: string) => api.get(`/api/mercadolivre/categorias/${categoriaId}/atributos`) as Promise<ApiResult<AtributoMl[]>>,
+  buscarTiposAnuncio: (preco: number) => api.get(`/api/mercadolivre/tipos-anuncio?preco=${preco}`) as Promise<ApiResult<TipoAnuncioMl[]>>,
 };

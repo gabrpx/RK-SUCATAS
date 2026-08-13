@@ -12,12 +12,15 @@ import { X } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { cn } from '../../utils';
 
-export type ModalSize = 'sm' | 'md' | 'lg';
+export type ModalSize = 'sm' | 'md' | 'lg' | 'xl';
 
 const SIZE_CLASSES: Record<ModalSize, string> = {
   sm: 'max-w-sm',
   md: 'max-w-md',
   lg: 'max-w-2xl',
+  // Formulário dinâmico de atributos do Mercado Livre (EstoquePublicarMlModal)
+  // não cabe bem em lg — pode ter muitos campos lado a lado.
+  xl: 'max-w-4xl',
 };
 
 export interface ModalProps {

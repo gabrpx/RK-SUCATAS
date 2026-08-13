@@ -6,6 +6,10 @@ export interface Categoria {
   nome: string;
   parent_id: string | null;
   ordem: number;
+  // Categoria do Mercado Livre usada da última vez pra uma peça desta
+  // categoria interna (migration_043) — sugestão pra pré-preencher a próxima
+  // publicação, nunca uma trava. Ausente em payload antigo em cache.
+  mercadolivre_categoria_id_padrao?: string | null;
 }
 
 // Árvore por parent_id: Marca (raiz) > Cilindrada (filho) > Modelo (neto,

@@ -18,6 +18,16 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.8',
+    data: '2026-08-13',
+    titulo: 'Publicar no Mercado Livre: navegação de categoria, cards de tipo de anúncio e SKU automático',
+    itens: [
+      { tipo: 'fix', texto: 'Categoria do anúncio: quando a sugestão automática erra (ex: peça avulsa caindo em "Motos e Scooters" em vez da categoria certa de peça), agora dá pra navegar manualmente em árvore — "Não encontrou? Ver todas as categorias" — até achar a categoria certa, com trilha clicável no topo pra voltar níveis. Isso corrige o formulário de atributos mostrando campos de moto inteira (marca, modelo, cilindrada...) numa peça que não é uma moto.' },
+      { tipo: 'melhoria', texto: 'Tipo de anúncio (Clássico/Premium) agora aparece como cards com o valor da taxa em R$ e os benefícios de cada um, igual ao site do Mercado Livre — antes era um menu com só a porcentagem da taxa.' },
+      { tipo: 'melhoria', texto: 'O campo de SKU do anúncio já vem preenchido com o código interno da peça (editável), destacado no topo da lista de atributos. Os atributos obrigatórios da categoria aparecem primeiro na lista, antes dos opcionais.' },
+    ],
+  },
+  {
     versao: '1.2.7',
     data: '2026-08-10',
     titulo: 'Fiado/Pendência no Caixa e aba de Lembretes',

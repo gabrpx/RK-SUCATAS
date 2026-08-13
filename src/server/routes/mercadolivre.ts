@@ -21,6 +21,7 @@ import {
   contarPendencias,
   type ImportarPedidoParams,
 } from '../../services/mercadolivreSync.js';
+import { sugerirCategoria, buscarAtributosCategoriaComCache, buscarTiposAnuncioDisponiveis, listarFilhosCategoria } from '../../services/mercadolivrePublicacao.js';
 
 const ML_AUTH_URL = 'https://auth.mercadolivre.com.br/authorization';
 const ML_API_URL = 'https://api.mercadolibre.com';
@@ -331,6 +332,78 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
       // também devolve zerado em vez de erro — nunca trava o indicador passivo.
       console.warn('Indicador de pendências do Mercado Livre indisponível:', error.response?.data || error.message);
       res.json({ success: true, data: { perguntasSemResposta: 0, pedidosNovos: 0 } });
+    }
+  });
+
+  // ==========================================================================
+  // Publicação de anúncios novos (migration_043) — categoria, atributos e
+  // tipos de anúncio pro formulário dinâmico. A publicação em si (POST
+  // /items) fica em src/server/routes/estoque.ts, aninhada na peça — ver
+  // POST /:id/publicar-ml.
+  // ==========================================================================
+
+  router.get('/categorias/sugerir', async (req, res) => {
+    try {
+      const titulo = String(req.query.titulo || '').trim();
+      if (!titulo) return res.status(400).json({ success: false, error: 'Informe um título pra sugerir a categoria' });
+
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const sugestoes = await sugerirCategoria(conexao.accessToken, titulo);
+      res.json({ success: true, data: sugestoes });
+    } catch (error: any) {
+      console.error('Erro ao sugerir categoria do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  // Navegação manual em árvore — parâmetro ausente = categorias raiz do site.
+  // Equivalente ao "É de outra categoria" do site oficial, pra quando o
+  // preditor (rota acima) erra o domínio.
+  router.get('/categorias/filhos', async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const categoriaId = req.query.categoria_id ? String(req.query.categoria_id) : undefined;
+      const filhos = await listarFilhosCategoria(conexao.accessToken, categoriaId);
+      res.json({ success: true, data: filhos });
+    } catch (error: any) {
+      console.error('Erro ao listar subcategorias do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  router.get('/categorias/:id/atributos', async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const atributos = await buscarAtributosCategoriaComCache(supabase, conexao.accessToken, req.params.id);
+      res.json({ success: true, data: atributos });
+    } catch (error: any) {
+      console.error('Erro ao buscar atributos de categoria do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  // Sem parâmetro de categoria de propósito: GET /sites/{site}/listing_prices
+  // (a API real por trás disso) só filtra por preço — não existe um recurso
+  // do Mercado Livre que filtre tipo de anúncio por categoria.
+  router.get('/tipos-anuncio', async (req, res) => {
+    try {
+      const preco = Number(req.query.preco);
+      if (!Number.isFinite(preco) || preco <= 0) return res.status(400).json({ success: false, error: 'Informe um preço válido' });
+
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const tipos = await buscarTiposAnuncioDisponiveis(conexao.accessToken, preco);
+      res.json({ success: true, data: tipos });
+    } catch (error: any) {
+      console.error('Erro ao buscar tipos de anúncio do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
     }
   });
 

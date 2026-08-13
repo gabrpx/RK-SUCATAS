@@ -6,7 +6,9 @@ import { excluirImagemPorUrl } from '../../services/storageService.js';
 import { categoriaExigeNota } from '../../features/estoque/categoriaMotor.js';
 import type { Categoria } from '../../types/catalog.js';
 import { anexarPromocoes } from '../../features/promocoes/calculo.js';
-import { extrairMlbId } from '../../services/mercadolivreApi.js';
+import { extrairMlbId, obterConexaoAtual } from '../../services/mercadolivreApi.js';
+import { publicarAnuncio, sincronizarEstatisticas, type ConfiguracaoAnuncioMl } from '../../services/mercadolivrePublicacao.js';
+import { aplicarSincronizacao } from '../../services/mercadolivreSync.js';
 import { autorizar } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
@@ -174,10 +176,31 @@ async function anexarAnunciosMl(supabase: SupabaseClient, itens: any[] | null): 
     return lista.map((item) => ({ ...item, links_ml: [] }));
   }
 
+  // Estatísticas (migration_043, Fase 7) — snapshot já pronto pro modal de
+  // detalhes não precisar chamar o Mercado Livre ao abrir (ver
+  // mercadolivreEstatisticasScheduler.ts, que mantém isso atualizado em
+  // background). Mesma degradação graciosa: sem a tabela ainda, o link
+  // aparece igual, só sem o mini-bloco de números.
+  const linkIds = (data ?? []).map((link: any) => link.id);
+  const estatisticasPorLink = new Map<string, any>();
+  if (linkIds.length > 0) {
+    const { data: estatisticas, error: erroEstatisticas } = await supabase
+      .from('estoque_anuncios_ml_estatisticas')
+      .select('*')
+      .in('link_id', linkIds);
+    if (erroEstatisticas) {
+      if (erroEstatisticas.code !== '42P01' && erroEstatisticas.code !== 'PGRST205') {
+        console.error('Erro ao buscar estatísticas de anúncios ML:', erroEstatisticas);
+      }
+    } else {
+      for (const linha of estatisticas ?? []) estatisticasPorLink.set(linha.link_id, linha);
+    }
+  }
+
   const porEstoque = new Map<string, any[]>();
   for (const link of data ?? []) {
     const atual = porEstoque.get(link.estoque_id) ?? [];
-    atual.push(link);
+    atual.push({ ...link, estatisticas: estatisticasPorLink.get(link.id) ?? null });
     porEstoque.set(link.estoque_id, atual);
   }
 
@@ -190,6 +213,46 @@ function montarPayloadAnuncioMl(body: any): { payload?: { url: string; mlb_id: s
   const mlbId = extrairMlbId(url);
   if (!mlbId) return { erro: 'Não foi possível identificar o ID do anúncio (MLB...) nesse link' };
   return { payload: { url, mlb_id: mlbId } };
+}
+
+function montarAtributoConfig(a: any) {
+  return { id: String(a?.id ?? ''), value_id: a?.value_id ?? undefined, value_name: a?.value_name ?? undefined, value_struct: a?.value_struct ?? undefined };
+}
+
+// Corpo de POST /:id/publicar-ml → ConfiguracaoAnuncioMl (src/services/mercadolivrePublicacao.ts).
+// Validação mínima aqui (campos obrigatórios presentes) — o formulário
+// dinâmico de atributos obrigatórios por categoria já barra isso antes de
+// chegar aqui; a API do Mercado Livre é a fonte da verdade final.
+function montarConfiguracaoPublicacao(body: any): { config?: ConfiguracaoAnuncioMl; erro?: string } {
+  const categoriaMlId = String(body?.categoria_ml_id || '').trim();
+  if (!categoriaMlId) return { erro: 'Selecione a categoria do Mercado Livre' };
+  if (body?.condicao_ml !== 'new' && body?.condicao_ml !== 'used') {
+    return { erro: 'Informe se o anúncio é "novo" ou "usado"' };
+  }
+  const listingTypeId = String(body?.listing_type_id || '').trim();
+  if (!listingTypeId) return { erro: 'Selecione o tipo de anúncio (Clássico ou Premium)' };
+  const fotos = Array.isArray(body?.fotos) ? body.fotos.map((f: any) => String(f)).filter(Boolean) : [];
+  if (fotos.length === 0) return { erro: 'Selecione ao menos uma foto pro anúncio' };
+
+  const variacoes = Array.isArray(body?.variacoes)
+    ? body.variacoes.map((v: any) => ({
+        unidadeId: String(v?.unidade_id ?? ''),
+        atributos: Array.isArray(v?.atributos) ? v.atributos.map(montarAtributoConfig) : [],
+        precoEfetivoSistema: v?.preco_efetivo_sistema != null ? Number(v.preco_efetivo_sistema) : undefined,
+      }))
+    : undefined;
+
+  return {
+    config: {
+      categoriaMlId,
+      condicaoMl: body.condicao_ml,
+      listingTypeId,
+      atributos: Array.isArray(body?.atributos) ? body.atributos.map(montarAtributoConfig) : [],
+      fotos,
+      precoEfetivoSistema: body?.preco_efetivo_sistema != null ? Number(body.preco_efetivo_sistema) : undefined,
+      variacoes,
+    },
+  };
 }
 
 // Sincroniza `estoque_modelos_compativeis` por delete-then-insert: mais simples
@@ -708,6 +771,68 @@ export function estoqueRouter(supabase: SupabaseClient) {
     } catch (error: any) {
       console.error('Erro ao remover anúncio ML:', error);
       res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // ==========================================================================
+  // Publicação de anúncios NOVOS no Mercado Livre (migration_043) — cria o
+  // anúncio via POST /items em vez de só colar um link já existente. Lógica
+  // de verdade em src/services/mercadolivrePublicacao.ts; aqui só valida o
+  // corpo e checa a conexão, mesmo padrão do resto das rotas de ML.
+  // ==========================================================================
+
+  router.post('/:id/publicar-ml', ESCRITA, async (req, res) => {
+    try {
+      const { config, erro } = montarConfiguracaoPublicacao(req.body);
+      if (erro) return res.status(400).json({ success: false, error: erro });
+
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const resultado = await publicarAnuncio(supabase, conexao.accessToken, req.params.id, config!);
+      res.json({ success: true, data: resultado });
+    } catch (error: any) {
+      console.error('Erro ao publicar anúncio no Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
+    }
+  });
+
+  // Leitura pontual sob demanda (botão "Atualizar agora" na UI) — além do
+  // que o scheduler da Fase 7 já mantém fresco em background.
+  router.get('/:id/anuncios-ml/:linkId/estatisticas', LEITURA, async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      await sincronizarEstatisticas(supabase, conexao.accessToken, [req.params.linkId]);
+      const { data, error } = await supabase.from('estoque_anuncios_ml_estatisticas').select('*').eq('link_id', req.params.linkId).maybeSingle();
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205' || error.code === 'PGRST204') {
+          return res.status(409).json({ success: false, error: 'Estatísticas ainda não habilitadas — rode supabase/migration_043_mercadolivre_publicacao.sql.' });
+        }
+        throw error;
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao atualizar estatísticas do anúncio:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
+    }
+  });
+
+  // Reenvia preço/estoque atual da peça pro anúncio já publicado — reaproveita
+  // 100% a lógica de mercadolivreSync.ts (mesmo cálculo de margem, mesma
+  // comparação em centavos) em vez de duplicá-la; "republicar" aqui é só
+  // aplicar a sincronização existente pra 1 link específico.
+  router.post('/:id/anuncios-ml/:linkId/republicar', ESCRITA, async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const resultado = await aplicarSincronizacao(supabase, conexao.accessToken, [req.params.linkId]);
+      res.json({ success: true, data: resultado });
+    } catch (error: any) {
+      console.error('Erro ao republicar anúncio no Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
     }
   });
 

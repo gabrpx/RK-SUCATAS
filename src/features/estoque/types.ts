@@ -41,6 +41,21 @@ export interface EstoqueUnidade {
 
 export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
 
+// Snapshot de visitas/perguntas/vendas/saúde de um anúncio publicado pelo
+// sistema — ver supabase/migration_043_mercadolivre_publicacao.sql. Escrito
+// em background pelo scheduler (Fase 7) e lido junto com o link, pro modal
+// de detalhes abrir instantâneo sem chamar o Mercado Livre na hora.
+export interface EstatisticasAnuncioMl {
+  link_id: string;
+  visitas_total: number | null;
+  visitas_ultimos_15_dias: number | null;
+  perguntas_abertas: number;
+  vendas_totais: number | null;
+  saude_anuncio: number | null;
+  status_ml: string | null;
+  atualizado_em: string;
+}
+
 // Um anúncio do Mercado Livre vinculado a esta peça — ver
 // supabase/migration_025_estoque_anuncios_ml.sql. Substitui o campo único
 // `anuncio_ml_url` (no máximo 1 por peça) por N vínculos, cada um
@@ -54,11 +69,104 @@ export interface EstoqueAnuncioMl {
   // (migration_025 não rodou em produção ainda) — `id` nesse caso não é um
   // uuid de verdade, é `legado:${estoque_id}`, tratado à parte pelo backend.
   legado?: boolean;
+  // Campos novos da migration_043 — só existem pra anúncio criado PELO
+  // SISTEMA (não só colado). Ausentes em payload antigo em cache ou em link
+  // colado manualmente: tratar como undefined/false, nunca assumir presente.
+  publicado_via_sistema?: boolean;
+  ml_category_id?: string | null;
+  listing_type_id?: string | null;
+  condicao_ml?: 'new' | 'used' | null;
+  status_ml?: string | null;
+  publicado_em?: string | null;
+  // Join do backend (Fase 7) — null quando ainda não teve a primeira
+  // sincronização de estatísticas, undefined em payload antigo em cache.
+  estatisticas?: EstatisticasAnuncioMl | null;
   criado_em: string;
   atualizado_em: string;
 }
 
 export type EstoqueAnuncioMlInput = Pick<EstoqueAnuncioMl, 'url'>;
+
+// ============================================================================
+// Publicação de anúncios NOVOS no Mercado Livre (migration_043) — tipos do
+// formulário dinâmico gerado a partir da categoria escolhida. Espelham
+// src/services/mercadolivrePublicacao.ts no backend.
+// ============================================================================
+
+// Categoria sugerida pelo preditor do Mercado Livre. Sem "confiança" em %: a
+// API real só devolve a lista ORDENADA por probabilidade (primeiro = mais
+// provável), não um score — não inventar um número que a API não dá.
+export interface CategoriaMlSugerida {
+  id: string;
+  nome: string;
+  caminho: string | null;
+  atributosSugeridos: { id: string; valueId: string | null; valueName: string | null }[];
+}
+
+// Um atributo da categoria escolhida (GET /categories/{id}/attributes) — o
+// formulário dinâmico renderiza 1 campo por atributo, o componente certo
+// decidido por value_type (list = select com `values`, number/number_unit =
+// input numérico, boolean = toggle, string = texto livre).
+// Um nó da navegação manual em árvore de categoria (GET /categorias/filhos) —
+// raiz do site ou filhos diretos de uma categoria. Lista vazia pro nó clicado
+// = ele já é folha, pronto pra virar CategoriaMlSugerida.
+export interface CategoriaMlNo {
+  id: string;
+  nome: string;
+}
+
+export interface AtributoMl {
+  id: string;
+  name: string;
+  value_type: 'string' | 'number' | 'number_unit' | 'boolean' | 'list' | string;
+  tags: Record<string, boolean>;
+  values?: { id: string; name: string }[];
+  attribute_group_name?: string;
+}
+
+export interface TipoAnuncioMl {
+  id: string;
+  nome: string;
+  taxaVendaPercentual: number;
+  // Espelha mercadolivrePublicacao.ts (backend) — os dois precisam ser
+  // atualizados juntos, senão o campo some silenciosamente na fronteira JSON.
+  taxaVendaValor: number;
+  exposicao: string;
+}
+
+// Valor escolhido pelo usuário pra um atributo — o que o formulário dinâmico
+// produz e o que POST /:id/publicar-ml espera em `atributos`/`variacoes[].atributos`.
+export interface AtributoValorInput {
+  id: string;
+  value_id?: string;
+  value_name?: string;
+  value_struct?: { number: number; unit: string };
+}
+
+export interface VariacaoMlInput {
+  unidade_id: string;
+  atributos: AtributoValorInput[];
+  // Preço efetivo do sistema (ANTES da margem) só desta ficha — ausente usa
+  // estoque_unidades.valor automaticamente no backend.
+  preco_efetivo_sistema?: number;
+}
+
+// Corpo de POST /:id/publicar-ml.
+export interface ConfiguracaoAnuncioMlInput {
+  categoria_ml_id: string;
+  condicao_ml: 'new' | 'used';
+  listing_type_id: string;
+  atributos: AtributoValorInput[];
+  fotos: string[];
+  preco_efetivo_sistema?: number;
+  variacoes?: VariacaoMlInput[];
+}
+
+export interface ResultadoPublicacaoMl {
+  caminho: 'variacoes' | 'itens_separados' | 'simples';
+  avisoFallback: string | null;
+  links: { linkId: string; mlbId: string; url: string }[];
+}
 
 export interface Estoque {
   id: string;

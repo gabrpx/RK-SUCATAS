@@ -16,6 +16,10 @@ export const categoriasApi = {
     api.post('/api/categorias', { nome, parent_id: parent_id ?? null }) as Promise<ApiResult<Categoria>>,
   renomear: (id: string, nome: string) => api.put(`/api/categorias/${id}`, { nome }) as Promise<ApiResult<Categoria>>,
   mover: (id: string, parent_id: string | null) => api.put(`/api/categorias/${id}`, { parent_id }) as Promise<ApiResult<Categoria>>,
+  // Memoriza a categoria do Mercado Livre escolhida na publicação (migration_043)
+  // — só uma sugestão pra próxima peça desta categoria interna, nunca uma trava.
+  memorizarCategoriaMlPadrao: (id: string, mercadolivreCategoriaId: string) =>
+    api.put(`/api/categorias/${id}`, { mercadolivre_categoria_id_padrao: mercadolivreCategoriaId }) as Promise<ApiResult<Categoria>>,
   reordenar: (ids: string[]) => api.patch('/api/categorias/reordenar', { ids }) as Promise<ApiResult<null>>,
   excluir: (id: string) => api.delete(`/api/categorias/${id}`) as Promise<ApiResult<null>>,
 };

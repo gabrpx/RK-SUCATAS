@@ -36,6 +36,7 @@ import { lembretesRouter } from './src/server/routes/lembretes.js';
 import { notificacoesRouter } from './src/server/routes/notificacoes.js';
 import { mercadolivreRouter, mercadolivreCallbackHandler, mercadolivreWebhookHandler } from './src/server/routes/mercadolivre.js';
 import { iniciarDetectorDePendenciasML } from './src/services/mercadolivreScheduler.js';
+import { iniciarSincronizadorDeEstatisticasML } from './src/services/mercadolivreEstatisticasScheduler.js';
 import { iniciarRastreioAutomaticoDeEnvios } from './src/services/enviosScheduler.js';
 import { iniciarChecagemDiariaDeAlertas } from './src/services/notificacoesScheduler.js';
 import { iniciarDisparoDeLembretes } from './src/services/lembretesScheduler.js';
@@ -309,6 +310,7 @@ async function startServer() {
   // Nunca muda anúncio nem grava venda sozinho — isso só acontece por clique
   // humano (ver mercadolivreSync.ts > sincronizarAnuncio/importarPedidoComoVenda).
   iniciarDetectorDePendenciasML(supabase);
+  iniciarSincronizadorDeEstatisticasML(supabase);
   iniciarRastreioAutomaticoDeEnvios(supabase);
   iniciarChecagemDiariaDeAlertas(supabase);
   iniciarDisparoDeLembretes(supabase);

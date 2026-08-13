@@ -250,3 +250,169 @@ export async function buscarPerguntas(token: string, mlUserId: string, status: s
 export async function responderPergunta(token: string, questionId: number, texto: string): Promise<void> {
   await axios.post(`${ML_API_URL}/answers`, { question_id: questionId, text: texto }, { headers: { Authorization: `Bearer ${token}` } });
 }
+
+// -----------------------------------------------------------------------
+// Publicação de anúncios novos (migration_043) — cria o anúncio, nunca só
+// lê. Site fixo em MLB porque esta integração é sempre doméstica (Brasil),
+// nunca Global Selling/CBT (ver comentário no topo de
+// src/services/mercadolivrePublicacao.ts).
+// -----------------------------------------------------------------------
+const SITE_ID = 'MLB';
+
+export interface PredicaoCategoriaML {
+  domain_id: string;
+  domain_name: string;
+  category_id: string;
+  category_name: string;
+  attributes: { id: string; value_id: string | null; value_name: string | null }[];
+}
+
+// GET /sites/{site}/domain_discovery/search — o preditor de categoria.
+// Devolve uma lista ordenada por probabilidade (o primeiro resultado é o
+// mais provável, segundo a documentação oficial) — quem chama decide
+// quantos mostrar. Cada entrada já vem com sugestão de valor pra alguns
+// atributos (ex: marca/modelo), mas não com a lista completa de atributos
+// da categoria — isso é buscarAtributosCategoriaML, à parte.
+export async function predizerCategoria(token: string, titulo: string): Promise<PredicaoCategoriaML[]> {
+  const { data } = await axios.get(`${ML_API_URL}/sites/${SITE_ID}/domain_discovery/search`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { q: titulo, limit: 4 },
+  });
+  return data ?? [];
+}
+
+export interface AtributoCategoriaML {
+  id: string;
+  name: string;
+  value_type: string;
+  tags: Record<string, boolean>;
+  values?: { id: string; name: string }[];
+  attribute_group_id?: string;
+  attribute_group_name?: string;
+}
+
+// GET /categories/{id}/attributes — schema completo dos atributos da
+// categoria (quais são obrigatórios, quais aceitam variação, tipo de valor
+// esperado). `tags` é um objeto de flags booleanas (required,
+// allow_variations, variation_attribute, catalog_required, fixed, ...), não
+// uma lista — cada atributo só carrega as flags que se aplicam a ele.
+export async function buscarAtributosCategoriaML(token: string, categoriaId: string): Promise<AtributoCategoriaML[]> {
+  const { data } = await axios.get(`${ML_API_URL}/categories/${categoriaId}/attributes`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  return data ?? [];
+}
+
+export interface TipoAnuncioPrecoML {
+  listing_type_id: string;
+  listing_type_name: string;
+  listing_exposure: string;
+  requires_picture: boolean;
+  currency_id: string;
+  listing_fee_amount: number;
+  sale_fee_amount: number;
+  free_relist: boolean;
+  stop_time: string;
+}
+
+// listing_type_id que ainda valem no site MLB — a API continua devolvendo
+// tipos descontinuados (free, silver, bronze, gold, gold_premium) por
+// retrocompatibilidade com contas antigas; filtramos aqui pra quem chama
+// nunca precisar saber disso (não existe mais o tipo "Grátis" no Brasil).
+const LISTING_TYPES_VIGENTES = ['gold_special', 'gold_pro'];
+
+// GET /sites/{site}/listing_prices?price= — taxas por tipo de anúncio pro
+// preço informado. A API não expõe um filtro por categoria nesse recurso —
+// preço é o único filtro que ela aceita aqui.
+export async function buscarTiposAnuncioML(token: string, preco: number): Promise<TipoAnuncioPrecoML[]> {
+  const { data } = await axios.get(`${ML_API_URL}/sites/${SITE_ID}/listing_prices`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { price: preco },
+  });
+  return (data ?? []).filter((tipo: TipoAnuncioPrecoML) => LISTING_TYPES_VIGENTES.includes(tipo.listing_type_id));
+}
+
+// POST /items — cria o anúncio. O payload é montado por
+// montarPayloadPublicacao() em mercadolivrePublicacao.ts; aqui só repassa
+// cru pra API e devolve a resposta cru (id, permalink, variations[] já com
+// os ids atribuídos pelo ML, etc.) — quem chama decide o que persistir.
+export async function criarItemML(token: string, payload: Record<string, any>): Promise<any> {
+  const { data } = await axios.post(`${ML_API_URL}/items`, payload, { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+// POST /items/{id}/description — de propósito separado do POST /items: a
+// API não é transacional entre os dois passos, então se este falhar o
+// anúncio já existe sem descrição e precisa poder ser reexecutado sozinho.
+export async function atualizarDescricaoML(token: string, itemId: string, texto: string): Promise<void> {
+  await axios.post(`${ML_API_URL}/items/${itemId}/description`, { plain_text: texto }, { headers: { Authorization: `Bearer ${token}` } });
+}
+
+// GET /visits/items?ids= — total de visitas desde a criação do anúncio
+// (até 2 anos), por item; a resposta vem como um objeto { itemId: total },
+// não um array. NÃO confundir com /items/visits?ids= (singular no início) —
+// esse outro endpoint, apesar do nome parecido, só aceita 1 id por chamada
+// e devolve um objeto único (não um mapa). A doc da própria API sugere lote,
+// mas testado ao vivo (conta real, 18 ids de uma vez): devolve 400
+// "maximum amount of items to query is 1" — 1 chamada por item, mesmo
+// batching de buscarVisitasUltimosDias abaixo, não os 20 de buscarItensPorIds.
+export async function buscarVisitasItem(token: string, itemIds: string[]): Promise<Record<string, number>> {
+  if (itemIds.length === 0) return {};
+  const totais: Record<string, number> = {};
+  for (const id of itemIds) {
+    const { data } = await axios.get(`${ML_API_URL}/visits/items`, {
+      headers: { Authorization: `Bearer ${token}` },
+      params: { ids: id },
+    });
+    Object.assign(totais, data ?? {});
+  }
+  return totais;
+}
+
+// GET /items/{id}/visits/time_window?last=&unit=day — só aceita 1 item por
+// chamada. Usado pra "visitas nos últimos N dias", que /visits/items (acima)
+// não oferece — só dá o total histórico.
+export async function buscarVisitasUltimosDias(token: string, itemId: string, dias: number): Promise<number> {
+  const { data } = await axios.get(`${ML_API_URL}/items/${itemId}/visits/time_window`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { last: dias, unit: 'day' },
+  });
+  return data?.total_visits ?? 0;
+}
+
+export interface DetalheCategoriaML {
+  id: string;
+  name: string;
+  path_from_root: { id: string; name: string }[];
+  // Subcategorias diretas — vazio quando a categoria já é folha (não aceita
+  // POST /items com este id como category_id, precisa descer mais). Usado
+  // pela navegação manual em árvore (listarFilhosCategoria).
+  children_categories: { id: string; name: string }[];
+}
+
+// GET /categories/{id} — nome e caminho (path_from_root) da categoria, pra
+// exibir no formulário de publicação e gravar em
+// mercadolivre_categorias_cache sem precisar de outra fonte pro nome.
+export async function buscarCategoriaML(token: string, categoriaId: string): Promise<DetalheCategoriaML> {
+  const { data } = await axios.get(`${ML_API_URL}/categories/${categoriaId}`, { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}
+
+// GET /sites/{site}/categories — categorias de topo do site (raiz da árvore).
+// Ponto de partida da navegação manual quando o preditor erra o domínio (ex:
+// "Motos transacionais" pra uma peça avulsa) — ver EstoquePublicarMlModal.tsx.
+export async function buscarCategoriasRaizML(token: string): Promise<{ id: string; name: string }[]> {
+  const { data } = await axios.get(`${ML_API_URL}/sites/${SITE_ID}/categories`, { headers: { Authorization: `Bearer ${token}` } });
+  return data ?? [];
+}
+
+// POST /users/test_user — cria uma conta de comprador/vendedor descartável
+// pra testar o fluxo de publicação sem usar a conta real da loja (não
+// existe sandbox de item no Mercado Livre — publicar de teste sem isso
+// criaria um anúncio real). Só é chamada manualmente durante testes
+// (Fase 8) — mesmo espírito de pausarAnuncio, "só por clique humano
+// explícito", nunca em fluxo automático.
+export async function criarUsuarioTesteML(token: string): Promise<{ id: number; nickname: string; password: string; site_id: string }> {
+  const { data } = await axios.post(`${ML_API_URL}/users/test_user`, { site_id: SITE_ID }, { headers: { Authorization: `Bearer ${token}` } });
+  return data;
+}

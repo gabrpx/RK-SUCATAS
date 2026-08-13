@@ -7,9 +7,22 @@
 // grava (DELETE) — mesmo espírito de UnidadesEstoque.tsx, mas mais simples
 // porque aqui não há campos além do link em si.
 import { useEffect, useState } from 'react';
-import { ExternalLink, Loader2, Plus, Trash2 } from 'lucide-react';
+import { ExternalLink, Loader2, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import { estoqueApi } from './api';
 import type { Estoque, EstoqueAnuncioMl } from './types';
+
+// Mini-bloco de estatísticas (migration_043, Fase 7) — snapshot já vem no
+// payload do link (mantido fresco em background por
+// mercadolivreEstatisticasScheduler.ts); "Atualizar agora" busca na hora.
+// Número sempre maior/mais forte que o rótulo (regra do design system).
+function EstatisticasLink({ valor, rotulo }: { valor: string; rotulo: string }) {
+  return (
+    <div className="min-w-0">
+      <p className="text-sm font-semibold text-text-primary leading-tight">{valor}</p>
+      <p className="text-[10px] uppercase tracking-wider text-text-faint">{rotulo}</p>
+    </div>
+  );
+}
 
 const inputClass =
   'flex-1 min-w-0 border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
@@ -24,6 +37,7 @@ export function EstoqueAnunciosMlEditor({ item, onAlterado }: EstoqueAnunciosMlE
   const [novoUrl, setNovoUrl] = useState('');
   const [adicionando, setAdicionando] = useState(false);
   const [removendoId, setRemovendoId] = useState<string | null>(null);
+  const [atualizandoId, setAtualizandoId] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
   // Mesma sincronização de UnidadesEstoque.tsx: se o modal trocar de peça
@@ -52,6 +66,22 @@ export function EstoqueAnunciosMlEditor({ item, onAlterado }: EstoqueAnunciosMlE
     }
   };
 
+  const atualizarEstatisticas = async (link: EstoqueAnuncioMl) => {
+    setAtualizandoId(link.id);
+    setErro(null);
+    try {
+      const resultado = await estoqueApi.buscarEstatisticasAnuncioMl(item.id, link.id);
+      if (!resultado.success) throw new Error(resultado.error);
+      const novos = links.map((l) => (l.id === link.id ? { ...l, estatisticas: resultado.data } : l));
+      setLinks(novos);
+      onAlterado?.(novos);
+    } catch (err: any) {
+      setErro(err.message || 'Erro ao atualizar estatísticas');
+    } finally {
+      setAtualizandoId(null);
+    }
+  };
+
   const remover = async (link: EstoqueAnuncioMl) => {
     setRemovendoId(link.id);
     setErro(null);
@@ -73,25 +103,55 @@ export function EstoqueAnunciosMlEditor({ item, onAlterado }: EstoqueAnunciosMlE
       {links.length > 0 && (
         <ul className="space-y-2">
           {links.map((link) => (
-            <li key={link.id} className="flex items-center gap-2 rounded-control border border-border-subtle bg-surface-inset px-3 py-2">
-              <a
-                href={link.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="min-w-0 flex-1 flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent-soft-fg"
-              >
-                <ExternalLink size={13} className="shrink-0" />
-                <span className="truncate">{link.mlb_id || link.url}</span>
-              </a>
-              <button
-                type="button"
-                onClick={() => remover(link)}
-                disabled={removendoId === link.id}
-                title="Remover vínculo"
-                className="shrink-0 size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised disabled:opacity-50"
-              >
-                {removendoId === link.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
-              </button>
+            <li key={link.id} className="rounded-control border border-border-subtle bg-surface-inset px-3 py-2 space-y-2">
+              <div className="flex items-center gap-2">
+                <a
+                  href={link.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-w-0 flex-1 flex items-center gap-1.5 text-sm text-text-secondary hover:text-accent-soft-fg"
+                >
+                  <ExternalLink size={13} className="shrink-0" />
+                  <span className="truncate">{link.mlb_id || link.url}</span>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => remover(link)}
+                  disabled={removendoId === link.id}
+                  title="Remover vínculo"
+                  className="shrink-0 size-7 flex items-center justify-center rounded-control text-danger hover:bg-surface-raised disabled:opacity-50"
+                >
+                  {removendoId === link.id ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                </button>
+              </div>
+
+              {!link.legado && (
+                <div className="flex items-center gap-3 pt-2 border-t border-border-subtle">
+                  {link.estatisticas ? (
+                    <div className="flex-1 min-w-0 flex items-center gap-4 overflow-x-auto">
+                      <EstatisticasLink valor={String(link.estatisticas.visitas_total ?? '—')} rotulo="Visitas" />
+                      <EstatisticasLink valor={String(link.estatisticas.visitas_ultimos_15_dias ?? '—')} rotulo="15 dias" />
+                      <EstatisticasLink valor={String(link.estatisticas.perguntas_abertas)} rotulo="Perguntas" />
+                      <EstatisticasLink valor={String(link.estatisticas.vendas_totais ?? '—')} rotulo="Vendas" />
+                      <EstatisticasLink
+                        valor={link.estatisticas.saude_anuncio != null ? `${link.estatisticas.saude_anuncio.toFixed(0)}%` : '—'}
+                        rotulo="Saúde"
+                      />
+                    </div>
+                  ) : (
+                    <p className="flex-1 text-xs text-text-faint">Estatísticas ainda não sincronizadas.</p>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => atualizarEstatisticas(link)}
+                    disabled={atualizandoId === link.id}
+                    title="Atualizar estatísticas agora"
+                    className="shrink-0 size-7 flex items-center justify-center rounded-control text-text-faint hover:bg-surface-raised hover:text-text-secondary disabled:opacity-50"
+                  >
+                    {atualizandoId === link.id ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                  </button>
+                </div>
+              )}
             </li>
           ))}
         </ul>

@@ -66,7 +66,7 @@ export function categoriasRouter(supabase: SupabaseClient) {
   router.put('/:id', ESCRITA, async (req, res) => {
     try {
       const { id } = req.params;
-      const atualizacao: Partial<Pick<Categoria, 'nome' | 'parent_id'>> = {};
+      const atualizacao: Partial<Pick<Categoria, 'nome' | 'parent_id'>> & { mercadolivre_categoria_id_padrao?: string | null } = {};
 
       if (req.body?.nome !== undefined) {
         const nome = String(req.body.nome).trim();
@@ -88,11 +88,24 @@ export function categoriasRouter(supabase: SupabaseClient) {
         atualizacao.parent_id = novoParentId;
       }
 
+      // Categoria do Mercado Livre memorizada como sugestão pra próxima peça
+      // desta mesma categoria interna (migration_043) — nunca uma trava, só
+      // pré-preenche. Coluna nova: se a migração ainda não rodou, ignora sem
+      // quebrar o resto da atualização (nome/parent_id continuam salvando).
+      if (req.body?.mercadolivre_categoria_id_padrao !== undefined) {
+        atualizacao.mercadolivre_categoria_id_padrao = req.body.mercadolivre_categoria_id_padrao || null;
+      }
+
       if (Object.keys(atualizacao).length === 0) {
         return res.status(400).json({ success: false, error: 'Nada para atualizar' });
       }
 
-      const { data, error } = await supabase.from('categorias').update(atualizacao).eq('id', id).select().single();
+      let { data, error } = await supabase.from('categorias').update(atualizacao).eq('id', id).select().single();
+      if (error && (error.code === '42703' || error.code === 'PGRST204') && 'mercadolivre_categoria_id_padrao' in atualizacao) {
+        console.warn('⚠️ Coluna categorias.mercadolivre_categoria_id_padrao ausente — rode supabase/migration_043_mercadolivre_publicacao.sql. Salvando o restante sem ela.');
+        const { mercadolivre_categoria_id_padrao, ...semColunaNova } = atualizacao;
+        ({ data, error } = await supabase.from('categorias').update(semColunaNova).eq('id', id).select().single());
+      }
       if (error) {
         if (error.code === '23505') return res.status(409).json({ success: false, error: MSG_NOME_DUPLICADO });
         if (error.code === '23503') return res.status(400).json({ success: false, error: MSG_PAI_INVALIDO });

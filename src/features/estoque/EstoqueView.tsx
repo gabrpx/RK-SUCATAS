@@ -21,8 +21,10 @@ import {
   Download,
   Pencil,
   Network,
+  Send,
 } from 'lucide-react';
 import { cn } from '../../utils';
+import { Button } from '../../components/ui/button';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -33,8 +35,10 @@ import { DataTable } from '../../components/ui/DataTable';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal, ModalSection } from '../../components/ui/Modal';
+import { Switch } from '../../components/ui/switch';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
+import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
 import { categoriaExigeNota } from './categoriaMotor';
@@ -173,6 +177,11 @@ export function EstoqueView({
 
   const [itemToDelete, setItemToDelete] = useState<Estoque | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  // Progressive disclosure: quem só cola o link de um anúncio já existente
+  // (fluxo de sempre) nunca vê o formulário novo de publicação. Estado local
+  // só de UI, reseta a cada peça aberta — não é preferência salva.
+  const [publicarMlAtivo, setPublicarMlAtivo] = useState(false);
+  const [publicarMlAberto, setPublicarMlAberto] = useState(false);
   // Quantas peças saíram deste modal sem ele fechar — feedback do
   // "salvar e cadastrar próxima" durante a catalogação em massa.
   const [salvasEmSequencia, setSalvasEmSequencia] = useState(0);
@@ -197,6 +206,7 @@ export function EstoqueView({
     setCompatTempId('');
     setResumoCompressao(null);
     setSalvasEmSequencia(0);
+    setPublicarMlAtivo(false);
     setIsModalOpen(true);
   };
 
@@ -209,6 +219,7 @@ export function EstoqueView({
     setCompatTempId('');
     setResumoCompressao(null);
     setSalvasEmSequencia(0);
+    setPublicarMlAtivo(false);
     setFormData({
       nome: item.nome,
       categoria_id: item.categoria_id || '',
@@ -1482,7 +1493,31 @@ export function EstoqueView({
                 descricao="Vincule quantos anúncios forem precisos — cada um sincroniza preço e estoque com o seu próprio anúncio."
               >
                 {editingItem ? (
-                  <EstoqueAnunciosMlEditor item={editingItem} onAlterado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_ml: links } : prev))} />
+                  <>
+                    <div className="flex items-center justify-between gap-3 rounded-control border border-border-subtle bg-surface-inset px-3.5 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-text-primary">Publicar automaticamente no Mercado Livre</p>
+                        <p className="text-[11px] text-text-faint mt-0.5">Cria um anúncio novo direto do catálogo, em vez de só colar o link de um já existente.</p>
+                      </div>
+                      <Switch checked={publicarMlAtivo} onCheckedChange={setPublicarMlAtivo} />
+                    </div>
+
+                    {publicarMlAtivo && (
+                      <div className="flex items-center justify-between gap-3 rounded-control border border-accent/25 bg-accent-soft-bg px-3.5 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm text-accent-soft-fg truncate">{editingItem.categoria?.nome || 'Sem categoria'} · {formatCurrency(Number(formData.valor) || 0)}</p>
+                          <p className="text-[11px] text-text-faint mt-0.5">
+                            {formData.imagens.length} {formData.imagens.length === 1 ? 'foto disponível' : 'fotos disponíveis'} pro anúncio
+                          </p>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setPublicarMlAberto(true)} className="shrink-0">
+                          <Send size={13} /> Configurar e publicar
+                        </Button>
+                      </div>
+                    )}
+
+                    <EstoqueAnunciosMlEditor item={editingItem} onAlterado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_ml: links } : prev))} />
+                  </>
                 ) : (
                   <p className="text-xs text-text-faint">Salve a peça primeiro pra poder vincular anúncios do Mercado Livre.</p>
                 )}
@@ -1601,6 +1636,15 @@ export function EstoqueView({
         criarCategoria={criarCategoria}
         onImportado={refreshData}
       />
+
+      {editingItem && (
+        <EstoquePublicarMlModal
+          aberto={publicarMlAberto}
+          onFechar={() => setPublicarMlAberto(false)}
+          item={editingItem}
+          onPublicado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_ml: links } : prev))}
+        />
+      )}
     </div>
   );
 }

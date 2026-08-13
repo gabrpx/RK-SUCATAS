@@ -1,7 +1,17 @@
 // Chamadas HTTP do módulo de Estoque. Fino de propósito: cada função mapeia
 // 1:1 pra uma rota do backend (src/server/routes/estoque.ts).
 import { api, BASE_URL } from '../../utils/api';
-import type { Estoque, EstoqueInput, EstoqueUnidade, EstoqueUnidadeInput, EstoqueAnuncioMl, EstoqueAnuncioMlInput } from './types';
+import type {
+  Estoque,
+  EstoqueInput,
+  EstoqueUnidade,
+  EstoqueUnidadeInput,
+  EstoqueAnuncioMl,
+  EstoqueAnuncioMlInput,
+  ConfiguracaoAnuncioMlInput,
+  ResultadoPublicacaoMl,
+  EstatisticasAnuncioMl,
+} from './types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -43,6 +53,16 @@ export const estoqueApi = {
     api.patch(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}`, payload) as Promise<ApiResult<EstoqueAnuncioMl>>,
   excluirAnuncioMl: (estoqueId: string, linkId: string) =>
     api.delete(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}`) as Promise<ApiResult<null>>,
+
+  // Publicação de anúncio NOVO no Mercado Livre (migration_043) — cria via
+  // POST /items do lado do backend, diferente de criarAnuncioMl acima (que
+  // só cola o link de um anúncio já existente). Ver EstoquePublicarMlModal.tsx.
+  publicarMl: (estoqueId: string, payload: ConfiguracaoAnuncioMlInput) =>
+    api.post(`/api/estoque/${estoqueId}/publicar-ml`, payload) as Promise<ApiResult<ResultadoPublicacaoMl>>,
+  buscarEstatisticasAnuncioMl: (estoqueId: string, linkId: string) =>
+    api.get(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}/estatisticas`) as Promise<ApiResult<EstatisticasAnuncioMl | null>>,
+  republicarAnuncioMl: (estoqueId: string, linkId: string) =>
+    api.post(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}/republicar`) as Promise<ApiResult<unknown>>,
 };
 
 // Upload de imagem é multipart — não passa pelo helper `api` (que força
