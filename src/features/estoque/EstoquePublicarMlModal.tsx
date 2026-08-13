@@ -306,11 +306,13 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   const [buscandoCatalogo, setBuscandoCatalogo] = useState(false);
   const [produtoCatalogoSelecionado, setProdutoCatalogoSelecionado] = useState<ProdutoCatalogoMl | null>(null);
   const [naoEhCatalogo, setNaoEhCatalogo] = useState(false);
+  const [erroCatalogo, setErroCatalogo] = useState(false);
 
   useEffect(() => {
     setProdutoCatalogoSelecionado(null);
     setNaoEhCatalogo(false);
     setProdutosCatalogo([]);
+    setErroCatalogo(false);
     if (!categoriaSelecionada || !exigeCatalogo) return;
     let cancelado = false;
     setBuscandoCatalogo(true);
@@ -319,7 +321,9 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
       .then((res) => {
         if (!cancelado && res.success && res.data) setProdutosCatalogo(res.data);
       })
-      .catch(() => {})
+      .catch(() => {
+        if (!cancelado) setErroCatalogo(true);
+      })
       .finally(() => {
         if (!cancelado) setBuscandoCatalogo(false);
       });
@@ -669,7 +673,6 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
                           onClick={() => {
                             setProdutoCatalogoSelecionado(p);
                             setUsarVariacoes(false);
-                            setValoresPorUnidade({});
                           }}
                           className={cn(
                             'w-full text-left flex items-center gap-2.5 rounded-control border px-3.5 py-2.5 transition-colors',
@@ -688,11 +691,22 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
                   </div>
                 )}
 
-                {!buscandoCatalogo && produtosCatalogo.length === 0 && (
+                {!buscandoCatalogo && erroCatalogo && (
+                  <p className="text-xs text-negative">Não foi possível buscar no catálogo — tente selecionar a categoria de novo.</p>
+                )}
+
+                {!buscandoCatalogo && !erroCatalogo && produtosCatalogo.length === 0 && (
                   <p className="text-xs text-text-faint">Nenhum produto parecido encontrado no catálogo.</p>
                 )}
 
-                <button type="button" onClick={() => setNaoEhCatalogo(true)} className="text-xs font-medium text-accent-soft-fg hover:underline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setNaoEhCatalogo(true);
+                    setProdutoCatalogoSelecionado(null);
+                  }}
+                  className="text-xs font-medium text-accent-soft-fg hover:underline"
+                >
                   Não é o que eu vendo — publicar sem vincular ao catálogo
                 </button>
               </div>
