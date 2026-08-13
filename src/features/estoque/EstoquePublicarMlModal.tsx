@@ -666,7 +666,11 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
                         <button
                           key={p.id}
                           type="button"
-                          onClick={() => setProdutoCatalogoSelecionado(p)}
+                          onClick={() => {
+                            setProdutoCatalogoSelecionado(p);
+                            setUsarVariacoes(false);
+                            setValoresPorUnidade({});
+                          }}
                           className={cn(
                             'w-full text-left flex items-center gap-2.5 rounded-control border px-3.5 py-2.5 transition-colors',
                             ativo ? 'border-accent bg-accent-soft-bg' : 'border-border-default hover:bg-surface-raised'
