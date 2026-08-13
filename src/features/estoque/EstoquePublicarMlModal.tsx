@@ -5,7 +5,7 @@
 // formulário, ele só abre quando o toggle "Publicar automaticamente" é
 // ligado. Ver docs/proposta-publicacao-mercadolivre.md, Parte 3.3.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Barcode, ChevronRight, Loader2, Search, Send, Sparkles } from 'lucide-react';
+import { AlertTriangle, Barcode, ChevronDown, ChevronRight, Loader2, Search, Send, Sparkles } from 'lucide-react';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/button';
 import { CustomDropdown } from '../../components/CustomDropdown';
@@ -31,6 +31,18 @@ function arredondarCentavos(valor: number): number {
 
 function valorPreenchido(v: AtributoValorInput | undefined): boolean {
   return !!v && (!!v.value_id || !!v.value_name?.trim() || !!v.value_struct);
+}
+
+export interface AtributosClassificados {
+  principais: AtributoMl[];
+  secundarios: AtributoMl[];
+}
+
+export function classificarAtributos(atributos: AtributoMl[]): AtributosClassificados {
+  const acionaveis = atributos.filter((a) => !a.tags?.read_only);
+  const principais = acionaveis.filter((a) => !!a.tags?.required || !a.tags?.hidden);
+  const secundarios = acionaveis.filter((a) => !a.tags?.required && !!a.tags?.hidden);
+  return { principais, secundarios };
 }
 
 // Bullets de marketing dos cards de tipo de anúncio — dicionário fixo por
@@ -230,8 +242,19 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   // preditor sugerir a categoria errada (domínio "Motos transacionais") sem
   // ter como corrigir manualmente. A navegação em árvore da Fase A resolveu
   // isso na raiz — escolhendo a categoria-folha certa (Lanternas), os
-  // atributos que chegam aqui já fazem sentido pra uma lanterna. Por isso não
-  // há (e não deveria haver) nenhum filtro de "atributos irrelevantes" aqui.
+  // atributos que chegam aqui já fazem sentido pra uma lanterna.
+  //
+  // Segundo diagnóstico (mesma peça, categoria-folha já correta): a API
+  // continua devolvendo, pra QUALQUER categoria, uma dezena de atributos
+  // fiscais/logísticos universais (Voltagem, IVA para revenda, IEPS, dados de
+  // embalagem, alimentos e bebidas, medicamentos...) junto dos específicos da
+  // peça — confirmado batendo direto em GET /categories/{id}/attributes (sem
+  // token, é público) pra "Faróis Traseiros" (MLB22645, carro) e "Carenagem"
+  // (MLB46593, moto): nos dois casos a maioria dos atributos vem com
+  // tags.hidden=true, exatamente os que o usuário reportou. Isso não é a
+  // categoria errada — é o schema completo da categoria, e cabe ao
+  // formulário decidir o que mostrar. classificarAtributos() abaixo faz essa
+  // divisão pelas próprias tags que a API devolve (nunca por nome fixo).
   const [atributos, setAtributos] = useState<AtributoMl[]>([]);
   const [carregandoAtributos, setCarregandoAtributos] = useState(false);
   const [valoresAtributos, setValoresAtributos] = useState<Record<string, AtributoValorInput>>({});
@@ -279,15 +302,21 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   const exigeCatalogo = useMemo(() => atributos.some((a) => a.tags?.catalog_required), [atributos]);
 
   // SELLER_SKU sai do grid genérico e ganha linha própria (destaque visual,
-  // já pré-preenchido acima) — o restante é ordenado com obrigatórios
-  // primeiro, preservando a ordem que a API devolveu dentro de cada grupo.
+  // já pré-preenchido acima) — o restante é dividido em principais/secundários
+  // por classificarAtributos (baseado em tags.hidden/read_only da própria API,
+  // nunca por nome fixo) e ordenado dentro de cada grupo com obrigatórios
+  // primeiro, preservando a ordem que a API devolveu.
   const atributoSku = useMemo(() => atributos.find((a) => a.id === 'SELLER_SKU') ?? null, [atributos]);
-  const atributosGenericosOrdenados = useMemo(() => {
-    const genericos = atributos.filter((a) => a.id !== 'SELLER_SKU');
-    const obrigatorios = genericos.filter((a) => a.tags?.required);
-    const opcionais = genericos.filter((a) => !a.tags?.required);
-    return [...obrigatorios, ...opcionais];
+  const ordenarObrigatoriosPrimeiro = (lista: AtributoMl[]) => [...lista.filter((a) => a.tags?.required), ...lista.filter((a) => !a.tags?.required)];
+  const atributosPrincipaisOrdenados = useMemo(() => {
+    const { principais } = classificarAtributos(atributos.filter((a) => a.id !== 'SELLER_SKU'));
+    return ordenarObrigatoriosPrimeiro(principais);
   }, [atributos]);
+  const atributosSecundariosOrdenados = useMemo(() => {
+    const { secundarios } = classificarAtributos(atributos.filter((a) => a.id !== 'SELLER_SKU'));
+    return ordenarObrigatoriosPrimeiro(secundarios);
+  }, [atributos]);
+  const [mostrarAtributosSecundarios, setMostrarAtributosSecundarios] = useState(false);
 
   // --- Preço e tipo de anúncio ----------------------------------------------
   const [precoBase, setPrecoBase] = useState<number>(item.valor);
@@ -615,7 +644,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
                 )}
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {atributosGenericosOrdenados.map((a) => (
+                  {atributosPrincipaisOrdenados.map((a) => (
                     <div key={a.id}>
                       <label className={labelClass}>
                         {a.name}
@@ -629,6 +658,34 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
                     </div>
                   ))}
                 </div>
+
+                {atributosSecundariosOrdenados.length > 0 && (
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setMostrarAtributosSecundarios((v) => !v)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-accent-soft-fg hover:underline"
+                    >
+                      <ChevronDown size={13} className={cn('transition-transform', mostrarAtributosSecundarios && 'rotate-180')} />
+                      {mostrarAtributosSecundarios ? 'Ocultar campos extras' : `Mostrar mais campos (${atributosSecundariosOrdenados.length})`}
+                    </button>
+
+                    {mostrarAtributosSecundarios && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+                        {atributosSecundariosOrdenados.map((a) => (
+                          <div key={a.id}>
+                            <label className={labelClass}>{a.name}</label>
+                            <CampoAtributo
+                              atributo={a}
+                              valor={valoresAtributos[a.id]}
+                              onChange={(v) => setValoresAtributos((prev) => ({ ...prev, [a.id]: v }))}
+                            />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
           </ModalSection>
