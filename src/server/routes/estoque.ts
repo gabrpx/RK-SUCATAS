@@ -251,6 +251,7 @@ function montarConfiguracaoPublicacao(body: any): { config?: ConfiguracaoAnuncio
       fotos,
       precoEfetivoSistema: body?.preco_efetivo_sistema != null ? Number(body.preco_efetivo_sistema) : undefined,
       variacoes,
+      catalogoProdutoId: body?.catalogo_produto_id ? String(body.catalogo_produto_id) : undefined,
     },
   };
 }

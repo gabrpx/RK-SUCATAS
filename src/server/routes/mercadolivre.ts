@@ -21,7 +21,7 @@ import {
   contarPendencias,
   type ImportarPedidoParams,
 } from '../../services/mercadolivreSync.js';
-import { sugerirCategoria, buscarAtributosCategoriaComCache, buscarTiposAnuncioDisponiveis, listarFilhosCategoria } from '../../services/mercadolivrePublicacao.js';
+import { sugerirCategoria, buscarAtributosCategoriaComCache, buscarTiposAnuncioDisponiveis, listarFilhosCategoria, buscarProdutosCatalogo } from '../../services/mercadolivrePublicacao.js';
 
 const ML_AUTH_URL = 'https://auth.mercadolivre.com.br/authorization';
 const ML_API_URL = 'https://api.mercadolibre.com';
@@ -384,6 +384,26 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
       res.json({ success: true, data: atributos });
     } catch (error: any) {
       console.error('Erro ao buscar atributos de categoria do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  // Busca produtos de catálogo parecidos com o título — "reconhecer
+  // produtos" antes de publicar numa categoria catalog_required (Parte do
+  // fluxo de EstoquePublicarMlModal.tsx: escolhe um produto ou segue sem
+  // vínculo, "Não é o que eu vendo").
+  router.get('/produtos-catalogo', async (req, res) => {
+    try {
+      const titulo = String(req.query.titulo || '').trim();
+      if (!titulo) return res.status(400).json({ success: false, error: 'Informe um título pra buscar produtos de catálogo' });
+
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const produtos = await buscarProdutosCatalogo(conexao.accessToken, titulo);
+      res.json({ success: true, data: produtos });
+    } catch (error: any) {
+      console.error('Erro ao buscar produtos de catálogo do Mercado Livre:', error.response?.data || error.message);
       res.status(500).json({ success: false, error: mensagemErro(error) });
     }
   });
