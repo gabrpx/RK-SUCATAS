@@ -124,6 +124,15 @@ export interface AtributoMl {
   attribute_group_name?: string;
 }
 
+// Um produto de catálogo do Mercado Livre encontrado na busca por título —
+// ver GET /api/mercadolivre/produtos-catalogo. `foto` é null quando o
+// produto não tem nenhuma imagem cadastrada no catálogo.
+export interface ProdutoCatalogoMl {
+  id: string;
+  nome: string;
+  foto: string | null;
+}
+
 export interface TipoAnuncioMl {
   id: string;
   nome: string;
@@ -160,6 +169,9 @@ export interface ConfiguracaoAnuncioMlInput {
   fotos: string[];
   preco_efetivo_sistema?: number;
   variacoes?: VariacaoMlInput[];
+  // Produto de catálogo escolhido na busca inline — ausente = publica sem
+  // vínculo (fluxo "Não é o que eu vendo" ou categoria que não exige catálogo).
+  catalogo_produto_id?: string;
 }
 
 export interface ResultadoPublicacaoMl {

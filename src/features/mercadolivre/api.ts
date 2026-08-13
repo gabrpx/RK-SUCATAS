@@ -17,7 +17,7 @@ import type {
 // consome mora, EstoquePublicarMlModal.tsx) — as rotas em si é que ficam
 // aninhadas aqui em /api/mercadolivre, por serem sobre a categoria/conta ML,
 // não sobre uma peça específica.
-import type { CategoriaMlSugerida, CategoriaMlNo, AtributoMl, TipoAnuncioMl } from '../estoque/types';
+import type { CategoriaMlSugerida, CategoriaMlNo, AtributoMl, TipoAnuncioMl, ProdutoCatalogoMl } from '../estoque/types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -115,5 +115,7 @@ export const mercadolivreApi = {
   buscarSubcategorias: (categoriaId?: string) =>
     api.get(`/api/mercadolivre/categorias/filhos${categoriaId ? `?categoria_id=${encodeURIComponent(categoriaId)}` : ''}`) as Promise<ApiResult<CategoriaMlNo[]>>,
   buscarAtributosCategoria: (categoriaId: string) => api.get(`/api/mercadolivre/categorias/${categoriaId}/atributos`) as Promise<ApiResult<AtributoMl[]>>,
+  buscarProdutosCatalogo: (titulo: string) =>
+    api.get(`/api/mercadolivre/produtos-catalogo?titulo=${encodeURIComponent(titulo)}`) as Promise<ApiResult<ProdutoCatalogoMl[]>>,
   buscarTiposAnuncio: (preco: number) => api.get(`/api/mercadolivre/tipos-anuncio?preco=${preco}`) as Promise<ApiResult<TipoAnuncioMl[]>>,
 };
