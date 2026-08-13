@@ -18,6 +18,18 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.10',
+    data: '2026-08-13',
+    titulo: 'Publicar no Mercado Livre: vínculo com produto de catálogo direto no formulário',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Algumas categorias do Mercado Livre exigem que o anúncio seja vinculado a um produto já existente no catálogo deles — antes, quando isso acontecia, o sistema simplesmente bloqueava a publicação e mandava publicar manualmente pelo site do Mercado Livre. Agora, ao entrar numa categoria assim, o sistema busca sozinho os produtos de catálogo que combinam com a peça e mostra como opções clicáveis (com foto e nome) direto no formulário de publicação — é só escolher um pra vincular. Se nenhum bater com o que está sendo vendido, o botão "Não é o que eu vendo" publica o anúncio normalmente, sem vínculo com catálogo.',
+      },
+    ],
+  },
+  {
     versao: '1.2.9',
     data: '2026-08-13',
     titulo: 'Publicar no Mercado Livre: formulário de atributos sem campos genéricos',

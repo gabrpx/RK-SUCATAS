@@ -423,6 +423,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
         fotos: fotosSelecionadas,
         preco_efetivo_sistema: precoBase,
         variacoes: variacoes.length > 0 ? variacoes : undefined,
+        catalogo_produto_id: produtoCatalogoSelecionado?.id,
       };
 
       const resultado = await estoqueApi.publicarMl(item.id, payload);
@@ -793,12 +794,18 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
             <ModalSection
               titulo="Variações"
               descricao={
-                variacaoDisponivel
+                produtoCatalogoSelecionado
+                  ? 'Produto de catálogo não aceita variações — o anúncio sai com o preço base único.'
+                  : variacaoDisponivel
                   ? 'Cada ficha de unidade com preço próprio vira uma variação do anúncio.'
                   : 'Esta categoria não tem um atributo de variação no Mercado Livre — o anúncio sai com o preço base único.'
               }
             >
-              {variacaoDisponivel ? (
+              {produtoCatalogoSelecionado ? (
+                <p className="text-xs text-text-faint">
+                  Clique em "Não é o que eu vendo" acima se precisar publicar esta peça com variações por ficha.
+                </p>
+              ) : variacaoDisponivel ? (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between gap-3">
                     <label className={cn(labelClass, 'mb-0')}>Publicar como variações</label>
