@@ -18,6 +18,18 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.9',
+    data: '2026-08-13',
+    titulo: 'Publicar no Mercado Livre: formulário de atributos sem campos genéricos',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'O formulário de atributos ao publicar um anúncio não mostrava mais campos genéricos que o Mercado Livre sempre retorna pra qualquer categoria (Voltagem, IVA para revenda, IEPS, dados de embalagem, alimentos e bebidas, medicamentos...) misturados com os campos realmente relevantes da peça. Agora só os campos relevantes aparecem direto; os genéricos ficam agrupados em "Mostrar mais campos", colapsado por padrão. A separação usa os próprios metadados que a API do Mercado Livre já devolve por atributo (não uma lista fixa de nomes) — funciona igual pra qualquer categoria de peça.',
+      },
+    ],
+  },
+  {
     versao: '1.2.8',
     data: '2026-08-13',
     titulo: 'Publicar no Mercado Livre: navegação de categoria, cards de tipo de anúncio e SKU automático',
