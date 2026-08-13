@@ -18,6 +18,7 @@ import {
   buscarCategoriaML,
   buscarCategoriasRaizML,
   buscarTiposAnuncioML,
+  buscarProdutosCatalogoML,
   criarItemML,
   atualizarDescricaoML,
   buscarItensPorIds,
@@ -106,6 +107,20 @@ export async function buscarAtributosCategoriaComCache(supabase: SupabaseClient,
   if (erroCache && !ehErroDeMigrationAusente(erroCache)) console.error('Erro ao gravar cache de categoria do Mercado Livre:', erroCache);
 
   return atributos;
+}
+
+export interface ProdutoCatalogoMl {
+  id: string;
+  nome: string;
+  foto: string | null;
+}
+
+// "Reconhecer produtos" antes de publicar — busca por título, mesma
+// experiência do site oficial do ML (não filtra por categoria: o próprio
+// listing_strategy=catalog_required já restringe a busca ao que interessa).
+export async function buscarProdutosCatalogo(token: string, titulo: string): Promise<ProdutoCatalogoMl[]> {
+  const produtos = await buscarProdutosCatalogoML(token, titulo);
+  return produtos.map((p) => ({ id: p.id, nome: p.name, foto: p.pictures?.[0]?.url ?? null }));
 }
 
 // ============================================================================

@@ -303,6 +303,28 @@ export async function buscarAtributosCategoriaML(token: string, categoriaId: str
   return data ?? [];
 }
 
+export interface ProdutoCatalogoML {
+  id: string;
+  name: string;
+  status: string;
+  pictures?: { url: string }[];
+  attributes: { id: string; name: string; value_name: string | null }[];
+}
+
+// GET /products/search — "reconhecimento de produtos" antes de publicar numa
+// categoria catalog_required (ver "Catalog required listings" em
+// developers.mercadolivre.com.br). status=active exclui produtos que não
+// podem receber novo vínculo; listing_strategy=catalog_required filtra só os
+// que de fato pedem catálogo (existe também catalog_optional, que não nos
+// interessa aqui).
+export async function buscarProdutosCatalogoML(token: string, titulo: string): Promise<ProdutoCatalogoML[]> {
+  const { data } = await axios.get(`${ML_API_URL}/products/search`, {
+    headers: { Authorization: `Bearer ${token}` },
+    params: { status: 'active', site_id: SITE_ID, listing_strategy: 'catalog_required', q: titulo },
+  });
+  return data?.results ?? [];
+}
+
 export interface TipoAnuncioPrecoML {
   listing_type_id: string;
   listing_type_name: string;

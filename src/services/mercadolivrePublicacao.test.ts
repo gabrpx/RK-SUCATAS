@@ -4,10 +4,11 @@ vi.mock('./mercadolivreApi.js', () => ({
   buscarCategoriasRaizML: vi.fn(),
   buscarCategoriaML: vi.fn(),
   buscarTiposAnuncioML: vi.fn(),
+  buscarProdutosCatalogoML: vi.fn(),
 }));
 
-import { buscarCategoriasRaizML, buscarCategoriaML, buscarTiposAnuncioML } from './mercadolivreApi.js';
-import { listarFilhosCategoria, buscarTiposAnuncioDisponiveis } from './mercadolivrePublicacao.js';
+import { buscarCategoriasRaizML, buscarCategoriaML, buscarTiposAnuncioML, buscarProdutosCatalogoML } from './mercadolivreApi.js';
+import { listarFilhosCategoria, buscarTiposAnuncioDisponiveis, buscarProdutosCatalogo } from './mercadolivrePublicacao.js';
 
 describe('listarFilhosCategoria', () => {
   it('sem categoriaId, busca as categorias raiz do site MLB e mapeia pra {id, nome}', async () => {
@@ -92,6 +93,34 @@ describe('buscarTiposAnuncioDisponiveis', () => {
     expect(tipos).toEqual([
       { id: 'gold_pro', nome: 'Premium', taxaVendaPercentual: 16, taxaVendaValor: 24.96, exposicao: 'highest' },
       { id: 'gold_special', nome: 'Clássico', taxaVendaPercentual: 11, taxaVendaValor: 17.16, exposicao: 'highest' },
+    ]);
+  });
+});
+
+describe('buscarProdutosCatalogo', () => {
+  it('mapeia resultados da API pra {id, nome, foto}, usando a primeira foto quando existir', async () => {
+    vi.mocked(buscarProdutosCatalogoML).mockResolvedValue([
+      {
+        id: 'MLB123456',
+        name: 'Carenagem CB 300R Vermelha',
+        status: 'active',
+        pictures: [{ url: 'https://http2.mlstatic.com/foto1.jpg' }],
+        attributes: [],
+      },
+      {
+        id: 'MLB123457',
+        name: 'Carenagem CB 300R Preta',
+        status: 'active',
+        attributes: [],
+      },
+    ]);
+
+    const produtos = await buscarProdutosCatalogo('token-fake', 'Carenagem CB 300R');
+
+    expect(buscarProdutosCatalogoML).toHaveBeenCalledWith('token-fake', 'Carenagem CB 300R');
+    expect(produtos).toEqual([
+      { id: 'MLB123456', nome: 'Carenagem CB 300R Vermelha', foto: 'https://http2.mlstatic.com/foto1.jpg' },
+      { id: 'MLB123457', nome: 'Carenagem CB 300R Preta', foto: null },
     ]);
   });
 });
