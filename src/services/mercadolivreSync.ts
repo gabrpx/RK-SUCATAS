@@ -978,7 +978,13 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
         resultado.abandonados.push({ mlOrderId: extrairOrderId(linha.resource) ?? linha.resource, erro: mensagem });
         await marcarProcessado(supabase, linha.id, mensagem, tentativas);
       } else {
-        await supabase.from('mercadolivre_notificacoes').update({ tentativas, erro: mensagem }).eq('id', linha.id);
+        // Checagem espelhando marcarProcessado: se esta escrita falhar calada,
+        // `tentativas` fica em 0 pra sempre, o teto nunca chega, e a linha
+        // consome uma chamada de API a cada 5 minutos indefinidamente.
+        const { error: erroTentativas } = await supabase.from('mercadolivre_notificacoes').update({ tentativas, erro: mensagem }).eq('id', linha.id);
+        if (erroTentativas && !ehErroDeMigrationAusente(erroTentativas)) {
+          console.error('Erro ao gravar tentativas da notificação do ML (linha pode reprocessar sem fim):', erroTentativas);
+        }
       }
     }
   }

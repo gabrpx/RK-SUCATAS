@@ -27,6 +27,7 @@ function criarSupabaseFake(opts: {
   formaPagamentoId?: string | null;
   registrarVenda?: (params: any) => { data: any; error: any };
   erroUpdateVenda?: any; // falha do update pós-RPC (canal/ml_order_id)
+  erroUpdateFila?: any; // falha ao escrever de volta na mercadolivre_notificacoes
   variacoes?: Record<string, string>; // ml_variation_id -> unidade_id
 }) {
   const atualizacoes: Record<string, any>[] = [];
@@ -44,7 +45,7 @@ function criarSupabaseFake(opts: {
             }),
           }),
           update(payload: any) {
-            return { eq: (_c: string, id: string) => { atualizacoes.push({ id, ...payload }); return Promise.resolve({ error: null }); } };
+            return { eq: (_c: string, id: string) => { atualizacoes.push({ id, ...payload }); return Promise.resolve({ error: opts.erroUpdateFila ?? null }); } };
           },
         };
       }
@@ -256,6 +257,21 @@ describe('processarPedidosPendentes', () => {
     expect(resultado.falhas).toBe(1);
     expect(supabase.atualizacoes[0]).toMatchObject({ id: 'n1', tentativas: 1, erro: 'timeout' });
     expect(supabase.atualizacoes[0].processado_em).toBeUndefined();
+  });
+
+  it('falha ao gravar as tentativas é logada — senão a linha bate na API pra sempre em silêncio', async () => {
+    vi.mocked(buscarPedido).mockRejectedValue(new Error('timeout'));
+    const erros: any[] = [];
+    const spy = vi.spyOn(console, 'error').mockImplementation((...args) => { erros.push(args.join(' ')); });
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      erroUpdateFila: { code: '08006', message: 'connection failure' },
+    });
+
+    await processarPedidosPendentes(supabase);
+    spy.mockRestore();
+
+    expect(erros.some((e) => /tentativas/i.test(e))).toBe(true);
   });
 
   it('na última tentativa, marca processado preservando o erro pra não travar a fila', async () => {
