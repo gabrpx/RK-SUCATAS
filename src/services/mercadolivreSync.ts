@@ -924,6 +924,45 @@ async function avisarResultadoDaFila(supabase: SupabaseClient, resultado: Result
   }
 }
 
+// Contraparte do consumidor: quando a peça sai pelo estoque (balcão,
+// orçamento aprovado, ou a própria importação automática), o anúncio no
+// Mercado Livre fica anunciando quantidade que não existe mais. Isto AVISA —
+// aplicar continua sendo revisão com checkbox (aplicarSincronizacao), porque
+// mexer no anúncio muda a vitrine real da loja.
+//
+// Complementa (não substitui) o toast "Sincronizar agora" que VendasView e
+// OrcamentosView já mostram: o toast é o caminho rápido pra quem está com a
+// tela aberta; o push cobre outro aparelho, outra aba, e venda que nasceu da
+// fila automática.
+//
+// Nunca lança: a venda já está registrada quando isto roda, e falha de aviso
+// não pode virar erro 500 numa venda que deu certo.
+export async function avisarAnunciosDesatualizados(supabase: SupabaseClient, estoqueIds: string[]): Promise<void> {
+  if (estoqueIds.length === 0) return;
+
+  try {
+    const { data: links, error } = await supabase.from('estoque_anuncios_ml').select('estoque_id').in('estoque_id', estoqueIds);
+    if (error) {
+      if (ehErroDeMigrationAusente(error)) return;
+      throw error;
+    }
+    const afetadas = new Set((links ?? []).map((l: { estoque_id: string }) => l.estoque_id));
+    if (afetadas.size === 0) return;
+
+    const destinatarios = await buscarDestinatariosEquipe(supabase);
+    if (destinatarios.length === 0) return;
+
+    const corpo =
+      afetadas.size === 1
+        ? '1 anúncio no Mercado Livre está com quantidade desatualizada. Revise e aplique.'
+        : `${afetadas.size} anúncios no Mercado Livre estão com quantidade desatualizada. Revise e aplique.`;
+
+    await notificarUsuarios(supabase, destinatarios, { titulo: 'Anúncio precisa de ajuste', corpo, url: '/mercadolivre' });
+  } catch (err: any) {
+    console.error('Erro ao avisar sobre anúncios desatualizados:', err?.message || err);
+  }
+}
+
 async function marcarProcessado(supabase: SupabaseClient, id: string, erro: string | null, tentativas?: number): Promise<void> {
   const payload: Record<string, any> = { processado_em: new Date().toISOString(), erro };
   if (tentativas !== undefined) payload.tentativas = tentativas;

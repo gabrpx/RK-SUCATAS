@@ -5,6 +5,7 @@
 // RPC de venda e depois faz updates simples pra linkar/fechar a linha.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { avisarAnunciosDesatualizados } from '../../services/mercadolivreSync.js';
 
 const SELECT_COM_ITENS = '*, itens:orcamento_itens(*), cliente:clientes(id, nome, telefone)';
 
@@ -256,6 +257,10 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       if (item.venda_id) return res.status(400).json({ success: false, error: 'Esta linha já foi vendida' });
 
       const venda = await venderLinha(item, { forma_pagamento_id, componente, data: dataVenda, cliente_nome: orcamento.cliente_nome, cliente_id: orcamento.cliente_id });
+      // Fire-and-forget: a venda já está registrada; avisar sobre o anúncio
+      // não pode atrasar nem derrubar a resposta. Linha "avulsa" (sem
+      // estoque_id) não tem anúncio pra avisar.
+      if (item.estoque_id) void avisarAnunciosDesatualizados(supabase, [item.estoque_id]);
       await recalcularStatus(req.params.id);
 
       const data = await buscarOrcamento(req.params.id);
@@ -280,6 +285,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
 
       const sucesso: string[] = [];
       const falhas: { itemId: string; error: string }[] = [];
+      const estoqueIdsVendidos: string[] = [];
 
       // Loop sequencial (não é uma transação única) — mesmo estilo pragmático
       // do resto do app, já que registrar_venda é atômica por linha. Se uma
@@ -289,10 +295,15 @@ export function orcamentosRouter(supabase: SupabaseClient) {
         try {
           await venderLinha(item, { forma_pagamento_id, data: dataVenda, cliente_nome: orcamento.cliente_nome, cliente_id: orcamento.cliente_id });
           sucesso.push(item.id);
+          if (item.estoque_id) estoqueIdsVendidos.push(item.estoque_id);
         } catch (err: any) {
           falhas.push({ itemId: item.id, error: err.message });
         }
       }
+
+      // Uma chamada só ao fim, com a lista acumulada — um orçamento com 8
+      // peças não pode virar 8 pushes.
+      void avisarAnunciosDesatualizados(supabase, estoqueIdsVendidos);
 
       await recalcularStatus(req.params.id);
 

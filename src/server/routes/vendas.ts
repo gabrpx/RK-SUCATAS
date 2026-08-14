@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { autorizar } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
+import { avisarAnunciosDesatualizados } from '../../services/mercadolivreSync.js';
 
 const SELECT_COM_JOIN =
   '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome, natureza), cliente:clientes(id, nome, telefone), unidade:estoque_unidades(id, apelido, avaria, avaria_descricao, fotos, valor)';
@@ -55,6 +56,9 @@ export function vendasRouter(supabase: SupabaseClient) {
       });
 
       if (error) throw error;
+      // Fire-and-forget: a venda já está registrada; avisar sobre o anúncio
+      // não pode atrasar nem derrubar a resposta.
+      void avisarAnunciosDesatualizados(supabase, [estoque_id]);
       res.json({ success: true, data: venda });
     } catch (error: any) {
       console.error('Erro ao registrar venda:', error);
