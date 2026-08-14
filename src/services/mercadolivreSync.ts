@@ -10,6 +10,7 @@ import {
   atualizarItemML,
   buscarItensAtivosVendedor,
   buscarPedidosRecentes,
+  buscarPedido,
   buscarPerguntas,
   buscarEnvio,
   obterConexaoAtual,
@@ -716,4 +717,151 @@ export async function verificarNotificacoesPendentes(supabase: SupabaseClient): 
   if (error && !ehErroDeMigrationAusente(error)) {
     console.error('Erro ao registrar notificações pendentes do Mercado Livre:', error);
   }
+}
+
+// ============================================================================
+// Fila de pedidos (migration_044) — pedido pago no ML vira venda com baixa de
+// estoque, sem clique humano. É a ÚNICA automação de escrita deste módulo, e
+// ela escreve só em tabela nossa: nada aqui muta anúncio no Mercado Livre
+// (isso continua exigindo revisão com checkbox, ver aplicarSincronizacao).
+//
+// Webhook e polling já escrevem em mercadolivre_notificacoes com índice único
+// por (topic, resource) — as duas fontes convergem numa linha só, e este é o
+// único consumidor.
+// ============================================================================
+
+const MAX_TENTATIVAS_PEDIDO = 5;
+const PEDIDOS_POR_CICLO = 20;
+
+export interface ResultadoFilaPedidos {
+  importados: number;
+  itensImportados: { estoqueNome: string; mlOrderId: string }[];
+  semMatch: { mlOrderId: string; titulo: string }[];
+  ignorados: number;
+  falhas: number;
+}
+
+// A forma de pagamento dedicada é seed da migration_044. Ausente = migração
+// não rodou: melhor não importar nada do que empurrar as vendas do canal ML
+// pra uma forma de pagamento arbitrária e sujar o caixa.
+async function obterFormaPagamentoMercadoLivre(supabase: SupabaseClient): Promise<string | null> {
+  const { data, error } = await supabase.from('formas_pagamento').select('id').eq('nome', 'MERCADO LIVRE').maybeSingle();
+  if (error) {
+    if (ehErroDeMigrationAusente(error)) return null;
+    throw error;
+  }
+  return data?.id ?? null;
+}
+
+function extrairOrderId(resource: string): string | null {
+  return resource.match(/\/orders\/(\d+)/)?.[1] ?? null;
+}
+
+function ehErroDeEstoqueInsuficiente(mensagem: string): boolean {
+  return /estoque insuficiente/i.test(mensagem);
+}
+
+export async function processarPedidosPendentes(supabase: SupabaseClient): Promise<ResultadoFilaPedidos> {
+  const resultado: ResultadoFilaPedidos = { importados: 0, itensImportados: [], semMatch: [], ignorados: 0, falhas: 0 };
+
+  const conexao = await obterConexaoAtual(supabase);
+  if (!conexao) return resultado;
+
+  const { data: pendentes, error: erroFila } = await supabase
+    .from('mercadolivre_notificacoes')
+    .select('id, topic, resource, tentativas')
+    .eq('topic', 'orders_v2')
+    .is('processado_em', null)
+    .order('recebido_em', { ascending: true })
+    .limit(PEDIDOS_POR_CICLO);
+
+  if (erroFila) {
+    if (ehErroDeMigrationAusente(erroFila)) {
+      console.warn('⚠️ Fila de pedidos do Mercado Livre indisponível — rode supabase/migration_044_mercadolivre_fila_pedidos.sql. Importação automática desligada até lá.');
+      return resultado;
+    }
+    throw erroFila;
+  }
+  if (!pendentes || pendentes.length === 0) return resultado;
+
+  const formaPagamentoId = await obterFormaPagamentoMercadoLivre(supabase);
+  if (!formaPagamentoId) {
+    console.warn('⚠️ Forma de pagamento "MERCADO LIVRE" não encontrada — rode supabase/migration_044_mercadolivre_fila_pedidos.sql. Importação automática desligada até lá.');
+    return resultado;
+  }
+
+  const mapaEstoque = await construirMapaEstoquePorMlb(supabase);
+
+  // Sequencial de propósito: cada linha vira escrita no banco, e um lote
+  // paralelo de registrar_venda na mesma peça disputaria o mesmo saldo.
+  for (const linha of pendentes) {
+    try {
+      const orderId = extrairOrderId(linha.resource);
+      if (!orderId) {
+        resultado.ignorados++;
+        await marcarProcessado(supabase, linha.id, null);
+        continue;
+      }
+
+      const pedido = await buscarPedido(conexao.accessToken, orderId);
+      if (!pedido || pedido.status !== 'paid') {
+        resultado.ignorados++;
+        await marcarProcessado(supabase, linha.id, null);
+        continue;
+      }
+
+      for (const itemPedido of pedido.order_items ?? []) {
+        const peca = mapaEstoque.get(itemPedido.item.id);
+        if (!peca) {
+          resultado.semMatch.push({ mlOrderId: orderId, titulo: itemPedido.item.title });
+          continue;
+        }
+        try {
+          const venda = await importarPedidoComoVenda(supabase, {
+            estoqueId: peca.id,
+            quantidade: itemPedido.quantity,
+            valorUnitario: itemPedido.unit_price,
+            formaPagamentoId,
+            clienteNome: pedido.buyer?.nickname ?? null,
+            data: pedido.date_created ?? null,
+            mlOrderId: orderId,
+            mlItemId: itemPedido.item.id,
+            mlShippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
+          });
+          if (venda) {
+            resultado.importados++;
+            resultado.itensImportados.push({ estoqueNome: peca.nome, mlOrderId: orderId });
+          }
+        } catch (err: any) {
+          // Saldo zerado é divergência real entre sistema e Mercado Livre —
+          // repetir não resolve, quem resolve é uma pessoa. Vira aviso.
+          if (ehErroDeEstoqueInsuficiente(err.message ?? '')) {
+            resultado.semMatch.push({ mlOrderId: orderId, titulo: itemPedido.item.title });
+          } else {
+            throw err;
+          }
+        }
+      }
+
+      await marcarProcessado(supabase, linha.id, null);
+    } catch (err: any) {
+      resultado.falhas++;
+      const tentativas = (linha.tentativas ?? 0) + 1;
+      const mensagem = err?.response?.data?.message || err?.message || 'erro desconhecido';
+      if (tentativas >= MAX_TENTATIVAS_PEDIDO) {
+        await marcarProcessado(supabase, linha.id, mensagem, tentativas);
+      } else {
+        await supabase.from('mercadolivre_notificacoes').update({ tentativas, erro: mensagem }).eq('id', linha.id);
+      }
+    }
+  }
+
+  return resultado;
+}
+
+async function marcarProcessado(supabase: SupabaseClient, id: string, erro: string | null, tentativas?: number): Promise<void> {
+  const payload: Record<string, any> = { processado_em: new Date().toISOString(), erro };
+  if (tentativas !== undefined) payload.tentativas = tentativas;
+  const { error } = await supabase.from('mercadolivre_notificacoes').update(payload).eq('id', id);
+  if (error && !ehErroDeMigrationAusente(error)) console.error('Erro ao marcar notificação do ML como processada:', error);
 }
