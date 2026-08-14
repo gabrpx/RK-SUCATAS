@@ -9,6 +9,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
+import { DESCRICAO_PADRAO_ANUNCIO } from './descricaoPadraoMl';
 import type { CategoriaMlSugerida, Estoque } from './types';
 
 const categoriaFake: CategoriaMlSugerida = { id: 'MLB123', nome: 'Lanternas', caminho: 'Peças > Iluminação', atributosSugeridos: [] };
@@ -98,20 +99,20 @@ describe('EstoquePublicarMlModal — troca de peça sem desmontar', () => {
     expect(fotoSelecionada('https://x/b.jpg')).toBe(true);
   });
 
-  it('reseta título e descrição do anúncio para os da nova peça ao trocar o prop item', async () => {
+  it('reseta o título do anúncio para o da nova peça ao trocar o prop item (descrição segue o padrão institucional, ver describe dedicado)', async () => {
     const itemA = criarItem({ id: 'a', nome: 'Lanterna CG 150', descricao: 'Descrição A', imagens: [] });
     const itemB = criarItem({ id: 'b', nome: 'Lanterna Biz 100', descricao: 'Descrição B', imagens: [] });
 
     const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
     await selecionarCategoriaSugerida();
     expect((screen.getByPlaceholderText('Título do anúncio') as HTMLInputElement).value).toBe('Lanterna CG 150');
-    expect((screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement).value).toBe('Descrição A');
+    expect((screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement).value).toBe(DESCRICAO_PADRAO_ANUNCIO);
 
     rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
     await selecionarCategoriaSugerida();
 
     expect((screen.getByPlaceholderText('Título do anúncio') as HTMLInputElement).value).toBe('Lanterna Biz 100');
-    expect((screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement).value).toBe('Descrição B');
+    expect((screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement).value).toBe(DESCRICAO_PADRAO_ANUNCIO);
   });
 });
 
@@ -134,5 +135,53 @@ describe('EstoquePublicarMlModal — padronizar categoria (Fase 4)', () => {
     // nenhuma sugestão, diferente de selecionarCategoriaSugerida() acima.
     await waitFor(() => expect(screen.queryByPlaceholderText('Título do anúncio')).not.toBeNull(), { timeout: 1000 });
     expect(screen.getByText(categoriaPadraoFake.nome)).toBeTruthy();
+  });
+});
+
+describe('EstoquePublicarMlModal — descrição padrão', () => {
+  afterEach(() => cleanup());
+
+  // O campo de descrição só existe no DOM depois que uma categoria é
+  // selecionada (ver `categoriaSelecionada &&` no componente) — por isso
+  // toda peça criada aqui passa por selecionarCategoriaSugerida() antes de
+  // procurar o textarea, igual aos describes acima.
+
+  it('abre com o texto institucional da RK, ignorando a descrição interna da peça', async () => {
+    const item = criarItem({ id: 'p1', nome: 'Lanterna', imagens: [], descricao: 'nota interna de catalogação' });
+
+    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    await selecionarCategoriaSugerida();
+
+    const campo = screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement;
+    expect(campo.value).toBe(DESCRICAO_PADRAO_ANUNCIO);
+    expect(campo.value).not.toContain('nota interna de catalogação');
+  });
+
+  it('o botão Limpar esvazia o campo e vira Restaurar padrão', async () => {
+    const item = criarItem({ id: 'p1', nome: 'Lanterna', imagens: [] });
+
+    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    await selecionarCategoriaSugerida();
+
+    const campo = screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement;
+    fireEvent.click(screen.getByText('Limpar'));
+    expect(campo.value).toBe('');
+
+    fireEvent.click(screen.getByText('Restaurar padrão'));
+    expect(campo.value).toBe(DESCRICAO_PADRAO_ANUNCIO);
+  });
+
+  it('trocar de peça reseta a descrição de volta pro padrão', async () => {
+    const itemA = criarItem({ id: 'p1', nome: 'Lanterna', imagens: [] });
+    const itemB = criarItem({ id: 'p2', nome: 'Farol', imagens: [] });
+
+    const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    await selecionarCategoriaSugerida();
+    const campo = screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement;
+    fireEvent.change(campo, { target: { value: 'texto só desta peça' } });
+
+    rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    await selecionarCategoriaSugerida();
+    expect((screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement).value).toBe(DESCRICAO_PADRAO_ANUNCIO);
   });
 });

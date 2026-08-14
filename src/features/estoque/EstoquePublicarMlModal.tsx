@@ -19,6 +19,7 @@ import { estoqueApi, uploadImagemEstoque } from './api';
 import { mercadolivreApi } from '../mercadolivre/api';
 import { categoriasApi } from '../../lib/catalogApi';
 import { derivarAutopreenchimentoAtributos } from './autopreencherAtributosMl';
+import { DESCRICAO_PADRAO_ANUNCIO } from './descricaoPadraoMl';
 import type { AtributoMl, AtributoValorInput, CategoriaMlNo, CategoriaMlSugerida, ConfiguracaoAnuncioMlInput, Estoque, EstoqueAnuncioMl, ProdutoCatalogoMl, TipoAnuncioMl, VariacaoMlInput } from './types';
 import type { ModeloMoto } from '../../types/catalog';
 
@@ -418,7 +419,10 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
   // (ponto de partida útil), mas editar aqui nunca grava de volta em
   // item.nome/item.descricao.
   const [tituloAnuncio, setTituloAnuncio] = useState(item.nome.slice(0, 60));
-  const [descricaoAnuncio, setDescricaoAnuncio] = useState(item.descricao || item.nome);
+  // Descrição do anúncio nasce SEMPRE do texto institucional, nunca de
+  // item.descricao — a descrição interna é nota de catalogação, escrita pra
+  // quem trabalha no estoque, não pra converter comprador.
+  const [descricaoAnuncio, setDescricaoAnuncio] = useState(DESCRICAO_PADRAO_ANUNCIO);
 
   // --- Remoção de fundo das fotos (opcional) ----------------------------------
   // 100% client-side (@imgly/background-removal, WASM — ver
@@ -465,7 +469,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
   useEffect(() => {
     setFotosSelecionadas(item.imagens ?? []);
     setTituloAnuncio(item.nome.slice(0, 60));
-    setDescricaoAnuncio(item.descricao || item.nome);
+    setDescricaoAnuncio(DESCRICAO_PADRAO_ANUNCIO);
     setBuscaCategoria(item.nome);
     setCategoriaSelecionada(null);
     setPadronizarCategoria(false);
@@ -1034,7 +1038,17 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
             </div>
 
             <div>
-              <label className={labelClass}>Descrição do anúncio *</label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={cn(labelClass, 'mb-0')}>Descrição do anúncio *</label>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setDescricaoAnuncio((atual) => (atual === DESCRICAO_PADRAO_ANUNCIO ? '' : DESCRICAO_PADRAO_ANUNCIO))}
+                >
+                  {descricaoAnuncio === DESCRICAO_PADRAO_ANUNCIO ? 'Limpar' : 'Restaurar padrão'}
+                </Button>
+              </div>
               <textarea
                 value={descricaoAnuncio}
                 onChange={(e) => setDescricaoAnuncio(e.target.value)}
