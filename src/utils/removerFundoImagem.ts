@@ -1,9 +1,15 @@
 // Remove o fundo da foto no próprio navegador (WASM, @imgly/background-removal)
 // antes de anexar ao anúncio do Mercado Livre — peça com fundo branco vende
 // mais. Processamento 100% client-side: sem rota nova no backend, sem custo
-// por imagem, sem chave de API. A lib baixa o modelo ONNX/WASM do CDN da
-// IMG.LY em runtime na primeira vez que roda (cacheado pelo navegador
-// depois) — não precisa de nenhuma env var.
+// por imagem, sem chave de API.
+//
+// A extração roda em src/utils/removerFundoImagem.worker.ts, dentro de um
+// Web Worker — não na main thread. onnxruntime-web só evita bloquear quem
+// chama session.run() quando device:'gpu' (WebGPU), que não é garantido em
+// todo navegador/iOS; rodando no worker, o bloqueio fica isolado lá e a UI
+// nunca trava, não importa o device. Este módulo é só o "cliente": mantém um
+// pool de até MAX_WORKERS workers reaproveitados e enfileira o que passar
+// disso — paralelismo suficiente pra ganhar velocidade sem afogar o celular.
 //
 // Nunca lança: se qualquer etapa falhar (lib não carrega, imagem não
 // suportada, navegador sem WASM), devolve blob: null e deixa o chamador
@@ -15,41 +21,54 @@ export interface ResultadoRemocaoFundo {
   blob: Blob | null;
 }
 
-const QUALIDADE_JPEG = 0.85;
+const MAX_WORKERS = 2;
 
-// @imgly/background-removal devolve PNG com fundo transparente — o Mercado
-// Livre não valoriza transparência em foto de anúncio, então composita em
-// branco antes de exportar (mesma técnica de comprimirImagem.ts: fillStyle
-// branco + fillRect antes do drawImage).
-async function aplicarFundoBranco(recorte: Blob): Promise<Blob> {
-  const bitmap = await createImageBitmap(recorte);
-  const canvas = document.createElement('canvas');
-  canvas.width = bitmap.width;
-  canvas.height = bitmap.height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('Canvas 2D não disponível');
-
-  ctx.fillStyle = '#ffffff';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.drawImage(bitmap as CanvasImageSource, 0, 0);
-  if ('close' in bitmap) bitmap.close();
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', QUALIDADE_JPEG));
-  if (!blob) throw new Error('Falha ao gerar imagem final');
-  return blob;
+interface TarefaPendente {
+  entrada: File | Blob | string;
+  resolve: (resultado: ResultadoRemocaoFundo) => void;
 }
 
-export async function removerFundoImagem(entrada: File | Blob | string): Promise<ResultadoRemocaoFundo> {
-  try {
-    // Import dinâmico: só baixa a lib (+ modelo WASM, alguns MB) quando o
-    // usuário realmente clica em "Remover fundo" — quem nunca usa essa
-    // função não paga esse custo no bundle principal nem na primeira carga.
-    const { removeBackground } = await import('@imgly/background-removal');
-    const recorte = await removeBackground(entrada);
-    const blob = await aplicarFundoBranco(recorte);
-    return { sucesso: true, blob };
-  } catch (err) {
-    console.warn('Falha ao remover fundo da imagem:', err);
-    return { sucesso: false, blob: null };
+const fila: TarefaPendente[] = [];
+const workersOciosos: Worker[] = [];
+let workersCriados = 0;
+let proximoId = 0;
+
+function criarWorker(): Worker {
+  return new Worker(new URL('./removerFundoImagem.worker.ts', import.meta.url), { type: 'module' });
+}
+
+function obterWorkerDisponivel(): Worker | null {
+  if (workersOciosos.length > 0) return workersOciosos.pop()!;
+  if (workersCriados < MAX_WORKERS) {
+    workersCriados++;
+    return criarWorker();
   }
+  return null;
+}
+
+function despacharProxima() {
+  if (fila.length === 0) return;
+  const worker = obterWorkerDisponivel();
+  if (!worker) return; // todos os MAX_WORKERS ocupados — espera um liberar
+
+  const tarefa = fila.shift()!;
+  const id = String(proximoId++);
+
+  const onMessage = (evento: MessageEvent<{ id: string; sucesso: boolean; blob: Blob | null }>) => {
+    if (evento.data?.id !== id) return;
+    worker.removeEventListener('message', onMessage as EventListener);
+    workersOciosos.push(worker);
+    tarefa.resolve({ sucesso: evento.data.sucesso, blob: evento.data.blob });
+    despacharProxima();
+  };
+
+  worker.addEventListener('message', onMessage as EventListener);
+  worker.postMessage({ id, entrada: tarefa.entrada });
+}
+
+export function removerFundoImagem(entrada: File | Blob | string): Promise<ResultadoRemocaoFundo> {
+  return new Promise((resolve) => {
+    fila.push({ entrada, resolve });
+    despacharProxima();
+  });
 }

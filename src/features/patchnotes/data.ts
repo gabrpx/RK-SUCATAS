@@ -18,6 +18,32 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.13',
+    data: '2026-08-14',
+    titulo: 'Remoção de fundo mais rápida e sem travar, avisos de foto e menu "Mais" mais fluido no celular',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Remover o fundo de uma foto travava a tela até o processo terminar, principalmente no celular. A extração agora roda em segundo plano (Web Worker) em vez de travar a tela — e dá pra remover o fundo de até 2 fotos ao mesmo tempo, sem esperar uma terminar pra começar a outra.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Se o Mercado Livre falhasse em anexar alguma foto ao criar o anúncio (sem motivo aparente), isso passava batido, sem nenhum aviso. Agora, se alguma foto não entrar, aparece um aviso dizendo quantas faltaram.',
+      },
+      {
+        tipo: 'fix',
+        texto: 'O menu "Mais" da barra inferior no celular estava lento pra abrir/fechar, especialmente em iPhone — corrigido.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Nova seção "Anúncios publicados" na aba Mercado Livre, mostrando os anúncios que o sistema publicou (peça, "há quanto tempo" e link direto), com filtros por Hoje, Ontem, 7 dias ou Todos.',
+      },
+    ],
+  },
+  {
     versao: '1.2.12',
     data: '2026-08-14',
     titulo: 'Corrige título do anúncio ignorado ao publicar no Mercado Livre',

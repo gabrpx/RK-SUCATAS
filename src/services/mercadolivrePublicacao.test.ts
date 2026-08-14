@@ -32,6 +32,7 @@ import {
   montarPayloadComFamilyName,
   extrairMensagemErroMl,
   pareceErroFamilyNameAusente,
+  detectarFotosNaoAnexadas,
   publicarAnuncio,
   type ConfiguracaoAnuncioMl,
 } from './mercadolivrePublicacao.js';
@@ -347,6 +348,35 @@ describe('pareceErroFamilyNameAusente', () => {
   });
 });
 
+describe('detectarFotosNaoAnexadas', () => {
+  // mercadolivrePublicacao manda `pictures: fotos.map(source => ({source}))`
+  // pro Mercado Livre e nunca conferia a resposta — se o ML falhar em
+  // baixar/processar uma foto (timeout, URL momentaneamente inacessível), o
+  // item é criado com menos fotos que o pedido, sem erro nenhum. Bug
+  // reportado: "mandei 2 fotos, só 1 entrou no anúncio", sem nenhum aviso.
+  it('null quando todas as fotos enviadas aparecem na resposta do Mercado Livre', () => {
+    const resultado = detectarFotosNaoAnexadas(['foto1.jpg', 'foto2.jpg'], { pictures: [{ id: 'a' }, { id: 'b' }] });
+
+    expect(resultado).toBeNull();
+  });
+
+  it('null quando não foi enviada nenhuma foto (nada a conferir)', () => {
+    expect(detectarFotosNaoAnexadas([], { pictures: [] })).toBeNull();
+  });
+
+  it('avisa quando o Mercado Livre devolve menos fotos do que foi enviado', () => {
+    const resultado = detectarFotosNaoAnexadas(['foto1.jpg', 'foto2.jpg'], { pictures: [{ id: 'a' }] });
+
+    expect(resultado).toBe('1 de 2 fotos não entraram no anúncio (o Mercado Livre pode ter rejeitado alguma sem avisar) — confira e tente adicionar de novo se precisar.');
+  });
+
+  it('singular quando falta só 1 foto de 1 enviada', () => {
+    const resultado = detectarFotosNaoAnexadas(['foto1.jpg'], { pictures: [] });
+
+    expect(resultado).toBe('1 de 1 foto não entrou no anúncio (o Mercado Livre pode ter rejeitado alguma sem avisar) — confira e tente adicionar de novo se precisar.');
+  });
+});
+
 // Fake mínimo de SupabaseClient cobrindo só as chamadas que publicarAnuncio
 // faz no caminho "item simples" (sem variações): busca da peça, insert do
 // link em estoque_anuncios_ml, e o select de sincronizarEstatisticas (que
@@ -413,5 +443,57 @@ describe('publicarAnuncio — título enviado ao Mercado Livre', () => {
 
     expect(chamadas).toHaveLength(2);
     expect(chamadas[1].family_name).toBe('Carenagem Original CB300R Bom Estado');
+  });
+
+  it('quando o Mercado Livre devolve menos fotos do que foi enviado, avisoFotos vem preenchido', async () => {
+    vi.mocked(criarItemML).mockResolvedValue({
+      id: 'MLB123',
+      permalink: 'https://produto.mercadolivre.com.br/MLB123',
+      status: 'active',
+      pictures: [{ id: 'a' }], // só 1, embora o payload tenha mandado 2
+    });
+    vi.mocked(atualizarDescricaoML).mockResolvedValue(undefined);
+    vi.mocked(obterMargemSincronizacao).mockResolvedValue(0);
+
+    const supabase = criarSupabaseFake({ id: 'estoque-1', nome: 'Peça', valor: 100, quantidade: 1, descricao: '' });
+    const config: ConfiguracaoAnuncioMl = {
+      categoriaMlId: 'MLB1234',
+      condicaoMl: 'used',
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: ['https://exemplo.com/foto1.jpg', 'https://exemplo.com/foto2.jpg'],
+      tituloAnuncio: 'Peça anunciada',
+      descricaoAnuncio: 'descrição própria do anúncio',
+    };
+
+    const resultado = await publicarAnuncio(supabase as any, 'token-fake', 'estoque-1', config);
+
+    expect(resultado.avisoFotos).toBe('1 de 2 fotos não entraram no anúncio (o Mercado Livre pode ter rejeitado alguma sem avisar) — confira e tente adicionar de novo se precisar.');
+  });
+
+  it('quando todas as fotos entram, avisoFotos vem null', async () => {
+    vi.mocked(criarItemML).mockResolvedValue({
+      id: 'MLB123',
+      permalink: 'https://produto.mercadolivre.com.br/MLB123',
+      status: 'active',
+      pictures: [{ id: 'a' }, { id: 'b' }],
+    });
+    vi.mocked(atualizarDescricaoML).mockResolvedValue(undefined);
+    vi.mocked(obterMargemSincronizacao).mockResolvedValue(0);
+
+    const supabase = criarSupabaseFake({ id: 'estoque-1', nome: 'Peça', valor: 100, quantidade: 1, descricao: '' });
+    const config: ConfiguracaoAnuncioMl = {
+      categoriaMlId: 'MLB1234',
+      condicaoMl: 'used',
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: ['https://exemplo.com/foto1.jpg', 'https://exemplo.com/foto2.jpg'],
+      tituloAnuncio: 'Peça anunciada',
+      descricaoAnuncio: 'descrição própria do anúncio',
+    };
+
+    const resultado = await publicarAnuncio(supabase as any, 'token-fake', 'estoque-1', config);
+
+    expect(resultado.avisoFotos).toBeNull();
   });
 });

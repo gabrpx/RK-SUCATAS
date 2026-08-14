@@ -402,11 +402,18 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   // APROVADAS pelo usuário (urlOriginal -> urlNova): "usar no anúncio" troca
   // a entrada correspondente em fotosSelecionadas, nunca em item.imagens —
   // só o botão explícito "Substituir fotos do estoque" grava no cadastro.
-  const [processandoFundo, setProcessandoFundo] = useState<string | null>(null);
-  const [previewFundo, setPreviewFundo] = useState<{ originalUrl: string; antesSrc: string; depoisBlob: Blob; depoisPreviewUrl: string } | null>(null);
+  // Mesmo teto do pool de workers em removerFundoImagem.ts — não faz sentido
+  // deixar clicar numa 3ª foto se o pool só processa 2 ao mesmo tempo mesmo.
+  const MAX_REMOCOES_SIMULTANEAS = 2;
+  const [processandoFundoUrls, setProcessandoFundoUrls] = useState<Set<string>>(new Set());
+  const [previewsFundo, setPreviewsFundo] = useState<{ originalUrl: string; antesSrc: string; depoisBlob: Blob; depoisPreviewUrl: string }[]>([]);
   const [fotosProcessadas, setFotosProcessadas] = useState<Record<string, string>>({});
-  const [aprovandoFundo, setAprovandoFundo] = useState(false);
+  const [aprovandoFundoUrl, setAprovandoFundoUrl] = useState<string | null>(null);
   const [substituindoFotosEstoque, setSubstituindoFotosEstoque] = useState(false);
+  // Os dois inputs de retry (câmera/galeria) são compartilhados por todas as
+  // prévias — só uma tentativa de retry acontece por vez, então basta lembrar
+  // pra qual foto (originalUrl) o próximo arquivo escolhido se destina.
+  const [retryAlvoUrl, setRetryAlvoUrl] = useState<string | null>(null);
   const inputRetryCameraRef = useRef<HTMLInputElement>(null);
   const inputRetryGaleriaRef = useRef<HTMLInputElement>(null);
 
@@ -433,68 +440,77 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
     if (url.startsWith('blob:')) URL.revokeObjectURL(url);
   }
 
-  function limparPreviewFundo() {
-    setPreviewFundo((atual) => {
-      if (atual) {
-        revogarSeBlob(atual.antesSrc);
-        revogarSeBlob(atual.depoisPreviewUrl);
+  function descartarPreviewFundo(originalUrl: string) {
+    setPreviewsFundo((atual) => {
+      const preview = atual.find((p) => p.originalUrl === originalUrl);
+      if (preview) {
+        revogarSeBlob(preview.antesSrc);
+        revogarSeBlob(preview.depoisPreviewUrl);
       }
-      return null;
+      return atual.filter((p) => p.originalUrl !== originalUrl);
     });
   }
 
+  // Dispara pro pool de workers (removerFundoImagem.ts) — até
+  // MAX_REMOCOES_SIMULTANEAS chamadas concorrentes rodam em paralelo sem
+  // travar a UI; o que passar disso espera na fila do próprio pool.
   async function iniciarRemocaoFundo(originalUrl: string, fonte: File | string) {
-    limparPreviewFundo();
-    setProcessandoFundo(originalUrl);
+    descartarPreviewFundo(originalUrl); // nova tentativa substitui a prévia anterior desta mesma foto
+    setProcessandoFundoUrls((atual) => new Set(atual).add(originalUrl));
     try {
       const resultado = await removerFundoImagem(fonte);
       if (!resultado.sucesso || !resultado.blob) {
         aviso.falha(null, 'Não foi possível remover o fundo desta foto');
         return;
       }
-      setPreviewFundo({
+      const novaPreview = {
         originalUrl,
         antesSrc: typeof fonte === 'string' ? fonte : URL.createObjectURL(fonte),
         depoisBlob: resultado.blob,
         depoisPreviewUrl: URL.createObjectURL(resultado.blob),
-      });
+      };
+      setPreviewsFundo((atual) => [...atual.filter((p) => p.originalUrl !== originalUrl), novaPreview]);
     } finally {
-      setProcessandoFundo(null);
+      setProcessandoFundoUrls((atual) => {
+        const proximo = new Set(atual);
+        proximo.delete(originalUrl);
+        return proximo;
+      });
     }
   }
 
-  // "Tirar outra foto" reaproveita a mesma peça (originalUrl) que estava
-  // sendo retocada — o usuário está tentando de novo, não anexando uma foto
-  // nova solta. Comprime antes de remover o fundo (mesmo pipeline de
-  // EstoqueView.tsx pro upload normal de fotos).
+  // "Tirar outra foto" reaproveita a mesma peça (retryAlvoUrl, setado pelo
+  // botão de retry da prévia específica) que estava sendo retocada — o
+  // usuário está tentando de novo, não anexando uma foto nova solta.
+  // Comprime antes de remover o fundo (mesmo pipeline de EstoqueView.tsx pro
+  // upload normal de fotos).
   async function tentarNovaFoto(files: FileList | null) {
     const arquivo = files?.[0];
-    const originalUrl = previewFundo?.originalUrl;
-    if (!arquivo || !originalUrl) return;
+    if (!arquivo || !retryAlvoUrl) return;
     const { arquivo: comprimido } = await comprimirImagem(arquivo);
-    await iniciarRemocaoFundo(originalUrl, comprimido);
+    await iniciarRemocaoFundo(retryAlvoUrl, comprimido);
   }
 
-  async function aprovarPreviewFundo() {
-    if (!previewFundo) return;
-    setAprovandoFundo(true);
+  async function aprovarPreviewFundo(originalUrl: string) {
+    const preview = previewsFundo.find((p) => p.originalUrl === originalUrl);
+    if (!preview) return;
+    setAprovandoFundoUrl(originalUrl);
     try {
-      const arquivo = new File([previewFundo.depoisBlob], 'fundo-removido.jpg', { type: 'image/jpeg' });
+      const arquivo = new File([preview.depoisBlob], 'fundo-removido.jpg', { type: 'image/jpeg' });
       const resultado = await uploadImagemEstoque(arquivo);
       if (!resultado.success || !resultado.url) {
         aviso.falha(null, 'Não foi possível salvar a foto sem fundo');
         return;
       }
-      const { originalUrl } = previewFundo;
       const novaUrl = resultado.url;
       setFotosSelecionadas((prev) => prev.map((u) => (u === originalUrl ? novaUrl : u)));
       setFotosProcessadas((prev) => ({ ...prev, [originalUrl]: novaUrl }));
-      limparPreviewFundo();
+      descartarPreviewFundo(originalUrl);
       aviso.sucesso('Foto sem fundo aplicada ao anúncio');
     } catch (err) {
       aviso.falha(err, 'Não foi possível salvar a foto sem fundo');
     } finally {
-      setAprovandoFundo(false);
+      setAprovandoFundoUrl(null);
     }
   }
 
@@ -561,8 +577,9 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
         categoriasApi.memorizarCategoriaMlPadrao(item.categoria_id, categoriaSelecionada.id).catch(() => {});
       }
 
-      if (resultado.data?.avisoFallback) {
-        aviso.atencao('Anúncio publicado — com um ajuste', { descricao: resultado.data.avisoFallback });
+      const avisos = [resultado.data?.avisoFallback, resultado.data?.avisoFotos].filter((a): a is string => !!a);
+      if (avisos.length > 0) {
+        aviso.atencao('Anúncio publicado — com um ajuste', { descricao: avisos.join(' ') });
       } else {
         aviso.sucesso('Anúncio publicado no Mercado Livre!');
       }
@@ -946,7 +963,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
               {item.imagens.map((url) => {
                 const selecionada = fotosSelecionadas.includes(url);
                 const urlExibida = fotosProcessadas[url] ?? url;
-                const processandoEsta = processandoFundo === url;
+                const processandoEsta = processandoFundoUrls.has(url);
                 return (
                   <div key={url} className="relative">
                     <button
@@ -972,7 +989,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
                         e.stopPropagation();
                         iniciarRemocaoFundo(url, url);
                       }}
-                      disabled={processandoFundo !== null}
+                      disabled={processandoEsta || processandoFundoUrls.size >= MAX_REMOCOES_SIMULTANEAS}
                       title="Remover fundo"
                       className="absolute -bottom-1.5 -right-1.5 flex items-center justify-center size-6 rounded-full border border-border-default bg-surface-page text-text-muted transition-colors hover:border-accent hover:text-accent-soft-fg disabled:opacity-50"
                     >
@@ -983,56 +1000,59 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
               })}
             </div>
 
-            {previewFundo && (
-              <div className="rounded-control border border-border-default bg-surface-inset p-3 space-y-3">
+            {previewsFundo.map((preview) => (
+              <div key={preview.originalUrl} className="rounded-control border border-border-default bg-surface-inset p-3 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Prévia sem fundo</p>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <p className="text-[11px] text-text-faint mb-1">Antes</p>
-                    <img src={previewFundo.antesSrc} alt="" className="w-full aspect-square object-cover rounded-control border border-border-subtle" referrerPolicy="no-referrer" />
+                    <img src={preview.antesSrc} alt="" className="w-full aspect-square object-cover rounded-control border border-border-subtle" referrerPolicy="no-referrer" />
                   </div>
                   <div>
                     <p className="text-[11px] text-text-faint mb-1">Depois</p>
-                    <img src={previewFundo.depoisPreviewUrl} alt="" className="w-full aspect-square object-cover rounded-control border border-border-subtle bg-white" />
+                    <img src={preview.depoisPreviewUrl} alt="" className="w-full aspect-square object-cover rounded-control border border-border-subtle bg-white" />
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={aprovarPreviewFundo} disabled={aprovandoFundo}>
-                    {aprovandoFundo ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Usar esta versão no anúncio
+                  <Button type="button" variant="outline" size="sm" onClick={() => aprovarPreviewFundo(preview.originalUrl)} disabled={aprovandoFundoUrl === preview.originalUrl}>
+                    {aprovandoFundoUrl === preview.originalUrl ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Usar esta versão no anúncio
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => inputRetryGaleriaRef.current?.click()}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => { setRetryAlvoUrl(preview.originalUrl); inputRetryGaleriaRef.current?.click(); }}>
                     <Upload size={13} /> Tirar outra (galeria)
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" className="md:hidden" onClick={() => inputRetryCameraRef.current?.click()}>
+                  <Button type="button" variant="ghost" size="sm" className="md:hidden" onClick={() => { setRetryAlvoUrl(preview.originalUrl); inputRetryCameraRef.current?.click(); }}>
                     <Camera size={13} /> Câmera
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={limparPreviewFundo}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => descartarPreviewFundo(preview.originalUrl)}>
                     <X size={13} /> Descartar
                   </Button>
                 </div>
-                <input
-                  ref={inputRetryCameraRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  capture="environment"
-                  className="hidden"
-                  onChange={(e) => {
-                    tentarNovaFoto(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
-                <input
-                  ref={inputRetryGaleriaRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  className="hidden"
-                  onChange={(e) => {
-                    tentarNovaFoto(e.target.files);
-                    e.target.value = '';
-                  }}
-                />
               </div>
-            )}
+            ))}
+
+            {/* Compartilhados por todas as prévias acima — só uma tentativa de
+                retry acontece por vez (retryAlvoUrl guarda pra qual foto). */}
+            <input
+              ref={inputRetryCameraRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              capture="environment"
+              className="hidden"
+              onChange={(e) => {
+                tentarNovaFoto(e.target.files);
+                e.target.value = '';
+              }}
+            />
+            <input
+              ref={inputRetryGaleriaRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="hidden"
+              onChange={(e) => {
+                tentarNovaFoto(e.target.files);
+                e.target.value = '';
+              }}
+            />
 
             {Object.keys(fotosProcessadas).length > 0 && (
               <div className="flex items-center justify-between gap-3 rounded-control border border-border-subtle bg-surface-inset px-3.5 py-3">

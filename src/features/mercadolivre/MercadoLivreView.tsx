@@ -4,7 +4,7 @@
 // muda o anúncio real no Mercado Livre sem um clique explícito — a única
 // coisa que roda sozinha em segundo plano é a detecção de pedido/pergunta
 // novos (src/services/mercadolivreScheduler.ts), que só lê e nunca escreve.
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import {
   type LucideIcon,
   Store,
@@ -24,6 +24,7 @@ import {
   Send,
   Search,
   Copy,
+  History,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../../utils';
@@ -68,6 +69,50 @@ const formatCurrency = (valor: number) => new Intl.NumberFormat('pt-BR', { style
 // A API do Mercado Livre devolve o período em inglês ("365 days") — o resto
 // da tela é todo em português, então traduz só esse pedaço.
 const periodoPt = (periodo: string) => periodo.replace(/(\d+)\s*days?/i, '$1 dias');
+
+// "há X min/horas/dias" pro resumo da seção de anúncios publicados — não
+// precisa de precisão de segundo, só dar a sensação de "quão recente".
+function formatarTempoRelativo(iso: string): string {
+  const diffMin = Math.floor((Date.now() - new Date(iso).getTime()) / 60000);
+  if (diffMin < 1) return 'agora mesmo';
+  if (diffMin < 60) return `há ${diffMin} min`;
+  const diffHoras = Math.floor(diffMin / 60);
+  if (diffHoras < 24) return `há ${diffHoras} ${diffHoras === 1 ? 'hora' : 'horas'}`;
+  const diffDias = Math.floor(diffHoras / 24);
+  return `há ${diffDias} ${diffDias === 1 ? 'dia' : 'dias'}`;
+}
+
+type FiltroDataPublicacao = 'hoje' | 'ontem' | '7dias' | 'todos';
+
+const FILTROS_DATA_PUBLICACAO: { id: FiltroDataPublicacao; label: string }[] = [
+  { id: 'hoje', label: 'Hoje' },
+  { id: 'ontem', label: 'Ontem' },
+  { id: '7dias', label: '7 dias' },
+  { id: 'todos', label: 'Todos' },
+];
+
+function inicioDoDia(data: Date): Date {
+  const copia = new Date(data);
+  copia.setHours(0, 0, 0, 0);
+  return copia;
+}
+
+// Filtro por dia de calendário (não por "últimas 24h") — "ontem" precisa
+// significar o dia de calendário anterior, não "entre 24h e 48h atrás".
+function passaNoFiltroData(iso: string, filtro: FiltroDataPublicacao): boolean {
+  if (filtro === 'todos') return true;
+  const data = new Date(iso);
+  const hoje = inicioDoDia(new Date());
+  if (filtro === 'hoje') return data >= hoje;
+  if (filtro === 'ontem') {
+    const ontem = new Date(hoje);
+    ontem.setDate(ontem.getDate() - 1);
+    return data >= ontem && data < hoje;
+  }
+  const seteDiasAtras = new Date(hoje);
+  seteDiasAtras.setDate(seteDiasAtras.getDate() - 6); // janela de 7 dias corridos, incluindo hoje
+  return data >= seteDiasAtras;
+}
 
 // Tooltip custom do donut: card no estilo do design system em vez do balão
 // padrão do Recharts.
@@ -367,6 +412,7 @@ export function MercadoLivreView() {
 
       {conta && (
         <>
+          <SecaoAnunciosPublicados />
           <div ref={pedidosRef}>
             <SecaoPedidos pedidosNovos={pendencias?.pedidosNovos ?? 0} onAtualizarPendencias={carregarPendencias} />
           </div>
@@ -374,6 +420,86 @@ export function MercadoLivreView() {
           <SecaoAnunciosOrfaos />
           <SecaoAnunciosDuplicados />
         </>
+      )}
+    </div>
+  );
+}
+
+// Digest do dia: quais anúncios o próprio sistema publicou e quando. Não faz
+// chamada nova nenhuma — `estoque` (useData) já vem com `links_ml` de cada
+// peça (join do backend, ver anexarAnunciosMl em src/server/routes/estoque.ts),
+// só falta juntar tudo numa lista só e filtrar por publicado_via_sistema
+// (link colado manualmente não tem publicado_em confiável pra entrar aqui).
+function SecaoAnunciosPublicados() {
+  const { estoque } = useData();
+  const [filtro, setFiltro] = useState<FiltroDataPublicacao>('hoje');
+
+  const publicacoes = useMemo(
+    () =>
+      estoque
+        .flatMap((item) =>
+          (item.links_ml ?? [])
+            .filter((link) => link.publicado_via_sistema && link.publicado_em)
+            .map((link) => ({ id: link.id, itemNome: item.nome, url: link.url, publicadoEm: link.publicado_em as string }))
+        )
+        .sort((a, b) => new Date(b.publicadoEm).getTime() - new Date(a.publicadoEm).getTime()),
+    [estoque]
+  );
+
+  const filtradas = useMemo(() => publicacoes.filter((p) => passaNoFiltroData(p.publicadoEm, filtro)), [publicacoes, filtro]);
+
+  return (
+    <div className="rounded-card border border-border-subtle bg-surface-card p-5">
+      <div className="flex items-center justify-between gap-3 mb-4 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="size-9 rounded-control bg-accent-soft-bg text-accent-soft-fg flex items-center justify-center shrink-0">
+            <History size={18} />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-text-primary">Anúncios publicados</p>
+            <p className="text-xs text-text-faint">Publicados pelo sistema, mais recente primeiro</p>
+          </div>
+        </div>
+        <div className="flex gap-1.5 shrink-0">
+          {FILTROS_DATA_PUBLICACAO.map((f) => (
+            <button
+              key={f.id}
+              type="button"
+              onClick={() => setFiltro(f.id)}
+              className={cn(
+                'h-8 px-3 rounded-control border text-[11px] font-semibold transition-colors',
+                filtro === f.id
+                  ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg'
+                  : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+              )}
+            >
+              {f.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtradas.length === 0 ? (
+        <EmptyState icone={History} mensagem="Nenhum anúncio publicado pelo sistema nesse período." />
+      ) : (
+        <ul className="divide-y divide-border-subtle">
+          {filtradas.map((pub) => (
+            <li key={pub.id} className="py-3 flex items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-sm text-text-primary truncate">{pub.itemNome}</p>
+                <p className="text-xs text-text-faint">{formatarTempoRelativo(pub.publicadoEm)}</p>
+              </div>
+              <a
+                href={pub.url}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="shrink-0 h-8 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center gap-1.5"
+              >
+                Ver no ML <ExternalLink size={12} />
+              </a>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

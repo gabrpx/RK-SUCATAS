@@ -449,7 +449,24 @@ async function gravarResultadoPublicacao(
 export interface ResultadoPublicacao {
   caminho: 'variacoes' | 'itens_separados' | 'simples';
   avisoFallback: string | null;
+  /** null quando todas as fotos enviadas entraram no anúncio — ver detectarFotosNaoAnexadas */
+  avisoFotos: string | null;
   links: { linkId: string; mlbId: string; url: string }[];
+}
+
+// POST /items manda `pictures: fotos.map(source => ({source}))` mas a
+// resposta nunca era conferida: se o Mercado Livre falhar em baixar/processar
+// uma foto específica (timeout, URL momentaneamente inacessível, etc.), o
+// item é criado normalmente com menos fotos que o pedido — sem erro nenhum.
+// Bug reportado: "mandei 2 fotos, só 1 entrou no anúncio", nenhum aviso na
+// tela. Função pura pra dar pra testar isolada do I/O de criarItemML.
+export function detectarFotosNaoAnexadas(fotosEnviadas: string[], criado: { pictures?: unknown[] }): string | null {
+  const enviadas = fotosEnviadas.length;
+  if (enviadas === 0) return null;
+  const anexadas = criado.pictures?.length ?? 0;
+  if (anexadas >= enviadas) return null;
+  const faltando = enviadas - anexadas;
+  return `${faltando} de ${enviadas} ${enviadas === 1 ? 'foto não entrou' : 'fotos não entraram'} no anúncio (o Mercado Livre pode ter rejeitado alguma sem avisar) — confira e tente adicionar de novo se precisar.`;
 }
 
 // No modelo de User Products, o Mercado Livre gera o title sozinho a partir
@@ -512,6 +529,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
     return {
       caminho: montado.usaVariacoes ? 'variacoes' : 'simples',
       avisoFallback: null,
+      avisoFotos: detectarFotosNaoAnexadas(montado.payload.pictures.map((p: { source: string }) => p.source), criado),
       links: [{ linkId: criado.id, mlbId: criado.id, url: criado.permalink }],
     };
   } catch (err: any) {
@@ -528,6 +546,9 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
   const criadoBase = await criarItemMlComFallbackFamilyName(token, payloadBase.payload, payloadBase.payload.title);
   await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoBase, descricaoTexto, []);
   const links = [{ linkId: criadoBase.id, mlbId: criadoBase.id, url: criadoBase.permalink }];
+  const avisosFotos: string[] = [];
+  const avisoFotosBase = detectarFotosNaoAnexadas(payloadBase.payload.pictures.map((p: { source: string }) => p.source), criadoBase);
+  if (avisoFotosBase) avisosFotos.push(avisoFotosBase);
 
   for (const unidade of unidades) {
     if (unidade.valor == null) continue; // sem preço próprio não tem por que virar anúncio à parte
@@ -541,11 +562,14 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
     const criadoUnidade = await criarItemMlComFallbackFamilyName(token, payloadUnidade.payload, payloadUnidade.payload.title);
     await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoUnidade, descricaoTexto, [], unidade.id);
     links.push({ linkId: criadoUnidade.id, mlbId: criadoUnidade.id, url: criadoUnidade.permalink });
+    const avisoFotosUnidade = detectarFotosNaoAnexadas(payloadUnidade.payload.pictures.map((p: { source: string }) => p.source), criadoUnidade);
+    if (avisoFotosUnidade) avisosFotos.push(avisoFotosUnidade);
   }
 
   return {
     caminho: 'itens_separados',
     avisoFallback: 'O Mercado Livre ainda não libera preço diferente por variação pra esta conta/categoria — foi publicado 1 anúncio por ficha em vez de um anúncio só com variações.',
+    avisoFotos: avisosFotos.length > 0 ? avisosFotos.join(' ') : null,
     links,
   };
 }

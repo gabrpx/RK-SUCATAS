@@ -89,12 +89,16 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
       <AnimatePresence>
         {isMoreOpen && (
           <>
+            {/* Sem backdrop-blur aqui de propósito: animar opacity num elemento
+                com backdrop-filter força o Safari/iOS a recompor o blur a
+                cada frame da transição — é isso que trava o "Mais" no
+                celular. Scrim sólido tem o mesmo efeito de leitura sem o custo. */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMoreOpen(false)}
-              className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm z-[55] md:hidden"
+              className="fixed inset-0 bg-overlay-scrim z-[55] md:hidden"
             />
             <motion.div
               initial={{ y: "100%" }}

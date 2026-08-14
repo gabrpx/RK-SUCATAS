@@ -182,6 +182,8 @@ export interface ConfiguracaoAnuncioMlInput {
 export interface ResultadoPublicacaoMl {
   caminho: 'variacoes' | 'itens_separados' | 'simples';
   avisoFallback: string | null;
+  /** null quando todas as fotos enviadas entraram no anúncio */
+  avisoFotos: string | null;
   links: { linkId: string; mlbId: string; url: string }[];
 }
 
