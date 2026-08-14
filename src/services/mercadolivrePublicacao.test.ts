@@ -1,4 +1,4 @@
-import { describe, it, expect, vi } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./mercadolivreApi.js', () => ({
   buscarCategoriasRaizML: vi.fn(),
@@ -9,6 +9,7 @@ vi.mock('./mercadolivreApi.js', () => ({
   atualizarDescricaoML: vi.fn(),
   obterMargemSincronizacao: vi.fn(),
   obterConexaoAtual: vi.fn(),
+  buscarItensAtivosVendedor: vi.fn(),
   buscarItensPorIds: vi.fn(),
   buscarVisitasItem: vi.fn(),
   buscarVisitasUltimosDias: vi.fn(),
@@ -23,6 +24,9 @@ import {
   criarItemML,
   atualizarDescricaoML,
   obterMargemSincronizacao,
+  obterConexaoAtual,
+  buscarItensAtivosVendedor,
+  buscarItensPorIds,
 } from './mercadolivreApi.js';
 import {
   listarFilhosCategoria,
@@ -35,6 +39,7 @@ import {
   pareceErroFamilyNameAusente,
   detectarFotosNaoAnexadas,
   publicarAnuncio,
+  limparCacheModeloDaConta,
   type ConfiguracaoAnuncioMl,
 } from './mercadolivrePublicacao.js';
 
@@ -476,23 +481,222 @@ function criarSupabaseFake(item: Record<string, any>) {
   };
 }
 
+// Incidente real (14/08, LANTERNA TRASEIRA CG 160): UM clique em "Publicar",
+// sem variações, gerou DOIS anúncios no Mercado Livre — MLB7418998614
+// (17:14:39) e MLB7418986286 (17:15:02) — e só o segundo foi gravado em
+// estoque_anuncios_ml; o primeiro ficou órfão, invisível pro sistema, e o
+// usuário viu sucesso sem aviso nenhum.
+//
+// Causa: nesta conta (migrada pro modelo de User Products) a criação do item
+// NÃO é atômica — o Mercado Livre cria o item e mesmo assim devolve erro
+// citando family_name. criarItemMlComFallbackFamilyName lia esse erro como
+// "nada foi criado" e postava de novo, às cegas. Não dá pra verificar depois
+// se o POST criou algo: o índice de /users/{id}/items/search fica dias
+// atrasado e os endpoints de user-product respondem 404 (testado ao vivo em
+// 14/08 contra a conta real). Por isso o segundo POST tem que deixar de
+// existir — o payload precisa sair certo já na primeira tentativa.
+function simularMlQueCriaMasExigeFamilyName(criados: Record<string, any>[]) {
+  vi.mocked(criarItemML).mockImplementation(async (_token: string, payload: Record<string, any>) => {
+    criados.push(payload);
+    if (!payload.family_name) {
+      const erro: any = new Error('family_name ausente');
+      erro.response = { data: { cause: [{ message: 'The body does not contains some or none of the following properties [family_name]' }] } };
+      throw erro;
+    }
+    return {
+      id: `MLB${criados.length}`,
+      permalink: `https://produto.mercadolivre.com.br/MLB${criados.length}`,
+      status: 'active',
+      pictures: (payload.pictures ?? []).map((_: unknown, i: number) => ({ id: `pic-${i}` })),
+    };
+  });
+}
+
+const CONFIG_BASE: ConfiguracaoAnuncioMl = {
+  categoriaMlId: 'MLB46612',
+  condicaoMl: 'used',
+  listingTypeId: 'gold_pro',
+  atributos: [],
+  fotos: ['https://exemplo.com/foto1.jpg', 'https://exemplo.com/foto2.jpg'],
+  tituloAnuncio: 'Lanterna Traseira Honda Cg 150 E Cg 160 Peça Original',
+  descricaoAnuncio: 'descrição própria do anúncio',
+};
+
+const PECA_CG160 = { id: 'estoque-1', nome: 'LANTERNA TRASEIRA CG 160', valor: 75, quantidade: 8, descricao: '' };
+
+describe('publicarAnuncio — uma publicação nunca cria mais de um anúncio', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    limparCacheModeloDaConta();
+    vi.mocked(atualizarDescricaoML).mockResolvedValue(undefined);
+    vi.mocked(obterMargemSincronizacao).mockResolvedValue(0);
+    vi.mocked(obterConexaoAtual).mockResolvedValue({ mlUserId: '3611469806', accessToken: 'token-fake' });
+  });
+
+  it('conta migrada: manda family_name já no primeiro POST e faz UM único POST /items', async () => {
+    // Detecção: um anúncio que já existe na conta carrega user_product_id.
+    vi.mocked(buscarItensAtivosVendedor).mockResolvedValue(['MLB5047144787']);
+    vi.mocked(buscarItensPorIds).mockResolvedValue([{ id: 'MLB5047144787', user_product_id: 'MLBU4713380189' }]);
+
+    const criados: Record<string, any>[] = [];
+    simularMlQueCriaMasExigeFamilyName(criados);
+
+    const resultado = await publicarAnuncio(criarSupabaseFake(PECA_CG160) as any, 'token-fake', 'estoque-1', CONFIG_BASE);
+
+    expect(criarItemML).toHaveBeenCalledTimes(1);
+    expect(criados[0].family_name).toBe('Lanterna Traseira Honda Cg 150 E Cg 160 Peça Original');
+    expect(criados[0].title).toBeUndefined();
+    expect(resultado.links).toHaveLength(1);
+  });
+
+  it('conta NÃO migrada: manda title normalmente e faz UM único POST /items', async () => {
+    vi.mocked(buscarItensAtivosVendedor).mockResolvedValue(['MLB4271489041']);
+    vi.mocked(buscarItensPorIds).mockResolvedValue([{ id: 'MLB4271489041' }]); // sem user_product_id
+
+    const criados: Record<string, any>[] = [];
+    vi.mocked(criarItemML).mockImplementation(async (_t: string, payload: Record<string, any>) => {
+      criados.push(payload);
+      return { id: 'MLB123', permalink: 'https://produto.mercadolivre.com.br/MLB123', status: 'active', pictures: [{ id: 'a' }, { id: 'b' }] };
+    });
+
+    await publicarAnuncio(criarSupabaseFake(PECA_CG160) as any, 'token-fake', 'estoque-1', CONFIG_BASE);
+
+    expect(criarItemML).toHaveBeenCalledTimes(1);
+    expect(criados[0].title).toBe('Lanterna Traseira Honda Cg 150 E Cg 160 Peça Original');
+    expect(criados[0].family_name).toBeUndefined();
+  });
+
+  it('modelo da conta indeterminado: no erro de family_name NÃO posta de novo — falha avisando que o anúncio pode ter sido criado', async () => {
+    vi.mocked(buscarItensAtivosVendedor).mockResolvedValue([]); // conta sem anúncio pra inspecionar
+
+    const criados: Record<string, any>[] = [];
+    simularMlQueCriaMasExigeFamilyName(criados);
+
+    await expect(publicarAnuncio(criarSupabaseFake(PECA_CG160) as any, 'token-fake', 'estoque-1', CONFIG_BASE)).rejects.toThrow(
+      /pode ter sido criado/i
+    );
+
+    expect(criarItemML).toHaveBeenCalledTimes(1);
+  });
+
+  it('a detecção do modelo da conta roda uma vez só, mesmo publicando várias peças', async () => {
+    vi.mocked(buscarItensAtivosVendedor).mockResolvedValue(['MLB5047144787']);
+    vi.mocked(buscarItensPorIds).mockResolvedValue([{ id: 'MLB5047144787', user_product_id: 'MLBU1' }]);
+    simularMlQueCriaMasExigeFamilyName([]);
+
+    await publicarAnuncio(criarSupabaseFake(PECA_CG160) as any, 'token-fake', 'estoque-1', CONFIG_BASE);
+    await publicarAnuncio(criarSupabaseFake(PECA_CG160) as any, 'token-fake', 'estoque-1', CONFIG_BASE);
+
+    expect(buscarItensAtivosVendedor).toHaveBeenCalledTimes(1);
+    expect(criarItemML).toHaveBeenCalledTimes(2); // 1 por publicação, nunca 2
+  });
+});
+
+// Fake com fichas (estoque_unidades) — só o fallback de anúncios separados
+// por ficha passa por essa tabela.
+function criarSupabaseFakeComUnidades(item: Record<string, any>, unidades: Record<string, any>[]) {
+  return {
+    from(tabela: string) {
+      if (tabela === 'estoque') {
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: item, error: null }) }) }) };
+      }
+      if (tabela === 'estoque_unidades') {
+        return { select: () => ({ in: async () => ({ data: unidades, error: null }) }) };
+      }
+      if (tabela === 'estoque_anuncios_ml') {
+        return {
+          insert: () => ({ select: () => ({ single: async () => ({ data: { id: 'link-1' }, error: null }) }) }),
+          select: () => ({ in: async () => ({ data: [], error: null }) }),
+        };
+      }
+      if (tabela === 'estoque_anuncios_ml_variacoes') {
+        return { insert: async () => ({ error: null }) };
+      }
+      throw new Error(`tabela não mockada no teste: ${tabela}`);
+    },
+  };
+}
+
+describe('publicarAnuncio — fallback de anúncios separados não perde fotos', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    limparCacheModeloDaConta();
+    vi.mocked(atualizarDescricaoML).mockResolvedValue(undefined);
+    vi.mocked(obterMargemSincronizacao).mockResolvedValue(0);
+    vi.mocked(obterConexaoAtual).mockResolvedValue({ mlUserId: '3611469806', accessToken: 'token-fake' });
+    vi.mocked(buscarItensAtivosVendedor).mockResolvedValue([]);
+  });
+
+  // Bug: a ficha com foto própria SUBSTITUÍA as fotos escolhidas no modal em
+  // vez de somar — o anúncio dela saía só com a foto da ficha, perdendo as
+  // demais. Nenhum anúncio publicado pode ter menos fotos que o selecionado.
+  it('o anúncio de cada ficha leva as fotos do modal MAIS a foto própria da ficha', async () => {
+    const payloads: Record<string, any>[] = [];
+    vi.mocked(criarItemML).mockImplementation(async (_t: string, payload: Record<string, any>) => {
+      payloads.push(payload);
+      if (payload.variations) {
+        const erro: any = new Error('preço por variação');
+        erro.response = { data: { message: 'body.variations[0].price is not allowed for this account' } };
+        throw erro;
+      }
+      return {
+        id: `MLB${payloads.length}`,
+        permalink: `https://produto.mercadolivre.com.br/MLB${payloads.length}`,
+        status: 'active',
+        pictures: (payload.pictures ?? []).map((_: unknown, i: number) => ({ id: `pic-${i}` })),
+      };
+    });
+
+    const supabase = criarSupabaseFakeComUnidades(PECA_CG160, [
+      { id: 'ficha-a', valor: 45, fotos: ['https://exemplo.com/ficha-a.jpg'] },
+      { id: 'ficha-b', valor: 70, fotos: ['https://exemplo.com/ficha-b.jpg'] },
+    ]);
+
+    const resultado = await publicarAnuncio(supabase as any, 'token-fake', 'estoque-1', {
+      ...CONFIG_BASE,
+      variacoes: [
+        { unidadeId: 'ficha-a', atributos: [{ id: 'VEHICLE_PARTS_POSITION', value_name: 'Direito/Passageiro' }] },
+        { unidadeId: 'ficha-b', atributos: [{ id: 'VEHICLE_PARTS_POSITION', value_name: 'Esquerdo/Motorista' }] },
+      ],
+    });
+
+    expect(resultado.caminho).toBe('itens_separados');
+
+    // payloads[0] = tentativa com variations (recusada); os demais são os
+    // anúncios efetivamente criados.
+    const criados = payloads.slice(1);
+    const fotosPorAnuncio = criados.map((p) => (p.pictures ?? []).map((f: { source: string }) => f.source));
+
+    // Nenhum anúncio pode ter menos que as 2 fotos escolhidas no modal.
+    for (const fotos of fotosPorAnuncio) {
+      expect(fotos).toEqual(expect.arrayContaining(CONFIG_BASE.fotos));
+    }
+    // E a ficha com foto própria soma a dela por cima.
+    expect(fotosPorAnuncio).toContainEqual([...CONFIG_BASE.fotos, 'https://exemplo.com/ficha-a.jpg']);
+    expect(fotosPorAnuncio).toContainEqual([...CONFIG_BASE.fotos, 'https://exemplo.com/ficha-b.jpg']);
+  });
+});
+
 describe('publicarAnuncio — título enviado ao Mercado Livre', () => {
   // Reproduz o bug reportado: com o campo "nome do anúncio" preenchido, o
   // anúncio ainda saía com o título do cadastro de estoque. Causa raiz: a
   // conta está migrada pro modelo de User Products (ver
-  // pareceErroFamilyNameAusente acima) — o Mercado Livre recusa o payload
-  // com title e exige reenviar com family_name, e é o family_name que a API
-  // usa pra gerar o título do anúncio. O fallback de family_name mandava
-  // sempre item.nome (nome do estoque), nunca config.tituloAnuncio.
-  it('no fallback de family_name, usa o título do anúncio configurado — não o nome do estoque', async () => {
+  // pareceErroFamilyNameAusente acima) — o Mercado Livre gera o título do
+  // anúncio a partir do family_name, e esse campo levava sempre item.nome
+  // (nome do estoque), nunca config.tituloAnuncio.
+  //
+  // Desde a correção do incidente dos anúncios duplicados, o family_name sai
+  // já no PRIMEIRO (e único) POST, decidido pela detecção do modelo da conta
+  // — não mais por um reenvio depois do erro.
+  it('em conta migrada, o family_name leva o título do anúncio configurado — não o nome do estoque', async () => {
+    limparCacheModeloDaConta();
+    vi.mocked(obterConexaoAtual).mockResolvedValue({ mlUserId: '3611469806', accessToken: 'token-fake' });
+    vi.mocked(buscarItensAtivosVendedor).mockResolvedValue(['MLB5047144787']);
+    vi.mocked(buscarItensPorIds).mockResolvedValue([{ id: 'MLB5047144787', user_product_id: 'MLBU1' }]);
+
     const chamadas: Record<string, any>[] = [];
     vi.mocked(criarItemML).mockImplementation(async (_token: string, payload: Record<string, any>) => {
       chamadas.push(payload);
-      if (chamadas.length === 1) {
-        const erro: any = new Error('family_name ausente');
-        erro.response = { data: { cause: [{ message: 'The body does not contains some or none of the following properties [family_name]' }] } };
-        throw erro;
-      }
       return { id: 'MLB123', permalink: 'https://produto.mercadolivre.com.br/MLB123', status: 'active' };
     });
     vi.mocked(atualizarDescricaoML).mockResolvedValue(undefined);
@@ -518,8 +722,8 @@ describe('publicarAnuncio — título enviado ao Mercado Livre', () => {
 
     await publicarAnuncio(supabase as any, 'token-fake', 'estoque-1', config);
 
-    expect(chamadas).toHaveLength(2);
-    expect(chamadas[1].family_name).toBe('Carenagem Original CB300R Bom Estado');
+    expect(chamadas).toHaveLength(1);
+    expect(chamadas[0].family_name).toBe('Carenagem Original CB300R Bom Estado');
   });
 
   it('quando o Mercado Livre devolve menos fotos do que foi enviado, avisoFotos vem preenchido', async () => {

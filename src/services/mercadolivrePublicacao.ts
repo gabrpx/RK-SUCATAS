@@ -21,6 +21,7 @@ import {
   buscarProdutosCatalogoML,
   criarItemML,
   atualizarDescricaoML,
+  buscarItensAtivosVendedor,
   buscarItensPorIds,
   buscarVisitasItem,
   buscarVisitasUltimosDias,
@@ -495,24 +496,86 @@ export function montarPayloadComFamilyName(payload: Record<string, any>, nomeFam
   return { ...resto, family_name: nomeFamilia };
 }
 
-// Envolve criarItemML pra aplicar o fallback de pareceErroFamilyNameAusente
-// acima: primeira tentativa como o payload veio montado; se a conta exigir
-// family_name, reenvia SEM title (ver montarPayloadComFamilyName) com esse
-// campo acrescentado. nomeFamilia deve ser o mesmo valor que foi pro title
-// (payload.title, antes de ser removido) — nesse modelo o Mercado Livre GERA
-// o título do anúncio a partir do family_name, então mandar item.nome aqui
-// fazia o anúncio sair sempre com o nome do cadastro de estoque, mesmo com
-// um título próprio configurado (bug reportado: título do anúncio ignorado).
-// Não existe uma "família" de verdade aqui (cada peça publicada é o próprio
-// produto, sem catálogo de variantes por trás) — é só o campo que a API usa
-// como descritor/título nesse modelo.
-async function criarItemMlComFallbackFamilyName(token: string, payload: Record<string, any>, nomeFamilia: string): Promise<any> {
+// Modelo da conta: true = migrada pro User Products (exige family_name e
+// recusa title), false = modelo clássico (usa title), null = indeterminado.
+//
+// Cache por processo porque a migração da conta não muda no meio do
+// expediente — a detecção custa 2 GETs baratos, uma única vez.
+const contaUsaUserProductsPorUsuario = new Map<string, boolean>();
+
+/** Só pra teste — zera o cache de detecção entre casos. */
+export function limparCacheModeloDaConta(): void {
+  contaUsaUserProductsPorUsuario.clear();
+}
+
+// Descobre o modelo olhando um anúncio que a conta JÁ tem: no modelo novo
+// todo item carrega user_product_id. É a única forma barata e confiável que
+// sobrou — ver o comentário de criarItemMlNoModeloDaConta abaixo pra por que
+// não dá pra simplesmente tentar e corrigir depois.
+//
+// Reaproveita buscarItensAtivosVendedor (que pagina a lista inteira): pro
+// tamanho de catálogo de uma sucata isso é barato, e roda no máximo 1x por
+// processo. Indeterminado (null) nunca é cacheado — a próxima publicação
+// tenta detectar de novo.
+async function detectarContaUsaUserProducts(token: string, mlUserId: string | null): Promise<boolean | null> {
+  if (!mlUserId) return null;
+  const cacheado = contaUsaUserProductsPorUsuario.get(mlUserId);
+  if (cacheado !== undefined) return cacheado;
+
+  try {
+    const ids = await buscarItensAtivosVendedor(token, mlUserId);
+    if (ids.length === 0) return null; // conta sem anúncio nenhum pra inspecionar
+    const [item] = await buscarItensPorIds(token, [ids[0]]);
+    if (!item) return null;
+    const migrada = item.user_product_id != null;
+    contaUsaUserProductsPorUsuario.set(mlUserId, migrada);
+    return migrada;
+  } catch (err: any) {
+    console.error('Não foi possível detectar o modelo da conta do Mercado Livre — publicando no formato clássico:', err.response?.data || err.message);
+    return null;
+  }
+}
+
+// Cria o item UMA ÚNICA VEZ, já no formato que a conta aceita.
+//
+// Antes daqui existia um retry: postava com title e, se o Mercado Livre
+// reclamasse de family_name, postava de novo com family_name. Esse retry era
+// cego e causou o incidente de 14/08 — um clique em "Publicar" virou dois
+// anúncios (MLB7418998614 e MLB7418986286), porque nesta conta migrada o
+// Mercado Livre CRIA o item e mesmo assim devolve o erro de family_name. Só
+// o segundo era gravado; o primeiro ficava órfão e o usuário via sucesso.
+//
+// Não dá pra consertar conferindo depois se o item nasceu: /users/{id}/items/
+// search fica dias atrasado e os endpoints de user-product respondem 404
+// (testado ao vivo contra a conta real em 14/08). Por isso o formato é
+// decidido ANTES do POST, e o erro de family_name numa conta indeterminada
+// falha explicitamente em vez de arriscar uma duplicata.
+//
+// nomeFamilia é o próprio payload.title (antes de ser removido): nesse modelo
+// o Mercado Livre GERA o título do anúncio a partir do family_name, então
+// mandar item.nome aqui fazia o anúncio sair com o nome do cadastro de
+// estoque mesmo com título próprio configurado.
+async function criarItemMlNoModeloDaConta(
+  token: string,
+  payload: Record<string, any>,
+  contaMigrada: boolean | null,
+  mlUserId: string | null
+): Promise<any> {
+  if (contaMigrada === true) {
+    return criarItemML(token, montarPayloadComFamilyName(payload, payload.title));
+  }
+
   try {
     return await criarItemML(token, payload);
   } catch (err: any) {
     if (!pareceErroFamilyNameAusente(err)) throw err;
-    console.warn('Mercado Livre exigiu family_name (conta migrada pro modelo de User Products/Preço por Variação) — reenviando sem title, com family_name preenchido.', err.response?.data || err.message);
-    return criarItemML(token, montarPayloadComFamilyName(payload, nomeFamilia));
+    // Aprende com o erro mesmo recusando o retry: a próxima publicação já
+    // sai no formato certo, de primeira.
+    if (mlUserId) contaUsaUserProductsPorUsuario.set(mlUserId, true);
+    console.warn('Mercado Livre exigiu family_name (conta migrada pro modelo de User Products) — NÃO reenviando pra não duplicar o anúncio.', err.response?.data || err.message);
+    throw new Error(
+      'O Mercado Livre exigiu family_name (conta migrada pro modelo de User Products). O anúncio PODE ter sido criado mesmo com esse erro — confira sua conta no Mercado Livre antes de tentar de novo. A próxima tentativa já sai no formato certo.'
+    );
   }
 }
 
@@ -529,6 +592,12 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
     unidades = (data ?? []).map((u: any) => ({ id: u.id, valor: u.valor != null ? Number(u.valor) : null, fotos: u.fotos ?? [] }));
   }
 
+  // Formato do payload decidido ANTES de qualquer POST — ver
+  // criarItemMlNoModeloDaConta: é o que garante 1 anúncio por publicação.
+  const conexao = await obterConexaoAtual(supabase);
+  const mlUserId = conexao?.mlUserId ?? null;
+  const contaMigrada = await detectarContaUsaUserProducts(token, mlUserId);
+
   const margemPercentual = await obterMargemSincronizacao(supabase);
   // Mesma defesa em profundidade do título acima: descricaoAnuncio vem
   // sempre preenchida pela rota HTTP, o fallback é só pra chamada direta
@@ -539,7 +608,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
   // Tentativa 1: como veio montado (com variações, se a peça tem fichas
   // diferenciadas escolhidas no formulário).
   try {
-    const criado = await criarItemMlComFallbackFamilyName(token, montado.payload, montado.payload.title);
+    const criado = await criarItemMlNoModeloDaConta(token, montado.payload, contaMigrada, mlUserId);
     await gravarResultadoPublicacao(supabase, token, estoqueId, config, criado, descricaoTexto, montado.usaVariacoes ? montado.ordemUnidades : []);
     return {
       caminho: montado.usaVariacoes ? 'variacoes' : 'simples',
@@ -558,7 +627,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
   // (migration_025), então todos ficam vinculados à mesma peça.
   const configSemVariacoes: ConfiguracaoAnuncioMl = { ...config, variacoes: undefined };
   const payloadBase = montarPayloadPublicacao(item, [], configSemVariacoes, margemPercentual);
-  const criadoBase = await criarItemMlComFallbackFamilyName(token, payloadBase.payload, payloadBase.payload.title);
+  const criadoBase = await criarItemMlNoModeloDaConta(token, payloadBase.payload, contaMigrada, mlUserId);
   await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoBase, descricaoTexto, []);
   const links = [{ linkId: criadoBase.id, mlbId: criadoBase.id, url: criadoBase.permalink }];
   const avisosFotos: string[] = [];
@@ -570,11 +639,16 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
     const configUnidade: ConfiguracaoAnuncioMl = {
       ...config,
       precoEfetivoSistema: unidade.valor,
-      fotos: unidade.fotos.length > 0 ? unidade.fotos : config.fotos,
+      // União, não substituição: a ficha com foto própria SOMA à seleção do
+      // modal em vez de descartá-la. Antes, uma ficha com 1 foto fazia o
+      // anúncio dela sair só com essa foto, jogando fora as demais fotos
+      // escolhidas pro anúncio — nenhum anúncio pode sair com menos fotos do
+      // que o usuário selecionou.
+      fotos: Array.from(new Set([...config.fotos, ...unidade.fotos])),
       variacoes: undefined,
     };
     const payloadUnidade = montarPayloadPublicacao(item, [], configUnidade, margemPercentual);
-    const criadoUnidade = await criarItemMlComFallbackFamilyName(token, payloadUnidade.payload, payloadUnidade.payload.title);
+    const criadoUnidade = await criarItemMlNoModeloDaConta(token, payloadUnidade.payload, contaMigrada, mlUserId);
     await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoUnidade, descricaoTexto, [], unidade.id);
     links.push({ linkId: criadoUnidade.id, mlbId: criadoUnidade.id, url: criadoUnidade.permalink });
     const avisoFotosUnidade = detectarFotosNaoAnexadas(payloadUnidade.payload.pictures.map((p: { source: string }) => p.source), criadoUnidade);

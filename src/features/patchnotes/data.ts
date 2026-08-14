@@ -18,6 +18,23 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.15',
+    data: '2026-08-14',
+    titulo: 'Corrige anúncio duplicado no Mercado Livre',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Publicar uma peça podia criar DOIS anúncios no Mercado Livre em vez de um, com um único clique e sem nenhum aviso — e o sistema só registrava um deles, deixando o outro solto na sua conta. Corrigido: agora o sistema descobre o formato que a sua conta do Mercado Livre exige antes de publicar, e envia o anúncio uma única vez.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Quando a publicação precisa cair no modo "um anúncio por ficha", a ficha que tinha foto própria fazia o anúncio dela sair só com essa foto, descartando as outras escolhidas no formulário. Agora as fotos se somam: nenhum anúncio sai com menos fotos do que você selecionou.',
+      },
+    ],
+  },
+  {
     versao: '1.2.14',
     data: '2026-08-14',
     titulo: 'Corrige fotos/título presos na peça anterior e agiliza publicação no Mercado Livre',
