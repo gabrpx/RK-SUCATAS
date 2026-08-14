@@ -201,6 +201,23 @@ export async function buscarPedidosRecentes(token: string, mlUserId: string, des
   return data?.results ?? [];
 }
 
+// Busca um pedido específico — o webhook entrega o recurso `/orders/{id}` e
+// não o pedido inteiro. 404 vira null (pedido apagado/inacessível não é erro
+// de sistema, é linha de fila pra descartar); qualquer outro status propaga,
+// porque 401/403 significa token vencido e aí a fila TEM que parar em vez de
+// marcar tudo como processado em silêncio.
+export async function buscarPedido(token: string, orderId: string): Promise<PedidoML | null> {
+  try {
+    const { data } = await axios.get(`${ML_API_URL}/orders/${orderId}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    return data ?? null;
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
+}
+
 export interface EnvioML {
   id: number;
   status: string;
