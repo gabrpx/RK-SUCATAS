@@ -12,11 +12,19 @@
 -- scheduler processa cada linha de pedido uma única vez, transformando
 -- pedido pago em venda com baixa de estoque.
 --
--- `processado_em` nulo = pendente. Linhas antigas nascem pendentes de
--- propósito: são pedidos das últimas semanas que talvez nunca tenham sido
--- importados. Quem já virou venda é pulado pelo índice único de
--- (ml_order_id, ml_item_id) em `vendas` (migração 022), então reprocessar é
--- seguro por construção.
+-- `processado_em` nulo = pendente. As linhas que já existem são marcadas
+-- PROCESSADAS aqui, de propósito: a fila começa limpa. A dedupe por
+-- (ml_order_id, ml_item_id) só protege venda que nasceu do importador — um
+-- pedido do ML que o dono lançou como venda normal no balcão (caminho comum)
+-- não tem ml_order_id, não seria pulado, e viraria SEGUNDA venda com SEGUNDA
+-- baixa de estoque no primeiro ciclo, possivelmente em lote de madrugada.
+-- O backlog não se perde: continua acessível pelo fluxo manual de importação,
+-- com a lista na frente do dono — o que é decisão dele, não efeito colateral
+-- do deploy.
+--
+-- Esta migração é idempotente (`if not exists` em tudo, e o update só toca
+-- linha pendente) porque é rodada À MÃO em produção no fim de uma fila longa
+-- de migrações pendentes: falhar no meio e re-rodar é o caso provável.
 --
 -- `tentativas` existe pra um pedido quebrado (item apagado no ML, resposta
 -- fora do formato esperado) não travar a fila pra sempre: depois do teto que
@@ -27,14 +35,19 @@
 -- 'avista' porque o Mercado Livre repassa o dinheiro — não é fiado.
 -- =============================================================================
 
-alter table mercadolivre_notificacoes add column processado_em timestamptz;
-alter table mercadolivre_notificacoes add column erro text;
-alter table mercadolivre_notificacoes add column tentativas integer not null default 0;
+alter table mercadolivre_notificacoes add column if not exists processado_em timestamptz;
+alter table mercadolivre_notificacoes add column if not exists erro text;
+alter table mercadolivre_notificacoes add column if not exists tentativas integer not null default 0;
 
 -- Índice parcial: a fila só consulta o que está pendente, e ela encolhe
 -- conforme o consumidor trabalha — indexar a tabela inteira seria desperdício.
-create index idx_mercadolivre_notificacoes_pendentes
+create index if not exists idx_mercadolivre_notificacoes_pendentes
   on mercadolivre_notificacoes(recebido_em) where processado_em is null;
+
+-- Backlog fecha junto com a migração: o consumidor só enxerga o que chegar
+-- DEPOIS daqui. Ver o comentário do cabeçalho — reprocessar o histórico
+-- duplicaria as vendas que já foram lançadas na mão.
+update mercadolivre_notificacoes set processado_em = now() where processado_em is null;
 
 insert into formas_pagamento (nome, natureza) values ('MERCADO LIVRE', 'avista')
   on conflict (nome) do nothing;

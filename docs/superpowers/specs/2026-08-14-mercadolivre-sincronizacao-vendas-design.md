@@ -143,21 +143,29 @@ não rodar, o consumidor detecta a coluna ausente, loga um aviso e não importa
 nada — o fluxo manual de importação continua idêntico ao de hoje.
 
 ```sql
-alter table mercadolivre_notificacoes add column processado_em timestamptz;
-alter table mercadolivre_notificacoes add column erro text;
-alter table mercadolivre_notificacoes add column tentativas integer not null default 0;
+alter table mercadolivre_notificacoes add column if not exists processado_em timestamptz;
+alter table mercadolivre_notificacoes add column if not exists erro text;
+alter table mercadolivre_notificacoes add column if not exists tentativas integer not null default 0;
 
-create index idx_mercadolivre_notificacoes_pendentes
+create index if not exists idx_mercadolivre_notificacoes_pendentes
   on mercadolivre_notificacoes(recebido_em) where processado_em is null;
+
+update mercadolivre_notificacoes set processado_em = now() where processado_em is null;
 
 insert into formas_pagamento (nome, natureza) values ('MERCADO LIVRE', 'avista')
   on conflict (nome) do nothing;
 ```
 
-Linhas antigas ficam com `processado_em` nulo, ou seja, entram na fila. Isso é
-proposital: são pedidos das últimas semanas que talvez nunca tenham sido
-importados. A dedupe por `(ml_order_id, ml_item_id)` garante que os já
-importados sejam pulados sem virar venda duplicada.
+Linhas antigas nascem **processadas**: a fila começa limpa. A dedupe por
+`(ml_order_id, ml_item_id)` só protege venda que nasceu do importador — pedido
+do ML lançado como venda normal no balcão (caminho comum) não tem
+`ml_order_id`, não seria pulado, e viraria segunda venda com segunda baixa de
+estoque no primeiro ciclo. O backlog continua acessível pelo fluxo manual de
+importação, com a lista na frente do dono.
+
+Tudo com `if not exists`: a migração é rodada à mão, em produção, no fim de uma
+fila longa de migrações pendentes — falhar no meio e re-rodar é o caso
+provável, não o excepcional.
 
 ## Testes
 
