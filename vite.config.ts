@@ -10,6 +10,12 @@ export default defineConfig(() => {
     build: {
       outDir: 'dist',
     },
+    // removerFundoImagem.worker.ts faz import() dinâmico de @imgly/background-removal,
+    // o que exige code-splitting dentro do worker — só o formato 'es' suporta isso
+    // (o padrão 'iife' do Vite quebra o build de produção nesse caso).
+    worker: {
+      format: 'es',
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
