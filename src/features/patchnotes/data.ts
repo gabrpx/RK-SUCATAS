@@ -18,6 +18,43 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.16',
+    data: '2026-08-14',
+    titulo: 'Estoque e Mercado Livre agora conversam nos dois sentidos',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Venda feita no Mercado Livre agora dá baixa no estoque sozinha, com aviso no celular dizendo qual peça saiu. Pedido que não bate com nenhuma peça do catálogo nunca vira venda automática — você recebe um aviso pra registrar na mão.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Vendeu no balcão uma peça que está anunciada no Mercado Livre? Você recebe um aviso de que o anúncio ficou com quantidade desatualizada, com atalho direto pra tela de revisão. Aplicar continua sendo decisão sua, com a lista de conferência de sempre.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'A descrição do anúncio já abre preenchida com o texto padrão da RK Sucatas. Tem um botão pra limpar quando você quiser escrever outro, e pra restaurar o padrão depois.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Ligar o toggle "Publicar automaticamente no Mercado Livre" já começa a remover o fundo das fotos em segundo plano. Quando você abre o formulário, as prévias estão prontas — aprovar cada foto continua sendo seu clique.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'O toggle de padronizar a categoria do Mercado Livre salvava a escolha, mas ela nunca voltava: toda peça nova da mesma categoria (Lanterna, por exemplo) abria sem a categoria pré-selecionada. Corrigido — agora a predefinição realmente aparece.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Venda de anúncio com variações registrava a peça genérica sem saber qual ficha específica tinha saído. Agora a venda é vinculada à ficha certa.',
+      },
+    ],
+  },
+  {
     versao: '1.2.15',
     data: '2026-08-14',
     titulo: 'Corrige anúncio duplicado no Mercado Livre',
