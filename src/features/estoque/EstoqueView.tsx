@@ -39,6 +39,7 @@ import { Switch } from '../../components/ui/switch';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
+import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
 import { categoriaExigeNota } from './categoriaMotor';
@@ -182,6 +183,10 @@ export function EstoqueView({
   // só de UI, reseta a cada peça aberta — não é preferência salva.
   const [publicarMlAtivo, setPublicarMlAtivo] = useState(false);
   const [publicarMlAberto, setPublicarMlAberto] = useState(false);
+  // Instanciado aqui (não dentro do modal) pra que a remoção de fundo comece
+  // a processar assim que o toggle acima é ligado — antes do modal
+  // "Configurar e publicar" sequer existir. Ver useRemocaoFundoFotos.ts.
+  const remocaoFundo = useRemocaoFundoFotos();
   // Quantas peças saíram deste modal sem ele fechar — feedback do
   // "salvar e cadastrar próxima" durante a catalogação em massa.
   const [salvasEmSequencia, setSalvasEmSequencia] = useState(0);
@@ -207,6 +212,7 @@ export function EstoqueView({
     setResumoCompressao(null);
     setSalvasEmSequencia(0);
     setPublicarMlAtivo(false);
+    remocaoFundo.limparTudo();
     setIsModalOpen(true);
   };
 
@@ -220,6 +226,7 @@ export function EstoqueView({
     setResumoCompressao(null);
     setSalvasEmSequencia(0);
     setPublicarMlAtivo(false);
+    remocaoFundo.limparTudo();
     setFormData({
       nome: item.nome,
       categoria_id: item.categoria_id || '',
@@ -238,7 +245,7 @@ export function EstoqueView({
       modelo_moto_compativel_ids: (item.modelos_compativeis ?? []).map((m) => m.id),
     });
     setIsModalOpen(true);
-  }, []);
+  }, [remocaoFundo]);
 
   // Clique no badge "ML" da tabela: com 1 link só, vai direto pro anúncio;
   // com 2+, não dá pra escolher sozinho qual abrir — leva pra edição, onde
@@ -1499,7 +1506,16 @@ export function EstoqueView({
                         <p className="text-sm font-medium text-text-primary">Publicar automaticamente no Mercado Livre</p>
                         <p className="text-[11px] text-text-faint mt-0.5">Cria um anúncio novo direto do catálogo, em vez de só colar o link de um já existente.</p>
                       </div>
-                      <Switch checked={publicarMlAtivo} onCheckedChange={setPublicarMlAtivo} />
+                      <Switch
+                        checked={publicarMlAtivo}
+                        onCheckedChange={(ativo) => {
+                          setPublicarMlAtivo(ativo);
+                          // Adianta o trabalho pesado: quando o formulário de
+                          // publicação abrir, as prévias já estão prontas.
+                          if (ativo) remocaoFundo.iniciarTodas(formData.imagens);
+                          else remocaoFundo.limparTudo();
+                        }}
+                      />
                     </div>
 
                     {publicarMlAtivo && (
@@ -1644,6 +1660,7 @@ export function EstoqueView({
           item={editingItem}
           modelos={modelos}
           onPublicado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_ml: links } : prev))}
+          remocaoFundo={remocaoFundo}
         />
       )}
     </div>

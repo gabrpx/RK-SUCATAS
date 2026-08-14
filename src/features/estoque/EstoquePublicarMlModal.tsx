@@ -13,14 +13,13 @@ import { CustomDropdown } from '../../components/CustomDropdown';
 import { aviso } from '../../components/ui/toast';
 import { useDebounce } from '../../hooks/useDebounce';
 import { cn } from '../../utils';
-import { comprimirImagem } from '../../utils/comprimirImagem';
-import { removerFundoImagem } from '../../utils/removerFundoImagem';
-import { estoqueApi, uploadImagemEstoque } from './api';
+import { estoqueApi } from './api';
 import { mercadolivreApi } from '../mercadolivre/api';
 import { categoriasApi } from '../../lib/catalogApi';
 import { derivarAutopreenchimentoAtributos } from './autopreencherAtributosMl';
 import { DESCRICAO_PADRAO_ANUNCIO } from './descricaoPadraoMl';
 import type { AtributoMl, AtributoValorInput, CategoriaMlNo, CategoriaMlSugerida, ConfiguracaoAnuncioMlInput, Estoque, EstoqueAnuncioMl, ProdutoCatalogoMl, TipoAnuncioMl, VariacaoMlInput } from './types';
+import type { RemocaoFundoFotos } from './useRemocaoFundoFotos';
 import type { ModeloMoto } from '../../types/catalog';
 
 const inputClass =
@@ -144,9 +143,12 @@ interface EstoquePublicarMlModalProps {
   item: Estoque;
   modelos: ModeloMoto[];
   onPublicado: (links: EstoqueAnuncioMl[]) => void;
+  // Instanciado em EstoqueView pra que a remoção comece ao ligar o toggle,
+  // antes deste modal existir — ver useRemocaoFundoFotos.ts.
+  remocaoFundo: RemocaoFundoFotos;
 }
 
-export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPublicado }: EstoquePublicarMlModalProps) {
+export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPublicado, remocaoFundo }: EstoquePublicarMlModalProps) {
   // --- Categoria -----------------------------------------------------------
   const [buscaCategoria, setBuscaCategoria] = useState(item.nome);
   const buscaCategoriaDebounced = useDebounce(buscaCategoria, 400);
@@ -425,19 +427,13 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
   const [descricaoAnuncio, setDescricaoAnuncio] = useState(DESCRICAO_PADRAO_ANUNCIO);
 
   // --- Remoção de fundo das fotos (opcional) ----------------------------------
-  // 100% client-side (@imgly/background-removal, WASM — ver
-  // src/utils/removerFundoImagem.ts pro porquê de não precisar de rota nova
-  // no backend nem de env var). fotosProcessadas guarda só as trocas
-  // APROVADAS pelo usuário (urlOriginal -> urlNova): "usar no anúncio" troca
-  // a entrada correspondente em fotosSelecionadas, nunca em item.imagens —
-  // só o botão explícito "Substituir fotos do estoque" grava no cadastro.
-  // Mesmo teto do pool de workers em removerFundoImagem.ts — não faz sentido
-  // deixar clicar numa 3ª foto se o pool só processa 2 ao mesmo tempo mesmo.
-  const MAX_REMOCOES_SIMULTANEAS = 2;
-  const [processandoFundoUrls, setProcessandoFundoUrls] = useState<Set<string>>(new Set());
-  const [previewsFundo, setPreviewsFundo] = useState<{ originalUrl: string; antesSrc: string; depoisBlob: Blob; depoisPreviewUrl: string }[]>([]);
-  const [fotosProcessadas, setFotosProcessadas] = useState<Record<string, string>>({});
-  const [aprovandoFundoUrl, setAprovandoFundoUrl] = useState<string | null>(null);
+  // A máquina em si (estado + funções) mora em useRemocaoFundoFotos.ts,
+  // instanciada em EstoqueView e recebida via prop `remocaoFundo` — assim o
+  // processamento começa ao ligar o toggle, antes deste modal existir.
+  // fotosProcessadas (no hook) guarda só as trocas APROVADAS pelo usuário
+  // (urlOriginal -> urlNova): "usar no anúncio" troca a entrada
+  // correspondente em fotosSelecionadas, nunca em item.imagens — só o botão
+  // explícito "Substituir fotos do estoque" grava no cadastro.
   const [substituindoFotosEstoque, setSubstituindoFotosEstoque] = useState(false);
   // Os dois inputs de retry (câmera/galeria) são compartilhados por todas as
   // prévias — só uma tentativa de retry acontece por vez, então basta lembrar
@@ -480,14 +476,11 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
     setValoresAtributos({});
     setValoresPorUnidade({});
     setUsarVariacoes(true);
-    setFotosProcessadas({});
-    setPreviewsFundo([]);
-    setProcessandoFundoUrls(new Set());
-    setAprovandoFundoUrl(null);
+    remocaoFundo.limparTudo();
     setSubstituindoFotosEstoque(false);
     setRetryAlvoUrl(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.id]);
+  }, [item.id, remocaoFundo]);
 
   // Padronizar categoria (Fase 4): quando esta categoria interna já tem uma
   // categoria do Mercado Livre memorizada (toggle ativado numa peça
@@ -515,82 +508,12 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
   const variacaoDisponivel = unidadesElegiveis.length >= 2 && atributosVariacao.length > 0;
   const unidadesComValor = unidadesElegiveis.filter((u) => valorPreenchido(valoresPorUnidade[u.id]));
 
-  function revogarSeBlob(url: string) {
-    if (url.startsWith('blob:')) URL.revokeObjectURL(url);
-  }
-
-  function descartarPreviewFundo(originalUrl: string) {
-    setPreviewsFundo((atual) => {
-      const preview = atual.find((p) => p.originalUrl === originalUrl);
-      if (preview) {
-        revogarSeBlob(preview.antesSrc);
-        revogarSeBlob(preview.depoisPreviewUrl);
-      }
-      return atual.filter((p) => p.originalUrl !== originalUrl);
-    });
-  }
-
-  // Dispara pro pool de workers (removerFundoImagem.ts) — até
-  // MAX_REMOCOES_SIMULTANEAS chamadas concorrentes rodam em paralelo sem
-  // travar a UI; o que passar disso espera na fila do próprio pool.
-  async function iniciarRemocaoFundo(originalUrl: string, fonte: File | string) {
-    descartarPreviewFundo(originalUrl); // nova tentativa substitui a prévia anterior desta mesma foto
-    setProcessandoFundoUrls((atual) => new Set(atual).add(originalUrl));
-    try {
-      const resultado = await removerFundoImagem(fonte);
-      if (!resultado.sucesso || !resultado.blob) {
-        aviso.falha(null, 'Não foi possível remover o fundo desta foto');
-        return;
-      }
-      const novaPreview = {
-        originalUrl,
-        antesSrc: typeof fonte === 'string' ? fonte : URL.createObjectURL(fonte),
-        depoisBlob: resultado.blob,
-        depoisPreviewUrl: URL.createObjectURL(resultado.blob),
-      };
-      setPreviewsFundo((atual) => [...atual.filter((p) => p.originalUrl !== originalUrl), novaPreview]);
-    } finally {
-      setProcessandoFundoUrls((atual) => {
-        const proximo = new Set(atual);
-        proximo.delete(originalUrl);
-        return proximo;
-      });
-    }
-  }
-
-  // "Tirar outra foto" reaproveita a mesma peça (retryAlvoUrl, setado pelo
-  // botão de retry da prévia específica) que estava sendo retocada — o
-  // usuário está tentando de novo, não anexando uma foto nova solta.
-  // Comprime antes de remover o fundo (mesmo pipeline de EstoqueView.tsx pro
-  // upload normal de fotos).
-  async function tentarNovaFoto(files: FileList | null) {
-    const arquivo = files?.[0];
-    if (!arquivo || !retryAlvoUrl) return;
-    const { arquivo: comprimido } = await comprimirImagem(arquivo);
-    await iniciarRemocaoFundo(retryAlvoUrl, comprimido);
-  }
-
-  async function aprovarPreviewFundo(originalUrl: string) {
-    const preview = previewsFundo.find((p) => p.originalUrl === originalUrl);
-    if (!preview) return;
-    setAprovandoFundoUrl(originalUrl);
-    try {
-      const arquivo = new File([preview.depoisBlob], 'fundo-removido.jpg', { type: 'image/jpeg' });
-      const resultado = await uploadImagemEstoque(arquivo);
-      if (!resultado.success || !resultado.url) {
-        aviso.falha(null, 'Não foi possível salvar a foto sem fundo');
-        return;
-      }
-      const novaUrl = resultado.url;
-      setFotosSelecionadas((prev) => prev.map((u) => (u === originalUrl ? novaUrl : u)));
-      setFotosProcessadas((prev) => ({ ...prev, [originalUrl]: novaUrl }));
-      descartarPreviewFundo(originalUrl);
-      aviso.sucesso('Foto sem fundo aplicada ao anúncio');
-    } catch (err) {
-      aviso.falha(err, 'Não foi possível salvar a foto sem fundo');
-    } finally {
-      setAprovandoFundoUrl(null);
-    }
+  // Aprovar troca a foto na SELEÇÃO DO ANÚNCIO (estado deste modal) — o hook
+  // (remocaoFundo.aprovar) só sobe o arquivo e registra a troca em
+  // fotosProcessadas; quem decide onde a nova url entra é o modal.
+  async function aprovarESelecionarFundo(originalUrl: string) {
+    const novaUrl = await remocaoFundo.aprovar(originalUrl);
+    if (novaUrl) setFotosSelecionadas((prev) => prev.map((u) => (u === originalUrl ? novaUrl : u)));
   }
 
   // Opt-in e separado de propósito: troca em item.imagens só as fotos que já
@@ -599,7 +522,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
   async function substituirFotosDoEstoque() {
     setSubstituindoFotosEstoque(true);
     try {
-      const novasImagens = item.imagens.map((u) => fotosProcessadas[u] ?? u);
+      const novasImagens = item.imagens.map((u) => remocaoFundo.fotosProcessadas[u] ?? u);
       const resultado = await estoqueApi.atualizarParcial(item.id, { imagens: novasImagens });
       if (!resultado.success) throw new Error(resultado.error);
       aviso.sucesso('Fotos do estoque substituídas pelas versões sem fundo');
@@ -1064,8 +987,8 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
             <div className="flex flex-wrap gap-2">
               {item.imagens.map((url) => {
                 const selecionada = fotosSelecionadas.includes(url);
-                const urlExibida = fotosProcessadas[url] ?? url;
-                const processandoEsta = processandoFundoUrls.has(url);
+                const urlExibida = remocaoFundo.fotosProcessadas[url] ?? url;
+                const processandoEsta = remocaoFundo.processandoUrls.has(url);
                 return (
                   <div key={url} className="relative">
                     <button
@@ -1076,7 +999,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
                       className={cn('relative size-20 rounded-control overflow-hidden border-2 transition-all', selecionada ? 'border-accent' : 'border-border-default opacity-40')}
                     >
                       <img src={urlExibida} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                      {fotosProcessadas[url] && (
+                      {remocaoFundo.fotosProcessadas[url] && (
                         <span className="absolute top-0.5 left-0.5 rounded bg-positive-bg/90 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-positive">
                           Sem fundo
                         </span>
@@ -1089,9 +1012,9 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
                       type="button"
                       onClick={(e) => {
                         e.stopPropagation();
-                        iniciarRemocaoFundo(url, url);
+                        remocaoFundo.iniciar(url, url);
                       }}
-                      disabled={processandoEsta || processandoFundoUrls.size >= MAX_REMOCOES_SIMULTANEAS}
+                      disabled={processandoEsta || !remocaoFundo.podeIniciarMais}
                       title="Remover fundo"
                       className="absolute -bottom-1.5 -right-1.5 flex items-center justify-center size-6 rounded-full border border-border-default bg-surface-page text-text-muted transition-colors hover:border-accent hover:text-accent-soft-fg disabled:opacity-50"
                     >
@@ -1102,7 +1025,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
               })}
             </div>
 
-            {previewsFundo.map((preview) => (
+            {remocaoFundo.previews.map((preview) => (
               <div key={preview.originalUrl} className="rounded-control border border-border-default bg-surface-inset p-3 space-y-3">
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Prévia sem fundo</p>
                 <div className="grid grid-cols-2 gap-3">
@@ -1116,8 +1039,8 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
                   </div>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Button type="button" variant="outline" size="sm" onClick={() => aprovarPreviewFundo(preview.originalUrl)} disabled={aprovandoFundoUrl === preview.originalUrl}>
-                    {aprovandoFundoUrl === preview.originalUrl ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Usar esta versão no anúncio
+                  <Button type="button" variant="outline" size="sm" onClick={() => aprovarESelecionarFundo(preview.originalUrl)} disabled={remocaoFundo.aprovandoUrl === preview.originalUrl}>
+                    {remocaoFundo.aprovandoUrl === preview.originalUrl ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Usar esta versão no anúncio
                   </Button>
                   <Button type="button" variant="ghost" size="sm" onClick={() => { setRetryAlvoUrl(preview.originalUrl); inputRetryGaleriaRef.current?.click(); }}>
                     <Upload size={13} /> Tirar outra (galeria)
@@ -1125,7 +1048,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
                   <Button type="button" variant="ghost" size="sm" className="md:hidden" onClick={() => { setRetryAlvoUrl(preview.originalUrl); inputRetryCameraRef.current?.click(); }}>
                     <Camera size={13} /> Câmera
                   </Button>
-                  <Button type="button" variant="ghost" size="sm" onClick={() => descartarPreviewFundo(preview.originalUrl)}>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => remocaoFundo.descartar(preview.originalUrl)}>
                     <X size={13} /> Descartar
                   </Button>
                 </div>
@@ -1141,7 +1064,8 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
               capture="environment"
               className="hidden"
               onChange={(e) => {
-                tentarNovaFoto(e.target.files);
+                const arquivo = e.target.files?.[0];
+                if (arquivo && retryAlvoUrl) void remocaoFundo.tentarNovaFoto(retryAlvoUrl, arquivo);
                 e.target.value = '';
               }}
             />
@@ -1151,16 +1075,17 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
               accept="image/jpeg,image/png,image/webp"
               className="hidden"
               onChange={(e) => {
-                tentarNovaFoto(e.target.files);
+                const arquivo = e.target.files?.[0];
+                if (arquivo && retryAlvoUrl) void remocaoFundo.tentarNovaFoto(retryAlvoUrl, arquivo);
                 e.target.value = '';
               }}
             />
 
-            {Object.keys(fotosProcessadas).length > 0 && (
+            {Object.keys(remocaoFundo.fotosProcessadas).length > 0 && (
               <div className="flex items-center justify-between gap-3 rounded-control border border-border-subtle bg-surface-inset px-3.5 py-3">
                 <div className="min-w-0">
                   <p className="text-sm text-text-primary">
-                    {Object.keys(fotosProcessadas).length} {Object.keys(fotosProcessadas).length === 1 ? 'foto aprovada' : 'fotos aprovadas'} sem fundo
+                    {Object.keys(remocaoFundo.fotosProcessadas).length} {Object.keys(remocaoFundo.fotosProcessadas).length === 1 ? 'foto aprovada' : 'fotos aprovadas'} sem fundo
                   </p>
                   <p className="text-[11px] text-text-faint mt-0.5">Só afeta este anúncio. Pra também trocar as fotos da peça no estoque, use o botão ao lado.</p>
                 </div>

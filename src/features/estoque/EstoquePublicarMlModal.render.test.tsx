@@ -43,6 +43,26 @@ vi.mock('../../lib/catalogApi', () => ({
   },
 }));
 
+// Dublê do hook useRemocaoFundoFotos (Task 3) — estes testes cobrem o reset
+// por troca de item, não a máquina de remoção de fundo em si (que tem sua
+// própria suíte em useRemocaoFundoFotos.test.ts). Recriado a cada teste via
+// factory, não constante módulo, pra não vazar chamadas de mock entre testes.
+function criarRemocaoFundoFake() {
+  return {
+    processandoUrls: new Set<string>(),
+    previews: [],
+    fotosProcessadas: {},
+    aprovandoUrl: null,
+    podeIniciarMais: true,
+    iniciar: vi.fn(),
+    iniciarTodas: vi.fn(),
+    tentarNovaFoto: vi.fn(),
+    aprovar: vi.fn(),
+    descartar: vi.fn(),
+    limparTudo: vi.fn(),
+  };
+}
+
 function criarItem(overrides: Partial<Estoque> & Pick<Estoque, 'id' | 'imagens' | 'nome'>): Estoque {
   return {
     codigo: 'RK-1',
@@ -89,11 +109,11 @@ describe('EstoquePublicarMlModal — troca de peça sem desmontar', () => {
     const itemA = criarItem({ id: 'a', nome: 'Lanterna CG 150', imagens: ['https://x/a.jpg'] });
     const itemB = criarItem({ id: 'b', nome: 'Lanterna Biz 100', imagens: ['https://x/b.jpg'] });
 
-    const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
     expect(fotoSelecionada('https://x/a.jpg')).toBe(true);
 
-    rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
 
     expect(fotoSelecionada('https://x/b.jpg')).toBe(true);
@@ -103,12 +123,12 @@ describe('EstoquePublicarMlModal — troca de peça sem desmontar', () => {
     const itemA = criarItem({ id: 'a', nome: 'Lanterna CG 150', descricao: 'Descrição A', imagens: [] });
     const itemB = criarItem({ id: 'b', nome: 'Lanterna Biz 100', descricao: 'Descrição B', imagens: [] });
 
-    const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
     expect((screen.getByPlaceholderText('Título do anúncio') as HTMLInputElement).value).toBe('Lanterna CG 150');
     expect((screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement).value).toBe(DESCRICAO_PADRAO_ANUNCIO);
 
-    rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
 
     expect((screen.getByPlaceholderText('Título do anúncio') as HTMLInputElement).value).toBe('Lanterna Biz 100');
@@ -128,7 +148,7 @@ describe('EstoquePublicarMlModal — padronizar categoria (Fase 4)', () => {
       categoria: { id: 'cat-motor', nome: 'Carcaças', parent_id: null, ordem: 0, mercadolivre_categoria_id_padrao: categoriaPadraoFake.id },
     });
 
-    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
 
     // O título/descrição do anúncio só aparece quando categoriaSelecionada
     // já está preenchida — aqui isso precisa acontecer SEM clicar em
@@ -149,7 +169,7 @@ describe('EstoquePublicarMlModal — descrição padrão', () => {
   it('abre com o texto institucional da RK, ignorando a descrição interna da peça', async () => {
     const item = criarItem({ id: 'p1', nome: 'Lanterna', imagens: [], descricao: 'nota interna de catalogação' });
 
-    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
 
     const campo = screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement;
@@ -160,7 +180,7 @@ describe('EstoquePublicarMlModal — descrição padrão', () => {
   it('o botão Limpar esvazia o campo e vira Restaurar padrão', async () => {
     const item = criarItem({ id: 'p1', nome: 'Lanterna', imagens: [] });
 
-    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    render(<EstoquePublicarMlModal aberto item={item} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
 
     const campo = screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement;
@@ -175,12 +195,12 @@ describe('EstoquePublicarMlModal — descrição padrão', () => {
     const itemA = criarItem({ id: 'p1', nome: 'Lanterna', imagens: [] });
     const itemB = criarItem({ id: 'p2', nome: 'Farol', imagens: [] });
 
-    const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    const { rerender } = render(<EstoquePublicarMlModal aberto item={itemA} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
     const campo = screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement;
     fireEvent.change(campo, { target: { value: 'texto só desta peça' } });
 
-    rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} />);
+    rerender(<EstoquePublicarMlModal aberto item={itemB} modelos={[]} onFechar={() => {}} onPublicado={() => {}} remocaoFundo={criarRemocaoFundoFake()} />);
     await selecionarCategoriaSugerida();
     expect((screen.getByPlaceholderText('Descrição do anúncio') as HTMLTextAreaElement).value).toBe(DESCRICAO_PADRAO_ANUNCIO);
   });
