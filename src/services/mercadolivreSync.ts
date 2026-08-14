@@ -850,6 +850,12 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
 
   const mapaEstoque = await construirMapaEstoquePorMlb(supabase);
 
+  // A venda importada do ML derruba o saldo da peça, e a peça pode ter OUTROS
+  // anúncios (o vendido o próprio ML já decrementa). Acumula aqui pra avisar
+  // uma vez só no fim do ciclo — nunca um push por pedido (ver spec, "Cuidado
+  // com laço"). O aviso não muta anúncio nenhum: só chama a revisão manual.
+  const estoqueIdsVendidos = new Set<string>();
+
   // Sequencial de propósito: cada linha vira escrita no banco, e um lote
   // paralelo de registrar_venda na mesma peça disputaria o mesmo saldo.
   for (const linha of pendentes) {
@@ -934,6 +940,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
           if (venda) {
             resultado.importados++;
             resultado.itensImportados.push({ estoqueNome: peca.nome, mlOrderId: orderId });
+            estoqueIdsVendidos.add(peca.id);
           }
         } catch (err: any) {
           // Saldo zerado é divergência real entre sistema e Mercado Livre —
@@ -966,6 +973,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
   }
 
   await avisarResultadoDaFila(supabase, resultado);
+  await avisarAnunciosDesatualizados(supabase, Array.from(estoqueIdsVendidos));
   return resultado;
 }
 
@@ -1032,11 +1040,21 @@ export async function avisarAnunciosDesatualizados(supabase: SupabaseClient, est
 
   try {
     const { data: links, error } = await supabase.from('estoque_anuncios_ml').select('estoque_id').in('estoque_id', estoqueIds);
+
+    let afetadas: Set<string>;
     if (error) {
-      if (ehErroDeMigrationAusente(error)) return;
-      throw error;
+      if (!ehErroDeMigrationAusente(error)) throw error;
+      // Mesmo fallback pro link legado que buscarLinksParaSincronizar e
+      // construirMapaEstoquePorMlb já fazem. Sem ele, com a migration_025
+      // pendente (situação de produção hoje), este gatilho seria inerte
+      // justamente pras peças que TÊM anúncio.
+      const { data: itens, error: erroLegado } = await supabase.from('estoque').select('id, anuncio_ml_url').in('id', estoqueIds).not('anuncio_ml_url', 'is', null);
+      if (erroLegado) throw erroLegado;
+      afetadas = new Set((itens ?? []).filter((i: any) => !!extrairMlbId(i.anuncio_ml_url)).map((i: any) => i.id));
+    } else {
+      afetadas = new Set((links ?? []).map((l: { estoque_id: string }) => l.estoque_id));
     }
-    const afetadas = new Set((links ?? []).map((l: { estoque_id: string }) => l.estoque_id));
+
     if (afetadas.size === 0) return;
 
     const destinatarios = await buscarDestinatariosEquipe(supabase);

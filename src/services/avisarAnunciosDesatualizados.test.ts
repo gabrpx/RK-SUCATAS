@@ -8,7 +8,7 @@ vi.mock('./mercadolivreApi.js', () => ({
 }));
 
 import { notificarUsuarios } from './pushNotificationService.js';
-import { atualizarItemML } from './mercadolivreApi.js';
+import { atualizarItemML, extrairMlbId } from './mercadolivreApi.js';
 import { avisarAnunciosDesatualizados } from './mercadolivreSync.js';
 
 function criarSupabaseFake(links: { estoque_id: string }[], usuarios: { id: string }[] = [{ id: 'user-1' }]) {
@@ -25,7 +25,30 @@ function criarSupabaseFake(links: { estoque_id: string }[], usuarios: { id: stri
   } as any;
 }
 
-beforeEach(() => vi.clearAllMocks());
+// Produção HOJE: a migration_025 (estoque_anuncios_ml) ainda não rodou, e o
+// vínculo com o anúncio vive em estoque.anuncio_ml_url. Sem o fallback, o
+// gatilho estoque→ML nasce inerte pra TODAS as peças que têm anúncio.
+function criarSupabaseFakeLegado(itens: { id: string; anuncio_ml_url: string | null }[]) {
+  return {
+    from(tabela: string) {
+      if (tabela === 'estoque_anuncios_ml') {
+        return { select: () => ({ in: () => Promise.resolve({ data: null, error: { code: '42P01' } }) }) };
+      }
+      if (tabela === 'estoque') {
+        return { select: () => ({ in: () => ({ not: () => Promise.resolve({ data: itens.filter((i) => i.anuncio_ml_url), error: null }) }) }) };
+      }
+      if (tabela === 'usuarios') {
+        return { select: () => ({ eq: () => ({ or: () => Promise.resolve({ data: [{ id: 'user-1' }], error: null }) }) }) };
+      }
+      throw new Error(`tabela inesperada: ${tabela}`);
+    },
+  } as any;
+}
+
+beforeEach(() => {
+  vi.clearAllMocks();
+  vi.mocked(extrairMlbId).mockImplementation((url: string) => url?.match(/MLB\d+/)?.[0] ?? null);
+});
 
 describe('avisarAnunciosDesatualizados', () => {
   it('peça com anúncio vinculado gera notificação apontando pra revisão', async () => {
@@ -44,6 +67,18 @@ describe('avisarAnunciosDesatualizados', () => {
 
   it('peça sem anúncio no ML não gera notificação nenhuma', async () => {
     await avisarAnunciosDesatualizados(criarSupabaseFake([]), ['peca-1']);
+
+    expect(notificarUsuarios).not.toHaveBeenCalled();
+  });
+
+  it('com a migration 025 pendente, cai no link legado em vez de ficar mudo', async () => {
+    await avisarAnunciosDesatualizados(criarSupabaseFakeLegado([{ id: 'peca-1', anuncio_ml_url: 'https://produto.mercadolivre.com.br/MLB123' }]), ['peca-1']);
+
+    expect(notificarUsuarios).toHaveBeenCalledTimes(1);
+  });
+
+  it('no fallback legado, peça sem URL de anúncio continua sem notificação', async () => {
+    await avisarAnunciosDesatualizados(criarSupabaseFakeLegado([{ id: 'peca-1', anuncio_ml_url: null }]), ['peca-1']);
 
     expect(notificarUsuarios).not.toHaveBeenCalled();
   });

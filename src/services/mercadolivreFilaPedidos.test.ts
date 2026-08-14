@@ -65,7 +65,16 @@ function criarSupabaseFake(opts: {
             ano: null, modelo_moto: null,
           },
         }));
-        return { select: () => Promise.resolve({ data: linhas, error: null }) };
+        // Duas leituras diferentes na mesma tabela: construirMapaEstoquePorMlb
+        // aguarda o select direto; avisarAnunciosDesatualizados encadeia .in().
+        const semFiltro = Promise.resolve({ data: linhas, error: null });
+        return {
+          select: () =>
+            Object.assign(semFiltro, {
+              in: (_col: string, ids: string[]) =>
+                Promise.resolve({ data: linhas.filter((l) => ids.includes(l.estoque.id)).map((l) => ({ estoque_id: l.estoque.id })), error: null }),
+            }),
+        };
       }
       if (tabela === 'vendas') {
         return {
@@ -372,6 +381,19 @@ describe('processarPedidosPendentes', () => {
 
     const corpos = vi.mocked(notificarUsuarios).mock.calls.map((c) => c[2].corpo);
     expect(corpos.some((c) => /não casou|não encontrada/i.test(c))).toBe(true);
+  });
+
+  it('venda importada do ML também avisa que os OUTROS anúncios da peça ficaram desatualizados', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue(pedidoPago as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    const titulos = vi.mocked(notificarUsuarios).mock.calls.map((c) => c[2].titulo);
+    expect(titulos).toContain('Anúncio precisa de ajuste');
   });
 
   it('ciclo sem novidade não dispara push nenhum', async () => {
