@@ -18,6 +18,18 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.12',
+    data: '2026-08-14',
+    titulo: 'Corrige título do anúncio ignorado ao publicar no Mercado Livre',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Anúncios publicados em contas migradas pro modelo novo do Mercado Livre (Preço por Variação) estavam sempre saindo com o título do cadastro de estoque, mesmo com um título próprio preenchido no formulário do anúncio — a descrição respeitava o texto próprio, só o título não. Corrigido: o título personalizado agora é respeitado em qualquer caminho de publicação.',
+      },
+    ],
+  },
+  {
     versao: '1.2.11',
     data: '2026-08-14',
     titulo: 'Publicar no Mercado Livre: título/descrição próprios do anúncio e remoção de fundo das fotos',

@@ -5,9 +5,25 @@ vi.mock('./mercadolivreApi.js', () => ({
   buscarCategoriaML: vi.fn(),
   buscarTiposAnuncioML: vi.fn(),
   buscarProdutosCatalogoML: vi.fn(),
+  criarItemML: vi.fn(),
+  atualizarDescricaoML: vi.fn(),
+  obterMargemSincronizacao: vi.fn(),
+  obterConexaoAtual: vi.fn(),
+  buscarItensPorIds: vi.fn(),
+  buscarVisitasItem: vi.fn(),
+  buscarVisitasUltimosDias: vi.fn(),
+  buscarPerguntas: vi.fn(),
 }));
 
-import { buscarCategoriasRaizML, buscarCategoriaML, buscarTiposAnuncioML, buscarProdutosCatalogoML } from './mercadolivreApi.js';
+import {
+  buscarCategoriasRaizML,
+  buscarCategoriaML,
+  buscarTiposAnuncioML,
+  buscarProdutosCatalogoML,
+  criarItemML,
+  atualizarDescricaoML,
+  obterMargemSincronizacao,
+} from './mercadolivreApi.js';
 import {
   listarFilhosCategoria,
   buscarTiposAnuncioDisponiveis,
@@ -16,6 +32,8 @@ import {
   montarPayloadComFamilyName,
   extrairMensagemErroMl,
   pareceErroFamilyNameAusente,
+  publicarAnuncio,
+  type ConfiguracaoAnuncioMl,
 } from './mercadolivrePublicacao.js';
 
 describe('listarFilhosCategoria', () => {
@@ -326,5 +344,74 @@ describe('pareceErroFamilyNameAusente', () => {
 
   it('false quando não há response.data (erro de rede, etc.)', () => {
     expect(pareceErroFamilyNameAusente(new Error('timeout'))).toBe(false);
+  });
+});
+
+// Fake mínimo de SupabaseClient cobrindo só as chamadas que publicarAnuncio
+// faz no caminho "item simples" (sem variações): busca da peça, insert do
+// link em estoque_anuncios_ml, e o select de sincronizarEstatisticas (que
+// roda em background, fire-and-forget — devolvendo lista vazia ele retorna
+// cedo sem precisar mockar o resto da cadeia de estatísticas).
+function criarSupabaseFake(item: Record<string, any>) {
+  return {
+    from(tabela: string) {
+      if (tabela === 'estoque') {
+        return { select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: item, error: null }) }) }) };
+      }
+      if (tabela === 'estoque_anuncios_ml') {
+        return {
+          insert: () => ({ select: () => ({ single: async () => ({ data: { id: 'link-1' }, error: null }) }) }),
+          select: () => ({ in: async () => ({ data: [], error: null }) }),
+        };
+      }
+      throw new Error(`tabela não mockada no teste: ${tabela}`);
+    },
+  };
+}
+
+describe('publicarAnuncio — título enviado ao Mercado Livre', () => {
+  // Reproduz o bug reportado: com o campo "nome do anúncio" preenchido, o
+  // anúncio ainda saía com o título do cadastro de estoque. Causa raiz: a
+  // conta está migrada pro modelo de User Products (ver
+  // pareceErroFamilyNameAusente acima) — o Mercado Livre recusa o payload
+  // com title e exige reenviar com family_name, e é o family_name que a API
+  // usa pra gerar o título do anúncio. O fallback de family_name mandava
+  // sempre item.nome (nome do estoque), nunca config.tituloAnuncio.
+  it('no fallback de family_name, usa o título do anúncio configurado — não o nome do estoque', async () => {
+    const chamadas: Record<string, any>[] = [];
+    vi.mocked(criarItemML).mockImplementation(async (_token: string, payload: Record<string, any>) => {
+      chamadas.push(payload);
+      if (chamadas.length === 1) {
+        const erro: any = new Error('family_name ausente');
+        erro.response = { data: { cause: [{ message: 'The body does not contains some or none of the following properties [family_name]' }] } };
+        throw erro;
+      }
+      return { id: 'MLB123', permalink: 'https://produto.mercadolivre.com.br/MLB123', status: 'active' };
+    });
+    vi.mocked(atualizarDescricaoML).mockResolvedValue(undefined);
+    vi.mocked(obterMargemSincronizacao).mockResolvedValue(0);
+
+    const supabase = criarSupabaseFake({
+      id: 'estoque-1',
+      nome: 'PEÇA CADASTRADA NO ESTOQUE',
+      valor: 100,
+      quantidade: 1,
+      descricao: 'descrição do cadastro',
+    });
+
+    const config: ConfiguracaoAnuncioMl = {
+      categoriaMlId: 'MLB1234',
+      condicaoMl: 'used',
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: [],
+      tituloAnuncio: 'Carenagem Original CB300R Bom Estado',
+      descricaoAnuncio: 'descrição própria do anúncio',
+    };
+
+    await publicarAnuncio(supabase as any, 'token-fake', 'estoque-1', config);
+
+    expect(chamadas).toHaveLength(2);
+    expect(chamadas[1].family_name).toBe('Carenagem Original CB300R Bom Estado');
   });
 });

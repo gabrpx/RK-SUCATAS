@@ -466,10 +466,14 @@ export function montarPayloadComFamilyName(payload: Record<string, any>, nomeFam
 // Envolve criarItemML pra aplicar o fallback de pareceErroFamilyNameAusente
 // acima: primeira tentativa como o payload veio montado; se a conta exigir
 // family_name, reenvia SEM title (ver montarPayloadComFamilyName) com esse
-// campo acrescentado. nomeFamilia usa o nome da peça — não existe uma
-// "família" de verdade aqui (cada peça publicada é o próprio produto, sem
-// catálogo de variantes por trás), então o nome da peça já é o descritor
-// genérico que a documentação pede pro campo.
+// campo acrescentado. nomeFamilia deve ser o mesmo valor que foi pro title
+// (payload.title, antes de ser removido) — nesse modelo o Mercado Livre GERA
+// o título do anúncio a partir do family_name, então mandar item.nome aqui
+// fazia o anúncio sair sempre com o nome do cadastro de estoque, mesmo com
+// um título próprio configurado (bug reportado: título do anúncio ignorado).
+// Não existe uma "família" de verdade aqui (cada peça publicada é o próprio
+// produto, sem catálogo de variantes por trás) — é só o campo que a API usa
+// como descritor/título nesse modelo.
 async function criarItemMlComFallbackFamilyName(token: string, payload: Record<string, any>, nomeFamilia: string): Promise<any> {
   try {
     return await criarItemML(token, payload);
@@ -503,7 +507,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
   // Tentativa 1: como veio montado (com variações, se a peça tem fichas
   // diferenciadas escolhidas no formulário).
   try {
-    const criado = await criarItemMlComFallbackFamilyName(token, montado.payload, item.nome);
+    const criado = await criarItemMlComFallbackFamilyName(token, montado.payload, montado.payload.title);
     await gravarResultadoPublicacao(supabase, token, estoqueId, config, criado, descricaoTexto, montado.usaVariacoes ? montado.ordemUnidades : []);
     return {
       caminho: montado.usaVariacoes ? 'variacoes' : 'simples',
@@ -521,7 +525,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
   // (migration_025), então todos ficam vinculados à mesma peça.
   const configSemVariacoes: ConfiguracaoAnuncioMl = { ...config, variacoes: undefined };
   const payloadBase = montarPayloadPublicacao(item, [], configSemVariacoes, margemPercentual);
-  const criadoBase = await criarItemMlComFallbackFamilyName(token, payloadBase.payload, item.nome);
+  const criadoBase = await criarItemMlComFallbackFamilyName(token, payloadBase.payload, payloadBase.payload.title);
   await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoBase, descricaoTexto, []);
   const links = [{ linkId: criadoBase.id, mlbId: criadoBase.id, url: criadoBase.permalink }];
 
@@ -534,7 +538,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
       variacoes: undefined,
     };
     const payloadUnidade = montarPayloadPublicacao(item, [], configUnidade, margemPercentual);
-    const criadoUnidade = await criarItemMlComFallbackFamilyName(token, payloadUnidade.payload, item.nome);
+    const criadoUnidade = await criarItemMlComFallbackFamilyName(token, payloadUnidade.payload, payloadUnidade.payload.title);
     await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoUnidade, descricaoTexto, [], unidade.id);
     links.push({ linkId: criadoUnidade.id, mlbId: criadoUnidade.id, url: criadoUnidade.permalink });
   }
