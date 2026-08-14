@@ -20,7 +20,9 @@ import {
 import { anexarPromocoes } from '../features/promocoes/calculo.js';
 import { tokenizar, similaridade, CORTE_POSSIVEL } from '../features/estoque/detectarDuplicata.js';
 
-const CODIGOS_MIGRATION_AUSENTE = ['42703', '42P01', 'PGRST205'];
+// 42703 = coluna indefinida no Postgres; 42P01 = tabela indefinida;
+// PGRST204/PGRST205 = coluna/tabela fora do cache de schema do PostgREST.
+const CODIGOS_MIGRATION_AUSENTE = ['42703', '42P01', 'PGRST204', 'PGRST205'];
 
 function ehErroDeMigrationAusente(error: any): boolean {
   return !!error && CODIGOS_MIGRATION_AUSENTE.includes(error.code);
