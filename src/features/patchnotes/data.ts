@@ -28,6 +28,11 @@ export const PATCH_NOTES: PatchNoteEntrada[] = [
           'Venda feita no Mercado Livre agora dá baixa no estoque sozinha, com aviso no celular dizendo qual peça saiu. Pedido que não bate com nenhuma peça do catálogo nunca vira venda automática — você recebe um aviso pra registrar na mão.',
       },
       {
+        tipo: 'melhoria',
+        texto:
+          'Pedido do Mercado Livre que o sistema não conseguiu importar sozinho (pagamento que nunca aprovou, duas unidades do mesmo anúncio no mesmo pedido, erro de conexão) agora avisa no celular em vez de sumir em silêncio — sempre com o número do pedido pra você registrar na mão.',
+      },
+      {
         tipo: 'feature',
         texto:
           'Vendeu no balcão uma peça que está anunciada no Mercado Livre? Você recebe um aviso de que o anúncio ficou com quantidade desatualizada, com atalho direto pra tela de revisão. Aplicar continua sendo decisão sua, com a lista de conferência de sempre.',

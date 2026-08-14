@@ -774,6 +774,10 @@ export interface ResultadoFilaPedidos {
   // Pedido ainda não pago que continua na fila — não é falha nem ignorado.
   aguardandoPagamento: number;
   falhas: number;
+  // Linhas que esgotaram MAX_TENTATIVAS_PEDIDO: venda real do ML que o sistema
+  // decidiu DEFINITIVAMENTE não registrar. Precisa virar push, senão o único
+  // rastro é uma linha de log num servidor que hiberna.
+  abandonados: { mlOrderId: string; erro: string }[];
 }
 
 // A forma de pagamento dedicada é seed da migration_044. Ausente = migração
@@ -816,7 +820,7 @@ async function resolverUnidadesPorVariacao(supabase: SupabaseClient, variationId
 }
 
 export async function processarPedidosPendentes(supabase: SupabaseClient): Promise<ResultadoFilaPedidos> {
-  const resultado: ResultadoFilaPedidos = { importados: 0, itensImportados: [], semMatch: [], ignorados: 0, aguardandoPagamento: 0, falhas: 0 };
+  const resultado: ResultadoFilaPedidos = { importados: 0, itensImportados: [], semMatch: [], ignorados: 0, aguardandoPagamento: 0, falhas: 0, abandonados: [] };
 
   const conexao = await obterConexaoAtual(supabase);
   if (!conexao) return resultado;
@@ -950,8 +954,10 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
       // Erro marcado como não-retentável (ver importarPedidoComoVenda): repetir
       // duplicaria venda e baixa de estoque. Encerra a linha com o erro à vista.
       if (err?.naoRetentar) {
+        resultado.abandonados.push({ mlOrderId: extrairOrderId(linha.resource) ?? linha.resource, erro: mensagem });
         await marcarProcessado(supabase, linha.id, mensagem, tentativas);
       } else if (tentativas >= MAX_TENTATIVAS_PEDIDO) {
+        resultado.abandonados.push({ mlOrderId: extrairOrderId(linha.resource) ?? linha.resource, erro: mensagem });
         await marcarProcessado(supabase, linha.id, mensagem, tentativas);
       } else {
         await supabase.from('mercadolivre_notificacoes').update({ tentativas, erro: mensagem }).eq('id', linha.id);
@@ -967,7 +973,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
 // movimentada não pode virar enxurrada de push. Nunca lança: falha de push
 // não pode desfazer nem mascarar a importação, que já está no banco.
 async function avisarResultadoDaFila(supabase: SupabaseClient, resultado: ResultadoFilaPedidos): Promise<void> {
-  if (resultado.importados === 0 && resultado.semMatch.length === 0) return;
+  if (resultado.importados === 0 && resultado.semMatch.length === 0 && resultado.abandonados.length === 0) return;
 
   try {
     const destinatarios = await buscarDestinatariosEquipe(supabase);
@@ -991,6 +997,17 @@ async function avisarResultadoDaFila(supabase: SupabaseClient, resultado: Result
             `"${resultado.semMatch[0].titulo}" (pedido ${resultado.semMatch[0].mlOrderId}) não casou com nenhuma peça do estoque — registre a venda na mão.`
           : `${resultado.semMatch.length} itens vendidos precisam ser registrados na mão — confira a lista na aba do Mercado Livre.`;
       await notificarUsuarios(supabase, destinatarios, { titulo: 'Pedido do ML precisa de você', corpo, url: '/mercadolivre' });
+    }
+
+    // Abandono é o pior desfecho da fila: venda que existe no ML e que o
+    // sistema não vai mais tentar registrar. A ação associada é abrir a aba do
+    // ML e importar na mão — por isso o push aponta pra lá.
+    if (resultado.abandonados.length > 0) {
+      const corpo =
+        resultado.abandonados.length === 1
+          ? `Pedido ${resultado.abandonados[0].mlOrderId} não pôde ser importado (${resultado.abandonados[0].erro}) — abra o Mercado Livre e registre a venda na mão.`
+          : `${resultado.abandonados.length} pedidos do Mercado Livre não puderam ser importados (${resultado.abandonados.map((a) => a.mlOrderId).slice(0, 3).join(', ')}) — registre as vendas na mão.`;
+      await notificarUsuarios(supabase, destinatarios, { titulo: 'Pedido do ML não foi importado', corpo, url: '/mercadolivre' });
     }
   } catch (err: any) {
     console.error('Erro ao notificar resultado da fila de pedidos do ML:', err?.message || err);

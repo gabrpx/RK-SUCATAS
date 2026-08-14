@@ -261,6 +261,19 @@ describe('processarPedidosPendentes', () => {
     expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
   });
 
+  it('pedido abandonado depois de 5 tentativas avisa a equipe — é venda real que o sistema desistiu de registrar', async () => {
+    vi.mocked(buscarPedido).mockRejectedValue(new Error('timeout'));
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 4 }],
+    });
+
+    const resultado = await processarPedidosPendentes(supabase);
+
+    expect(resultado.abandonados).toEqual([{ mlOrderId: '555', erro: 'timeout' }]);
+    const corpos = vi.mocked(notificarUsuarios).mock.calls.map((c) => c[2].corpo);
+    expect(corpos.some((c) => /555/.test(c))).toBe(true);
+  });
+
   it('estoque insuficiente vira aviso, não retry infinito', async () => {
     vi.mocked(buscarPedido).mockResolvedValue(pedidoPago as any);
     const supabase = criarSupabaseFake({
