@@ -21,7 +21,11 @@ const ESCRITA = autorizar('admin', 'equipe');
 // migration_019, `estoque_modelos_compativeis` criou um caminho N:N implícito
 // entre estoque e modelos_moto, e sem isso o PostgREST não sabe se o embed
 // quer o modelo principal (FK direta) ou os compatíveis (via tabela ponte).
-const SELECT_COM_JOINS = '*, categoria:categorias(id, nome), modelo_moto:modelos_moto!estoque_modelo_moto_id_fkey(id, nome, ano)';
+// Colunas da categoria são explícitas (não `*`) pra não trafegar campo
+// desnecessário — mas isso significa que coluna nova de `categorias` usada
+// pelo frontend precisa entrar aqui à mão. Ver estoque.test.ts.
+export const SELECT_COM_JOINS =
+  '*, categoria:categorias(id, nome, mercadolivre_categoria_id_padrao), modelo_moto:modelos_moto!estoque_modelo_moto_id_fkey(id, nome, ano)';
 
 // As fichas de unidade (migration_014) vêm numa consulta separada, e não como
 // join no select acima, de propósito: enquanto a migração não roda em
