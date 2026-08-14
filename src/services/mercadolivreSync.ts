@@ -955,6 +955,17 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
 
       await marcarProcessado(supabase, linha.id, null);
     } catch (err: any) {
+      // Token vencido/revogado não é problema DESTA linha: é do lote inteiro.
+      // Insistir gastaria as 5 tentativas de todas as 20 linhas do ciclo e, em
+      // ~25 minutos, marcaria pedidos pagos de verdade como processados com
+      // erro. Aborta sem tocar em tentativas nem em processado_em — o próximo
+      // ciclo tenta de novo, já com o token renovado.
+      const status = err?.response?.status;
+      if (status === 401 || status === 403) {
+        console.error(`⚠️ Fila de pedidos do ML parada: token sem autorização (HTTP ${status}). Reconecte a conta do Mercado Livre.`);
+        break;
+      }
+
       resultado.falhas++;
       const tentativas = (linha.tentativas ?? 0) + 1;
       const mensagem = err?.response?.data?.message || err?.message || 'erro desconhecido';

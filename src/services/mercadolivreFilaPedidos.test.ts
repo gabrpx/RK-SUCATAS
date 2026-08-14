@@ -298,6 +298,25 @@ describe('processarPedidosPendentes', () => {
     expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
   });
 
+  it('token vencido (401) para a fila inteira em vez de queimar tentativa de todo mundo', async () => {
+    const erro401: any = new Error('unauthorized');
+    erro401.response = { status: 401 };
+    vi.mocked(buscarPedido).mockRejectedValue(erro401);
+    const supabase = criarSupabaseFake({
+      pendentes: [
+        { id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 },
+        { id: 'n2', topic: 'orders_v2', resource: '/orders/556', tentativas: 0 },
+      ],
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    // Uma chamada só, e nenhuma escrita: com o token inválido, insistir só
+    // gastaria as 5 tentativas de cada linha e marcaria tudo processado.
+    expect(buscarPedido).toHaveBeenCalledTimes(1);
+    expect(supabase.atualizacoes).toHaveLength(0);
+  });
+
   it('sem conta conectada, não faz nada', async () => {
     vi.mocked(obterConexaoAtual).mockResolvedValue(null);
     const supabase = criarSupabaseFake({ pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }] });
