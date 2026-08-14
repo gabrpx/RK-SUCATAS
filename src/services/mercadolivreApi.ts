@@ -174,7 +174,7 @@ export async function buscarItensAtivosVendedor(token: string, mlUserId: string)
 }
 
 export interface ItemPedidoML {
-  item: { id: string; title: string };
+  item: { id: string; title: string; variation_id?: number | null };
   quantity: number;
   unit_price: number;
 }

@@ -382,6 +382,9 @@ export interface ImportarPedidoParams {
   mlOrderId: string;
   mlItemId: string;
   mlShippingId: string | null;
+  // Ficha específica (estoque_unidades) quando o pedido é de uma VARIAÇÃO —
+  // sem isso a venda sai da peça-mãe e ninguém sabe qual unidade saiu.
+  unidadeId?: string | null;
 }
 
 // Retorna null (não erro) quando o item já tinha sido importado antes — o
@@ -411,6 +414,7 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
     p_observacoes: `Importado do Mercado Livre — pedido ${params.mlOrderId}`,
     p_data: params.data,
     p_cliente_id: params.clienteId || null,
+    p_unidade_id: params.unidadeId || null,
   });
   if (error) throw error;
 
@@ -763,6 +767,25 @@ function ehErroDeEstoqueInsuficiente(mensagem: string): boolean {
   return /estoque insuficiente/i.test(mensagem);
 }
 
+// Mapeia variations[].id do pedido -> ficha de unidade que originou aquela
+// variação (estoque_anuncios_ml_variacoes, migration_043). Ausência de
+// vínculo não é erro: anúncio publicado antes da 043, ou variação criada à
+// mão no site do Mercado Livre, simplesmente cai como venda da peça-mãe.
+async function resolverUnidadesPorVariacao(supabase: SupabaseClient, variationIds: string[]): Promise<Map<string, string>> {
+  const mapa = new Map<string, string>();
+  if (variationIds.length === 0) return mapa;
+
+  const { data, error } = await supabase.from('estoque_anuncios_ml_variacoes').select('ml_variation_id, unidade_id').in('ml_variation_id', variationIds);
+  if (error) {
+    if (ehErroDeMigrationAusente(error)) return mapa;
+    throw error;
+  }
+  for (const linha of data ?? []) {
+    if (linha.unidade_id) mapa.set(String(linha.ml_variation_id), linha.unidade_id);
+  }
+  return mapa;
+}
+
 export async function processarPedidosPendentes(supabase: SupabaseClient): Promise<ResultadoFilaPedidos> {
   const resultado: ResultadoFilaPedidos = { importados: 0, itensImportados: [], semMatch: [], ignorados: 0, falhas: 0 };
 
@@ -812,6 +835,11 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
         continue;
       }
 
+      const variationIds = (pedido.order_items ?? [])
+        .map((i: any) => (i.item?.variation_id != null ? String(i.item.variation_id) : null))
+        .filter((id: string | null): id is string => !!id);
+      const unidadesPorVariacao = await resolverUnidadesPorVariacao(supabase, variationIds);
+
       for (const itemPedido of pedido.order_items ?? []) {
         const peca = mapaEstoque.get(itemPedido.item.id);
         if (!peca) {
@@ -829,6 +857,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
             mlOrderId: orderId,
             mlItemId: itemPedido.item.id,
             mlShippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
+            unidadeId: itemPedido.item.variation_id != null ? unidadesPorVariacao.get(String(itemPedido.item.variation_id)) ?? null : null,
           });
           if (venda) {
             resultado.importados++;

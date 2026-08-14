@@ -23,6 +23,7 @@ function criarSupabaseFake(opts: {
   estoquePorMlb?: Record<string, { id: string; nome: string }>;
   formaPagamentoId?: string | null;
   registrarVenda?: (params: any) => { data: any; error: any };
+  variacoes?: Record<string, string>; // ml_variation_id -> unidade_id
 }) {
   const atualizacoes: Record<string, any>[] = [];
   const vendasRegistradas: any[] = [];
@@ -70,6 +71,17 @@ function criarSupabaseFake(opts: {
       }
       if (tabela === 'usuarios') {
         return { select: () => ({ eq: () => ({ or: () => Promise.resolve({ data: [], error: null }) }) }) };
+      }
+      if (tabela === 'estoque_anuncios_ml_variacoes') {
+        return {
+          select: () => ({
+            in: (_col: string, ids: string[]) =>
+              Promise.resolve({
+                data: ids.filter((id) => opts.variacoes?.[id]).map((id) => ({ ml_variation_id: id, unidade_id: opts.variacoes![id] })),
+                error: null,
+              }),
+          }),
+        };
       }
       throw new Error(`tabela inesperada no fake: ${tabela}`);
     },
@@ -205,5 +217,38 @@ describe('processarPedidosPendentes', () => {
     expect(resultado.importados).toBe(0);
     expect(supabase.vendasRegistradas).toHaveLength(0);
     expect(supabase.atualizacoes).toHaveLength(0);
+  });
+
+  it('pedido de uma variação registra a venda na ficha de unidade correspondente', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue({
+      ...pedidoPago,
+      order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900123 }, quantity: 1, unit_price: 120 }],
+    } as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+      variacoes: { '900123': 'unidade-7' },
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    expect(supabase.vendasRegistradas[0]).toMatchObject({ p_estoque_id: 'peca-1', p_unidade_id: 'unidade-7' });
+  });
+
+  it('variação desconhecida (migration 043 sem o vínculo) registra a venda sem ficha, em vez de falhar', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue({
+      ...pedidoPago,
+      order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900999 }, quantity: 1, unit_price: 120 }],
+    } as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+      variacoes: {},
+    });
+
+    const resultado = await processarPedidosPendentes(supabase);
+
+    expect(resultado.importados).toBe(1);
+    expect(supabase.vendasRegistradas[0].p_unidade_id).toBeNull();
   });
 });
