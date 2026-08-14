@@ -28,6 +28,7 @@ function criarSupabaseFake(opts: {
   registrarVenda?: (params: any) => { data: any; error: any };
   erroUpdateVenda?: any; // falha do update pós-RPC (canal/ml_order_id)
   erroUpdateFila?: any; // falha ao escrever de volta na mercadolivre_notificacoes
+  erroSelectFila?: any; // falha ao LER a fila (migração 044 pendente = 42703/PGRST204)
   variacoes?: Record<string, string>; // ml_variation_id -> unidade_id
 }) {
   const atualizacoes: Record<string, any>[] = [];
@@ -41,7 +42,12 @@ function criarSupabaseFake(opts: {
         return {
           select: () => ({
             eq: () => ({
-              is: () => ({ order: () => ({ limit: () => Promise.resolve({ data: opts.pendentes, error: null }) }) }),
+              is: () => ({
+                order: () => ({
+                  limit: () =>
+                    Promise.resolve(opts.erroSelectFila ? { data: null, error: opts.erroSelectFila } : { data: opts.pendentes, error: null }),
+                }),
+              }),
             }),
           }),
           update(payload: any) {
@@ -429,6 +435,45 @@ describe('processarPedidosPendentes', () => {
 
     const titulos = vi.mocked(notificarUsuarios).mock.calls.map((c) => c[2].titulo);
     expect(titulos).toContain('Anúncio precisa de ajuste');
+  });
+
+  // Estado de produção HOJE: a migration_044 não rodou, então a coluna
+  // processado_em não existe. Migração ausente NUNCA pode derrubar o sistema.
+  it.each([['42703'], ['PGRST204']])('com a migration 044 pendente (%s), não lança, não consulta o ML e não escreve nada', async (code) => {
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      erroSelectFila: { code, message: 'column mercadolivre_notificacoes.processado_em does not exist' },
+    });
+
+    const resultado = await processarPedidosPendentes(supabase);
+
+    expect(resultado).toMatchObject({ importados: 0, falhas: 0, ignorados: 0 });
+    expect(buscarPedido).not.toHaveBeenCalled();
+    expect(supabase.atualizacoes).toHaveLength(0);
+    expect(supabase.vendasRegistradas).toHaveLength(0);
+    expect(notificarUsuarios).not.toHaveBeenCalled();
+  });
+
+  it('pedido com dois itens: importa o que casa e avisa sobre o que não casa', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue({
+      ...pedidoPago,
+      order_items: [
+        { item: { id: 'MLB111', title: 'Lanterna Traseira' }, quantity: 1, unit_price: 120 },
+        { item: { id: 'MLB999', title: 'Retrovisor Esquerdo' }, quantity: 1, unit_price: 80 },
+      ],
+    } as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+    });
+
+    const resultado = await processarPedidosPendentes(supabase);
+
+    expect(resultado.importados).toBe(1);
+    expect(supabase.vendasRegistradas).toHaveLength(1);
+    expect(resultado.semMatch).toEqual([{ mlOrderId: '555', titulo: 'Retrovisor Esquerdo' }]);
+    // A linha fecha mesmo com item sem match: o aviso é o que resolve o resto.
+    expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
   });
 
   it('ciclo sem novidade não dispara push nenhum', async () => {
