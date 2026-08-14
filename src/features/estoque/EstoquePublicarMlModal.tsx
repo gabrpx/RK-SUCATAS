@@ -8,6 +8,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Barcode, Camera, Check, ChevronDown, ChevronRight, Loader2, RefreshCw, Search, Send, Sparkles, Upload, Wand2, X } from 'lucide-react';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/button';
+import { Switch } from '../../components/ui/switch';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { aviso } from '../../components/ui/toast';
 import { useDebounce } from '../../hooks/useDebounce';
@@ -17,7 +18,9 @@ import { removerFundoImagem } from '../../utils/removerFundoImagem';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { mercadolivreApi } from '../mercadolivre/api';
 import { categoriasApi } from '../../lib/catalogApi';
+import { derivarAutopreenchimentoAtributos } from './autopreencherAtributosMl';
 import type { AtributoMl, AtributoValorInput, CategoriaMlNo, CategoriaMlSugerida, ConfiguracaoAnuncioMlInput, Estoque, EstoqueAnuncioMl, ProdutoCatalogoMl, TipoAnuncioMl, VariacaoMlInput } from './types';
+import type { ModeloMoto } from '../../types/catalog';
 
 const inputClass =
   'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
@@ -138,16 +141,32 @@ interface EstoquePublicarMlModalProps {
   aberto: boolean;
   onFechar: () => void;
   item: Estoque;
+  modelos: ModeloMoto[];
   onPublicado: (links: EstoqueAnuncioMl[]) => void;
 }
 
-export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: EstoquePublicarMlModalProps) {
+export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPublicado }: EstoquePublicarMlModalProps) {
   // --- Categoria -----------------------------------------------------------
   const [buscaCategoria, setBuscaCategoria] = useState(item.nome);
   const buscaCategoriaDebounced = useDebounce(buscaCategoria, 400);
   const [sugestoes, setSugestoes] = useState<CategoriaMlSugerida[]>([]);
   const [buscandoSugestoes, setBuscandoSugestoes] = useState(false);
   const [categoriaSelecionada, setCategoriaSelecionada] = useState<CategoriaMlSugerida | null>(null);
+  // Padronizar categoria (Fase 4): ON quando a categoria em uso é a mesma já
+  // memorizada como padrão pra esta categoria interna (auto-selecionada
+  // abaixo, ou escolhida manualmente e ela bate por coincidência) — OFF
+  // quando o usuário troca pra outra categoria manualmente, pra nunca
+  // sobrescrever o padrão compartilhado sem intenção clara (trocar de volta
+  // exige 1 clique a mais, e é o preço certo por ser uma mudança global).
+  const [padronizarCategoria, setPadronizarCategoria] = useState(false);
+
+  // Escolhe categoria (predição OU navegação em árvore) — único ponto de
+  // entrada, pra manter padronizarCategoria sempre consistente com a
+  // categoria realmente selecionada.
+  function escolherCategoria(categoria: CategoriaMlSugerida) {
+    setCategoriaSelecionada(categoria);
+    setPadronizarCategoria(categoria.id === item.categoria?.mercadolivre_categoria_id_padrao);
+  }
 
   useEffect(() => {
     if (!aberto || buscaCategoriaDebounced.trim().length < 3) return;
@@ -222,7 +241,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
         // Lista vazia = categoria-folha, é aqui que a seleção fecha — mesmo
         // formato de CategoriaMlSugerida usado pela busca preditiva, então o
         // carregamento de atributos abaixo funciona sem nenhuma mudança.
-        setCategoriaSelecionada({ id: no.id, nome: no.nome, caminho: novaTrilha.map((n) => n.nome).join(' > '), atributosSugeridos: [] });
+        escolherCategoria({ id: no.id, nome: no.nome, caminho: novaTrilha.map((n) => n.nome).join(' > '), atributosSugeridos: [] });
         voltarAPesquisarCategoria();
       } else {
         setTrilhaNavegacao(novaTrilha);
@@ -279,6 +298,12 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
         for (const sugestao of categoriaSelecionada.atributosSugeridos) {
           iniciais[sugestao.id] = { id: sugestao.id, value_id: sugestao.valueId ?? undefined, value_name: sugestao.valueName ?? undefined };
         }
+        // Marca/Número de peça/Tipo de veículo: dados que o sistema já tem
+        // no cadastro (árvore de motos), mais confiáveis que o preditor do
+        // Mercado Livre pra esses 3 campos específicos — por isso sobrepõe a
+        // sugestão do preditor quando os dois preenchem o mesmo atributo.
+        // Editável, não é uma trava (mesmo espírito do preditor acima).
+        Object.assign(iniciais, derivarAutopreenchimentoAtributos(res.data, item, modelos));
         // SELLER_SKU é o id padrão do Mercado Livre pro SKU do vendedor (ver
         // docs/proposta-publicacao-mercadolivre.md, 1.4) — pré-preenche com o
         // código interno da peça, que já existe e já identifica ela no
@@ -432,6 +457,56 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
     setAtributoVariacaoId((atual) => (atributosVariacao.some((a) => a.id === atual) ? atual : atributosVariacao[0].id));
   }, [atributosVariacao]);
 
+  // EstoqueView.tsx troca a prop `item` sem desmontar este modal (o usuário
+  // pode publicar a peça A, fechar e abrir a peça B no mesmo fluxo) — sem
+  // isso, todo estado abaixo (derivado de `item` só no useState inicial, ou
+  // acumulado durante a edição) ficava "preso" na peça anterior e o anúncio
+  // de B saía com fotos/título/categoria/atributos de A.
+  useEffect(() => {
+    setFotosSelecionadas(item.imagens ?? []);
+    setTituloAnuncio(item.nome.slice(0, 60));
+    setDescricaoAnuncio(item.descricao || item.nome);
+    setBuscaCategoria(item.nome);
+    setCategoriaSelecionada(null);
+    setPadronizarCategoria(false);
+    setSugestoes([]);
+    setModoNavegacaoCategoria(false);
+    setTrilhaNavegacao([]);
+    setOpcoesNavegacao([]);
+    setValoresAtributos({});
+    setValoresPorUnidade({});
+    setUsarVariacoes(true);
+    setFotosProcessadas({});
+    setPreviewsFundo([]);
+    setProcessandoFundoUrls(new Set());
+    setAprovandoFundoUrl(null);
+    setSubstituindoFotosEstoque(false);
+    setRetryAlvoUrl(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.id]);
+
+  // Padronizar categoria (Fase 4): quando esta categoria interna já tem uma
+  // categoria do Mercado Livre memorizada (toggle ativado numa peça
+  // anterior), pré-seleciona ela — pula a busca preditiva/navegação manual
+  // pra próxima peça do mesmo tipo. Busca/navegação continuam disponíveis
+  // caso o usuário queira trocar só pra esta peça específica.
+  useEffect(() => {
+    const categoriaPadraoId = item.categoria?.mercadolivre_categoria_id_padrao;
+    if (!aberto || !categoriaPadraoId) return;
+    let cancelado = false;
+    mercadolivreApi
+      .buscarDetalheCategoria(categoriaPadraoId)
+      .then((res) => {
+        if (cancelado || !res.success || !res.data) return;
+        setCategoriaSelecionada(res.data);
+        setPadronizarCategoria(true);
+      })
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
+  }, [aberto, item.id, item.categoria?.mercadolivre_categoria_id_padrao]);
+
   const atributoVariacaoEscolhido = atributosVariacao.find((a) => a.id === atributoVariacaoId) ?? null;
   const variacaoDisponivel = unidadesElegiveis.length >= 2 && atributosVariacao.length > 0;
   const unidadesComValor = unidadesElegiveis.filter((u) => valorPreenchido(valoresPorUnidade[u.id]));
@@ -570,10 +645,11 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
       const resultado = await estoqueApi.publicarMl(item.id, payload);
       if (!resultado.success) throw new Error(resultado.error);
 
-      // Best-effort: memoriza a categoria escolhida pra pré-preencher a
-      // próxima peça desta mesma categoria interna. Nunca bloqueia o fluxo
-      // principal se falhar.
-      if (item.categoria_id) {
+      // Só memoriza a categoria como padrão da categoria interna se o
+      // usuário ativou o toggle "Padronizar categoria" explicitamente —
+      // deixou de ser automático-e-silencioso (Fase 4). Best-effort: nunca
+      // bloqueia o fluxo principal se falhar.
+      if (item.categoria_id && padronizarCategoria) {
         categoriasApi.memorizarCategoriaMlPadrao(item.categoria_id, categoriaSelecionada.id).catch(() => {});
       }
 
@@ -638,7 +714,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
                     <button
                       key={s.id}
                       type="button"
-                      onClick={() => setCategoriaSelecionada(s)}
+                      onClick={() => escolherCategoria(s)}
                       className={cn(
                         'w-full text-left flex items-center gap-2 rounded-control border px-3.5 py-2.5 transition-colors',
                         ativa ? 'border-accent bg-accent-soft-bg' : 'border-border-default hover:bg-surface-raised'
@@ -702,6 +778,18 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
             ) : (
               <p className="text-xs text-text-faint">Nenhuma subcategoria encontrada.</p>
             )}
+          </div>
+        )}
+
+        {categoriaSelecionada && item.categoria_id && (
+          <div className="flex items-center justify-between gap-3 rounded-control border border-border-default px-3.5 py-3">
+            <div className="min-w-0">
+              <p className="text-sm text-text-primary">Padronizar esta categoria do Mercado Livre</p>
+              <p className="text-[11px] text-text-faint mt-0.5 truncate">
+                Próximas peças de "{item.categoria?.nome ?? 'mesma categoria'}" já vêm com {categoriaSelecionada.nome} pré-selecionada.
+              </p>
+            </div>
+            <Switch checked={padronizarCategoria} onCheckedChange={setPadronizarCategoria} />
           </div>
         )}
       </ModalSection>

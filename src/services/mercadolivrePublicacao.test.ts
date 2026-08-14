@@ -26,6 +26,7 @@ import {
 } from './mercadolivreApi.js';
 import {
   listarFilhosCategoria,
+  buscarDetalheCategoria,
   buscarTiposAnuncioDisponiveis,
   buscarProdutosCatalogo,
   montarPayloadPublicacao,
@@ -85,6 +86,48 @@ describe('listarFilhosCategoria', () => {
     const filhos = await listarFilhosCategoria('token-fake', 'MLB438756');
 
     expect(filhos).toEqual([]);
+  });
+});
+
+describe('buscarDetalheCategoria', () => {
+  // Fase 4 (padronizar categoria): quando categorias.mercadolivre_categoria_id_padrao
+  // já está salvo, o modal precisa pré-selecionar essa categoria — mas o
+  // padrão só guarda o id, não nome/caminho pra exibir. Espelha o mesmo
+  // shape de CategoriaMlSugerida (id/nome/caminho) usado pelo preditor e pela
+  // navegação em árvore, pra reaproveitar o resto do formulário sem mudança.
+  it('busca a categoria pelo id e monta {id, nome, caminho} a partir de path_from_root', async () => {
+    vi.mocked(buscarCategoriaML).mockResolvedValue({
+      id: 'MLB438756',
+      name: 'Lanternas',
+      path_from_root: [
+        { id: 'MLB438724', name: 'Peças de Motos e Quadriciclos' },
+        { id: 'MLB438729', name: 'Iluminação' },
+      ],
+      children_categories: [],
+    });
+
+    const detalhe = await buscarDetalheCategoria('token-fake', 'MLB438756');
+
+    expect(buscarCategoriaML).toHaveBeenCalledWith('token-fake', 'MLB438756');
+    expect(detalhe).toEqual({
+      id: 'MLB438756',
+      nome: 'Lanternas',
+      caminho: 'Peças de Motos e Quadriciclos > Iluminação',
+      atributosSugeridos: [],
+    });
+  });
+
+  it('path_from_root vazio vira caminho null (mesmo padrão de CategoriaMlSugerida sem domínio)', async () => {
+    vi.mocked(buscarCategoriaML).mockResolvedValue({
+      id: 'MLB438756',
+      name: 'Lanternas',
+      path_from_root: [],
+      children_categories: [],
+    });
+
+    const detalhe = await buscarDetalheCategoria('token-fake', 'MLB438756');
+
+    expect(detalhe.caminho).toBeNull();
   });
 });
 
@@ -259,6 +302,40 @@ describe('montarPayloadPublicacao', () => {
     const resultado = montarPayloadPublicacao(item, [], config, 30);
 
     expect(resultado.payload.title).toBe(item.nome.slice(0, 60));
+  });
+
+  // Bug relatado pelo usuário: título publicado saindo com "Posição" e "Cor
+  // da lente" coladas no fim (ex: "Lanterna Biz C100 Direito/passageiro
+  // Vermelho"). Investigação (systematic-debugging) traçou o payload inteiro
+  // — title nunca é montado a partir de atributos, só de
+  // config.tituloAnuncio || item.nome — e o próprio usuário confirmou que
+  // digitou só o nome curto no campo. Root cause é do lado do Mercado Livre:
+  // para itens catalog_listing:true, a página do anúncio exibe o título do
+  // PRODUTO DE CATÁLOGO (que a API monta a partir dos atributos que definem
+  // variação, como posição/cor), não o `title` que enviamos — não corrigível
+  // client-side. Este teste trava o único comportamento que está sob nosso
+  // controle: o payload que nós montamos nunca deve concatenar atributos no
+  // título, mesmo quando a categoria tem atributos de Posição/Cor da lente
+  // preenchidos (ids reais de MLB46593 "Carenagem", peça de moto).
+  it('nunca concatena valores de atributos (ex: Posição, Cor da lente) no title, mesmo quando preenchidos', () => {
+    const tituloAnuncio = 'Lanterna Traseira Honda Biz C100 E Pop 100';
+    const config = {
+      categoriaMlId: 'MLB46593',
+      condicaoMl: 'used' as const,
+      listingTypeId: 'gold_special',
+      atributos: [
+        { id: 'VEHICLE_PARTS_POSITION', value_id: '2464583', value_name: 'Direito/Passageiro' },
+        { id: 'LENS_COLOR', value_id: '52049', value_name: 'Vermelho' },
+      ],
+      fotos: ['capa.jpg'],
+      tituloAnuncio,
+    };
+
+    const resultado = montarPayloadPublicacao(item, [], config, 30);
+
+    expect(resultado.payload.title).toBe(tituloAnuncio);
+    expect(resultado.payload.title).not.toContain('Direito');
+    expect(resultado.payload.title).not.toContain('Vermelho');
   });
 });
 

@@ -18,6 +18,28 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.14',
+    data: '2026-08-14',
+    titulo: 'Corrige fotos/título presos na peça anterior e agiliza publicação no Mercado Livre',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Publicar a peça A, fechar o formulário e publicar a peça B em seguida podia sair com as fotos, título, descrição e categoria da peça A — o formulário não limpava esses campos ao trocar de peça sem fechar o app. Corrigido: agora reseta tudo automaticamente a cada peça diferente.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Marca, Número de peça e Tipo de veículo agora vêm pré-preenchidos automaticamente a partir da moto vinculada à peça no cadastro, quando a categoria escolhida no Mercado Livre tem esses campos — continuam editáveis manualmente.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Novo toggle "Padronizar esta categoria do Mercado Livre": ao ativar depois de escolher a categoria de uma peça, as próximas peças da mesma categoria interna (ex: "Carcaças") já abrem com essa categoria do Mercado Livre pré-selecionada, sem precisar buscar de novo.',
+      },
+    ],
+  },
+  {
     versao: '1.2.13',
     data: '2026-08-14',
     titulo: 'Remoção de fundo mais rápida e sem travar, avisos de foto e menu "Mais" mais fluido no celular',

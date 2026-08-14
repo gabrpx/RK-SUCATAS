@@ -115,6 +115,10 @@ export const mercadolivreApi = {
   buscarSubcategorias: (categoriaId?: string) =>
     api.get(`/api/mercadolivre/categorias/filhos${categoriaId ? `?categoria_id=${encodeURIComponent(categoriaId)}` : ''}`) as Promise<ApiResult<CategoriaMlNo[]>>,
   buscarAtributosCategoria: (categoriaId: string) => api.get(`/api/mercadolivre/categorias/${categoriaId}/atributos`) as Promise<ApiResult<AtributoMl[]>>,
+  // Padronizar categoria (Fase 4) — resolve nome/caminho de uma categoria já
+  // conhecida (categorias.mercadolivre_categoria_id_padrao) pra pré-selecionar
+  // no formulário sem precisar buscar por título nem navegar em árvore de novo.
+  buscarDetalheCategoria: (categoriaId: string) => api.get(`/api/mercadolivre/categorias/${categoriaId}`) as Promise<ApiResult<CategoriaMlSugerida>>,
   buscarProdutosCatalogo: (titulo: string) =>
     api.get(`/api/mercadolivre/produtos-catalogo?titulo=${encodeURIComponent(titulo)}`) as Promise<ApiResult<ProdutoCatalogoMl[]>>,
   buscarTiposAnuncio: (preco: number) => api.get(`/api/mercadolivre/tipos-anuncio?preco=${preco}`) as Promise<ApiResult<TipoAnuncioMl[]>>,

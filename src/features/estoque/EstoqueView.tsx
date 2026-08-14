@@ -1642,6 +1642,7 @@ export function EstoqueView({
           aberto={publicarMlAberto}
           onFechar={() => setPublicarMlAberto(false)}
           item={editingItem}
+          modelos={modelos}
           onPublicado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_ml: links } : prev))}
         />
       )}

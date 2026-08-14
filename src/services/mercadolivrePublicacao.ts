@@ -77,6 +77,21 @@ export async function listarFilhosCategoria(token: string, categoriaId?: string)
   return (categoria.children_categories ?? []).map((c) => ({ id: c.id, nome: c.name }));
 }
 
+// Padronizar categoria (Fase 4): categorias.mercadolivre_categoria_id_padrao
+// só guarda o id — pra pré-selecionar essa categoria ao abrir o modal (em
+// vez de rebuscar por nome/navegar de novo), o formulário precisa também de
+// nome/caminho pra exibir. Mesmo shape de CategoriaMlSugerida usado pelo
+// preditor, pra reaproveitar o resto do formulário sem mudança nenhuma.
+export async function buscarDetalheCategoria(token: string, categoriaId: string): Promise<CategoriaMlSugerida> {
+  const categoria = await buscarCategoriaML(token, categoriaId);
+  return {
+    id: categoria.id,
+    nome: categoria.name,
+    caminho: categoria.path_from_root.length > 0 ? categoria.path_from_root.map((c) => c.name).join(' > ') : null,
+    atributosSugeridos: [],
+  };
+}
+
 const CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 // Categoria e atributos mudam raramente — olha mercadolivre_categorias_cache

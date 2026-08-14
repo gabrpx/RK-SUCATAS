@@ -21,7 +21,14 @@ import {
   contarPendencias,
   type ImportarPedidoParams,
 } from '../../services/mercadolivreSync.js';
-import { sugerirCategoria, buscarAtributosCategoriaComCache, buscarTiposAnuncioDisponiveis, listarFilhosCategoria, buscarProdutosCatalogo } from '../../services/mercadolivrePublicacao.js';
+import {
+  sugerirCategoria,
+  buscarDetalheCategoria,
+  buscarAtributosCategoriaComCache,
+  buscarTiposAnuncioDisponiveis,
+  listarFilhosCategoria,
+  buscarProdutosCatalogo,
+} from '../../services/mercadolivrePublicacao.js';
 
 const ML_AUTH_URL = 'https://auth.mercadolivre.com.br/authorization';
 const ML_API_URL = 'https://api.mercadolibre.com';
@@ -371,6 +378,23 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
       res.json({ success: true, data: filhos });
     } catch (error: any) {
       console.error('Erro ao listar subcategorias do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
+    }
+  });
+
+  // Padronizar categoria (Fase 4): categorias.mercadolivre_categoria_id_padrao
+  // só guarda o id — esta rota resolve nome/caminho pra pré-selecionar a
+  // categoria no formulário sem precisar rebuscar por título nem navegar de
+  // novo em árvore.
+  router.get('/categorias/:id', async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const detalhe = await buscarDetalheCategoria(conexao.accessToken, req.params.id);
+      res.json({ success: true, data: detalhe });
+    } catch (error: any) {
+      console.error('Erro ao buscar detalhe de categoria do Mercado Livre:', error.response?.data || error.message);
       res.status(500).json({ success: false, error: mensagemErro(error) });
     }
   });
