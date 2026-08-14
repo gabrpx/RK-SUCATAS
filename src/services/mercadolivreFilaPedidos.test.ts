@@ -22,7 +22,7 @@ import { processarPedidosPendentes } from './mercadolivreSync.js';
 // Fila em memória: cada teste declara as linhas pendentes e inspeciona o que
 // o consumidor escreveu de volta.
 function criarSupabaseFake(opts: {
-  pendentes: { id: string; topic: string; resource: string; tentativas: number }[];
+  pendentes: { id: string; topic: string; resource: string; tentativas: number; recebido_em?: string }[];
   estoquePorMlb?: Record<string, { id: string; nome: string }>;
   formaPagamentoId?: string | null;
   registrarVenda?: (params: any) => { data: any; error: any };
@@ -140,6 +140,39 @@ describe('processarPedidosPendentes', () => {
     expect(resultado.ignorados).toBe(1);
     expect(supabase.vendasRegistradas).toHaveLength(0);
     expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
+  });
+
+  it('pedido ainda não pago (pix/boleto pendente) fica na fila em vez de queimar a linha', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue({ ...pedidoPago, status: 'payment_required' } as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0, recebido_em: new Date().toISOString() }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+    });
+
+    const resultado = await processarPedidosPendentes(supabase);
+
+    expect(resultado.importados).toBe(0);
+    expect(resultado.aguardandoPagamento).toBe(1);
+    expect(supabase.vendasRegistradas).toHaveLength(0);
+    // A linha NÃO pode ser tocada: o pagamento pode ser aprovado depois e o
+    // upsert de webhook/polling é ON CONFLICT DO NOTHING (não reabre a linha).
+    expect(supabase.atualizacoes).toHaveLength(0);
+  });
+
+  it('pedido pendente de pagamento há mais de 7 dias desiste, com erro explicando', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue({ ...pedidoPago, status: 'payment_in_process' } as any);
+    const oitoDiasAtras = new Date(Date.now() - 8 * 24 * 60 * 60 * 1000).toISOString();
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0, recebido_em: oitoDiasAtras }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+    });
+
+    const resultado = await processarPedidosPendentes(supabase);
+
+    expect(supabase.vendasRegistradas).toHaveLength(0);
+    expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
+    expect(supabase.atualizacoes[0].erro).toMatch(/nunca foi pago/i);
+    expect(resultado.ignorados).toBe(1);
   });
 
   it('pedido sem peça correspondente não inventa venda — reporta pra avisar o usuário', async () => {

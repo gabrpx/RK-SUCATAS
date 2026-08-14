@@ -66,8 +66,24 @@ pelo scheduler que já existe) faz, a cada ciclo:
 2. Pra cada linha, extrai o id do pedido do `resource` (`/orders/{id}`) e busca
    o pedido na API. **Isso exige uma função nova** em `mercadolivreApi.ts`:
    `buscarPedido(token, orderId)` — hoje só existe busca por lista.
-3. Ignora (marcando processado) o que não é venda a registrar: pedido que não
-   está `paid`, ou cujo vendedor não é a conta conectada.
+3. Decide o que fazer com o pedido que não está `paid`, distinguindo status
+   **terminal** de **transitório** — a distinção é obrigatória, não detalhe:
+   - `cancelled`/`invalid` (e pedido apagado, que a API devolve como 404):
+     nunca mais mudam, então marca processado e descarta.
+   - `payment_required`/`payment_in_process`/`confirmed`: o pagamento ainda
+     pode ser aprovado (pix atrasado, boleto, análise de fraude). A linha
+     **não** é marcada processada — fica pendente pro próximo ciclo. Marcar
+     processado aqui perderia a venda em silêncio: o webhook enfileira a
+     notificação do pedido recém-criado, e a segunda notificação do MESMO
+     `resource` (quando o pagamento aprova) cai no `upsert(..., {
+     ignoreDuplicates: true })`, que é `ON CONFLICT DO NOTHING` e **não**
+     reabre a linha existente.
+   - Teto de 7 dias contados do `recebido_em` pra esse reprocessamento, senão
+     checkout abandonado vira linha eterna consumindo uma chamada de API por
+     ciclo. Estourou o teto: marca processado com `erro` dizendo que o pedido
+     nunca foi pago.
+
+   Pedido cujo vendedor não é a conta conectada também é descartado.
 4. Pra cada linha do pedido, resolve a peça pelo mapa `mlbId → estoque` que já
    existe (`construirMapaEstoquePorMlb`) e chama `importarPedidoComoVenda`,
    que já é idempotente por `(ml_order_id, ml_item_id)`.
@@ -151,7 +167,9 @@ API do ML fingidos:
 - Pedido pago casando com peça → uma venda, canal `mercado_livre`, forma
   `MERCADO LIVRE`, linha marcada processada.
 - Mesmo pedido processado duas vezes → uma venda só (idempotência).
-- Pedido não pago → marcado processado, nenhuma venda.
+- Pedido cancelado → marcado processado, nenhuma venda.
+- Pedido pendente de pagamento → linha intocada, nenhuma venda; passados 7 dias
+  do `recebido_em`, marcado processado com o erro explicando.
 - Pedido sem match → nenhuma venda, notificação disparada, linha processada.
 - Pedido de variação → venda com `unidade_id` correto.
 - Falha da API → linha não marcada, `tentativas` incrementado; na 5ª, processada

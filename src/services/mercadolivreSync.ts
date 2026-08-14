@@ -741,11 +741,29 @@ export async function verificarNotificacoesPendentes(supabase: SupabaseClient): 
 const MAX_TENTATIVAS_PEDIDO = 5;
 const PEDIDOS_POR_CICLO = 20;
 
+// Status do pedido no ML que NÃO vão mudar mais: podem ser descartados da fila
+// na primeira visita. Qualquer outro status diferente de 'paid' é TRANSITÓRIO
+// (pix atrasado, boleto, análise de fraude) e o pedido ainda pode ser pago.
+//
+// Isto é crítico: o webhook enfileira a notificação do pedido recém-criado,
+// que quase sempre chega antes do pagamento aprovar. Marcar processado aí
+// perderia a venda pra sempre, porque a segunda notificação do MESMO resource
+// bate no upsert `ignoreDuplicates` (ON CONFLICT DO NOTHING) e não reabre a
+// linha existente.
+const STATUS_TERMINAIS_PEDIDO = ['cancelled', 'invalid'];
+// Teto pro pedido transitório não virar linha eterna (checkout abandonado):
+// depois disso a fila desiste e grava o motivo.
+const DIAS_ESPERA_PAGAMENTO = 7;
+
 export interface ResultadoFilaPedidos {
   importados: number;
   itensImportados: { estoqueNome: string; mlOrderId: string }[];
-  semMatch: { mlOrderId: string; titulo: string }[];
+  // `motivo` sobrescreve o texto padrão do push quando o caso precisa de
+  // explicação própria (ex.: duas unidades do mesmo anúncio no mesmo pedido).
+  semMatch: { mlOrderId: string; titulo: string; motivo?: string }[];
   ignorados: number;
+  // Pedido ainda não pago que continua na fila — não é falha nem ignorado.
+  aguardandoPagamento: number;
   falhas: number;
 }
 
@@ -789,14 +807,14 @@ async function resolverUnidadesPorVariacao(supabase: SupabaseClient, variationId
 }
 
 export async function processarPedidosPendentes(supabase: SupabaseClient): Promise<ResultadoFilaPedidos> {
-  const resultado: ResultadoFilaPedidos = { importados: 0, itensImportados: [], semMatch: [], ignorados: 0, falhas: 0 };
+  const resultado: ResultadoFilaPedidos = { importados: 0, itensImportados: [], semMatch: [], ignorados: 0, aguardandoPagamento: 0, falhas: 0 };
 
   const conexao = await obterConexaoAtual(supabase);
   if (!conexao) return resultado;
 
   const { data: pendentes, error: erroFila } = await supabase
     .from('mercadolivre_notificacoes')
-    .select('id, topic, resource, tentativas')
+    .select('id, topic, resource, tentativas, recebido_em')
     .eq('topic', 'orders_v2')
     .is('processado_em', null)
     .order('recebido_em', { ascending: true })
@@ -831,10 +849,29 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
       }
 
       const pedido = await buscarPedido(conexao.accessToken, orderId);
-      if (!pedido || pedido.status !== 'paid') {
+      // Pedido apagado/inacessível (404 → null) não volta mais: descarta.
+      if (!pedido) {
         resultado.ignorados++;
         await marcarProcessado(supabase, linha.id, null);
         continue;
+      }
+      if (pedido.status !== 'paid') {
+        // Terminal → descarta. Transitório → deixa pendente pro próximo ciclo,
+        // até o teto de DIAS_ESPERA_PAGAMENTO (senão checkout abandonado vira
+        // linha eterna consumindo uma chamada de API a cada 5 minutos).
+        if (STATUS_TERMINAIS_PEDIDO.includes(pedido.status)) {
+          resultado.ignorados++;
+          await marcarProcessado(supabase, linha.id, null);
+          continue;
+        }
+        const esperandoDesde = linha.recebido_em ? new Date(linha.recebido_em).getTime() : Date.now();
+        if (Date.now() - esperandoDesde > DIAS_ESPERA_PAGAMENTO * 24 * 60 * 60 * 1000) {
+          resultado.ignorados++;
+          await marcarProcessado(supabase, linha.id, `Pedido nunca foi pago em ${DIAS_ESPERA_PAGAMENTO} dias (status "${pedido.status}") — descartado da fila.`);
+          continue;
+        }
+        resultado.aguardandoPagamento++;
+        continue; // sem escrita nenhuma: a linha segue pendente
       }
 
       const variationIds = (pedido.order_items ?? [])
