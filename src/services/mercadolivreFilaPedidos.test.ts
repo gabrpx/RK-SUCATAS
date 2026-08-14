@@ -191,6 +191,33 @@ describe('processarPedidosPendentes', () => {
     expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
   });
 
+  it('duas unidades do mesmo anúncio no mesmo pedido: importa a primeira e avisa sobre a segunda', async () => {
+    // No ML order_items é por variação: duas fichas do mesmo MLB viram duas
+    // entradas com item.id idêntico. A dedupe é (ml_order_id, ml_item_id), sem
+    // variação, então a segunda seria descartada em silêncio.
+    vi.mocked(buscarPedido).mockResolvedValue({
+      ...pedidoPago,
+      order_items: [
+        { item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900123 }, quantity: 1, unit_price: 120 },
+        { item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900456 }, quantity: 1, unit_price: 120 },
+      ],
+    } as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+      variacoes: { '900123': 'unidade-7', '900456': 'unidade-8' },
+    });
+
+    const resultado = await processarPedidosPendentes(supabase);
+
+    expect(resultado.importados).toBe(1);
+    expect(supabase.vendasRegistradas).toHaveLength(1);
+    expect(resultado.semMatch).toHaveLength(1);
+    expect(resultado.semMatch[0].motivo).toMatch(/2 unidades do mesmo anúncio/i);
+    const corpos = vi.mocked(notificarUsuarios).mock.calls.map((c) => c[2].corpo);
+    expect(corpos.some((c) => /mesmo anúncio/i.test(c))).toBe(true);
+  });
+
   it('falha do update pós-venda NÃO é retentada — retry duplicaria a venda e a baixa de estoque', async () => {
     vi.mocked(buscarPedido).mockResolvedValue(pedidoPago as any);
     const supabase = criarSupabaseFake({

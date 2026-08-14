@@ -888,7 +888,27 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
         .filter((id: string | null): id is string => !!id);
       const unidadesPorVariacao = await resolverUnidadesPorVariacao(supabase, variationIds);
 
+      // No ML `order_items` é por VARIAÇÃO: duas fichas do mesmo anúncio no
+      // mesmo pedido chegam como duas entradas com `item.id` idêntico. A
+      // dedupe da venda é (ml_order_id, ml_item_id), sem variação, então a
+      // segunda seria descartada em silêncio — peça vendida no ML e ainda
+      // contada no estoque. Enquanto o índice não incluir a variação, a
+      // primeira entra normal e as repetidas viram aviso pra registrar na mão.
+      const vezesPorItemId = new Map<string, number>();
+      for (const i of pedido.order_items ?? []) vezesPorItemId.set(i.item.id, (vezesPorItemId.get(i.item.id) ?? 0) + 1);
+      const jaVistosNoPedido = new Set<string>();
+
       for (const itemPedido of pedido.order_items ?? []) {
+        if (jaVistosNoPedido.has(itemPedido.item.id)) {
+          resultado.semMatch.push({
+            mlOrderId: orderId,
+            titulo: itemPedido.item.title,
+            motivo: `Pedido ${orderId} tem ${vezesPorItemId.get(itemPedido.item.id)} unidades do mesmo anúncio ("${itemPedido.item.title}") — só a primeira foi registrada, registre as outras na mão.`,
+          });
+          continue;
+        }
+        jaVistosNoPedido.add(itemPedido.item.id);
+
         const peca = mapaEstoque.get(itemPedido.item.id);
         if (!peca) {
           resultado.semMatch.push({ mlOrderId: orderId, titulo: itemPedido.item.title });
@@ -963,10 +983,13 @@ async function avisarResultadoDaFila(supabase: SupabaseClient, resultado: Result
     }
 
     if (resultado.semMatch.length > 0) {
+      // Caso único ganha o texto específico (`motivo` quando existe, senão o
+      // "não casou" padrão); em lote, o push agrega e a lista fica na aba.
       const corpo =
         resultado.semMatch.length === 1
-          ? `"${resultado.semMatch[0].titulo}" (pedido ${resultado.semMatch[0].mlOrderId}) não casou com nenhuma peça do estoque — registre a venda na mão.`
-          : `${resultado.semMatch.length} itens vendidos não casaram com peça do estoque — registre as vendas na mão.`;
+          ? resultado.semMatch[0].motivo ??
+            `"${resultado.semMatch[0].titulo}" (pedido ${resultado.semMatch[0].mlOrderId}) não casou com nenhuma peça do estoque — registre a venda na mão.`
+          : `${resultado.semMatch.length} itens vendidos precisam ser registrados na mão — confira a lista na aba do Mercado Livre.`;
       await notificarUsuarios(supabase, destinatarios, { titulo: 'Pedido do ML precisa de você', corpo, url: '/mercadolivre' });
     }
   } catch (err: any) {
