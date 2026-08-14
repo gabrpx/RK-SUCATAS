@@ -424,7 +424,16 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
     .from('vendas')
     .update({ canal: 'mercado_livre', ml_order_id: params.mlOrderId, ml_item_id: params.mlItemId, ml_shipping_id: params.mlShippingId })
     .eq('id', venda.id);
-  if (erroUpdate) throw erroUpdate;
+  // DELIBERADO: este erro NÃO passa por ehErroDeMigrationAusente e sobe cru —
+  // sem ml_order_id gravado a venda fica invisível pra dedupe, e engolir isso
+  // transformaria o buraco em silêncio.
+  //
+  // Também deliberado: `naoRetentar`. A RPC já rodou e o estoque já foi
+  // decrementado; como o índice único não protege (NULL não colide no
+  // Postgres), retentar registraria uma SEGUNDA venda com SEGUNDA baixa. Quem
+  // consome a fila marca a linha processada com este erro preservado — trocar
+  // "duplicar venda" por "um humano precisa olhar" é a política do módulo.
+  if (erroUpdate) throw Object.assign(new Error(erroUpdate.message ?? String(erroUpdate)), { naoRetentar: true, causa: erroUpdate });
 
   return venda;
 }
@@ -918,7 +927,11 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
       resultado.falhas++;
       const tentativas = (linha.tentativas ?? 0) + 1;
       const mensagem = err?.response?.data?.message || err?.message || 'erro desconhecido';
-      if (tentativas >= MAX_TENTATIVAS_PEDIDO) {
+      // Erro marcado como não-retentável (ver importarPedidoComoVenda): repetir
+      // duplicaria venda e baixa de estoque. Encerra a linha com o erro à vista.
+      if (err?.naoRetentar) {
+        await marcarProcessado(supabase, linha.id, mensagem, tentativas);
+      } else if (tentativas >= MAX_TENTATIVAS_PEDIDO) {
         await marcarProcessado(supabase, linha.id, mensagem, tentativas);
       } else {
         await supabase.from('mercadolivre_notificacoes').update({ tentativas, erro: mensagem }).eq('id', linha.id);

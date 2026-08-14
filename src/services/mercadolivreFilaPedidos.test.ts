@@ -26,6 +26,7 @@ function criarSupabaseFake(opts: {
   estoquePorMlb?: Record<string, { id: string; nome: string }>;
   formaPagamentoId?: string | null;
   registrarVenda?: (params: any) => { data: any; error: any };
+  erroUpdateVenda?: any; // falha do update pós-RPC (canal/ml_order_id)
   variacoes?: Record<string, string>; // ml_variation_id -> unidade_id
 }) {
   const atualizacoes: Record<string, any>[] = [];
@@ -69,7 +70,7 @@ function criarSupabaseFake(opts: {
       if (tabela === 'vendas') {
         return {
           select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }),
-          update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+          update: () => ({ eq: () => Promise.resolve({ error: opts.erroUpdateVenda ?? null }) }),
         };
       }
       if (tabela === 'usuarios') {
@@ -188,6 +189,24 @@ describe('processarPedidosPendentes', () => {
     expect(resultado.semMatch).toEqual([{ mlOrderId: '555', titulo: 'Lanterna Traseira' }]);
     expect(supabase.vendasRegistradas).toHaveLength(0);
     expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
+  });
+
+  it('falha do update pós-venda NÃO é retentada — retry duplicaria a venda e a baixa de estoque', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue(pedidoPago as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+      erroUpdateVenda: { message: 'conexão caiu no meio' },
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    // A RPC já rodou: o estoque foi decrementado. Se a linha voltasse pra fila,
+    // o pré-check não acharia nada (ml_order_id ficou NULL) e a venda sairia de
+    // novo. Melhor uma linha marcada com erro pra um humano olhar.
+    expect(supabase.vendasRegistradas).toHaveLength(1);
+    expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
+    expect(supabase.atualizacoes[0].erro).toContain('conexão caiu no meio');
   });
 
   it('falha temporária não marca processado — incrementa tentativas pro próximo ciclo', async () => {
