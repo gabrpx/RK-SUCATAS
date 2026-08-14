@@ -8,7 +8,7 @@
 //
 // 100% client-side (@imgly/background-removal, WASM — ver
 // src/utils/removerFundoImagem.ts pro porquê de não haver rota no backend).
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import { aviso } from '../../components/ui/toast';
 import { comprimirImagem } from '../../utils/comprimirImagem';
 import { removerFundoImagem } from '../../utils/removerFundoImagem';
@@ -157,26 +157,29 @@ export function useRemocaoFundoFotos(): RemocaoFundoFotos {
     jaDisparadas.current = new Set();
   }, []);
 
-  // Memoizado: o objeto devolvido vira prop (`remocaoFundo`) do modal, que
-  // por sua vez o usa como dependência de um efeito de reset por item.id
-  // (ver EstoquePublicarMlModal.tsx). Sem estabilidade de referência aqui,
-  // qualquer re-render de EstoqueView por motivo não relacionado (ex: digitar
-  // em outro campo do formulário) trocaria a identidade do objeto e disparia
-  // o reset, apagando prévias em andamento que o usuário ainda não aprovou.
-  return useMemo(
-    () => ({
-      processandoUrls,
-      previews,
-      fotosProcessadas,
-      aprovandoUrl,
-      podeIniciarMais: processandoUrls.size < MAX_REMOCOES_SIMULTANEAS,
-      iniciar,
-      iniciarTodas,
-      tentarNovaFoto,
-      aprovar,
-      descartar,
-      limparTudo,
-    }),
-    [processandoUrls, previews, fotosProcessadas, aprovandoUrl, iniciar, iniciarTodas, tentarNovaFoto, aprovar, descartar, limparTudo]
-  );
+  // Devolve um objeto NOVO a cada render, de propósito — não envolver em
+  // useMemo. Cada `set*` acima (mesmo os de limparTudo, que "zera" com
+  // `[]`/`{}`/`new Set()`) cria uma instância nova mesmo partindo de um
+  // valor logicamente vazio, então memoizar o retorno sobre esses estados
+  // nunca alcança um ponto fixo — um consumidor que colocasse este objeto
+  // (mesmo memoizado) no array de dependências de um efeito que chama
+  // limparTudo() entraria em loop infinito (limparTudo → estado novo →
+  // objeto memoizado novo → efeito dispara de novo → limparTudo de novo).
+  // Por isso: quem consome este hook nunca deve colocar o objeto retornado
+  // no array de dependências de um efeito que o hook mesmo alimenta — só
+  // ler os campos/funções fora de deps reativas, ou depender de valores
+  // primitivos específicos (ex: `item.id`), nunca do objeto inteiro.
+  return {
+    processandoUrls,
+    previews,
+    fotosProcessadas,
+    aprovandoUrl,
+    podeIniciarMais: processandoUrls.size < MAX_REMOCOES_SIMULTANEAS,
+    iniciar,
+    iniciarTodas,
+    tentarNovaFoto,
+    aprovar,
+    descartar,
+    limparTudo,
+  };
 }

@@ -245,7 +245,13 @@ export function EstoqueView({
       modelo_moto_compativel_ids: (item.modelos_compativeis ?? []).map((m) => m.id),
     });
     setIsModalOpen(true);
-  }, [remocaoFundo]);
+    // remocaoFundo fora das deps de propósito: o objeto muda de identidade a
+    // cada render (nunca é memoizado — ver useRemocaoFundoFotos.ts), então
+    // incluí-lo aqui só quebraria a estabilidade do useCallback sem
+    // necessidade; a função limparTudo em si é estável (useCallback interno
+    // do hook), então chamá-la via closure é seguro mesmo sem declarar dep.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Clique no badge "ML" da tabela: com 1 link só, vai direto pro anúncio;
   // com 2+, não dá pra escolher sozinho qual abrir — leva pra edição, onde

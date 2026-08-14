@@ -479,8 +479,14 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
     remocaoFundo.limparTudo();
     setSubstituindoFotosEstoque(false);
     setRetryAlvoUrl(null);
+    // remocaoFundo de propósito FORA do array de deps: o objeto que o hook
+    // devolve muda de identidade a cada chamada de limparTudo() (ver
+    // comentário no fim de useRemocaoFundoFotos.ts) — colocá-lo aqui faria
+    // este efeito disparar de novo a cada limparTudo(), num loop infinito.
+    // Só item.id deve gatilhar o reset; a função limparTudo em si é estável
+    // (useCallback), então chamá-la via closure sem declarar como dep é seguro.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item.id, remocaoFundo]);
+  }, [item.id]);
 
   // Padronizar categoria (Fase 4): quando esta categoria interna já tem uma
   // categoria do Mercado Livre memorizada (toggle ativado numa peça
