@@ -8,7 +8,15 @@ vi.mock('./mercadolivreApi.js', () => ({
 }));
 
 import { buscarCategoriasRaizML, buscarCategoriaML, buscarTiposAnuncioML, buscarProdutosCatalogoML } from './mercadolivreApi.js';
-import { listarFilhosCategoria, buscarTiposAnuncioDisponiveis, buscarProdutosCatalogo, montarPayloadPublicacao } from './mercadolivrePublicacao.js';
+import {
+  listarFilhosCategoria,
+  buscarTiposAnuncioDisponiveis,
+  buscarProdutosCatalogo,
+  montarPayloadPublicacao,
+  montarPayloadComFamilyName,
+  extrairMensagemErroMl,
+  pareceErroFamilyNameAusente,
+} from './mercadolivrePublicacao.js';
 
 describe('listarFilhosCategoria', () => {
   it('sem categoriaId, busca as categorias raiz do site MLB e mapeia pra {id, nome}', async () => {
@@ -171,5 +179,152 @@ describe('montarPayloadPublicacao', () => {
     expect(resultado.payload.catalog_product_id).toBeUndefined();
     expect(resultado.payload.catalog_listing).toBeUndefined();
     expect(resultado.payload.variations).toHaveLength(2);
+  });
+
+  // Categorias de autopeças (ex: MLB240692 "Volante do Magneto", checado ao
+  // vivo em GET /categories/MLB240692 — settings.shipping_options: ["custom"])
+  // não aceitam o modo "me2" (Mercado Envios Fulfillment, requer contrato à
+  // parte que a loja não tem — o frete real é calculado à parte via Melhor
+  // Envio, ver src/features/frete). Mandar "me2" faz o Mercado Livre recusar
+  // a criação do item inteiro com "body.required_fields". "not_specified" é
+  // aceito por qualquer conta/categoria (ML mostra "a combinar" no anúncio),
+  // e é o que já reflete o fluxo real: o frete é combinado/calculado fora do
+  // anúncio, na venda.
+  it('shipping sai como not_specified — "me2" não é aceito nas categorias de autopeças e exige contrato que a loja não tem', () => {
+    const config = {
+      categoriaMlId: 'MLB240692',
+      condicaoMl: 'used' as const,
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: ['capa.jpg'],
+    };
+
+    const resultado = montarPayloadPublicacao(item, [], config, 30);
+
+    expect(resultado.payload.shipping).toEqual({ mode: 'not_specified' });
+  });
+
+  // Título do anúncio é editável pelo usuário no modal (não é mais sempre
+  // item.nome) — o nome interno do estoque é otimizado pra busca no
+  // catálogo, não pra converter comprador no Mercado Livre.
+  it('com tituloAnuncio informado, usa ele (truncado em 60) no lugar do nome da peça', () => {
+    const tituloAnuncio = 'Carenagem do lado esquerdo Honda CB 300R 2015 até 2020 original';
+    const config = {
+      categoriaMlId: 'MLB240692',
+      condicaoMl: 'used' as const,
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: ['capa.jpg'],
+      tituloAnuncio,
+    };
+
+    const resultado = montarPayloadPublicacao(item, [], config, 30);
+
+    expect(resultado.payload.title).toBe(tituloAnuncio.slice(0, 60));
+    expect(resultado.payload.title).toHaveLength(60);
+  });
+
+  // Defesa em profundidade: montarPayloadPublicacao é reaproveitada dentro do
+  // próprio publicarAnuncio (fallback de itens separados por ficha) e também
+  // é chamada direto em teste — sem tituloAnuncio, mantém o comportamento de
+  // antes (nome da peça) em vez de gerar um anúncio sem título.
+  it('sem tituloAnuncio, cai no fallback do nome da peça (mesmo comportamento de antes)', () => {
+    const config = {
+      categoriaMlId: 'MLB240692',
+      condicaoMl: 'used' as const,
+      listingTypeId: 'gold_special',
+      atributos: [],
+      fotos: ['capa.jpg'],
+    };
+
+    const resultado = montarPayloadPublicacao(item, [], config, 30);
+
+    expect(resultado.payload.title).toBe(item.nome.slice(0, 60));
+  });
+});
+
+describe('extrairMensagemErroMl', () => {
+  it('prioriza as mensagens de cause[] (detalhe real) sobre o message genérico do topo', () => {
+    const data = {
+      message: 'body.required_fields',
+      error: 'bad_request',
+      status: 400,
+      cause: [{ code: 'item.attribute.missing_required', message: 'Falta o atributo BRAND' }],
+    };
+
+    expect(extrairMensagemErroMl(data)).toBe('Falta o atributo BRAND');
+  });
+
+  it('junta várias causas com "; " quando cause[] tem mais de um item', () => {
+    const data = {
+      message: 'body.required_fields',
+      cause: [
+        { code: 'a', message: 'Falta o atributo BRAND' },
+        { code: 'b', message: 'Preço abaixo do mínimo' },
+      ],
+    };
+
+    expect(extrairMensagemErroMl(data)).toBe('Falta o atributo BRAND; Preço abaixo do mínimo');
+  });
+
+  it('sem cause[] com mensagem, cai pro message do topo', () => {
+    expect(extrairMensagemErroMl({ message: 'Invalid category_id' })).toBe('Invalid category_id');
+  });
+
+  it('sem data nenhum, retorna null', () => {
+    expect(extrairMensagemErroMl(undefined)).toBeNull();
+  });
+});
+
+describe('montarPayloadComFamilyName', () => {
+  // No modelo de User Products, o título é gerado pelo próprio Mercado Livre
+  // a partir de family_name + atributos — mandar os dois juntos é rejeitado
+  // com "The fields [title] are invalid for requested call." (confirmado ao
+  // vivo: a primeira versão deste fallback só acrescentava family_name e
+  // mantinha o title original, causando esse erro).
+  it('remove title do payload e acrescenta family_name', () => {
+    const payload = { title: 'Carenagem CB 300R', category_id: 'MLB46593', price: 100 };
+
+    const resultado = montarPayloadComFamilyName(payload, 'Carenagem CB 300R');
+
+    expect(resultado).toEqual({ category_id: 'MLB46593', price: 100, family_name: 'Carenagem CB 300R' });
+    expect(resultado).not.toHaveProperty('title');
+  });
+
+  it('preserva os demais campos do payload original, inclusive variations', () => {
+    const payload = { title: 'Peça X', attributes: [{ id: 'BRAND', value_name: 'Honda' }], variations: [{ price: 50 }] };
+
+    const resultado = montarPayloadComFamilyName(payload, 'Peça X');
+
+    expect(resultado.attributes).toEqual([{ id: 'BRAND', value_name: 'Honda' }]);
+    expect(resultado.variations).toEqual([{ price: 50 }]);
+    expect(resultado.family_name).toBe('Peça X');
+  });
+});
+
+describe('pareceErroFamilyNameAusente', () => {
+  // Conta migrada pro modelo novo de User Products (Preço por Variação) —
+  // rollout gradual da própria API, confirmado ao vivo tentando publicar
+  // (ver "Publicar um item" em developers.mercadolivre.com.br/pt_br/preco-variacao):
+  // o POST /items passa a exigir family_name pra itens sem variações nem
+  // catalog_product_id, e recusa com esta mensagem em cause[].
+  it('true quando a causa do erro cita family_name', () => {
+    const err = {
+      response: { data: { message: 'body.required_fields', cause: [{ message: 'The body does not contains some or none of the following properties [family_name]' }] } },
+    };
+
+    expect(pareceErroFamilyNameAusente(err)).toBe(true);
+  });
+
+  it('false pra outros erros de body.required_fields que não citam family_name', () => {
+    const err = {
+      response: { data: { message: 'body.required_fields', cause: [{ message: 'Falta o atributo BRAND' }] } },
+    };
+
+    expect(pareceErroFamilyNameAusente(err)).toBe(false);
+  });
+
+  it('false quando não há response.data (erro de rede, etc.)', () => {
+    expect(pareceErroFamilyNameAusente(new Error('timeout'))).toBe(false);
   });
 });

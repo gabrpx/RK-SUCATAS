@@ -18,6 +18,23 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.11',
+    data: '2026-08-14',
+    titulo: 'Publicar no Mercado Livre: título/descrição próprios do anúncio e remoção de fundo das fotos',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Ao publicar um anúncio no Mercado Livre, agora dá pra escrever um título e uma descrição só pro anúncio, diferentes do nome e da descrição cadastrados na peça — o nome no estoque é pensado pra busca rápida no catálogo interno, não pra vender bem no Mercado Livre. O título tem contador até 60 caracteres, o limite real do anúncio. Isso nunca altera o cadastro da peça, só o que aparece pro comprador.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Também dá pra remover o fundo de qualquer foto antes de publicar — peça com fundo branco vende mais. É processado no próprio navegador, sem custo por foto. Mostra antes/depois pra aprovar, dá pra tentar de novo com outra foto se não gostar, e um botão separado permite trocar também as fotos da peça no estoque pelas versões sem fundo.',
+      },
+    ],
+  },
+  {
     versao: '1.2.10',
     data: '2026-08-13',
     titulo: 'Publicar no Mercado Livre: vínculo com produto de catálogo direto no formulário',

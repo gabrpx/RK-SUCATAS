@@ -5,14 +5,16 @@
 // formulário, ele só abre quando o toggle "Publicar automaticamente" é
 // ligado. Ver docs/proposta-publicacao-mercadolivre.md, Parte 3.3.
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Barcode, ChevronDown, ChevronRight, Loader2, Search, Send, Sparkles } from 'lucide-react';
+import { AlertTriangle, Barcode, Camera, Check, ChevronDown, ChevronRight, Loader2, RefreshCw, Search, Send, Sparkles, Upload, Wand2, X } from 'lucide-react';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { Button } from '../../components/ui/button';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { aviso } from '../../components/ui/toast';
 import { useDebounce } from '../../hooks/useDebounce';
 import { cn } from '../../utils';
-import { estoqueApi } from './api';
+import { comprimirImagem } from '../../utils/comprimirImagem';
+import { removerFundoImagem } from '../../utils/removerFundoImagem';
+import { estoqueApi, uploadImagemEstoque } from './api';
 import { mercadolivreApi } from '../mercadolivre/api';
 import { categoriasApi } from '../../lib/catalogApi';
 import type { AtributoMl, AtributoValorInput, CategoriaMlNo, CategoriaMlSugerida, ConfiguracaoAnuncioMlInput, Estoque, EstoqueAnuncioMl, ProdutoCatalogoMl, TipoAnuncioMl, VariacaoMlInput } from './types';
@@ -384,6 +386,30 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   const [condicaoMl, setCondicaoMl] = useState<'new' | 'used'>('used');
   const [fotosSelecionadas, setFotosSelecionadas] = useState<string[]>(item.imagens ?? []);
 
+  // --- Título e descrição do anúncio -----------------------------------------
+  // Campos PRÓPRIOS do anúncio, nunca o nome/descrição do cadastro da peça:
+  // o nome interno é otimizado pra busca rápida no catálogo, não pra
+  // converter comprador no Mercado Livre. Pré-preenchidos a partir da peça
+  // (ponto de partida útil), mas editar aqui nunca grava de volta em
+  // item.nome/item.descricao.
+  const [tituloAnuncio, setTituloAnuncio] = useState(item.nome.slice(0, 60));
+  const [descricaoAnuncio, setDescricaoAnuncio] = useState(item.descricao || item.nome);
+
+  // --- Remoção de fundo das fotos (opcional) ----------------------------------
+  // 100% client-side (@imgly/background-removal, WASM — ver
+  // src/utils/removerFundoImagem.ts pro porquê de não precisar de rota nova
+  // no backend nem de env var). fotosProcessadas guarda só as trocas
+  // APROVADAS pelo usuário (urlOriginal -> urlNova): "usar no anúncio" troca
+  // a entrada correspondente em fotosSelecionadas, nunca em item.imagens —
+  // só o botão explícito "Substituir fotos do estoque" grava no cadastro.
+  const [processandoFundo, setProcessandoFundo] = useState<string | null>(null);
+  const [previewFundo, setPreviewFundo] = useState<{ originalUrl: string; antesSrc: string; depoisBlob: Blob; depoisPreviewUrl: string } | null>(null);
+  const [fotosProcessadas, setFotosProcessadas] = useState<Record<string, string>>({});
+  const [aprovandoFundo, setAprovandoFundo] = useState(false);
+  const [substituindoFotosEstoque, setSubstituindoFotosEstoque] = useState(false);
+  const inputRetryCameraRef = useRef<HTMLInputElement>(null);
+  const inputRetryGaleriaRef = useRef<HTMLInputElement>(null);
+
   // --- Variações (fichas de unidade com preço próprio) -----------------------
   const unidadesElegiveis = useMemo(() => (item.unidades ?? []).filter((u) => u.valor != null), [item.unidades]);
   const atributosVariacao = useMemo(() => atributos.filter((a) => a.tags?.allow_variations), [atributos]);
@@ -403,12 +429,105 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
   const variacaoDisponivel = unidadesElegiveis.length >= 2 && atributosVariacao.length > 0;
   const unidadesComValor = unidadesElegiveis.filter((u) => valorPreenchido(valoresPorUnidade[u.id]));
 
+  function revogarSeBlob(url: string) {
+    if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+  }
+
+  function limparPreviewFundo() {
+    setPreviewFundo((atual) => {
+      if (atual) {
+        revogarSeBlob(atual.antesSrc);
+        revogarSeBlob(atual.depoisPreviewUrl);
+      }
+      return null;
+    });
+  }
+
+  async function iniciarRemocaoFundo(originalUrl: string, fonte: File | string) {
+    limparPreviewFundo();
+    setProcessandoFundo(originalUrl);
+    try {
+      const resultado = await removerFundoImagem(fonte);
+      if (!resultado.sucesso || !resultado.blob) {
+        aviso.falha(null, 'Não foi possível remover o fundo desta foto');
+        return;
+      }
+      setPreviewFundo({
+        originalUrl,
+        antesSrc: typeof fonte === 'string' ? fonte : URL.createObjectURL(fonte),
+        depoisBlob: resultado.blob,
+        depoisPreviewUrl: URL.createObjectURL(resultado.blob),
+      });
+    } finally {
+      setProcessandoFundo(null);
+    }
+  }
+
+  // "Tirar outra foto" reaproveita a mesma peça (originalUrl) que estava
+  // sendo retocada — o usuário está tentando de novo, não anexando uma foto
+  // nova solta. Comprime antes de remover o fundo (mesmo pipeline de
+  // EstoqueView.tsx pro upload normal de fotos).
+  async function tentarNovaFoto(files: FileList | null) {
+    const arquivo = files?.[0];
+    const originalUrl = previewFundo?.originalUrl;
+    if (!arquivo || !originalUrl) return;
+    const { arquivo: comprimido } = await comprimirImagem(arquivo);
+    await iniciarRemocaoFundo(originalUrl, comprimido);
+  }
+
+  async function aprovarPreviewFundo() {
+    if (!previewFundo) return;
+    setAprovandoFundo(true);
+    try {
+      const arquivo = new File([previewFundo.depoisBlob], 'fundo-removido.jpg', { type: 'image/jpeg' });
+      const resultado = await uploadImagemEstoque(arquivo);
+      if (!resultado.success || !resultado.url) {
+        aviso.falha(null, 'Não foi possível salvar a foto sem fundo');
+        return;
+      }
+      const { originalUrl } = previewFundo;
+      const novaUrl = resultado.url;
+      setFotosSelecionadas((prev) => prev.map((u) => (u === originalUrl ? novaUrl : u)));
+      setFotosProcessadas((prev) => ({ ...prev, [originalUrl]: novaUrl }));
+      limparPreviewFundo();
+      aviso.sucesso('Foto sem fundo aplicada ao anúncio');
+    } catch (err) {
+      aviso.falha(err, 'Não foi possível salvar a foto sem fundo');
+    } finally {
+      setAprovandoFundo(false);
+    }
+  }
+
+  // Opt-in e separado de propósito: troca em item.imagens só as fotos que já
+  // foram aprovadas acima, preservando as demais (mesmo as que o usuário
+  // desmarcou da seleção do anúncio) — nunca perde foto do cadastro da peça.
+  async function substituirFotosDoEstoque() {
+    setSubstituindoFotosEstoque(true);
+    try {
+      const novasImagens = item.imagens.map((u) => fotosProcessadas[u] ?? u);
+      const resultado = await estoqueApi.atualizarParcial(item.id, { imagens: novasImagens });
+      if (!resultado.success) throw new Error(resultado.error);
+      aviso.sucesso('Fotos do estoque substituídas pelas versões sem fundo');
+    } catch (err) {
+      aviso.falha(err, 'Não foi possível substituir as fotos do estoque');
+    } finally {
+      setSubstituindoFotosEstoque(false);
+    }
+  }
+
   // --- Publicar ---------------------------------------------------------------
   const [publicando, setPublicando] = useState(false);
 
   const catalogoResolvido = !exigeCatalogo || !!produtoCatalogoSelecionado || naoEhCatalogo;
   const podePublicar =
-    !!categoriaSelecionada && !!listingTypeId && fotosSelecionadas.length > 0 && atributosObrigatoriosFaltando.length === 0 && catalogoResolvido && precoBase > 0;
+    !!categoriaSelecionada &&
+    !!listingTypeId &&
+    fotosSelecionadas.length > 0 &&
+    atributosObrigatoriosFaltando.length === 0 &&
+    catalogoResolvido &&
+    precoBase > 0 &&
+    !!tituloAnuncio.trim() &&
+    !!descricaoAnuncio.trim();
 
   async function publicar() {
     if (!categoriaSelecionada) return;
@@ -428,6 +547,8 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
         preco_efetivo_sistema: precoBase,
         variacoes: variacoes.length > 0 ? variacoes : undefined,
         catalogo_produto_id: produtoCatalogoSelecionado?.id,
+        titulo_anuncio: tituloAnuncio.trim(),
+        descricao_anuncio: descricaoAnuncio.trim(),
       };
 
       const resultado = await estoqueApi.publicarMl(item.id, payload);
@@ -787,25 +908,145 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, onPublicado }: 
             )}
           </ModalSection>
 
-          <ModalSection titulo="Fotos" descricao="Reaproveitadas das fotos já cadastradas na peça.">
+          <ModalSection
+            titulo="Título e descrição do anúncio"
+            descricao="Só o que o comprador vê no Mercado Livre — não altera o nome nem a descrição da peça no cadastro do estoque."
+          >
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className={cn(labelClass, 'mb-0')}>Título do anúncio *</label>
+                <span className={cn('text-[11px] font-medium', tituloAnuncio.length >= 60 ? 'text-negative' : 'text-text-faint')}>
+                  {tituloAnuncio.length}/60
+                </span>
+              </div>
+              <input
+                value={tituloAnuncio}
+                onChange={(e) => setTituloAnuncio(e.target.value.slice(0, 60))}
+                maxLength={60}
+                placeholder="Título do anúncio"
+                className={inputClass}
+              />
+            </div>
+
+            <div>
+              <label className={labelClass}>Descrição do anúncio *</label>
+              <textarea
+                value={descricaoAnuncio}
+                onChange={(e) => setDescricaoAnuncio(e.target.value)}
+                rows={5}
+                placeholder="Descrição do anúncio"
+                className={cn(inputClass, 'resize-y')}
+              />
+            </div>
+          </ModalSection>
+
+          <ModalSection titulo="Fotos" descricao="Reaproveitadas das fotos já cadastradas na peça. Dá pra remover o fundo de qualquer uma antes de publicar.">
             {fotosSelecionadas.length === 0 && item.imagens.length === 0 && <p className="text-xs text-text-faint">Esta peça ainda não tem fotos cadastradas.</p>}
             <div className="flex flex-wrap gap-2">
               {item.imagens.map((url) => {
                 const selecionada = fotosSelecionadas.includes(url);
+                const urlExibida = fotosProcessadas[url] ?? url;
+                const processandoEsta = processandoFundo === url;
                 return (
-                  <button
-                    key={url}
-                    type="button"
-                    onClick={() =>
-                      setFotosSelecionadas((prev) => (prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]))
-                    }
-                    className={cn('relative size-20 rounded-control overflow-hidden border-2 transition-all', selecionada ? 'border-accent' : 'border-border-default opacity-40')}
-                  >
-                    <img src={url} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                  </button>
+                  <div key={url} className="relative">
+                    <button
+                      type="button"
+                      onClick={() =>
+                        setFotosSelecionadas((prev) => (prev.includes(url) ? prev.filter((u) => u !== url) : [...prev, url]))
+                      }
+                      className={cn('relative size-20 rounded-control overflow-hidden border-2 transition-all', selecionada ? 'border-accent' : 'border-border-default opacity-40')}
+                    >
+                      <img src={urlExibida} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                      {fotosProcessadas[url] && (
+                        <span className="absolute top-0.5 left-0.5 rounded bg-positive-bg/90 px-1 py-0.5 text-[8px] font-semibold uppercase tracking-wider text-positive">
+                          Sem fundo
+                        </span>
+                      )}
+                    </button>
+                    {/* Botão irmão do toggle de seleção acima, não filho — <button> dentro de
+                        <button> é inválido; os dois ficam sobrepostos via position absolute
+                        dentro do mesmo wrapper relative. */}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        iniciarRemocaoFundo(url, url);
+                      }}
+                      disabled={processandoFundo !== null}
+                      title="Remover fundo"
+                      className="absolute -bottom-1.5 -right-1.5 flex items-center justify-center size-6 rounded-full border border-border-default bg-surface-page text-text-muted transition-colors hover:border-accent hover:text-accent-soft-fg disabled:opacity-50"
+                    >
+                      {processandoEsta ? <Loader2 size={12} className="animate-spin" /> : <Wand2 size={12} />}
+                    </button>
+                  </div>
                 );
               })}
             </div>
+
+            {previewFundo && (
+              <div className="rounded-control border border-border-default bg-surface-inset p-3 space-y-3">
+                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">Prévia sem fundo</p>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <p className="text-[11px] text-text-faint mb-1">Antes</p>
+                    <img src={previewFundo.antesSrc} alt="" className="w-full aspect-square object-cover rounded-control border border-border-subtle" referrerPolicy="no-referrer" />
+                  </div>
+                  <div>
+                    <p className="text-[11px] text-text-faint mb-1">Depois</p>
+                    <img src={previewFundo.depoisPreviewUrl} alt="" className="w-full aspect-square object-cover rounded-control border border-border-subtle bg-white" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={aprovarPreviewFundo} disabled={aprovandoFundo}>
+                    {aprovandoFundo ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Usar esta versão no anúncio
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={() => inputRetryGaleriaRef.current?.click()}>
+                    <Upload size={13} /> Tirar outra (galeria)
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" className="md:hidden" onClick={() => inputRetryCameraRef.current?.click()}>
+                    <Camera size={13} /> Câmera
+                  </Button>
+                  <Button type="button" variant="ghost" size="sm" onClick={limparPreviewFundo}>
+                    <X size={13} /> Descartar
+                  </Button>
+                </div>
+                <input
+                  ref={inputRetryCameraRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  capture="environment"
+                  className="hidden"
+                  onChange={(e) => {
+                    tentarNovaFoto(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+                <input
+                  ref={inputRetryGaleriaRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    tentarNovaFoto(e.target.files);
+                    e.target.value = '';
+                  }}
+                />
+              </div>
+            )}
+
+            {Object.keys(fotosProcessadas).length > 0 && (
+              <div className="flex items-center justify-between gap-3 rounded-control border border-border-subtle bg-surface-inset px-3.5 py-3">
+                <div className="min-w-0">
+                  <p className="text-sm text-text-primary">
+                    {Object.keys(fotosProcessadas).length} {Object.keys(fotosProcessadas).length === 1 ? 'foto aprovada' : 'fotos aprovadas'} sem fundo
+                  </p>
+                  <p className="text-[11px] text-text-faint mt-0.5">Só afeta este anúncio. Pra também trocar as fotos da peça no estoque, use o botão ao lado.</p>
+                </div>
+                <Button type="button" variant="outline" size="sm" onClick={substituirFotosDoEstoque} disabled={substituindoFotosEstoque} className="shrink-0">
+                  {substituindoFotosEstoque ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Substituir fotos do estoque
+                </Button>
+              </div>
+            )}
           </ModalSection>
 
           {unidadesElegiveis.length >= 2 && (

@@ -7,7 +7,7 @@ import { categoriaExigeNota } from '../../features/estoque/categoriaMotor.js';
 import type { Categoria } from '../../types/catalog.js';
 import { anexarPromocoes } from '../../features/promocoes/calculo.js';
 import { extrairMlbId, obterConexaoAtual } from '../../services/mercadolivreApi.js';
-import { publicarAnuncio, sincronizarEstatisticas, type ConfiguracaoAnuncioMl } from '../../services/mercadolivrePublicacao.js';
+import { publicarAnuncio, sincronizarEstatisticas, extrairMensagemErroMl, type ConfiguracaoAnuncioMl } from '../../services/mercadolivrePublicacao.js';
 import { aplicarSincronizacao } from '../../services/mercadolivreSync.js';
 import { autorizar } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
@@ -233,6 +233,10 @@ function montarConfiguracaoPublicacao(body: any): { config?: ConfiguracaoAnuncio
   if (!listingTypeId) return { erro: 'Selecione o tipo de anúncio (Clássico ou Premium)' };
   const fotos = Array.isArray(body?.fotos) ? body.fotos.map((f: any) => String(f)).filter(Boolean) : [];
   if (fotos.length === 0) return { erro: 'Selecione ao menos uma foto pro anúncio' };
+  const tituloAnuncio = String(body?.titulo_anuncio || '').trim();
+  if (!tituloAnuncio) return { erro: 'Informe o título do anúncio' };
+  const descricaoAnuncio = String(body?.descricao_anuncio || '').trim();
+  if (!descricaoAnuncio) return { erro: 'Informe a descrição do anúncio' };
 
   const variacoes = Array.isArray(body?.variacoes)
     ? body.variacoes.map((v: any) => ({
@@ -252,6 +256,8 @@ function montarConfiguracaoPublicacao(body: any): { config?: ConfiguracaoAnuncio
       precoEfetivoSistema: body?.preco_efetivo_sistema != null ? Number(body.preco_efetivo_sistema) : undefined,
       variacoes,
       catalogoProdutoId: body?.catalogo_produto_id ? String(body.catalogo_produto_id) : undefined,
+      tituloAnuncio,
+      descricaoAnuncio,
     },
   };
 }
@@ -794,7 +800,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
       res.json({ success: true, data: resultado });
     } catch (error: any) {
       console.error('Erro ao publicar anúncio no Mercado Livre:', error.response?.data || error.message);
-      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
+      res.status(500).json({ success: false, error: extrairMensagemErroMl(error.response?.data) || error.message });
     }
   });
 
@@ -833,7 +839,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
       res.json({ success: true, data: resultado });
     } catch (error: any) {
       console.error('Erro ao republicar anúncio no Mercado Livre:', error.response?.data || error.message);
-      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
+      res.status(500).json({ success: false, error: extrairMensagemErroMl(error.response?.data) || error.message });
     }
   });
 

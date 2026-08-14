@@ -157,6 +157,24 @@ export async function buscarTiposAnuncioDisponiveis(token: string, preco: number
 }
 
 // ============================================================================
+// Erro — função pura, sem I/O
+// ============================================================================
+
+// O topo de error.response.data do Mercado Livre costuma trazer um `message`
+// genérico e pouco acionável (ex: "body.required_fields" — só diz QUE algo no
+// corpo está faltando, não O QUE). O detalhe de verdade (qual atributo, qual
+// campo) vem em `cause[].message`. Sem isso, tanto o log do servidor quanto o
+// aviso na tela ficavam cegos pro motivo real da recusa.
+export function extrairMensagemErroMl(data: any): string | null {
+  if (!data) return null;
+  const causas = Array.isArray(data.cause)
+    ? data.cause.map((c: any) => c?.message).filter((m: any): m is string => typeof m === 'string' && m.length > 0)
+    : [];
+  if (causas.length > 0) return causas.join('; ');
+  return typeof data.message === 'string' && data.message.length > 0 ? data.message : null;
+}
+
+// ============================================================================
 // Montagem do payload de publicação — função pura, sem I/O
 // ============================================================================
 
@@ -198,6 +216,17 @@ export interface ConfiguracaoAnuncioMl {
   // aceita variations[] em anúncio catalog_listing:true), ver
   // montarPayloadPublicacao abaixo.
   catalogoProdutoId?: string;
+  // Título e descrição PRÓPRIOS do anúncio (editáveis no modal) — nunca o
+  // nome/descrição do cadastro da peça, que é otimizado pra busca no
+  // catálogo interno, não pra converter comprador no Mercado Livre.
+  // Opcionais no tipo de propósito: a rota HTTP sempre preenche os dois
+  // (campo obrigatório no formulário), mas montarPayloadPublicacao é função
+  // pura reaproveitada dentro do próprio publicarAnuncio (fallback de itens
+  // separados por ficha) e testada isolada — sem eles, cai no fallback do
+  // nome/descrição da peça (defesa em profundidade, mesmo padrão já usado
+  // neste arquivo pro catalogoProdutoId acima).
+  tituloAnuncio?: string;
+  descricaoAnuncio?: string;
 }
 
 interface ItemParaPublicar {
@@ -242,14 +271,22 @@ export function montarPayloadPublicacao(
   const unidadesPorId = new Map(unidades.map((u) => [u.id, u]));
 
   const base: Record<string, any> = {
-    title: item.nome.slice(0, 60),
+    title: (config.tituloAnuncio || item.nome).slice(0, 60),
     category_id: config.categoriaMlId,
     currency_id: 'BRL',
     buying_mode: 'buy_it_now',
     condition: config.condicaoMl,
     listing_type_id: config.listingTypeId,
     attributes: config.atributos.map(mapearAtributo),
-    shipping: { mode: 'me2' },
+    // "me2" (Mercado Envios Fulfillment) exige contrato/elegibilidade que a
+    // loja não tem e várias categorias de autopeças nem aceitam (confirmado
+    // ao vivo em GET /categories/{id}: settings.shipping_options não inclui
+    // "me2") — mandar esse modo faz o Mercado Livre recusar a criação do
+    // item inteiro com "body.required_fields". "not_specified" ("a combinar")
+    // é aceito por qualquer conta/categoria e já reflete o fluxo real: o
+    // frete é calculado à parte, na venda, via Melhor Envio (ver
+    // src/features/frete), nunca no ato da publicação do anúncio.
+    shipping: { mode: 'not_specified' },
   };
 
   if (config.catalogoProdutoId) {
@@ -320,6 +357,20 @@ export function montarPayloadPublicacao(
 function pareceErroPrecoPorVariacao(error: any): boolean {
   const corpo = JSON.stringify(error?.response?.data ?? '').toLowerCase();
   return corpo.includes('variat') && (corpo.includes('price') || corpo.includes('precio') || corpo.includes('preco'));
+}
+
+// Mesmo raciocínio acima, pra outra frente do mesmo rollout: contas migradas
+// pro modelo novo de User Products (Preço por Variação) passam a exigir,
+// pra QUALQUER item sem catalog_product_id (com ou sem variações — ver
+// "Publicar um item" em developers.mercadolivre.com.br/pt_br/preco-variacao),
+// o campo novo family_name — que este módulo nunca mandava, porque não
+// existia quando este código foi escrito. Detectado ao vivo publicando uma
+// peça: "The body does not contains some or none of the following
+// properties [family_name]". Exportada (não só interna como
+// pareceErroPrecoPorVariacao) pra dar pra testar a heurística isolada.
+export function pareceErroFamilyNameAusente(error: any): boolean {
+  const mensagem = extrairMensagemErroMl(error?.response?.data) ?? '';
+  return mensagem.toLowerCase().includes('family_name');
 }
 
 async function gravarResultadoPublicacao(
@@ -401,6 +452,34 @@ export interface ResultadoPublicacao {
   links: { linkId: string; mlbId: string; url: string }[];
 }
 
+// No modelo de User Products, o Mercado Livre gera o title sozinho a partir
+// de family_name + atributos — mandar os dois juntos é recusado com "The
+// fields [title] are invalid for requested call." (confirmado ao vivo: ver
+// developers.mercadolivre.com.br/pt_br/user-products, "title... received
+// temporarily for backward compatibility", algumas contas recusam se vier
+// preenchido). Função pura pra dar pra testar isolada do I/O de criarItemML.
+export function montarPayloadComFamilyName(payload: Record<string, any>, nomeFamilia: string): Record<string, any> {
+  const { title, ...resto } = payload;
+  return { ...resto, family_name: nomeFamilia };
+}
+
+// Envolve criarItemML pra aplicar o fallback de pareceErroFamilyNameAusente
+// acima: primeira tentativa como o payload veio montado; se a conta exigir
+// family_name, reenvia SEM title (ver montarPayloadComFamilyName) com esse
+// campo acrescentado. nomeFamilia usa o nome da peça — não existe uma
+// "família" de verdade aqui (cada peça publicada é o próprio produto, sem
+// catálogo de variantes por trás), então o nome da peça já é o descritor
+// genérico que a documentação pede pro campo.
+async function criarItemMlComFallbackFamilyName(token: string, payload: Record<string, any>, nomeFamilia: string): Promise<any> {
+  try {
+    return await criarItemML(token, payload);
+  } catch (err: any) {
+    if (!pareceErroFamilyNameAusente(err)) throw err;
+    console.warn('Mercado Livre exigiu family_name (conta migrada pro modelo de User Products/Preço por Variação) — reenviando sem title, com family_name preenchido.', err.response?.data || err.message);
+    return criarItemML(token, montarPayloadComFamilyName(payload, nomeFamilia));
+  }
+}
+
 export async function publicarAnuncio(supabase: SupabaseClient, token: string, estoqueId: string, config: ConfiguracaoAnuncioMl): Promise<ResultadoPublicacao> {
   const { data: item, error: erroItem } = await supabase.from('estoque').select('id, nome, valor, quantidade, descricao').eq('id', estoqueId).maybeSingle();
   if (erroItem) throw erroItem;
@@ -415,13 +494,16 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
   }
 
   const margemPercentual = await obterMargemSincronizacao(supabase);
-  const descricaoTexto = (item.descricao || '').trim() || item.nome;
+  // Mesma defesa em profundidade do título acima: descricaoAnuncio vem
+  // sempre preenchida pela rota HTTP, o fallback é só pra chamada direta
+  // desta função (sem passar pelo formulário obrigatório do modal).
+  const descricaoTexto = config.descricaoAnuncio?.trim() || (item.descricao || '').trim() || item.nome;
   const montado = montarPayloadPublicacao(item, unidades, config, margemPercentual);
 
   // Tentativa 1: como veio montado (com variações, se a peça tem fichas
   // diferenciadas escolhidas no formulário).
   try {
-    const criado = await criarItemML(token, montado.payload);
+    const criado = await criarItemMlComFallbackFamilyName(token, montado.payload, item.nome);
     await gravarResultadoPublicacao(supabase, token, estoqueId, config, criado, descricaoTexto, montado.usaVariacoes ? montado.ordemUnidades : []);
     return {
       caminho: montado.usaVariacoes ? 'variacoes' : 'simples',
@@ -439,7 +521,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
   // (migration_025), então todos ficam vinculados à mesma peça.
   const configSemVariacoes: ConfiguracaoAnuncioMl = { ...config, variacoes: undefined };
   const payloadBase = montarPayloadPublicacao(item, [], configSemVariacoes, margemPercentual);
-  const criadoBase = await criarItemML(token, payloadBase.payload);
+  const criadoBase = await criarItemMlComFallbackFamilyName(token, payloadBase.payload, item.nome);
   await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoBase, descricaoTexto, []);
   const links = [{ linkId: criadoBase.id, mlbId: criadoBase.id, url: criadoBase.permalink }];
 
@@ -452,7 +534,7 @@ export async function publicarAnuncio(supabase: SupabaseClient, token: string, e
       variacoes: undefined,
     };
     const payloadUnidade = montarPayloadPublicacao(item, [], configUnidade, margemPercentual);
-    const criadoUnidade = await criarItemML(token, payloadUnidade.payload);
+    const criadoUnidade = await criarItemMlComFallbackFamilyName(token, payloadUnidade.payload, item.nome);
     await gravarResultadoPublicacao(supabase, token, estoqueId, config, criadoUnidade, descricaoTexto, [], unidade.id);
     links.push({ linkId: criadoUnidade.id, mlbId: criadoUnidade.id, url: criadoUnidade.permalink });
   }

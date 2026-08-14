@@ -172,6 +172,11 @@ export interface ConfiguracaoAnuncioMlInput {
   // Produto de catálogo escolhido na busca inline — ausente = publica sem
   // vínculo (fluxo "Não é o que eu vendo" ou categoria que não exige catálogo).
   catalogo_produto_id?: string;
+  // Título e descrição PRÓPRIOS do anúncio — nunca o nome/descrição do
+  // cadastro da peça. Obrigatórios: o formulário sempre pré-preenche, mas o
+  // usuário precisa poder ajustar pra vender melhor.
+  titulo_anuncio: string;
+  descricao_anuncio: string;
 }
 
 export interface ResultadoPublicacaoMl {
