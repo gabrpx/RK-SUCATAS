@@ -17,6 +17,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { resumoFiadoPorCliente } from '../features/fiado/metricas.js';
 import { clientesSumidos } from '../features/clientes/metricas.js';
 import { notificarUsuarios } from './pushNotificationService.js';
+import { buscarDestinatariosEquipe } from './destinatariosNotificacao.js';
 import type { Venda } from '../features/vendas/types.js';
 import type { FiadoRecebimento } from '../features/fiado/types.js';
 import type { Cliente } from '../features/clientes/types.js';
@@ -27,12 +28,6 @@ const DIAS_FIADO_VENCIDO = 15;
 const DIAS_CLIENTE_SUMIDO = 90;
 
 let ultimaExecucaoEm: string | null = null; // 'YYYY-MM-DD', em memória — reseta a cada deploy/restart, é só pra não duplicar no mesmo processo
-
-async function buscarDestinatarios(supabase: SupabaseClient): Promise<string[]> {
-  const { data, error } = await supabase.from('usuarios').select('id, roles').eq('ativo', true).or('roles.ov.{admin,equipe}');
-  if (error) throw error;
-  return (data ?? []).map((u: { id: string }) => u.id);
-}
 
 async function checarAlertas(supabase: SupabaseClient): Promise<void> {
   const hoje = new Date().toISOString().slice(0, 10);
@@ -66,7 +61,7 @@ async function checarAlertas(supabase: SupabaseClient): Promise<void> {
   if (fiadosVencidos.length > 0) partes.push(`${fiadosVencidos.length} cliente(s) com fiado vencido (${DIAS_FIADO_VENCIDO}+ dias)`);
   if (sumidos.length > 0) partes.push(`${sumidos.length} cliente(s) sumido(s) (${DIAS_CLIENTE_SUMIDO}+ dias sem comprar)`);
 
-  const destinatarios = await buscarDestinatarios(supabase);
+  const destinatarios = await buscarDestinatariosEquipe(supabase);
   if (destinatarios.length === 0) return;
 
   await notificarUsuarios(supabase, destinatarios, {

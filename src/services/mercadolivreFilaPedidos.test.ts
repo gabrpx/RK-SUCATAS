@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+vi.mock('./pushNotificationService.js', () => ({ notificarUsuarios: vi.fn(() => Promise.resolve()) }));
+
 vi.mock('./mercadolivreApi.js', () => ({
   obterConexaoAtual: vi.fn(),
   buscarPedido: vi.fn(),
@@ -14,6 +16,7 @@ vi.mock('./mercadolivreApi.js', () => ({
 }));
 
 import { obterConexaoAtual, buscarPedido } from './mercadolivreApi.js';
+import { notificarUsuarios } from './pushNotificationService.js';
 import { processarPedidosPendentes } from './mercadolivreSync.js';
 
 // Fila em memória: cada teste declara as linhas pendentes e inspeciona o que
@@ -70,7 +73,7 @@ function criarSupabaseFake(opts: {
         };
       }
       if (tabela === 'usuarios') {
-        return { select: () => ({ eq: () => ({ or: () => Promise.resolve({ data: [], error: null }) }) }) };
+        return { select: () => ({ eq: () => ({ or: () => Promise.resolve({ data: [{ id: 'user-1' }], error: null }) }) }) };
       }
       if (tabela === 'estoque_anuncios_ml_variacoes') {
         return {
@@ -250,5 +253,40 @@ describe('processarPedidosPendentes', () => {
 
     expect(resultado.importados).toBe(1);
     expect(supabase.vendasRegistradas[0].p_unidade_id).toBeNull();
+  });
+
+  it('avisa a equipe quando importou, dizendo quantas peças saíram', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue(pedidoPago as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    expect(notificarUsuarios).toHaveBeenCalledWith(supabase, ['user-1'], expect.objectContaining({ url: '/mercadolivre' }));
+    const payload = vi.mocked(notificarUsuarios).mock.calls[0][2];
+    expect(payload.corpo).toContain('Lanterna Traseira');
+  });
+
+  it('avisa separadamente o pedido que não casou com peça nenhuma', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue(pedidoPago as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: {},
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    const corpos = vi.mocked(notificarUsuarios).mock.calls.map((c) => c[2].corpo);
+    expect(corpos.some((c) => /não casou|não encontrada/i.test(c))).toBe(true);
+  });
+
+  it('ciclo sem novidade não dispara push nenhum', async () => {
+    const supabase = criarSupabaseFake({ pendentes: [] });
+
+    await processarPedidosPendentes(supabase);
+
+    expect(notificarUsuarios).not.toHaveBeenCalled();
   });
 });

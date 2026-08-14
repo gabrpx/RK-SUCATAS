@@ -19,6 +19,8 @@ import {
 } from './mercadolivreApi.js';
 import { anexarPromocoes } from '../features/promocoes/calculo.js';
 import { tokenizar, similaridade, CORTE_POSSIVEL } from '../features/estoque/detectarDuplicata.js';
+import { notificarUsuarios } from './pushNotificationService.js';
+import { buscarDestinatariosEquipe } from './destinatariosNotificacao.js';
 
 // 42703 = coluna indefinida no Postgres; 42P01 = tabela indefinida;
 // PGRST204/PGRST205 = coluna/tabela fora do cache de schema do PostgREST.
@@ -887,7 +889,39 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
     }
   }
 
+  await avisarResultadoDaFila(supabase, resultado);
   return resultado;
+}
+
+// Agregada por ciclo, nunca uma notificação por pedido — uma tarde
+// movimentada não pode virar enxurrada de push. Nunca lança: falha de push
+// não pode desfazer nem mascarar a importação, que já está no banco.
+async function avisarResultadoDaFila(supabase: SupabaseClient, resultado: ResultadoFilaPedidos): Promise<void> {
+  if (resultado.importados === 0 && resultado.semMatch.length === 0) return;
+
+  try {
+    const destinatarios = await buscarDestinatariosEquipe(supabase);
+    if (destinatarios.length === 0) return;
+
+    if (resultado.importados > 0) {
+      const nomes = Array.from(new Set(resultado.itensImportados.map((i) => i.estoqueNome)));
+      const corpo =
+        resultado.importados === 1
+          ? `${nomes[0]} — baixa dada no estoque.`
+          : `${resultado.importados} peças vendidas (${nomes.slice(0, 3).join(', ')}${nomes.length > 3 ? '...' : ''}) — baixa dada no estoque.`;
+      await notificarUsuarios(supabase, destinatarios, { titulo: 'Venda no Mercado Livre', corpo, url: '/mercadolivre' });
+    }
+
+    if (resultado.semMatch.length > 0) {
+      const corpo =
+        resultado.semMatch.length === 1
+          ? `"${resultado.semMatch[0].titulo}" (pedido ${resultado.semMatch[0].mlOrderId}) não casou com nenhuma peça do estoque — registre a venda na mão.`
+          : `${resultado.semMatch.length} itens vendidos não casaram com peça do estoque — registre as vendas na mão.`;
+      await notificarUsuarios(supabase, destinatarios, { titulo: 'Pedido do ML precisa de você', corpo, url: '/mercadolivre' });
+    }
+  } catch (err: any) {
+    console.error('Erro ao notificar resultado da fila de pedidos do ML:', err?.message || err);
+  }
 }
 
 async function marcarProcessado(supabase: SupabaseClient, id: string, erro: string | null, tentativas?: number): Promise<void> {
