@@ -18,6 +18,25 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.18',
+    data: '2026-08-15',
+    titulo: 'Tabelas de Estoque e Caixa com ordenação por coluna',
+    itens: [
+      {
+        tipo: 'feature',
+        texto: 'Na lista de Estoque, clique em "Peça", "Valor" ou "Qtd" pra ordenar por aquela coluna (clique de novo pra inverter). Os filtros de sempre continuam funcionando junto.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'Novo filtro "Sem link ML" no Estoque, pra achar rápido as peças que ainda não têm anúncio vinculado no Mercado Livre.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'Na lista do Caixa, agora dá pra ordenar os lançamentos por Data, Forma de pagamento ou Valor clicando no cabeçalho da coluna — antes só dava pra ver por data, do mais recente pro mais antigo.',
+      },
+    ],
+  },
+  {
     versao: '1.2.17',
     data: '2026-08-15',
     titulo: 'Gráficos do Dashboard renovados',
