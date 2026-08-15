@@ -3,6 +3,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AnimatePresence } from 'motion/react';
 import {
+  flexRender,
+  getCoreRowModel,
+  getPaginationRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from '@tanstack/react-table';
+import type { Column, ColumnDef, PaginationState, SortingState } from '@tanstack/react-table';
+import {
   Package,
   Search,
   Filter,
@@ -16,6 +24,8 @@ import {
   Upload,
   Camera,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   FileSpreadsheet,
   Download,
@@ -28,10 +38,9 @@ import { Button } from '../../components/ui/button';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { useDebounce } from '../../hooks/useDebounce';
-import { CustomDropdown } from '../../components/CustomDropdown';
 import { MotoCascadeSelect } from '../../components/MotoCascadeSelect';
 import { CategoriaCascadeSelect } from '../../components/CategoriaCascadeSelect';
-import { DataTable } from '../../components/ui/DataTable';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal, ModalSection } from '../../components/ui/Modal';
@@ -63,7 +72,6 @@ import { MotoOrgChart } from '../motos/MotoOrgChart';
 import { sumWithDescendants } from '../../utils/tree';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
-import type { DataTableColumn } from '../../components/ui/DataTable';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -118,6 +126,33 @@ function AnuncioBadge({ label, canal, count, onAbrir }: { label: string; canal: 
   );
 }
 
+// Cabeçalho clicável reaproveitado pelas colunas Peça/Valor/Qtd — 3 estados
+// do próprio TanStack (asc -> desc -> nenhum) em vez do sortKey único-sentido
+// de antes.
+function SortableHead({ column, label, align }: { column: Column<Estoque, unknown>; label: string; align?: 'right' }) {
+  const ordenado = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      onClick={column.getToggleSortingHandler()}
+      className={cn('inline-flex items-center gap-1 hover:text-accent-soft-fg transition-colors', align === 'right' && 'flex-row-reverse', ordenado && 'text-accent-soft-fg')}
+    >
+      {label}
+      <ChevronDown size={10} className={cn('transition-transform', ordenado ? 'opacity-100' : 'opacity-0', ordenado === 'asc' && 'rotate-180')} />
+    </button>
+  );
+}
+
+function alinhamentoDaColuna(id: string) {
+  if (id === 'valor' || id === 'quantidade') return 'text-right';
+  if (id === 'anuncios') return 'text-center';
+  return 'text-left';
+}
+
+function larguraDaColuna(id: string): string | undefined {
+  return id === 'anuncios' ? '5.5rem' : undefined;
+}
+
 interface EstoqueViewProps {
   onSelectItem: (item: Estoque) => void;
   onRegisterActions?: (actions: { edit: (item: Estoque) => void; delete: (id: string) => void; focusSearch?: () => void }) => void;
@@ -151,14 +186,15 @@ export function EstoqueView({
   const debouncedSearch = useDebounce(searchTerm, 300);
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
   const [modeloFiltro, setModeloFiltro] = useState('Todas');
-  const [sortKey, setSortKey] = useState<'criado_em' | 'valor' | 'quantidade'>('criado_em');
   const [soEstoqueBaixo, setSoEstoqueBaixo] = useState(false);
   // Peça cadastrada às pressas costuma ficar sem preço — este filtro é como
   // se volta nelas depois pra fechar o valor do estoque.
   const [soSemPreco, setSoSemPreco] = useState(false);
   const [soComAvaria, setSoComAvaria] = useState(false);
   const [soSemFoto, setSoSemFoto] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
+  const [soSemLinkMl, setSoSemLinkMl] = useState(false);
+  const [sorting, setSorting] = useState<SortingState>([]);
+  const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: ITEMS_PER_PAGE });
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
@@ -444,21 +480,180 @@ export function EstoqueView({
       const matchesSemPreco = !soSemPreco || !(Number(item.valor) > 0);
       const matchesAvaria = !soComAvaria || temAvaria(item);
       const matchesSemFoto = !soSemFoto || (item.imagens?.length ?? 0) === 0;
-      return matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo && matchesSemPreco && matchesAvaria && matchesSemFoto;
+      const matchesSemLinkMl = !soSemLinkMl || (item.links_ml?.length ?? 0) === 0;
+      return (
+        matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo && matchesSemPreco && matchesAvaria && matchesSemFoto && matchesSemLinkMl
+      );
     });
 
-    result = [...result].sort((a, b) => {
-      if (sortKey === 'valor') return b.valor - a.valor;
-      if (sortKey === 'quantidade') return b.quantidade - a.quantidade;
-      return new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime();
-    });
+    // Ordem padrão (sem coluna clicada): mais recente primeiro. A ordenação
+    // por coluna em si (Peça/Valor/Qtd) fica a cargo do TanStack Table
+    // (`sorting` state), que só entra em ação quando o usuário clica um
+    // cabeçalho — com `sorting` vazio ele preserva esta ordem-base.
+    result = [...result].sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
     return result;
-  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, sortKey, categorias, modelos]);
+  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, soSemLinkMl, categorias, modelos]);
 
-  const totalPaginas = Math.max(1, Math.ceil(filtered.length / ITEMS_PER_PAGE));
-  const paginated = filtered.slice((currentPage - 1) * ITEMS_PER_PAGE, currentPage * ITEMS_PER_PAGE);
+  useEffect(
+    () => setPagination((p) => ({ ...p, pageIndex: 0 })),
+    [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, soSemLinkMl, sorting]
+  );
 
-  useEffect(() => setCurrentPage(1), [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, sortKey]);
+  const columns = useMemo<ColumnDef<Estoque>[]>(
+    () => [
+      {
+        id: 'peca',
+        accessorFn: (item) => item.nome,
+        header: ({ column }) => <SortableHead column={column} label="Peça" />,
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="flex items-center gap-2.5">
+              <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
+                {item.imagens[0] ? (
+                  <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <Package size={16} className="text-text-faint" />
+                )}
+              </div>
+              <div className="min-w-0">
+                <div className="flex items-center gap-1.5">
+                  <p className="text-[12.5px] font-medium text-text-primary truncate max-w-[240px]">{item.nome}</p>
+                  <CondicaoNotaBadge nota={item.condicao_nota} />
+                  {/* Contagem de fichas é informativa (nem toda ficha é avaria) —
+                      o aviso de avaria fica separado, no badge seguinte. */}
+                  {contarFichas(item) > 0 && (
+                    <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>
+                      <StatusBadge tom="neutral" texto={`${contarFichas(item)} ${contarFichas(item) === 1 ? 'ficha' : 'fichas'}`} />
+                    </span>
+                  )}
+                  {/* Unidade avariada não vira linha separada — o aviso vive aqui,
+                      e o detalhe mostra qual unidade é. */}
+                  {temAvaria(item) && (
+                    <span
+                      title={`${contarAvarias(item)} unidade(s) com avaria`}
+                      className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
+                    >
+                      <AlertTriangle size={9} />
+                      {contarAvarias(item)}
+                    </span>
+                  )}
+                  {/* Persistente — antes só existia um aviso pontual no momento da
+                      venda, sem jeito de saber disso navegando a lista. */}
+                  {(item.unidades_incompletas?.length ?? 0) > 0 && (
+                    <span
+                      title={`Falta vender: ${item.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}`}
+                      className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
+                    >
+                      {item.unidades_incompletas.length} incompleta{item.unidades_incompletas.length === 1 ? '' : 's'}
+                    </span>
+                  )}
+                </div>
+                {isEstoqueBaixo(item) ? (
+                  <p className="text-[11px] text-warning font-medium">Último em estoque</p>
+                ) : (
+                  <p className="text-[11px] text-text-faint truncate">
+                    {item.codigo} · {item.categoria?.nome || '-'}
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'moto',
+        header: 'Moto',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const item = row.original;
+          return <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />;
+        },
+      },
+      {
+        id: 'anuncios',
+        header: 'Anúncios',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const item = row.original;
+          return (
+            <div className="flex items-center justify-center gap-1">
+              <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
+              <AnuncioBadge label="FB" canal="Facebook" count={item.anuncio_fb_url ? 1 : 0} onAbrir={() => window.open(item.anuncio_fb_url!, '_blank', 'noopener,noreferrer')} />
+            </div>
+          );
+        },
+      },
+      {
+        id: 'valor',
+        accessorFn: (item) => item.valor,
+        header: ({ column }) => <SortableHead column={column} label="Valor" align="right" />,
+        cell: ({ row }) => {
+          const item = row.original;
+          return item.valor > 0 ? (
+            <div className="flex flex-col items-end">
+              {item.promocao_ativa ? (
+                <>
+                  <span className="text-[11px] text-text-faint line-through tabular-nums">{formatCurrency(item.valor)}</span>
+                  <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.promocao_ativa.valor_promocional)}</span>
+                  <PromocaoBadge promocao={item.promocao_ativa} className="mt-0.5" />
+                </>
+              ) : (
+                <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
+              )}
+              {/* Alguma unidade tem preço próprio: mostra o total real da linha,
+                  senão o valor daria a entender preço × quantidade. */}
+              {(item.unidades ?? []).some((u) => u.valor !== null && u.valor !== undefined) && (
+                <span className="text-[10px] text-accent-soft-fg tabular-nums">total {formatCurrency(valorTotalItem(item))}</span>
+              )}
+            </div>
+          ) : readOnly ? (
+            <span className="text-sm font-medium text-danger">{formatCurrency(item.valor)}</span>
+          ) : (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                openEditModal(item);
+              }}
+              className="text-sm font-medium text-danger underline underline-offset-2 hover:opacity-80"
+            >
+              Definir
+            </button>
+          );
+        },
+      },
+      {
+        id: 'quantidade',
+        accessorFn: (item) => item.quantidade,
+        header: ({ column }) => <SortableHead column={column} label="Qtd" align="right" />,
+        cell: ({ row }) => {
+          const item = row.original;
+          const tom = item.quantidade === 0 ? 'text-danger' : item.quantidade <= 2 ? 'text-warning' : 'text-positive';
+          const dot = item.quantidade === 0 ? 'bg-danger' : item.quantidade <= 2 ? 'bg-warning' : 'bg-positive';
+          return (
+            <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium tabular-nums', tom)}>
+              <span className={cn('size-1.5 rounded-full shrink-0', dot)} />
+              {item.quantidade}
+            </span>
+          );
+        },
+      },
+    ],
+    [readOnly, abrirAnunciosMl, openEditModal]
+  );
+
+  const table = useReactTable<Estoque>({
+    data: loading && items.length === 0 ? [] : filtered,
+    columns,
+    state: { sorting, pagination },
+    onSortingChange: setSorting,
+    onPaginationChange: setPagination,
+    getRowId: (item) => item.id,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+    getPaginationRowModel: getPaginationRowModel(),
+  });
 
   // `continuar` = fluxo "salvar e cadastrar próxima": persiste e já devolve o
   // formulário limpo pro próximo item, sem fechar o modal. Categoria, moto,
@@ -576,152 +771,8 @@ export function EstoqueView({
   const inputClass = 'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
   const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
 
-  // Cabeçalho clicável reaproveitado pelas colunas Valor/Qtd — mesmo state de
-  // ordenação da barra de filtros, só que acionável direto na tabela.
-  function SortableHeader({ label, ownKey, align }: { label: string; ownKey: typeof sortKey; align?: 'right' }) {
-    const ativo = sortKey === ownKey;
-    return (
-      <button
-        type="button"
-        onClick={() => setSortKey(ownKey)}
-        className={cn('inline-flex items-center gap-1 hover:text-accent-soft-fg transition-colors', align === 'right' && 'flex-row-reverse', ativo && 'text-accent-soft-fg')}
-      >
-        {label}
-        <ChevronDown size={10} className={ativo ? 'opacity-100' : 'opacity-0'} />
-      </button>
-    );
-  }
-
-  const colunas: DataTableColumn<Estoque>[] = [
-    {
-      key: 'peca',
-      header: 'Peça',
-      render: (item) => (
-        <div className="flex items-center gap-2.5">
-          <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
-            {item.imagens[0] ? (
-              <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-            ) : (
-              <Package size={16} className="text-text-faint" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="flex items-center gap-1.5">
-              <p className="text-[12.5px] font-medium text-text-primary truncate max-w-[240px]">{item.nome}</p>
-              <CondicaoNotaBadge nota={item.condicao_nota} />
-              {/* Contagem de fichas é informativa (nem toda ficha é avaria) —
-                  o aviso de avaria fica separado, no badge seguinte. */}
-              {contarFichas(item) > 0 && (
-                <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>
-                  <StatusBadge tom="neutral" texto={`${contarFichas(item)} ${contarFichas(item) === 1 ? 'ficha' : 'fichas'}`} />
-                </span>
-              )}
-              {/* Unidade avariada não vira linha separada — o aviso vive aqui,
-                  e o detalhe mostra qual unidade é. */}
-              {temAvaria(item) && (
-                <span
-                  title={`${contarAvarias(item)} unidade(s) com avaria`}
-                  className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
-                >
-                  <AlertTriangle size={9} />
-                  {contarAvarias(item)}
-                </span>
-              )}
-              {/* Persistente — antes só existia um aviso pontual no momento da
-                  venda, sem jeito de saber disso navegando a lista. */}
-              {(item.unidades_incompletas?.length ?? 0) > 0 && (
-                <span
-                  title={`Falta vender: ${item.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}`}
-                  className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
-                >
-                  {item.unidades_incompletas.length} incompleta{item.unidades_incompletas.length === 1 ? '' : 's'}
-                </span>
-              )}
-            </div>
-            {isEstoqueBaixo(item) ? (
-              <p className="text-[11px] text-warning font-medium">Último em estoque</p>
-            ) : (
-              <p className="text-[11px] text-text-faint truncate">
-                {item.codigo} · {item.categoria?.nome || '-'}
-              </p>
-            )}
-          </div>
-        </div>
-      ),
-    },
-    {
-      key: 'moto',
-      header: 'Moto',
-      render: (item) => <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />,
-    },
-    {
-      key: 'anuncios',
-      header: 'Anúncios',
-      align: 'center',
-      width: '5.5rem',
-      render: (item) => (
-        <div className="flex items-center justify-center gap-1">
-          <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
-          <AnuncioBadge label="FB" canal="Facebook" count={item.anuncio_fb_url ? 1 : 0} onAbrir={() => window.open(item.anuncio_fb_url!, '_blank', 'noopener,noreferrer')} />
-        </div>
-      ),
-    },
-    {
-      key: 'valor',
-      header: <SortableHeader label="Valor" ownKey="valor" align="right" />,
-      align: 'right',
-      render: (item) =>
-        item.valor > 0 ? (
-          <div className="flex flex-col items-end">
-            {item.promocao_ativa ? (
-              <>
-                <span className="text-[11px] text-text-faint line-through tabular-nums">{formatCurrency(item.valor)}</span>
-                <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.promocao_ativa.valor_promocional)}</span>
-                <PromocaoBadge promocao={item.promocao_ativa} className="mt-0.5" />
-              </>
-            ) : (
-              <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
-            )}
-            {/* Alguma unidade tem preço próprio: mostra o total real da linha,
-                senão o valor daria a entender preço × quantidade. */}
-            {(item.unidades ?? []).some((u) => u.valor !== null && u.valor !== undefined) && (
-              <span className="text-[10px] text-accent-soft-fg tabular-nums">total {formatCurrency(valorTotalItem(item))}</span>
-            )}
-          </div>
-        ) : readOnly ? (
-          <span className="text-sm font-medium text-danger">{formatCurrency(item.valor)}</span>
-        ) : (
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation();
-              openEditModal(item);
-            }}
-            className="text-sm font-medium text-danger underline underline-offset-2 hover:opacity-80"
-          >
-            Definir
-          </button>
-        ),
-    },
-    {
-      key: 'quantidade',
-      header: <SortableHeader label="Qtd" ownKey="quantidade" align="right" />,
-      align: 'right',
-      render: (item) => {
-        const tom = item.quantidade === 0 ? 'text-danger' : item.quantidade <= 2 ? 'text-warning' : 'text-positive';
-        const dot = item.quantidade === 0 ? 'bg-danger' : item.quantidade <= 2 ? 'bg-warning' : 'bg-positive';
-        return (
-          <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium tabular-nums', tom)}>
-            <span className={cn('size-1.5 rounded-full shrink-0', dot)} />
-            {item.quantidade}
-          </span>
-        );
-      },
-    },
-  ];
-
-  // Mesmas colunas acima, empilhadas verticalmente — usado pelo DataTable
-  // abaixo de `md`, onde a tabela só rolaria horizontalmente.
+  // Mesmas colunas acima, empilhadas verticalmente — usado pelo fallback
+  // mobile, abaixo de `md`, onde a tabela só rolaria horizontalmente.
   function renderMobileCard(item: Estoque) {
     const tomQtd = item.quantidade === 0 ? 'text-danger' : item.quantidade <= 2 ? 'text-warning' : 'text-positive';
     const dotQtd = item.quantidade === 0 ? 'bg-danger' : item.quantidade <= 2 ? 'bg-warning' : 'bg-positive';
@@ -1011,15 +1062,6 @@ export function EstoqueView({
                 searchPlaceholder="Buscar moto..."
                 emptyMessage="Nenhuma moto encontrada."
               />
-              <CustomDropdown
-                value={sortKey}
-                onChange={(v) => setSortKey(v as typeof sortKey)}
-                options={[
-                  { value: 'criado_em', label: 'Mais recentes' },
-                  { value: 'valor', label: 'Maior preço' },
-                  { value: 'quantidade', label: 'Mais em estoque' },
-                ]}
-              />
               <button
                 onClick={() => setSoEstoqueBaixo((v) => !v)}
                 className={cn(
@@ -1064,42 +1106,144 @@ export function EstoqueView({
                 Sem foto
                 {soSemFoto && <X size={12} />}
               </button>
+              <button
+                onClick={() => setSoSemLinkMl((v) => !v)}
+                className={cn(
+                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
+                  soSemLinkMl ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+                )}
+              >
+                Sem link ML
+                {soSemLinkMl && <X size={12} />}
+              </button>
             </div>
           </div>
 
           {/* Tabela */}
-          <DataTable
-            colunas={colunas}
-            dados={loading && items.length === 0 ? [] : paginated}
-            getRowKey={(item) => item.id}
-            destaqueLinha={isEstoqueBaixo}
-            onRowClick={onSelectItem}
-            renderMobileCard={renderMobileCard}
-            paginaAtual={currentPage}
-            totalPaginas={totalPaginas}
-            onMudarPagina={setCurrentPage}
-            emptyState={
+          {(() => {
+            const emptyStateNode =
               loading && items.length === 0 ? (
                 <div className="py-12 flex items-center justify-center text-text-faint">
                   <Loader2 size={20} className="animate-spin" />
-            </div>
-          ) : estoqueError && items.length === 0 ? (
-            <EmptyState
-              icone={RefreshCw}
-              mensagem="Não foi possível carregar o estoque. Verifique sua conexão."
-              acaoLabel="Tentar novamente"
-              onAcao={refreshData}
-            />
-          ) : (
-            <EmptyState
-              icone={Package}
-              mensagem={items.length === 0 ? 'Nenhuma peça cadastrada ainda.' : 'Nenhum item corresponde aos filtros aplicados.'}
-              acaoLabel={items.length === 0 && !readOnly ? 'Cadastrar peça' : undefined}
-              onAcao={items.length === 0 && !readOnly ? openCreateModal : undefined}
-            />
-          )
-        }
-          />
+                </div>
+              ) : estoqueError && items.length === 0 ? (
+                <EmptyState icone={RefreshCw} mensagem="Não foi possível carregar o estoque. Verifique sua conexão." acaoLabel="Tentar novamente" onAcao={refreshData} />
+              ) : (
+                <EmptyState
+                  icone={Package}
+                  mensagem={items.length === 0 ? 'Nenhuma peça cadastrada ainda.' : 'Nenhum item corresponde aos filtros aplicados.'}
+                  acaoLabel={items.length === 0 && !readOnly ? 'Cadastrar peça' : undefined}
+                  onAcao={items.length === 0 && !readOnly ? openCreateModal : undefined}
+                />
+              );
+
+            return (
+              <div className="bg-surface-card border border-border-subtle rounded-card overflow-hidden">
+                <div className="overflow-x-auto hidden md:block">
+                  <Table>
+                    <TableHeader>
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <TableRow key={headerGroup.id} className="border-b border-border-default hover:bg-transparent">
+                          {headerGroup.headers.map((header) => (
+                            <TableHead
+                              key={header.id}
+                              style={{ width: larguraDaColuna(header.column.id) }}
+                              className={cn(
+                                'h-auto px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted',
+                                alinhamentoDaColuna(header.column.id)
+                              )}
+                            >
+                              {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                            </TableHead>
+                          ))}
+                        </TableRow>
+                      ))}
+                    </TableHeader>
+                    <TableBody>
+                      {table.getRowModel().rows.length === 0 ? (
+                        <TableRow className="hover:bg-transparent">
+                          <TableCell colSpan={columns.length} className="p-0 whitespace-normal">
+                            {emptyStateNode}
+                          </TableCell>
+                        </TableRow>
+                      ) : (
+                        table.getRowModel().rows.map((row) => {
+                          const item = row.original;
+                          const emAlerta = isEstoqueBaixo(item);
+                          return (
+                            <TableRow
+                              key={row.id}
+                              onClick={() => onSelectItem(item)}
+                              className={cn(
+                                'border-b border-border-subtle last:border-b-0 cursor-pointer',
+                                emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent'
+                              )}
+                            >
+                              {row.getVisibleCells().map((cell) => (
+                                <TableCell key={cell.id} className={cn('px-3 py-2.5 text-text-secondary whitespace-normal', alinhamentoDaColuna(cell.column.id))}>
+                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </TableCell>
+                              ))}
+                            </TableRow>
+                          );
+                        })
+                      )}
+                    </TableBody>
+                  </Table>
+                </div>
+
+                <div className="md:hidden">
+                  {table.getRowModel().rows.length === 0 ? (
+                    emptyStateNode
+                  ) : (
+                    <div className="divide-y divide-border-subtle">
+                      {table.getRowModel().rows.map((row) => {
+                        const item = row.original;
+                        const emAlerta = isEstoqueBaixo(item);
+                        return (
+                          <div
+                            key={row.id}
+                            onClick={() => onSelectItem(item)}
+                            className={cn('border-l-2 px-3 py-3 cursor-pointer', emAlerta ? 'border-l-warning' : 'border-l-transparent')}
+                          >
+                            {renderMobileCard(item)}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {table.getPageCount() > 1 && (
+                  <div className="flex items-center justify-between px-3 py-2.5 border-t border-border-subtle">
+                    <span className="text-xs text-text-faint">
+                      Página {pagination.pageIndex + 1} de {table.getPageCount()}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      <button
+                        type="button"
+                        onClick={() => table.previousPage()}
+                        disabled={!table.getCanPreviousPage()}
+                        className="size-7 flex items-center justify-center rounded-control border border-border-default text-text-secondary disabled:opacity-30 hover:bg-surface-raised"
+                        aria-label="Página anterior"
+                      >
+                        <ChevronLeft size={14} />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => table.nextPage()}
+                        disabled={!table.getCanNextPage()}
+                        className="size-7 flex items-center justify-center rounded-control border border-border-default text-text-secondary disabled:opacity-30 hover:bg-surface-raised"
+                        aria-label="Próxima página"
+                      >
+                        <ChevronRight size={14} />
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
         </>
       )}
 
