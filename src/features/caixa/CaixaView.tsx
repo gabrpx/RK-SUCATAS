@@ -3,6 +3,8 @@
 // venda na aba Vendas. Lançamentos manuais (despesas, retiradas, etc.) são
 // criados/editados/excluídos direto por aqui.
 import { useMemo, useState } from 'react';
+import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
+import type { Column, ColumnDef, SortingState } from '@tanstack/react-table';
 import {
   Wallet,
   Plus,
@@ -16,12 +18,14 @@ import {
   Calendar,
   Eye,
   EyeOff,
+  ChevronDown,
 } from 'lucide-react';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { Modal } from '../../components/ui/Modal';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
 import { aviso } from '../../components/ui/toast';
 import { Button } from '@/src/components/ui/button';
 import { caixaApi, caixaPendenciasApi } from './api';
@@ -48,6 +52,21 @@ function isDentroDoPeriodo(dataStr: string, periodo: PeriodoFiltro): boolean {
   return true;
 }
 
+// Cabeçalho clicável reaproveitado pelas colunas Data/Forma de pagamento/Valor.
+function SortableHead({ column, label, align }: { column: Column<CaixaEntry, unknown>; label: string; align?: 'right' }) {
+  const ordenado = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      onClick={column.getToggleSortingHandler()}
+      className={cn('inline-flex items-center gap-1 hover:text-accent-soft-fg transition-colors', align === 'right' && 'flex-row-reverse', ordenado && 'text-accent-soft-fg')}
+    >
+      {label}
+      <ChevronDown size={10} className={cn('transition-transform', ordenado ? 'opacity-100' : 'opacity-0', ordenado === 'asc' && 'rotate-180')} />
+    </button>
+  );
+}
+
 export function CaixaView({ userRoles }: { userRoles: string[] }) {
   const { caixa, setCaixa, showSensitiveInfo, setShowSensitiveInfo } = useData();
   const [loading, setLoading] = useState(false);
@@ -57,6 +76,7 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<CaixaEntry | null>(null);
   const [aba, setAba] = useState<'lancamentos' | 'pendencias'>('lancamentos');
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const filtered = useMemo(() => {
     return caixa
@@ -66,11 +86,102 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
       .sort((a, b) => parseLocalDate(b.data).getTime() - parseLocalDate(a.data).getTime());
   }, [caixa, tipoFiltro, periodo, search]);
 
+  // Sobre `filtered`, não sobre o que a ordenação de coluna da tabela
+  // reordenou — o total precisa continuar batendo com "esse recorte de
+  // período/tipo/busca", independente de qual coluna a pessoa clicou.
   const totals = useMemo(() => {
     const entradas = filtered.filter((e) => e.tipo === 'entrada').reduce((sum, e) => sum + Number(e.valor), 0);
     const saidas = filtered.filter((e) => e.tipo === 'saida').reduce((sum, e) => sum + Number(e.valor), 0);
     return { entradas, saidas, saldo: entradas - saidas };
   }, [filtered]);
+
+  const columns = useMemo<ColumnDef<CaixaEntry>[]>(
+    () => [
+      {
+        id: 'descricao',
+        accessorFn: (e) => e.descricao,
+        header: 'Lançamento',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const entry = row.original;
+          return (
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={cn(
+                  'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                  entry.tipo === 'entrada' ? 'bg-positive/10 text-positive' : 'bg-negative/10 text-negative'
+                )}
+              >
+                {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm truncate text-text-primary">{entry.descricao}</p>
+                {entry.venda_id && (
+                  <p className="text-xs text-accent flex items-center gap-1">
+                    <Link2 size={11} /> venda
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'data',
+        accessorFn: (e) => parseLocalDate(e.data).getTime(),
+        header: ({ column }) => <SortableHead column={column} label="Data" />,
+        cell: ({ row }) => <span className="text-sm text-text-muted">{parseLocalDate(row.original.data).toLocaleDateString('pt-BR')}</span>,
+      },
+      {
+        id: 'forma_pagamento',
+        accessorFn: (e) => e.forma_pagamento?.nome ?? '',
+        header: ({ column }) => <SortableHead column={column} label="Forma de pagamento" />,
+        cell: ({ row }) => <span className="text-sm text-text-muted">{row.original.forma_pagamento?.nome ?? '—'}</span>,
+      },
+      {
+        id: 'valor',
+        accessorFn: (e) => e.valor,
+        header: ({ column }) => <SortableHead column={column} label="Valor" align="right" />,
+        cell: ({ row }) => {
+          const entry = row.original;
+          return (
+            <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-positive' : 'text-negative')}>
+              {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'acoes',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const entry = row.original;
+          return !entry.venda_id ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setEntryToDelete(entry)}
+              className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
+            >
+              <Trash2 size={14} />
+            </Button>
+          ) : null;
+        },
+      },
+    ],
+    []
+  );
+
+  const table = useReactTable<CaixaEntry>({
+    data: filtered,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getRowId: (entry) => entry.id,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
 
   const handleDelete = async () => {
     if (!entryToDelete) return;
@@ -217,52 +328,93 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
 
       {/* Lista */}
       <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
-        {filtered.length === 0 ? (
+        {table.getRowModel().rows.length === 0 ? (
           <div className="p-12 text-center text-text-muted text-sm">Nenhum lançamento encontrado para este filtro.</div>
         ) : (
-          <div className="divide-y divide-border-subtle">
-            {filtered.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-surface-raised transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={cn(
-                      'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                      entry.tipo === 'entrada' ? 'bg-positive/10 text-positive' : 'bg-negative/10 text-negative'
-                    )}
-                  >
-                    {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={cn('font-bold text-sm truncate', 'text-text-primary')}>{entry.descricao}</p>
-                    <p className="text-xs text-text-muted flex items-center gap-2">
-                      {parseLocalDate(entry.data).toLocaleDateString('pt-BR')}
-                      {entry.forma_pagamento && <span>· {entry.forma_pagamento.nome}</span>}
-                      {entry.venda_id && (
-                        <span className="flex items-center gap-1 text-accent">
-                          <Link2 size={11} /> venda
-                        </span>
+          <>
+            <div className="overflow-x-auto hidden md:block">
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id} className="border-b border-border-subtle hover:bg-transparent">
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          className={cn(
+                            'h-auto px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-text-muted',
+                            header.column.id === 'valor' && 'text-right'
+                          )}
+                        >
+                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id} className="border-b border-border-subtle last:border-b-0">
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={cn('px-5 py-3 whitespace-normal', cell.column.id === 'valor' && 'text-right', cell.column.id === 'acoes' && 'w-10 px-2')}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="md:hidden divide-y divide-border-subtle">
+              {table.getRowModel().rows.map((row) => {
+                const entry = row.original;
+                return (
+                  <div key={row.id} className="flex items-center justify-between gap-4 px-5 py-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={cn(
+                          'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                          entry.tipo === 'entrada' ? 'bg-positive/10 text-positive' : 'bg-negative/10 text-negative'
+                        )}
+                      >
+                        {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className={cn('font-bold text-sm truncate', 'text-text-primary')}>{entry.descricao}</p>
+                        <p className="text-xs text-text-muted flex items-center gap-2">
+                          {parseLocalDate(entry.data).toLocaleDateString('pt-BR')}
+                          {entry.forma_pagamento && <span>· {entry.forma_pagamento.nome}</span>}
+                          {entry.venda_id && (
+                            <span className="flex items-center gap-1 text-accent">
+                              <Link2 size={11} /> venda
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-positive' : 'text-negative')}>
+                        {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
+                      </span>
+                      {!entry.venda_id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEntryToDelete(entry)}
+                          className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
                       )}
-                    </p>
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-positive' : 'text-negative')}>
-                    {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
-                  </span>
-                  {!entry.venda_id && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setEntryToDelete(entry)}
-                      className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
-                    >
-                      <Trash2 size={14} />
-                    </Button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
         </>
