@@ -18,6 +18,27 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.17',
+    data: '2026-08-15',
+    titulo: 'Gráficos do Dashboard renovados',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'O gráfico "Desempenho (30 dias)" agora mostra o saldo acumulado ao longo do mês, não mais o saldo de cada dia isolado — era isso que desenhava aquele formato de batimento cardíaco quando o caixa tinha poucos lançamentos.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'O gráfico de "Desempenho" e o donut de "Formas de pagamento" ganharam um visual mais limpo. O donut agora mostra o total no centro e a porcentagem de cada forma de pagamento, com um comparativo direto no cabeçalho do card em relação ao mês anterior.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Os cards de "Vendas do mês" e "Ticket médio" agora mostram se subiram ou desceram em relação ao mês passado, e "Saídas do mês" mostra a variação.',
+      },
+    ],
+  },
+  {
     versao: '1.2.16',
     data: '2026-08-14',
     titulo: 'Estoque e Mercado Livre agora conversam nos dois sentidos',

@@ -25,7 +25,9 @@ import {
   ClipboardList,
   X,
 } from 'lucide-react';
-import { AreaChart, Area, PieChart, Pie, Cell, Tooltip, ResponsiveContainer, YAxis } from 'recharts';
+import { AreaChart } from '../../components/ui/tremor/AreaChart';
+import { DonutChart } from '../../components/ui/tremor/DonutChart';
+import { getColorClassName, type AvailableChartColorsKeys } from '../../components/ui/tremor/chartColors';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useTarefas } from '../tarefas/useTarefas';
@@ -37,6 +39,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { clientesSumidos, rankingTopClientes } from '../clientes/metricas';
 import { resumoFiadoPorCliente } from '../fiado/metricas';
 import { isEstoqueBaixo } from '../estoque/valorEstoque';
+import { calcularSaldoAcumulado30Dias, compararComMesPassado } from './metricas';
 import { VisaoDono } from './VisaoDono';
 import type { Estoque } from '../estoque/types';
 import type { Venda } from '../vendas/types';
@@ -58,13 +61,14 @@ function totalOrcamento(o: Orcamento): number {
   return Math.max(0, subtotal - desconto);
 }
 
-// Paleta do gráfico de donut usa só tokens semânticos (nunca hex solto) —
-// a ordem importa pouco aqui porque cada fatia já carrega o nome na legenda.
-const PIE_COLORS = ['var(--accent)', 'var(--positive)', 'var(--warning)', 'var(--negative)', 'var(--text-muted)'];
+// Paleta do donut de formas de pagamento — chaves de src/components/ui/tremor/chartColors.ts,
+// que só mapeiam pros tokens semânticos de theme.css (nunca cor nova do Tremor).
+// A ordem importa pouco aqui porque cada fatia já carrega o nome na legenda.
+const PIE_COLORS: AvailableChartColorsKeys[] = ['accent', 'positive', 'warning', 'negative', 'muted'];
 
 // Tooltip custom do gráfico de área: card no estilo do design system em vez
-// do balão cinza padrão do Recharts. Exportado porque a Visão do Dono
-// (VisaoDono.tsx) reaproveita nos próprios mini-gráficos.
+// do balão cinza padrão do Recharts/Tremor. Exportado porque a Visão do Dono
+// (VisaoDono.tsx) e o AreaChart do Dashboard reaproveitam.
 export function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
@@ -75,29 +79,31 @@ export function ChartTooltip({ active, payload, label }: { active?: boolean; pay
   );
 }
 
-// Dot custom da série de área: fica invisível em todo ponto, exceto no
-// último — é o "ponto destacado no último valor" pedido pro gráfico. A cor
-// segue o sinal do saldo daquele dia (verde = positivo, laranja = negativo).
-function UltimoPontoDot(props: { cx?: number; cy?: number; index?: number; totalPontos: number; cor: string }) {
-  const { cx, cy, index, totalPontos, cor } = props;
-  if (index !== totalPontos - 1 || cx == null || cy == null) return null;
-  return (
-    <g>
-      <circle cx={cx} cy={cy} r={7} fill={cor} fillOpacity={0.18} />
-      <circle cx={cx} cy={cy} r={3.5} fill={cor} stroke="var(--surface-card)" strokeWidth={2} />
-    </g>
-  );
-}
-
 // Card-container padrão usado pelas seções de gráfico/lista da tela.
 // Exportado pelo mesmo motivo de ChartTooltip acima.
-export function PanelCard({ titulo, acaoLabel, onAcao, children }: { titulo: string; acaoLabel?: string; onAcao?: () => void; children: React.ReactNode }) {
+export function PanelCard({
+  titulo,
+  acaoLabel,
+  onAcao,
+  headerExtra,
+  children,
+}: {
+  titulo: string;
+  acaoLabel?: string;
+  onAcao?: () => void;
+  /** Nó extra no cabeçalho, entre o título e a ação — ex: badge de comparação com o período anterior. */
+  headerExtra?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <div className="bg-surface-card border border-border-subtle rounded-card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-border-subtle">
-        <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{titulo}</h3>
+      <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border-subtle">
+        <div className="flex items-center gap-2 min-w-0">
+          <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted truncate">{titulo}</h3>
+          {headerExtra}
+        </div>
         {acaoLabel && onAcao && (
-          <button onClick={onAcao} className="text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80">
+          <button onClick={onAcao} className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80">
             {acaoLabel}
           </button>
         )}
@@ -239,6 +245,9 @@ export function DashboardView({
     const hoje = new Date();
     const mesAtual = hoje.getMonth();
     const anoAtual = hoje.getFullYear();
+    const refMesAnterior = new Date(anoAtual, mesAtual - 1, 1);
+    const mesAnterior = refMesAnterior.getMonth();
+    const anoMesAnterior = refMesAnterior.getFullYear();
 
     const valorTotalEstoque = estoque.reduce((sum, item) => sum + Number(item.valor) * Number(item.quantidade), 0);
     const totalUnidadesEstoque = estoque.reduce((sum, item) => sum + Number(item.quantidade), 0);
@@ -251,12 +260,31 @@ export function DashboardView({
     const valorVendasMes = vendasMes.reduce((sum, v) => sum + Number(v.valor_total), 0);
     const ticketMedio = vendasMes.length > 0 ? valorVendasMes / vendasMes.length : 0;
 
+    // Mês anterior — só pra alimentar os indicadores de tendência dos KPIs
+    // e do card de formas de pagamento (comparação "X% a mais/menos que o
+    // mês passado"). "Valor em estoque" fica de fora dessa comparação: é
+    // uma foto do estoque agora, e o sistema não guarda snapshot histórico
+    // de valor de estoque — não dá pra comparar sem inventar um número.
+    const vendasMesAnterior = vendas.filter((v) => {
+      const d = parseLocalDate(v.data);
+      return d.getMonth() === mesAnterior && d.getFullYear() === anoMesAnterior;
+    });
+    const valorVendasMesAnterior = vendasMesAnterior.reduce((sum, v) => sum + Number(v.valor_total), 0);
+    const ticketMedioAnterior = vendasMesAnterior.length > 0 ? valorVendasMesAnterior / vendasMesAnterior.length : 0;
+
     const saidasMes = caixa.filter((c) => {
       if (c.tipo !== 'saida') return false;
       const d = parseLocalDate(c.data);
       return d.getMonth() === mesAtual && d.getFullYear() === anoAtual;
     });
     const valorSaidasMes = saidasMes.reduce((sum, c) => sum + Number(c.valor), 0);
+
+    const saidasMesAnterior = caixa.filter((c) => {
+      if (c.tipo !== 'saida') return false;
+      const d = parseLocalDate(c.data);
+      return d.getMonth() === mesAnterior && d.getFullYear() === anoMesAnterior;
+    });
+    const valorSaidasMesAnterior = saidasMesAnterior.reduce((sum, c) => sum + Number(c.valor), 0);
 
     const ultimasVendas = [...vendas].sort((a, b) => parseLocalDate(b.data).getTime() - parseLocalDate(a.data).getTime()).slice(0, 5);
     const pendencias = orcamentos
@@ -273,42 +301,38 @@ export function DashboardView({
     const fiadoEmAberto = resumoFiadoPorCliente(vendas, fiadoRecebimentos).filter((r) => r.diasEmAbertoMax >= DIAS_FIADO_ALERTA);
     const fiadoTotalEmAberto = fiadoEmAberto.reduce((soma, r) => soma + r.totalEmAberto, 0);
 
-    return { valorTotalEstoque, totalUnidadesEstoque, itensEstoqueBaixo, vendasMes, valorVendasMes, ticketMedio, valorSaidasMes, ultimasVendas, pendencias, sumidos, topClientes, fiadoEmAberto, fiadoTotalEmAberto };
+    return {
+      valorTotalEstoque,
+      totalUnidadesEstoque,
+      itensEstoqueBaixo,
+      vendasMes,
+      valorVendasMes,
+      valorVendasMesAnterior,
+      ticketMedio,
+      ticketMedioAnterior,
+      valorSaidasMes,
+      valorSaidasMesAnterior,
+      ultimasVendas,
+      pendencias,
+      sumidos,
+      topClientes,
+      fiadoEmAberto,
+      fiadoTotalEmAberto,
+    };
   }, [estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos]);
 
-  // Saldo líquido diário (entradas - saídas) dos últimos 30 dias — série
-  // única pro gráfico de área, com o valor de hoje sempre na última posição.
-  const chartData = useMemo(() => {
-    const dias: { data: string; label: string; valor: number }[] = [];
-    for (let i = 29; i >= 0; i--) {
-      const d = new Date();
-      d.setHours(0, 0, 0, 0);
-      d.setDate(d.getDate() - i);
-      const key = d.toISOString().slice(0, 10);
-      dias.push({ data: key, label: d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' }), valor: 0 });
-    }
-    const porDia = new Map(dias.map((d) => [d.data, d]));
-    for (const entry of caixa) {
-      const linha = porDia.get(entry.data);
-      if (!linha) continue;
-      linha.valor += entry.tipo === 'entrada' ? Number(entry.valor) : -Number(entry.valor);
-    }
-    return dias;
-  }, [caixa]);
-
-  // Domínio do eixo Y do gráfico de desempenho: sempre inclui o zero, mesmo
-  // que os 30 dias sejam só positivos ou só negativos — é o que permite
-  // colorir o gradiente exatamente no ponto onde a linha cruza zero.
-  const chartDomain = useMemo(
-    () => [(dataMin: number) => Math.min(dataMin, 0), (dataMax: number) => Math.max(dataMax, 0)] as const,
-    []
+  const variacaoVendas = useMemo(() => compararComMesPassado(metrics.valorVendasMes, metrics.valorVendasMesAnterior), [metrics.valorVendasMes, metrics.valorVendasMesAnterior]);
+  const variacaoSaidas = useMemo(
+    () => compararComMesPassado(metrics.valorSaidasMes, metrics.valorSaidasMesAnterior, { menorEhMelhor: true }),
+    [metrics.valorSaidasMes, metrics.valorSaidasMesAnterior]
   );
-  const chartOffsetZero = useMemo(() => {
-    const valores = chartData.map((d) => d.valor);
-    const max = Math.max(...valores, 0);
-    const min = Math.min(...valores, 0);
-    return max === min ? 0 : max / (max - min);
-  }, [chartData]);
+  const variacaoTicket = useMemo(() => compararComMesPassado(metrics.ticketMedio, metrics.ticketMedioAnterior), [metrics.ticketMedio, metrics.ticketMedioAnterior]);
+
+  // Saldo acumulado dos últimos 30 dias (não o saldo líquido de cada dia
+  // isolado — ver metricas.ts pro motivo: isso é o que corrige o gráfico
+  // "batimento cardíaco").
+  const chartData = useMemo(() => calcularSaldoAcumulado30Dias(caixa), [caixa]);
+  const corDesempenho: AvailableChartColorsKeys = (chartData[chartData.length - 1]?.valor ?? 0) >= 0 ? 'positive' : 'negative';
 
   const pieData = useMemo(() => {
     const porFormaPagamento = new Map<string, number>();
@@ -316,7 +340,10 @@ export function DashboardView({
       const nome = v.forma_pagamento?.nome || 'Outro';
       porFormaPagamento.set(nome, (porFormaPagamento.get(nome) || 0) + Number(v.valor_total));
     }
-    return Array.from(porFormaPagamento.entries()).map(([name, value]) => ({ name, value }));
+    const total = Array.from(porFormaPagamento.values()).reduce((soma, v) => soma + v, 0);
+    return Array.from(porFormaPagamento.entries())
+      .map(([name, value]) => ({ name, value, percentual: total > 0 ? (value / total) * 100 : 0 }))
+      .sort((a, b) => b.value - a.value);
   }, [metrics.vendasMes]);
 
   const temAlerta = metrics.itensEstoqueBaixo.length > 0 || metrics.pendencias.length > 0 || tarefasPendentes.length > 0;
@@ -445,22 +472,22 @@ export function DashboardView({
           icone={ShoppingCart}
           label="Vendas do mês"
           valor={formatCurrency(metrics.valorVendasMes)}
-          contexto={`${metrics.vendasMes.length} vendas`}
-          tom="positive"
+          contexto={`${metrics.vendasMes.length} vendas · ${variacaoVendas.texto}`}
+          tom={variacaoVendas.positivo ? 'positive' : 'negative'}
         />
         <MetricCard
           icone={Wallet}
           label="Saídas do mês"
           valor={formatCurrency(metrics.valorSaidasMes)}
-          contexto="Despesas do caixa"
+          contexto={variacaoSaidas.texto}
           tom="negative"
         />
         <MetricCard
           icone={Receipt}
           label="Ticket médio"
           valor={formatCurrency(metrics.ticketMedio)}
-          contexto="Por venda realizada"
-          tom="neutral"
+          contexto={variacaoTicket.texto}
+          tom={variacaoTicket.positivo ? 'positive' : 'negative'}
         />
       </div>
 
@@ -510,78 +537,57 @@ export function DashboardView({
       <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-4">
         <PanelCard titulo="Desempenho (30 dias)">
           <div className="p-4">
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={chartData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="corDesempenho" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset={0} stopColor="var(--positive)" stopOpacity={0.35} />
-                    <stop offset={chartOffsetZero} stopColor="var(--positive)" stopOpacity={0} />
-                    <stop offset={chartOffsetZero} stopColor="var(--negative)" stopOpacity={0} />
-                    <stop offset={1} stopColor="var(--negative)" stopOpacity={0.35} />
-                  </linearGradient>
-                  <linearGradient id="linhaDesempenho" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset={chartOffsetZero} stopColor="var(--positive)" />
-                    <stop offset={chartOffsetZero} stopColor="var(--negative)" />
-                  </linearGradient>
-                </defs>
-                <YAxis hide domain={chartDomain} />
-                <Tooltip content={<ChartTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="valor"
-                  baseValue={0}
-                  stroke="url(#linhaDesempenho)"
-                  fill="url(#corDesempenho)"
-                  strokeWidth={2}
-                  dot={(props: any) => (
-                    <UltimoPontoDot
-                      key={props.index}
-                      {...props}
-                      totalPontos={chartData.length}
-                      cor={chartData[chartData.length - 1]?.valor >= 0 ? 'var(--positive)' : 'var(--negative)'}
-                    />
-                  )}
-                  activeDot={(props: any) => {
-                    const { key, ...rest } = props;
-                    const cor = props.payload?.valor >= 0 ? 'var(--positive)' : 'var(--negative)';
-                    return <circle key={key} {...rest} r={4} fill={cor} stroke="var(--surface-card)" strokeWidth={2} />;
-                  }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            <AreaChart
+              data={chartData}
+              index="label"
+              categories={['valor']}
+              colors={[corDesempenho]}
+              valueFormatter={formatCurrency}
+              showXAxis={false}
+              showYAxis={false}
+              showGridLines={false}
+              customTooltip={ChartTooltip}
+              className="h-[260px] w-full"
+            />
           </div>
         </PanelCard>
 
-        <PanelCard titulo="Formas de pagamento">
+        <PanelCard
+          titulo="Formas de pagamento"
+          headerExtra={pieData.length > 0 && <StatusBadge texto={variacaoVendas.texto} tom={variacaoVendas.positivo ? 'positive' : 'negative'} />}
+        >
           <div className="p-4">
             {pieData.length === 0 ? (
               <EmptyState icone={Receipt} mensagem="Sem vendas registradas este mês ainda." />
             ) : (
-              <>
-                <ResponsiveContainer width="100%" height={180}>
-                  <PieChart>
-                    <Pie data={pieData} dataKey="value" nameKey="name" innerRadius={48} outerRadius={76} paddingAngle={3} stroke="none">
-                      {pieData.map((entry, i) => (
-                        <Cell key={entry.name} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip content={<ChartTooltip />} />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="flex flex-col sm:flex-row items-center gap-5">
+                <DonutChart
+                  data={pieData}
+                  category="name"
+                  value="value"
+                  colors={PIE_COLORS}
+                  valueFormatter={formatCurrency}
+                  showLabel
+                  label={formatCurrency(metrics.valorVendasMes)}
+                  className="h-40 w-40 shrink-0"
+                />
 
                 {/* Legenda em lista — nunca flutuante sobre o gráfico */}
-                <ul className="mt-3 space-y-2">
+                <ul className="w-full space-y-2">
                   {pieData.map((entry, i) => (
                     <li key={entry.name} className="flex items-center justify-between gap-2 text-sm">
                       <span className="flex items-center gap-2 min-w-0 text-text-secondary">
-                        <span className="size-2 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
+                        <span className={cn('size-2 rounded-full shrink-0', getColorClassName(PIE_COLORS[i % PIE_COLORS.length], 'bg'))} />
                         <span className="truncate">{entry.name}</span>
                       </span>
-                      <span className="text-text-primary font-medium shrink-0">{formatCurrency(entry.value)}</span>
+                      <span className="flex items-center gap-2 shrink-0">
+                        <span className="text-text-faint text-xs tabular-nums">{entry.percentual.toFixed(0)}%</span>
+                        <span className="text-text-primary font-medium">{formatCurrency(entry.value)}</span>
+                      </span>
                     </li>
                   ))}
                 </ul>
-              </>
+              </div>
             )}
           </div>
         </PanelCard>
