@@ -13,7 +13,6 @@ import type { Column, ColumnDef, PaginationState, SortingState } from '@tanstack
 import {
   Package,
   Search,
-  Filter,
   Bike,
   RefreshCw,
   Plus,
@@ -46,6 +45,7 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { Switch } from '../../components/ui/switch';
 import { estoqueApi, uploadImagemEstoque } from './api';
+import { EstoqueFiltrosPopover } from './EstoqueFiltrosPopover';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
 import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
@@ -1043,80 +1043,27 @@ export function EstoqueView({
               )}
             </div>
 
-            <div className="flex flex-wrap items-center gap-2">
-              <TreeDropdown
-                icon={<Filter size={14} />}
-                value={categoriaFiltro}
-                onChange={setCategoriaFiltro}
-                nodes={categoriaNodes}
-                emptyOption={{ value: 'Todas', label: 'Todas categorias' }}
-                searchPlaceholder="Buscar categoria..."
-                emptyMessage="Nenhuma categoria encontrada."
-              />
-              <TreeDropdown
-                icon={<Bike size={14} />}
-                value={modeloFiltro}
-                onChange={setModeloFiltro}
-                nodes={modeloNodes}
-                emptyOption={{ value: 'Todas', label: 'Todos modelos' }}
-                searchPlaceholder="Buscar moto..."
-                emptyMessage="Nenhuma moto encontrada."
-              />
-              <button
-                onClick={() => setSoEstoqueBaixo((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soEstoqueBaixo ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Estoque baixo
-                <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soEstoqueBaixo ? 'bg-warning/20' : 'bg-surface-raised')}>{itensEstoqueBaixo}</span>
-                {soEstoqueBaixo && <X size={12} />}
-              </button>
-              <button
-                onClick={() => setSoSemPreco((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soSemPreco ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Sem preço
-                {soSemPreco && <X size={12} />}
-              </button>
-              {(itensComAvaria > 0 || soComAvaria) && (
-                <button
-                  onClick={() => setSoComAvaria((v) => !v)}
-                  className={cn(
-                    'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                    soComAvaria ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                  )}
-                >
-                  Com avaria
-                  <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soComAvaria ? 'bg-warning/20' : 'bg-surface-raised')}>{itensComAvaria}</span>
-                  {soComAvaria && <X size={12} />}
-                </button>
-              )}
-              <button
-                onClick={() => setSoSemFoto((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soSemFoto ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Sem foto
-                {soSemFoto && <X size={12} />}
-              </button>
-              <button
-                onClick={() => setSoSemLinkMl((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soSemLinkMl ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Sem link ML
-                {soSemLinkMl && <X size={12} />}
-              </button>
-            </div>
+            <EstoqueFiltrosPopover
+              categoriaFiltro={categoriaFiltro}
+              onCategoriaChange={setCategoriaFiltro}
+              categoriaNodes={categoriaNodes}
+              modeloFiltro={modeloFiltro}
+              onModeloChange={setModeloFiltro}
+              modeloNodes={modeloNodes}
+              soEstoqueBaixo={soEstoqueBaixo}
+              onToggleEstoqueBaixo={() => setSoEstoqueBaixo((v) => !v)}
+              itensEstoqueBaixo={itensEstoqueBaixo}
+              soSemPreco={soSemPreco}
+              onToggleSemPreco={() => setSoSemPreco((v) => !v)}
+              soComAvaria={soComAvaria}
+              onToggleComAvaria={() => setSoComAvaria((v) => !v)}
+              mostrarFiltroAvaria={itensComAvaria > 0 || soComAvaria}
+              itensComAvaria={itensComAvaria}
+              soSemFoto={soSemFoto}
+              onToggleSemFoto={() => setSoSemFoto((v) => !v)}
+              soSemLinkMl={soSemLinkMl}
+              onToggleSemLinkMl={() => setSoSemLinkMl((v) => !v)}
+            />
           </div>
 
           {/* Tabela */}
