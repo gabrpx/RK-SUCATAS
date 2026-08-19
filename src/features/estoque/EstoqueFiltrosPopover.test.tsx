@@ -70,4 +70,32 @@ describe('EstoqueFiltrosPopover', () => {
     render(<EstoqueFiltrosPopover {...baseProps({ soSemFoto: true, soSemLinkMl: true })} />);
     expect(screen.getByText('2')).toBeTruthy();
   });
+
+  it('clicar de novo no "Filtros" fecha o popover (mousedown antes do click, como no navegador)', () => {
+    render(<EstoqueFiltrosPopover {...baseProps()} />);
+    const botaoFiltros = screen.getByRole('button', { name: /Filtros/i });
+
+    fireEvent.click(botaoFiltros);
+    expect(screen.getByText('Estoque baixo')).toBeTruthy();
+    expect(botaoFiltros.getAttribute('aria-expanded')).toBe('true');
+
+    // O navegador dispara mousedown antes de click; simulamos os dois
+    // separadamente (fireEvent.click sozinho não reproduz a race condition:
+    // o mousedown bubla até o document e o listener de click-outside vê o
+    // trigger, decide se ele está "fora" da área observada e, se estiver
+    // (bug), já fecha o popover antes do handler de click do próprio botão
+    // rodar — que aí reabre por ler isOpen desatualizado).
+    fireEvent.mouseDown(botaoFiltros);
+    fireEvent.click(botaoFiltros);
+
+    // Não dá pra checar via ausência do texto no DOM aqui: o PopoverContent
+    // e o PopoverTrigger compartilham `layoutId`, e a transição de layout
+    // (shared-element) do Motion nunca "completa" no jsdom (não há layout
+    // real pra medir), então o AnimatePresence não desmonta o conteúdo por
+    // tempo indeterminado mesmo com o estado já correto — verificado à parte
+    // com um teste isolado sem layoutId (some do DOM na hora) vs. com
+    // layoutId (fica preso por >1s). `aria-expanded` é setado direto do
+    // estado `isOpen` (sem depender da animação), é o sinal correto aqui.
+    expect(botaoFiltros.getAttribute('aria-expanded')).toBe('false');
+  });
 });

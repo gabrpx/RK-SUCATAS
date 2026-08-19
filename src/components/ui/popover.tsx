@@ -58,11 +58,14 @@ export function PopoverRoot({ children, className }: PopoverRootProps) {
   const [isOpen, setIsOpen] = useState(false)
   const openPopover = () => setIsOpen(true)
   const closePopover = () => setIsOpen(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+
+  useClickOutside(rootRef, closePopover)
 
   return (
     <PopoverContext.Provider value={{ isOpen, openPopover, closePopover, uniqueId }}>
       <MotionConfig transition={SPRING_MICRO}>
-        <div className={cn("relative flex items-center", className)}>{children}</div>
+        <div ref={rootRef} className={cn("relative flex items-center", className)}>{children}</div>
       </MotionConfig>
     </PopoverContext.Provider>
   )
@@ -104,9 +107,6 @@ interface PopoverContentProps {
 
 export function PopoverContent({ children, className }: PopoverContentProps) {
   const { isOpen, closePopover, uniqueId } = usePopover()
-  const containerRef = useRef<HTMLDivElement>(null)
-
-  useClickOutside(containerRef, closePopover)
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -120,7 +120,6 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          ref={containerRef}
           layoutId={`popover-${uniqueId}`}
           className={cn(
             "absolute right-0 top-full z-[150] mt-2 max-h-[70vh] w-80 max-w-[90vw] overflow-y-auto rounded-card border border-border-default bg-surface-card p-3 shadow-2xl outline-none",
