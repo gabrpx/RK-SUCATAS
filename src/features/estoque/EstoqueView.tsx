@@ -12,7 +12,6 @@ import {
 import type { Column, ColumnDef, PaginationState, SortingState } from '@tanstack/react-table';
 import {
   Package,
-  Search,
   Bike,
   RefreshCw,
   Plus,
@@ -46,6 +45,7 @@ import { Modal, ModalSection } from '../../components/ui/Modal';
 import { Switch } from '../../components/ui/switch';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { EstoqueFiltrosPopover } from './EstoqueFiltrosPopover';
+import { EstoqueBuscaSugestoes } from './EstoqueBuscaSugestoes';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
 import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
@@ -1028,20 +1028,12 @@ export function EstoqueView({
         <>
           {/* Filtros */}
           <div className="space-y-3">
-            <div className="flex items-center gap-3 rounded-control border border-border-default bg-surface-inset px-4">
-              <Search size={16} className="text-text-faint shrink-0" />
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar peças por nome, código, categoria ou moto..."
-                className="flex-1 py-3.5 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-faint"
-              />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="p-1.5 rounded-full hover:bg-surface-raised text-text-faint">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+            <EstoqueBuscaSugestoes
+              value={searchTerm}
+              onChange={setSearchTerm}
+              sugestoes={debouncedSearch.trim() ? filtered.slice(0, 6) : []}
+              onSelecionar={onSelectItem}
+            />
 
             <EstoqueFiltrosPopover
               categoriaFiltro={categoriaFiltro}
