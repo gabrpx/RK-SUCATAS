@@ -20,3 +20,6 @@ android/app/*.keystore
 # Estado local da ferramenta de IA usada no desenvolvimento — específico de
 # cada máquina/sessão, não é configuração do projeto.
 .claude/
+
+# Worktrees isolados criados durante implementação (superpowers:using-git-worktrees).
+.worktrees/
