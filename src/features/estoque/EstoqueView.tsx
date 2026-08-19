@@ -19,7 +19,6 @@ import {
   Loader2,
   AlertCircle,
   AlertTriangle,
-  Upload,
   Camera,
   ChevronDown,
   ChevronLeft,
@@ -46,6 +45,7 @@ import { Switch } from '../../components/ui/switch';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { EstoqueFiltrosPopover } from './EstoqueFiltrosPopover';
 import { EstoqueBuscaSugestoes } from './EstoqueBuscaSugestoes';
+import { EstoqueUploadFotos } from './EstoqueUploadFotos';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
 import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
@@ -229,7 +229,6 @@ export function EstoqueView({
   // Quanto a foto encolheu no celular antes de subir; some no próximo upload.
   const [resumoCompressao, setResumoCompressao] = useState<string | null>(null);
   const inputCameraRef = useRef<HTMLInputElement>(null);
-  const inputGaleriaRef = useRef<HTMLInputElement>(null);
   // Foco volta pro nome a cada peça salva em sequência: é sempre o primeiro
   // campo a preencher e evita ter que buscar o cursor com a mão.
   const inputNomeRef = useRef<HTMLInputElement>(null);
@@ -326,7 +325,7 @@ export function EstoqueView({
 
   // Envia uma ou várias fotos de uma vez e ACRESCENTA à galeria (não
   // substitui) — mesmo padrão de UnidadesEstoque.tsx `enviarFotos`.
-  const handleUploadImagem = async (files: FileList) => {
+  const handleUploadImagem = async (files: FileList | File[]) => {
     setIsUploadingImagem(true);
     setResumoCompressao(null);
     try {
@@ -1495,53 +1494,16 @@ export function EstoqueView({
                 <div className="space-y-3">
                   <p className="text-xs text-text-faint">A primeira foto é a capa mostrada na lista. Pode anexar mais de uma.</p>
 
-                  {formData.imagens.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.imagens.map((url, i) => (
-                        <div key={url} className="relative size-20 rounded-control overflow-hidden border border-border-default">
-                          <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          {i === 0 && (
-                            <span className="absolute bottom-0 inset-x-0 bg-media-overlay-badge text-white text-[9px] font-semibold uppercase tracking-wide text-center py-0.5">Capa</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setFormData((prev) => ({ ...prev, imagens: prev.imagens.filter((u) => u !== url) }))}
-                            title="Remover foto"
-                            className="absolute top-1 right-1 size-6 rounded-full bg-overlay-scrim text-white flex items-center justify-center hover:bg-danger"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    {/* Câmera separada da galeria: no celular abre direto a
-                        câmera (um toque a menos por peça) sem tirar a opção
-                        de escolher fotos já salvas. Escondida no desktop,
-                        onde `capture` não significa nada. */}
-                    <button
-                      type="button"
-                      onClick={() => inputCameraRef.current?.click()}
-                      disabled={isUploadingImagem}
-                      className="md:hidden flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
-                    >
-                      {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} Câmera
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => inputGaleriaRef.current?.click()}
-                      disabled={isUploadingImagem}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
-                    >
-                      {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                      <span className="md:hidden">{isUploadingImagem ? 'Enviando...' : 'Galeria'}</span>
-                      <span className="hidden md:inline">
-                        {isUploadingImagem ? 'Enviando...' : formData.imagens.length > 0 ? 'Adicionar mais fotos' : 'Anexar fotos'}
-                      </span>
-                    </button>
-                  </div>
+                  {/* Câmera fica separada (só mobile, abre direto a câmera) — a galeria
+                      vira o dropzone abaixo, que também mostra as miniaturas já anexadas. */}
+                  <button
+                    type="button"
+                    onClick={() => inputCameraRef.current?.click()}
+                    disabled={isUploadingImagem}
+                    className="md:hidden w-full flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
+                  >
+                    {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} Câmera
+                  </button>
                   <input
                     ref={inputCameraRef}
                     type="file"
@@ -1553,18 +1515,14 @@ export function EstoqueView({
                       e.target.value = '';
                     }}
                   />
-                  <input
-                    ref={inputGaleriaRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files?.length) handleUploadImagem(e.target.files);
-                      e.target.value = '';
-                    }}
+
+                  <EstoqueUploadFotos
+                    imagens={formData.imagens}
+                    onRemoverImagem={(url) => setFormData((prev) => ({ ...prev, imagens: prev.imagens.filter((u) => u !== url) }))}
+                    onArquivosSelecionados={handleUploadImagem}
+                    enviando={isUploadingImagem}
+                    resumoCompressao={resumoCompressao}
                   />
-                  {resumoCompressao && <p className="text-[11px] text-positive">{resumoCompressao}</p>}
                 </div>
               </ModalSection>
 
