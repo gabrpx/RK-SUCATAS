@@ -23,13 +23,17 @@ function useClickOutside(
   handler: () => void
 ) {
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
+    const handleClickOutside = (event: MouseEvent | TouchEvent) => {
       if (ref.current && !ref.current.contains(event.target as Node)) {
         handler()
       }
     }
     document.addEventListener("mousedown", handleClickOutside)
-    return () => document.removeEventListener("mousedown", handleClickOutside)
+    document.addEventListener("touchstart", handleClickOutside)
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside)
+      document.removeEventListener("touchstart", handleClickOutside)
+    }
   }, [ref, handler])
 }
 
@@ -129,7 +133,7 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
           // já rola sozinho (max-h-72). Quem precisar de teto de altura passa
           // pelo `className`.
           className={cn(
-            "absolute right-0 top-full z-[150] mt-2 w-80 max-w-[90vw] rounded-card border border-border-default bg-surface-card p-3 shadow-2xl outline-none",
+            "absolute left-0 top-full z-[150] mt-2 w-80 max-w-[90vw] rounded-card border border-border-default bg-surface-card p-3 shadow-2xl outline-none",
             className
           )}
         >

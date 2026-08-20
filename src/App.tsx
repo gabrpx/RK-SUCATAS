@@ -15,9 +15,7 @@ import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
 import { Capacitor } from '@capacitor/core';
 import {
   Package,
-  TrendingUp,
   ChevronRight,
-  ChevronLeft,
   Loader2,
   Wrench,
   Trash2,
@@ -27,7 +25,6 @@ import {
   CreditCard,
   MessageCircle,
   FileText,
-  LogOut,
   Gauge,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -35,8 +32,9 @@ import { cn } from './utils';
 import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { DashboardSidebar } from './components/DashboardSidebar';
 import { Modal } from './components/ui/Modal';
-import { Button, buttonVariants } from './components/ui/button';
+import { Button } from './components/ui/button';
 import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
@@ -65,8 +63,7 @@ import { ComprovantesPixVenda } from './features/comprovantes/ComprovantesPixVen
 import { VendaClienteResumo } from './features/vendas/VendaClienteResumo';
 import { TAB_ROLES } from './constants/roles';
 import type { Role } from './constants/roles';
-import { NAV_ITEMS, NAV_GROUP_LABELS } from './constants/navigation';
-import type { Tab, NavGroup } from './constants/navigation';
+import type { Tab } from './constants/navigation';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
@@ -194,31 +191,6 @@ export default function App() {
     </DataProvider>
   );
 }
-
-// =============================================================================
-// SIDEBAR ITEM
-// =============================================================================
-
-// buttonVariants (mesma fonte de verdade do token "ghost" que o Button usa)
-// aplicado num motion.button puro, não o componente Button em si — evita ter
-// que fazer o Button aceitar ref só pra isso, mas mantém a física de
-// hover/tap (whileHover/whileTap) que a sidebar já tinha.
-const SidebarItem = memo(({ icon: Icon, label, active, onClick, className }: { icon: any; label: string; active: boolean; onClick: () => void; className?: string }) => (
-  <motion.button
-    whileHover={{ x: 4 }}
-    whileTap={{ scale: 0.98 }}
-    onClick={onClick}
-    className={cn(
-      buttonVariants({ variant: 'ghost' }),
-      'w-full h-auto justify-start gap-4 px-5 py-4 rounded-control transition-all duration-500 group relative overflow-hidden transform-gpu',
-      active ? 'bg-accent text-white shadow-[0_10px_30px_var(--color-accent-shadow)] hover:bg-accent hover:text-white' : 'text-text-muted hover:bg-surface-raised hover:text-text-secondary',
-      className
-    )}
-  >
-    <Icon size={20} strokeWidth={active ? 3 : 2} className="relative z-10" />
-    {label && <span className="font-black text-xs uppercase tracking-[0.2em] whitespace-nowrap relative z-10">{label}</span>}
-  </motion.button>
-));
 
 // =============================================================================
 // DETAIL MODAL — mostra um item de Estoque ou uma Venda
@@ -555,11 +527,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   // de assumir admin.
   const userRoles = lerRolesArmazenados() ?? (IS_LOCALHOST ? ['admin'] : ['estoque_leitura']);
 
-  const visibleNavItems = useMemo(
-    () => NAV_ITEMS.filter((item) => item.roles.some((r) => userRoles.includes(r))),
-    [userRoles]
-  );
-
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
     const abaValida = VALID_TABS.includes(path);
@@ -621,79 +588,17 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
   return (
     <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', 'bg-[radial-gradient(ellipse_at_top,_var(--color-surface-raised),_var(--color-surface-page))] text-text-primary')}>
-      <AnimatePresence>
-        {isSidebarOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm z-40 lg:hidden" />}
-      </AnimatePresence>
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          'fixed top-0 h-screen inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out border-r hidden md:flex overflow-y-auto',
-          'bg-surface-inset/50 border-border-default/50 backdrop-blur-xl',
-          isSidebarOpen ? 'w-64' : 'w-20'
-        )}
-      >
-        <div className={cn('h-full flex flex-col p-4', 'bg-surface-inset')}>
-          <div className="flex items-center gap-3 px-2 mb-10 overflow-hidden">
-            <div className="w-10 h-10 shrink-0 rounded-xl bg-surface-card border border-border-default flex items-center justify-center">
-              <Wrench className={'text-text-primary'} size={20} />
-            </div>
-            {isSidebarOpen && (
-              <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col min-w-0">
-                <span className={cn('font-black text-xl tracking-tighter truncate', 'text-text-primary')}>
-                  RK <span className="text-accent">SUCATAS</span>
-                </span>
-                <span className="text-[8px] font-bold text-text-muted uppercase tracking-[0.2em]">Gestão Inteligente</span>
-              </motion.div>
-            )}
-          </div>
-
-          <nav className="flex-1 space-y-1">
-            {(() => {
-              let lastGroup: NavGroup | undefined;
-              return visibleNavItems.map((item) => {
-                const showHeader = item.group !== null && item.group !== lastGroup;
-                lastGroup = item.group;
-                return (
-                  <React.Fragment key={item.id}>
-                    {showHeader && (
-                      <div className={cn('pt-4 pb-1 first:pt-0', isSidebarOpen ? 'px-5' : 'flex justify-center')}>
-                        {isSidebarOpen ? (
-                          <span className={cn('text-[10px] font-black uppercase tracking-[0.2em]', 'text-text-faint')}>
-                            {NAV_GROUP_LABELS[item.group as Exclude<NavGroup, null>]}
-                          </span>
-                        ) : (
-                          <span className={cn('block w-6 border-t', 'border-border-default')} />
-                        )}
-                      </div>
-                    )}
-                    <SidebarItem
-                      icon={item.icon}
-                      label={isSidebarOpen ? item.label : ''}
-                      active={activeTab === item.id}
-                      onClick={() => setActiveTab(item.id)}
-                                         />
-                  </React.Fragment>
-                );
-              });
-            })()}
-            <div className={cn('my-2 border-t', 'border-border-default/70')} />
-            <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} className="text-danger hover:bg-danger-bg hover:text-danger" />
-          </nav>
-
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => setIsSidebarOpen((v) => !v)}
-            className="mt-4 text-text-muted hover:bg-surface-card hover:text-text-muted"
-          >
-            {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </Button>
-        </div>
-      </aside>
+      <DashboardSidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        userRoles={userRoles}
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen((v) => !v)}
+        onLogoutClick={() => setIsLogoutModalOpen(true)}
+      />
 
       {/* Main Content */}
-      <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-64' : 'md:ml-20')}>
+      <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-[260px]' : 'md:ml-[68px]')}>
         <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-surface-inset/40 border-border-default/50')}>
           <div className="flex items-center gap-2 md:gap-4">
             <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-text-primary')}>{TAB_LABELS[activeTab]}</h2>

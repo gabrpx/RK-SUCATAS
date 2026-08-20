@@ -18,6 +18,25 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.20',
+    data: '2026-08-20',
+    titulo: 'Nova barra lateral, filtros corrigidos e carregamento mais confiável',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'A barra lateral de navegação foi redesenhada: visual mais limpo, agrupamento por seção (Estoque, Vendas, Gestão), e agora dá pra recolher ela pra só ícones clicando no botão embaixo — sobra mais espaço pra trabalhar.',
+      },
+      {
+        tipo: 'fix',
+        texto: 'O painel de filtros do Estoque abria do lado errado da tela e era difícil de fechar no celular. Agora abre encostado no botão e fecha ao tocar fora dele.',
+      },
+      {
+        tipo: 'fix',
+        texto: 'No celular (principalmente no app instalado), às vezes o sistema voltava pra uma versão antiga depois de recarregar. Corrigido com ajuste nos cabeçalhos de cache do servidor.',
+      },
+    ],
+  },
+  {
     versao: '1.2.19',
     data: '2026-08-20',
     titulo: 'Estoque mais rápido de usar: filtros, busca e detalhes na própria lista',
