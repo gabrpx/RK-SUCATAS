@@ -1,7 +1,7 @@
 // Aba Estoque: catálogo de peças com categoria/modelo de moto (tabelas de
 // apoio, com criação rápida inline) e condição Original/Paralela.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   flexRender,
   getCoreRowModel,
@@ -48,6 +48,9 @@ import { EstoqueBuscaSugestoes } from './EstoqueBuscaSugestoes';
 import { EstoqueUploadFotos } from './EstoqueUploadFotos';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
+import { Expandable, ExpandableContent, ExpandableTrigger } from '../../components/ui/expandable';
+import { EstoqueItemExpandido } from './EstoqueItemExpandido';
+import { SPRING_MICRO } from '../../components/ui/motion';
 import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
@@ -195,6 +198,14 @@ export function EstoqueView({
   const [soSemLinkMl, setSoSemLinkMl] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: ITEMS_PER_PAGE });
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const toggleExpandido = useCallback((id: string) => {
+    setExpandidos((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
@@ -506,8 +517,21 @@ export function EstoqueView({
         header: ({ column }) => <SortableHead column={column} label="Peça" />,
         cell: ({ row }) => {
           const item = row.original;
+          const aberto = expandidos.has(item.id);
           return (
             <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpandido(item.id);
+                }}
+                aria-label={aberto ? 'Recolher detalhes' : 'Ver mais detalhes'}
+                aria-expanded={aberto}
+                className="shrink-0 p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised"
+              >
+                <ChevronDown size={13} className={cn('transition-transform', aberto ? 'rotate-0' : '-rotate-90')} />
+              </button>
               <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
                 {item.imagens[0] ? (
                   <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -639,7 +663,7 @@ export function EstoqueView({
         },
       },
     ],
-    [readOnly, abrirAnunciosMl, openEditModal]
+    [readOnly, abrirAnunciosMl, openEditModal, expandidos, toggleExpandido]
   );
 
   const table = useReactTable<Estoque>({
@@ -1108,21 +1132,45 @@ export function EstoqueView({
                         table.getRowModel().rows.map((row) => {
                           const item = row.original;
                           const emAlerta = isEstoqueBaixo(item);
+                          const aberto = expandidos.has(item.id);
                           return (
-                            <TableRow
-                              key={row.id}
-                              onClick={() => onSelectItem(item)}
-                              className={cn(
-                                'border-b border-border-subtle last:border-b-0 cursor-pointer',
-                                emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent'
-                              )}
-                            >
-                              {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id} className={cn('px-3 py-2.5 text-text-secondary whitespace-normal', alinhamentoDaColuna(cell.column.id))}>
-                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </TableCell>
-                              ))}
-                            </TableRow>
+                            <Fragment key={row.id}>
+                              <TableRow
+                                onClick={() => onSelectItem(item)}
+                                className={cn(
+                                  'border-b border-border-subtle last:border-b-0 cursor-pointer',
+                                  emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent'
+                                )}
+                              >
+                                {row.getVisibleCells().map((cell) => (
+                                  <TableCell key={cell.id} className={cn('px-3 py-2.5 text-text-secondary whitespace-normal', alinhamentoDaColuna(cell.column.id))}>
+                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                              {/* Painel expandido: precisa ser uma <TableRow> própria,
+                                  separada — um motion.div (raiz do Expandable) não pode
+                                  ficar entre duas <tr> dentro do <tbody> (HTML inválido).
+                                  Por isso aqui a altura é animada à mão, não via Expandable
+                                  (que o card mobile abaixo usa de verdade). */}
+                              <AnimatePresence>
+                                {aberto && (
+                                  <TableRow className="hover:bg-transparent border-b border-border-subtle">
+                                    <TableCell colSpan={columns.length} className="p-0">
+                                      <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={SPRING_MICRO}
+                                        className="overflow-hidden"
+                                      >
+                                        <EstoqueItemExpandido item={item} categorias={categorias} />
+                                      </motion.div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </AnimatePresence>
+                            </Fragment>
                           );
                         })
                       )}
@@ -1139,13 +1187,39 @@ export function EstoqueView({
                         const item = row.original;
                         const emAlerta = isEstoqueBaixo(item);
                         return (
-                          <div
+                          // Card mobile é 1 <div> só (sem a restrição de <tr>/<tbody> da
+                          // tabela desktop acima), então aqui usamos o Expandable de
+                          // verdade (Cult UI) em vez de controlar a altura à mão.
+                          <Expandable
                             key={row.id}
+                            expanded={expandidos.has(item.id)}
+                            onToggle={() => toggleExpandido(item.id)}
                             onClick={() => onSelectItem(item)}
                             className={cn('border-l-2 px-3 py-3 cursor-pointer', emAlerta ? 'border-l-warning' : 'border-l-transparent')}
                           >
-                            {renderMobileCard(item)}
-                          </div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">{renderMobileCard(item)}</div>
+                              {/* ExpandableTrigger já seta seu próprio onClick (toggleExpand) no
+                                  mesmo <div> — um onClickCapture aqui pararia a propagação ANTES
+                                  desse onClick próprio disparar (mesmo nó, capture roda antes do
+                                  bubble). Por isso o stopPropagation mora num wrapper por fora:
+                                  toggleExpand dispara primeiro (o alvo real do clique), só depois,
+                                  ao borbulhar, o wrapper impede que chegue no onClick do card. */}
+                              <div className="shrink-0 -mr-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                <ExpandableTrigger
+                                  aria-label={expandidos.has(item.id) ? 'Recolher detalhes' : 'Ver mais detalhes'}
+                                  className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised"
+                                >
+                                  <ChevronDown size={14} className={cn('transition-transform', expandidos.has(item.id) ? 'rotate-0' : '-rotate-90')} />
+                                </ExpandableTrigger>
+                              </div>
+                            </div>
+                            <ExpandableContent keepMounted={false} preset="fade">
+                              <div className="mt-3">
+                                <EstoqueItemExpandido item={item} categorias={categorias} />
+                              </div>
+                            </ExpandableContent>
+                          </Expandable>
                         );
                       })}
                     </div>
