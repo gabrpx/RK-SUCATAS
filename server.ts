@@ -35,8 +35,10 @@ import { tarefasRouter } from './src/server/routes/tarefas.js';
 import { lembretesRouter } from './src/server/routes/lembretes.js';
 import { notificacoesRouter } from './src/server/routes/notificacoes.js';
 import { mercadolivreRouter, mercadolivreCallbackHandler, mercadolivreWebhookHandler } from './src/server/routes/mercadolivre.js';
+import { shopeeRouter, shopeeCallbackHandler } from './src/server/routes/shopee.js';
 import { iniciarDetectorDePendenciasML } from './src/services/mercadolivreScheduler.js';
 import { iniciarSincronizadorDeEstatisticasML } from './src/services/mercadolivreEstatisticasScheduler.js';
+import { iniciarRenovacaoDeTokenShopee, iniciarSincronizadorDeEstatisticasShopee } from './src/services/shopeeScheduler.js';
 import { iniciarRastreioAutomaticoDeEnvios } from './src/services/enviosScheduler.js';
 import { iniciarChecagemDiariaDeAlertas } from './src/services/notificacoesScheduler.js';
 import { iniciarDisparoDeLembretes } from './src/services/lembretesScheduler.js';
@@ -130,6 +132,10 @@ async function startServer() {
   // tem como vir com Authorization: Bearer junto. Ver mercadolivre.ts pra
   // como isso continua seguro (state de uso único).
   app.get('/api/mercadolivre/callback', mercadolivreCallbackHandler(supabase));
+
+  // Mesma razão de ficar fora do gate de JWT, agora pro fluxo OAuth da
+  // Shopee (ver shopee.ts pra como isso continua seguro: state de uso único).
+  app.get('/api/shopee/callback', shopeeCallbackHandler(supabase));
 
   // Mesma razão de ficar fora do gate de JWT: é o Mercado Livre chamando
   // nosso servidor direto (webhook), não a nossa SPA. Rate limit generoso —
@@ -303,6 +309,7 @@ async function startServer() {
   app.use('/api/tarefas', tarefasRouter(supabase));
   app.use('/api/lembretes', lembretesRouter(supabase));
   app.use('/api/mercadolivre', autorizar('admin', 'equipe'), mercadolivreRouter(supabase));
+  app.use('/api/shopee', autorizar('admin', 'equipe'), shopeeRouter(supabase));
   app.use('/api/usuarios', autorizar('admin'), usuariosRouter(supabase));
 
   // Único processo em background do sistema: só detecta pergunta/pedido novo
@@ -311,6 +318,10 @@ async function startServer() {
   // humano (ver mercadolivreSync.ts > sincronizarAnuncio/importarPedidoComoVenda).
   iniciarDetectorDePendenciasML(supabase);
   iniciarSincronizadorDeEstatisticasML(supabase);
+  // Segundo canal (Shopee) — dois jobs próprios, cadência independente do
+  // ML (ver shopeeScheduler.ts): token expira em 4h contra 6h do ML.
+  iniciarRenovacaoDeTokenShopee(supabase);
+  iniciarSincronizadorDeEstatisticasShopee(supabase);
   iniciarRastreioAutomaticoDeEnvios(supabase);
   iniciarChecagemDiariaDeAlertas(supabase);
   iniciarDisparoDeLembretes(supabase);

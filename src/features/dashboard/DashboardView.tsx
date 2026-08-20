@@ -8,6 +8,7 @@
 // tokens de src/styles/theme.css — nada de hex/cor direta aqui.
 import type React from 'react';
 import { useMemo, useState } from 'react';
+import { motion, useReducedMotion } from 'motion/react';
 import {
   Package,
   ShoppingCart,
@@ -28,6 +29,7 @@ import {
 import { AreaChart } from '../../components/ui/tremor/AreaChart';
 import { DonutChart } from '../../components/ui/tremor/DonutChart';
 import { getColorClassName, type AvailableChartColorsKeys } from '../../components/ui/tremor/chartColors';
+import { EASE_STANDARD } from '../../components/ui/motion';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useTarefas } from '../tarefas/useTarefas';
@@ -72,15 +74,16 @@ const PIE_COLORS: AvailableChartColorsKeys[] = ['accent', 'positive', 'warning',
 export function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-control border border-border-default bg-surface-raised px-3 py-2 shadow-lg">
-      <p className="text-[10px] uppercase tracking-wide text-text-faint mb-1">{label}</p>
-      <p className="text-sm font-medium text-text-primary">{formatCurrency(payload[0].value)}</p>
+    <div className="rounded-control border border-border-default bg-surface-overlay px-3 py-2 shadow-md">
+      <p className="text-3xs uppercase tracking-wide text-text-faint mb-1">{label}</p>
+      <p className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(payload[0].value)}</p>
     </div>
   );
 }
 
 // Card-container padrão usado pelas seções de gráfico/lista da tela.
-// Exportado pelo mesmo motivo de ChartTooltip acima.
+// Exportado pelo mesmo motivo de ChartTooltip acima — VisaoDono também usa,
+// então o realce de borda/entrada aqui já beneficia as duas telas.
 export function PanelCard({
   titulo,
   acaoLabel,
@@ -95,21 +98,30 @@ export function PanelCard({
   headerExtra?: React.ReactNode;
   children: React.ReactNode;
 }) {
+  const reduzMovimento = useReducedMotion();
+
   return (
-    <div className="bg-surface-card border border-border-subtle rounded-card overflow-hidden">
+    <motion.div
+      initial={reduzMovimento ? false : { opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.35, ease: EASE_STANDARD }}
+      className="bg-surface-card border border-border-subtle rounded-card overflow-hidden"
+    >
+      <div className="h-px w-full bg-gradient-surface-edge" />
       <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-border-subtle">
         <div className="flex items-center gap-2 min-w-0">
-          <h3 className="text-xs font-semibold uppercase tracking-wide text-text-muted truncate">{titulo}</h3>
+          <h3 className="text-2xs font-semibold uppercase tracking-wide text-text-muted truncate">{titulo}</h3>
           {headerExtra}
         </div>
         {acaoLabel && onAcao && (
-          <button onClick={onAcao} className="shrink-0 text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80">
+          <button onClick={onAcao} className="shrink-0 text-2xs font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 transition-opacity duration-fast">
             {acaoLabel}
           </button>
         )}
       </div>
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -139,19 +151,19 @@ export function LinhaAtividade({
   return (
     <div
       onClick={onClick}
-      className={cn('flex items-center gap-3 px-5 py-3', onClick && 'cursor-pointer hover:bg-surface-raised')}
+      className={cn('flex items-center gap-3 px-5 py-3 transition-colors duration-fast', onClick && 'cursor-pointer hover:bg-surface-raised')}
     >
       <div className={cn('size-8 rounded-control flex items-center justify-center shrink-0', iconClasses)}>
-        <Icone size={15} strokeWidth={2} />
+        <Icone size={15} strokeWidth={1.75} />
       </div>
       <div className="min-w-0 flex-1">
         <p className="text-sm font-medium text-text-primary truncate">{titulo}</p>
         <div className="flex items-center gap-2 mt-0.5">
           <StatusBadge texto={legenda} tom="neutral" />
-          <span className="text-[11px] text-text-faint">{data}</span>
+          <span className="text-2xs text-text-faint">{data}</span>
         </div>
       </div>
-      <span className={cn('text-sm font-medium shrink-0', valorClasses)}>{formatCurrency(valor)}</span>
+      <span className={cn('text-sm font-medium shrink-0 tabular-nums', valorClasses)}>{formatCurrency(valor)}</span>
     </div>
   );
 }
@@ -171,9 +183,9 @@ function DashboardSkeleton() {
         </div>
         <div className={cn(bar, 'h-10 w-64 hidden md:block')} />
       </div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="flex gap-3 overflow-x-hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-surface-card border border-border-subtle rounded-card p-4 space-y-3">
+          <div key={i} className="shrink-0 w-[78%] sm:w-auto bg-surface-card border border-border-subtle rounded-card p-4 space-y-3">
             <div className={cn(bar, 'size-9 rounded-control')} />
             <div className={cn(bar, 'h-2.5 w-20')} />
             <div className={cn(bar, 'h-5 w-28')} />
@@ -355,8 +367,8 @@ export function DashboardView({
       {/* 1. Cabeçalho */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-medium text-text-primary">Painel geral</h1>
-          <p className="text-sm text-text-faint mt-0.5">
+          <h1 className="text-3xl md:text-4xl font-semibold text-text-primary tracking-tight leading-none">Painel geral</h1>
+          <p className="text-sm text-text-faint mt-2">
             {NOME_LOJA} · atualizado agora
           </p>
         </div>
@@ -364,9 +376,9 @@ export function DashboardView({
         <div className="flex items-center gap-3">
           <div
             onClick={() => onOpenSearch?.()}
-            className="hidden md:flex items-center gap-2 w-64 px-3 py-2 rounded-control border border-border-default bg-surface-inset text-text-faint cursor-pointer hover:border-border-default/80"
+            className="hidden md:flex items-center gap-2 w-64 px-3 py-2 rounded-control border border-border-default bg-surface-inset text-text-faint cursor-pointer hover:border-border-default/80 transition-colors duration-fast"
           >
-            <Search size={14} />
+            <Search size={15} strokeWidth={1.75} />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -381,28 +393,33 @@ export function DashboardView({
             className="md:hidden size-9 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center"
             aria-label="Buscar"
           >
-            <Search size={16} />
+            <Search size={16} strokeWidth={1.75} />
           </button>
 
           <div className="relative">
             <button
               onClick={() => setNotificacoesAbertas((v) => !v)}
-              className="relative size-9 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center"
+              className="relative size-9 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center transition-colors duration-fast hover:border-border-default/80"
               aria-label="Notificações"
             >
-              <Bell size={16} />
-              {temAlerta && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-danger" />}
+              <Bell size={16} strokeWidth={1.75} />
+              {temAlerta && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-danger shadow-[0_0_6px_var(--color-danger)]" />}
             </button>
 
             {notificacoesAbertas && (
               <>
                 {/* Backdrop invisível só pra fechar ao clicar fora — o painel em si não precisa de overlay escuro */}
                 <div className="fixed inset-0 z-[70]" onClick={() => setNotificacoesAbertas(false)} />
-                <div className="fixed inset-x-4 top-[calc(4rem+var(--safe-top))] sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 z-[80] sm:w-80 sm:max-w-[85vw] max-h-[min(24rem,70vh)] flex flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-card shadow-2xl">
+                <motion.div
+                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  transition={{ duration: 0.18, ease: EASE_STANDARD }}
+                  className="fixed inset-x-4 top-[calc(4rem+var(--safe-top))] sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 z-[80] sm:w-80 sm:max-w-[85vw] max-h-[min(24rem,70vh)] flex flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-overlay shadow-lg"
+                >
                   <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
-                    <h4 className="text-xs font-semibold uppercase tracking-wide text-text-muted">Tarefas pendentes</h4>
-                    <button onClick={() => setNotificacoesAbertas(false)} className="text-text-faint hover:text-text-primary">
-                      <X size={14} />
+                    <h4 className="text-2xs font-semibold uppercase tracking-wide text-text-muted">Tarefas pendentes</h4>
+                    <button onClick={() => setNotificacoesAbertas(false)} className="text-text-faint hover:text-text-primary transition-colors duration-fast">
+                      <X size={14} strokeWidth={1.75} />
                     </button>
                   </div>
                   <div className="overflow-y-auto flex-1">
@@ -419,12 +436,12 @@ export function DashboardView({
                               setNotificacoesAbertas(false);
                               onTabChange('tarefas');
                             }}
-                            className="w-full text-left px-4 py-3 hover:bg-surface-raised flex items-start gap-2.5"
+                            className="w-full text-left px-4 py-3 hover:bg-surface-raised transition-colors duration-fast flex items-start gap-2.5"
                           >
-                            <ClipboardList size={14} className="text-accent-soft-fg shrink-0 mt-0.5" />
+                            <ClipboardList size={14} strokeWidth={1.75} className="text-accent-soft-fg shrink-0 mt-0.5" />
                             <div className="min-w-0 flex-1">
                               <p className="text-sm text-text-primary truncate">{t.titulo}</p>
-                              <p className="text-[11px] text-text-faint truncate">
+                              <p className="text-2xs text-text-faint truncate">
                                 {t.atribuido?.nome_exibicao || 'Sem responsável'}
                                 {t.prazo ? ` · ${new Date(t.prazo).toLocaleDateString('pt-BR')}` : ''}
                               </p>
@@ -443,12 +460,12 @@ export function DashboardView({
                         setNotificacoesAbertas(false);
                         onTabChange('tarefas');
                       }}
-                      className="w-full text-center text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80"
+                      className="w-full text-center text-2xs font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 transition-opacity duration-fast"
                     >
                       Ver todas as tarefas
                     </button>
                   </div>
-                </div>
+                </motion.div>
               </>
             )}
           </div>
@@ -459,36 +476,46 @@ export function DashboardView({
         </div>
       </div>
 
-      {/* 2. Métricas */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
-        <MetricCard
-          icone={Package}
-          label="Valor em estoque"
-          valor={formatCurrency(metrics.valorTotalEstoque)}
-          contexto={`${metrics.totalUnidadesEstoque} unidades`}
-          tom="positive"
-        />
-        <MetricCard
-          icone={ShoppingCart}
-          label="Vendas do mês"
-          valor={formatCurrency(metrics.valorVendasMes)}
-          contexto={`${metrics.vendasMes.length} vendas · ${variacaoVendas.texto}`}
-          tom={variacaoVendas.positivo ? 'positive' : 'negative'}
-        />
-        <MetricCard
-          icone={Wallet}
-          label="Saídas do mês"
-          valor={formatCurrency(metrics.valorSaidasMes)}
-          contexto={variacaoSaidas.texto}
-          tom="negative"
-        />
-        <MetricCard
-          icone={Receipt}
-          label="Ticket médio"
-          valor={formatCurrency(metrics.ticketMedio)}
-          contexto={variacaoTicket.texto}
-          tom={variacaoTicket.positivo ? 'positive' : 'negative'}
-        />
+      {/* 2. Métricas — no mobile é um carrossel com scroll-snap (dá pra sentir
+          que tem mais card fora da tela); no desktop vira grade 4 colunas.
+          Não é a mesma composição só empilhada em breakpoints diferentes. */}
+      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-0.5 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 sm:overflow-visible">
+        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+          <MetricCard
+            icone={Package}
+            label="Valor em estoque"
+            valor={formatCurrency(metrics.valorTotalEstoque)}
+            contexto={`${metrics.totalUnidadesEstoque} unidades`}
+            tom="positive"
+          />
+        </div>
+        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+          <MetricCard
+            icone={ShoppingCart}
+            label="Vendas do mês"
+            valor={formatCurrency(metrics.valorVendasMes)}
+            contexto={`${metrics.vendasMes.length} vendas · ${variacaoVendas.texto}`}
+            tom={variacaoVendas.positivo ? 'positive' : 'negative'}
+          />
+        </div>
+        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+          <MetricCard
+            icone={Wallet}
+            label="Saídas do mês"
+            valor={formatCurrency(metrics.valorSaidasMes)}
+            contexto={variacaoSaidas.texto}
+            tom="negative"
+          />
+        </div>
+        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+          <MetricCard
+            icone={Receipt}
+            label="Ticket médio"
+            valor={formatCurrency(metrics.ticketMedio)}
+            contexto={variacaoTicket.texto}
+            tom={variacaoTicket.positivo ? 'positive' : 'negative'}
+          />
+        </div>
       </div>
 
       {/* 3. Alertas */}
@@ -499,16 +526,16 @@ export function DashboardView({
       {metrics.itensEstoqueBaixo.length > 0 && (
         <div className="flex items-center justify-between gap-3 border-l-2 border-l-warning bg-warning-bg pl-4 pr-3 py-3 rounded-[0_9px_9px_0]">
           <div className="flex items-center gap-3 min-w-0">
-            <AlertTriangle size={18} className="text-warning shrink-0" />
+            <AlertTriangle size={18} strokeWidth={1.75} className="text-warning shrink-0" />
             <div className="min-w-0">
-              <p className="text-2xl font-semibold text-warning leading-none tabular-nums">{metrics.itensEstoqueBaixo.length}</p>
+              <p className="text-3xl font-semibold text-warning leading-none tabular-nums tracking-tight">{metrics.itensEstoqueBaixo.length}</p>
               <p className="text-xs text-text-secondary mt-1 truncate">peça(s) com estoque baixo (≤ 2 unidades)</p>
             </div>
           </div>
           <button
             type="button"
             onClick={() => onNavigateEstoqueBaixo?.()}
-            className="shrink-0 text-xs font-semibold uppercase tracking-wide underline underline-offset-2 text-warning hover:opacity-80"
+            className="shrink-0 text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 text-warning hover:opacity-80 transition-opacity duration-fast"
           >
             Ver itens
           </button>
@@ -581,8 +608,8 @@ export function DashboardView({
                         <span className="truncate">{entry.name}</span>
                       </span>
                       <span className="flex items-center gap-2 shrink-0">
-                        <span className="text-text-faint text-xs tabular-nums">{entry.percentual.toFixed(0)}%</span>
-                        <span className="text-text-primary font-medium">{formatCurrency(entry.value)}</span>
+                        <span className="text-text-faint text-2xs tabular-nums">{entry.percentual.toFixed(0)}%</span>
+                        <span className="text-text-primary font-medium tabular-nums">{formatCurrency(entry.value)}</span>
                       </span>
                     </li>
                   ))}
@@ -649,27 +676,27 @@ export function DashboardView({
           <>
             <div className="px-5 py-3 border-b border-border-subtle flex items-center gap-2 flex-wrap">
               {tarefasPendentesPorResponsavel.map(([nome, qtd]) => (
-                <span key={nome} className="text-xs text-text-secondary bg-surface-inset px-2.5 py-1 rounded-full">
-                  {nome}: <span className="font-medium text-text-primary">{qtd}</span>
+                <span key={nome} className="text-xs text-text-secondary bg-surface-inset px-2.5 py-1 rounded-badge">
+                  {nome}: <span className="font-medium text-text-primary tabular-nums">{qtd}</span>
                 </span>
               ))}
             </div>
             <div className="divide-y divide-border-subtle">
               {tarefasPendentes.slice(0, 5).map((t) => (
-                <div key={t.id} onClick={() => onTabChange('tarefas')} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-surface-raised">
+                <div key={t.id} onClick={() => onTabChange('tarefas')} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-surface-raised transition-colors duration-fast">
                   <div
                     className={cn(
                       'size-8 rounded-control flex items-center justify-center shrink-0',
                       t.prioridade === 'alta' ? 'bg-danger-bg text-danger' : t.prioridade === 'media' ? 'bg-warning-bg text-warning' : 'bg-surface-inset text-text-muted'
                     )}
                   >
-                    <ClipboardList size={15} strokeWidth={2} />
+                    <ClipboardList size={15} strokeWidth={1.75} />
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-text-primary truncate">{t.titulo}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <StatusBadge texto={t.atribuido?.nome_exibicao || 'Sem responsável'} tom="neutral" />
-                      {t.prazo && <span className="text-[11px] text-text-faint">{new Date(t.prazo).toLocaleDateString('pt-BR')}</span>}
+                      {t.prazo && <span className="text-2xs text-text-faint">{new Date(t.prazo).toLocaleDateString('pt-BR')}</span>}
                     </div>
                   </div>
                 </div>

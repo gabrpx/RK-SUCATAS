@@ -34,9 +34,16 @@
 .left-safe { left: var(--safe-left); }
 .right-safe { right: var(--safe-right); }
 
+/* Gradientes com propósito (ver theme.css) — classes escritas à mão em vez
+   de utility gerada pelo Tailwind (@theme não tem namespace confiável pra
+   background-image entre versões do v4). */
+.bg-gradient-page { background-image: var(--gradient-page); }
+.bg-gradient-accent-cta { background-image: var(--gradient-accent-cta); }
+.bg-gradient-surface-edge { background-image: var(--gradient-surface-edge); }
+
 body {
   @apply font-sans antialiased text-text-secondary;
-  background: radial-gradient(ellipse at top, var(--surface-raised), var(--surface-page));
+  background-image: var(--gradient-page);
   min-height: 100vh;
 }
 
@@ -118,9 +125,11 @@ input[type=number] {
     background: var(--overlay-scrim-strong) !important;
   }
   
-  /* Reduzir sombras pesadas */
-  .shadow-2xl, 
-  .shadow-\[0_8px_30px_rgb\(0\,0\,0\,0\.2\)\], 
+  /* Reduzir sombras pesadas — inclui a escala nova (--shadow-lg) do
+     redesign, mesma lógica das classes antigas que já estavam aqui. */
+  .shadow-2xl,
+  .shadow-lg,
+  .shadow-\[0_8px_30px_rgb\(0\,0\,0\,0\.2\)\],
   .shadow-\[0_0_50px_-12px_rgba\(0\,0\,0\,0\.5\)\] {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
   }

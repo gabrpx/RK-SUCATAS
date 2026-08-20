@@ -1,27 +1,51 @@
 /*
  * Design tokens do sistema.
  * Cor sempre carrega significado — nunca decorativa. Ver CLAUDE.md > Design system.
+ *
+ * Evolução (redesign visual, FASE 1):
+ * - Superfícies/bordas/texto: aquecidos e redistribuídos, com um degrau novo
+ *   (--surface-overlay) pra dar profundidade real a card-dentro-de-card
+ *   (dropdowns, popovers, sub-painéis) em vez de só alternar entre 2 tons.
+ * - --accent permanece EXATAMENTE o mesmo roxo de marca (#5b3df0), não é
+ *   um rebrand. --accent-bright e --accent-strong são derivados dele só
+ *   pra alimentar o gradiente do único CTA preenchido por tela (regra
+ *   abaixo continua valendo: no máximo um accent preenchido por tela).
+ * - positive, negative, warning e danger: inalterados, já eram bem escolhidos.
+ * - Novo: escala de sombra (mapeada pra shadow-sm, shadow-md, shadow-lg),
+ *   duração e easing (--duration-instant/fast/base/slow, --ease-standard,
+ *   --ease-soft) e gradientes com propósito (--gradient-page,
+ *   --gradient-accent-cta, --gradient-surface-edge) - sistema de animação
+ *   e profundidade descrito no redesign. Tudo isso respeita a mesma
+ *   otimização mobile já existente em index.css (nada pesado <=768px).
+ * - Gradientes não viram utility pelo bloco de tema do Tailwind (o
+ *   namespace pra background-image não é confiável entre versões do v4) -
+ *   as classes .bg-gradient-* são escritas à mão em index.css.
+ * As 4 regras originais (cor com significado, 1 accent por tela, alerta
+ * sempre com ação, número > label) continuam valendo sem mudança.
  */
 
 :root {
   /* Superfícies */
-  --surface-page: #0b0c11;
-  --surface-card: #131319;
-  --surface-raised: #15161d;
-  --surface-inset: #0e0f15;
-  --border-subtle: #1e2029;
-  --border-default: #232530;
+  --surface-page: #0a0a10;
+  --surface-card: #141420;
+  --surface-raised: #1a1a29;
+  --surface-overlay: #202032;
+  --surface-inset: #0d0d15;
+  --border-subtle: #222234;
+  --border-default: #2a2a40;
 
   /* Texto */
-  --text-primary: #f2f2f4;
-  --text-secondary: #c9cad1;
-  --text-muted: #8b8d99;
-  --text-faint: #6b6d79;
+  --text-primary: #f3f3f6;
+  --text-secondary: #c9cad3;
+  --text-muted: #8d8fa0;
+  --text-faint: #6c6e80;
 
   /* Cores semânticas */
   --accent: #5b3df0;
   --accent-soft-bg: #26215c;
   --accent-soft-fg: #afa9ec;
+  --accent-bright: #7c5cf6;
+  --accent-strong: #4a2fd6;
 
   --positive: #5dcaa5;
   --positive-bg: #04342c;
@@ -45,13 +69,38 @@
   --media-overlay-dot: rgba(255, 255, 255, 0.3);
 
   /* Sombras coloridas — mesmo tom do accent/positive, pra CTAs preenchidos */
-  --accent-shadow: rgba(91, 61, 240, 0.2);
+  --accent-shadow: rgba(91, 61, 240, 0.25);
   --positive-shadow: rgba(93, 202, 165, 0.2);
+
+  --shadow-elevated-sm: 0 1px 2px rgba(4, 4, 9, 0.4);
+  --shadow-elevated-md: 0 6px 16px -4px rgba(4, 4, 9, 0.45);
+  --shadow-elevated-lg: 0 16px 40px -12px rgba(4, 4, 9, 0.55);
+
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 400ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Gradientes - sempre com propósito (profundidade/ênfase), nunca decorativo.
+     -page: atmosfera do app inteiro (não só Login) - um glow violeta bem
+     sutil vindo do topo, cor da marca, some rápido. -accent-cta: único
+     botão accent preenchido da tela. -surface-edge: realce de 1px no topo
+     de cards elevados - o "barato" de profundidade que substitui blur no
+     mobile. Consumidos via classes .bg-gradient-* escritas à mão em
+     index.css (namespace de background-image não é confiável no @theme). */
+  --gradient-page:
+    radial-gradient(ellipse 1400px 700px at 50% -15%, rgba(91, 61, 240, 0.16), transparent 60%),
+    radial-gradient(ellipse at top, var(--surface-raised), var(--surface-page));
+  --gradient-accent-cta: linear-gradient(135deg, var(--accent-bright), var(--accent-strong));
+  --gradient-surface-edge: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 40%);
 
   /* Raios */
   --radius-card: 11px;
   --radius-control: 8px;
   --radius-badge: 5px;
+  --radius-sheet: 11px;
 
   /* shadcn/ui — mapeamento pros vars que os componentes esperam. Sempre
      apontando pra um token que já existe acima, nunca uma cor nova.
@@ -79,6 +128,7 @@
   --color-surface-page: var(--surface-page);
   --color-surface-card: var(--surface-card);
   --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
   --color-surface-inset: var(--surface-inset);
   --color-border-subtle: var(--border-subtle);
   --color-border-default: var(--border-default);
@@ -91,6 +141,8 @@
   --color-accent: var(--accent);
   --color-accent-soft-bg: var(--accent-soft-bg);
   --color-accent-soft-fg: var(--accent-soft-fg);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-strong: var(--accent-strong);
 
   --color-positive: var(--positive);
   --color-positive-bg: var(--positive-bg);
@@ -116,6 +168,23 @@
   --radius-card: var(--radius-card);
   --radius-control: var(--radius-control);
   --radius-badge: var(--radius-badge);
+  --radius-sheet: var(--radius-sheet);
+
+  --shadow-sm: var(--shadow-elevated-sm);
+  --shadow-md: var(--shadow-elevated-md);
+  --shadow-lg: var(--shadow-elevated-lg);
+
+  --duration-instant: var(--duration-instant);
+  --duration-fast: var(--duration-fast);
+  --duration-base: var(--duration-base);
+  --duration-slow: var(--duration-slow);
+  --ease-standard: var(--ease-standard);
+  --ease-soft: var(--ease-soft);
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
 
   /* shadcn/ui */
   --color-background: var(--background);

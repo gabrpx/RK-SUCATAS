@@ -11,7 +11,11 @@ import type {
   ConfiguracaoAnuncioMlInput,
   ResultadoPublicacaoMl,
   EstatisticasAnuncioMl,
+  EstoqueAnuncioShopee,
+  ConfiguracaoAnuncioShopeeInput,
+  ResultadoPublicacaoShopee,
 } from './types';
+import type { EstatisticasAnuncioShopee } from '../shopee/types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -63,6 +67,16 @@ export const estoqueApi = {
     api.get(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}/estatisticas`) as Promise<ApiResult<EstatisticasAnuncioMl | null>>,
   republicarAnuncioMl: (estoqueId: string, linkId: string) =>
     api.post(`/api/estoque/${estoqueId}/anuncios-ml/${linkId}/republicar`) as Promise<ApiResult<unknown>>,
+
+  // Publicação de anúncio na Shopee (migration_045) — segundo canal,
+  // companheiro do bloco do Mercado Livre acima. Ver EstoquePublicarShopeeModal.tsx.
+  listarAnunciosShopee: (estoqueId: string) => api.get(`/api/estoque/${estoqueId}/anuncios-shopee`) as Promise<ApiResult<EstoqueAnuncioShopee[]>>,
+  publicarShopee: (estoqueId: string, payload: ConfiguracaoAnuncioShopeeInput) =>
+    api.post(`/api/estoque/${estoqueId}/publicar-shopee`, payload) as Promise<ApiResult<ResultadoPublicacaoShopee>>,
+  buscarEstatisticasAnuncioShopee: (estoqueId: string, linkId: string) =>
+    api.get(`/api/estoque/${estoqueId}/anuncios-shopee/${linkId}/estatisticas`) as Promise<ApiResult<EstatisticasAnuncioShopee | null>>,
+  republicarAnuncioShopee: (estoqueId: string, linkId: string) =>
+    api.post(`/api/estoque/${estoqueId}/anuncios-shopee/${linkId}/republicar`) as Promise<ApiResult<unknown>>,
 };
 
 // Upload de imagem é multipart — não passa pelo helper `api` (que força

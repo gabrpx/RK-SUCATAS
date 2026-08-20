@@ -40,14 +40,14 @@ export function AlertBar({ tom, icone: Icone, mensagem, acaoLabel, onAcao }: Ale
       )}
     >
       <div className={cn('flex items-center gap-2 min-w-0', toneClasses.fg)}>
-        <Icone size={16} strokeWidth={2} className="shrink-0" />
+        <Icone size={16} strokeWidth={1.75} className="shrink-0" />
         <span className="text-sm text-text-primary truncate">{mensagem}</span>
       </div>
 
       <button
         type="button"
         onClick={onAcao}
-        className={cn('shrink-0 text-xs font-semibold uppercase tracking-wide underline underline-offset-2 hover:opacity-80', toneClasses.fg)}
+        className={cn('shrink-0 text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 hover:opacity-80 transition-opacity duration-fast', toneClasses.fg)}
       >
         {acaoLabel}
       </button>

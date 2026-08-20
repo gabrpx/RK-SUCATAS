@@ -48,6 +48,8 @@ import { Switch } from '../../components/ui/switch';
 import { estoqueApi, uploadImagemEstoque } from './api';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
+import { EstoqueAnunciosShopeeLista } from './EstoqueAnunciosShopeeLista';
+import { EstoquePublicarShopeeModal } from './EstoquePublicarShopeeModal';
 import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
@@ -219,6 +221,10 @@ export function EstoqueView({
   // só de UI, reseta a cada peça aberta — não é preferência salva.
   const [publicarMlAtivo, setPublicarMlAtivo] = useState(false);
   const [publicarMlAberto, setPublicarMlAberto] = useState(false);
+  // Mesmo padrão do Mercado Livre acima, segundo canal — estado local
+  // independente (os dois toggles não têm relação entre si).
+  const [publicarShopeeAtivo, setPublicarShopeeAtivo] = useState(false);
+  const [publicarShopeeAberto, setPublicarShopeeAberto] = useState(false);
   // Instanciado aqui (não dentro do modal) pra que a remoção de fundo comece
   // a processar assim que o toggle acima é ligado — antes do modal
   // "Configurar e publicar" sequer existir. Ver useRemocaoFundoFotos.ts.
@@ -296,6 +302,16 @@ export function EstoqueView({
     (item: Estoque) => {
       const links = item.links_ml ?? [];
       if (links.length === 1) window.open(links[0].url, '_blank', 'noopener,noreferrer');
+      else openEditModal(item);
+    },
+    [openEditModal]
+  );
+
+  // Mesmo raciocínio de abrirAnunciosMl acima, pro badge "SHOPEE".
+  const abrirAnunciosShopee = useCallback(
+    (item: Estoque) => {
+      const links = item.links_shopee ?? [];
+      if (links.length === 1 && links[0].url) window.open(links[0].url, '_blank', 'noopener,noreferrer');
       else openEditModal(item);
     },
     [openEditModal]
@@ -579,6 +595,7 @@ export function EstoqueView({
           return (
             <div className="flex items-center justify-center gap-1">
               <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
+              <AnuncioBadge label="SP" canal="Shopee" count={item.links_shopee?.length ?? 0} onAbrir={() => abrirAnunciosShopee(item)} />
               <AnuncioBadge label="FB" canal="Facebook" count={item.anuncio_fb_url ? 1 : 0} onAbrir={() => window.open(item.anuncio_fb_url!, '_blank', 'noopener,noreferrer')} />
             </div>
           );
@@ -822,6 +839,7 @@ export function EstoqueView({
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />
             <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
+            <AnuncioBadge label="SP" canal="Shopee" count={item.links_shopee?.length ?? 0} onAbrir={() => abrirAnunciosShopee(item)} />
             <AnuncioBadge label="FB" canal="Facebook" count={item.anuncio_fb_url ? 1 : 0} onAbrir={() => window.open(item.anuncio_fb_url!, '_blank', 'noopener,noreferrer')} />
           </div>
           <div className="flex items-center justify-between gap-2 mt-2">
@@ -1690,6 +1708,41 @@ export function EstoqueView({
               </ModalSection>
 
               <ModalSection
+                titulo="Publicar na Shopee"
+                descricao="Segundo canal de venda, independente do Mercado Livre acima — cada anúncio nasce direto do catálogo."
+              >
+                {editingItem ? (
+                  <>
+                    <div className="flex items-center justify-between gap-3 rounded-control border border-border-subtle bg-surface-inset px-3.5 py-3">
+                      <div className="min-w-0">
+                        <p className="text-sm font-medium text-text-primary">Publicar automaticamente na Shopee</p>
+                        <p className="text-[11px] text-text-faint mt-0.5">Cria um anúncio novo direto do catálogo, com categoria, frete e atributos próprios da Shopee.</p>
+                      </div>
+                      <Switch checked={publicarShopeeAtivo} onCheckedChange={setPublicarShopeeAtivo} />
+                    </div>
+
+                    {publicarShopeeAtivo && (
+                      <div className="flex items-center justify-between gap-3 rounded-control border border-accent/25 bg-accent-soft-bg px-3.5 py-3">
+                        <div className="min-w-0">
+                          <p className="text-sm text-accent-soft-fg truncate">{editingItem.categoria?.nome || 'Sem categoria'} · {formatCurrency(Number(formData.valor) || 0)}</p>
+                          <p className="text-[11px] text-text-faint mt-0.5">
+                            {formData.imagens.length} {formData.imagens.length === 1 ? 'foto disponível' : 'fotos disponíveis'} pro anúncio
+                          </p>
+                        </div>
+                        <Button type="button" variant="outline" size="sm" onClick={() => setPublicarShopeeAberto(true)} className="shrink-0">
+                          <Send size={13} /> Configurar e publicar
+                        </Button>
+                      </div>
+                    )}
+
+                    <EstoqueAnunciosShopeeLista item={editingItem} onAlterado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_shopee: links } : prev))} />
+                  </>
+                ) : (
+                  <p className="text-xs text-text-faint">Salve a peça primeiro pra poder publicar na Shopee.</p>
+                )}
+              </ModalSection>
+
+              <ModalSection
                 titulo="Venda em partes"
                 descricao='Se essa peça pode ser vendida em partes separadas (ex: "Mesa Completa" → Superior / Inferior), cadastre os nomes aqui. Na venda você poderá dar baixa de só uma parte, e o item fica sinalizado como incompleto.'
               >
@@ -1811,6 +1864,15 @@ export function EstoqueView({
           modelos={modelos}
           onPublicado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_ml: links } : prev))}
           remocaoFundo={remocaoFundo}
+        />
+      )}
+
+      {editingItem && (
+        <EstoquePublicarShopeeModal
+          aberto={publicarShopeeAberto}
+          onFechar={() => setPublicarShopeeAberto(false)}
+          item={editingItem}
+          onPublicado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_shopee: links } : prev))}
         />
       )}
     </div>

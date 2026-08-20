@@ -1,5 +1,6 @@
 import type { Categoria, ModeloMoto } from '../../types/catalog';
 import type { PromocaoAtiva } from '../promocoes/types';
+import type { EstatisticasAnuncioShopee } from '../shopee/types';
 
 // Peça original (retirada de moto sucateada na loja) vs paralela (compatível de terceiros).
 export type CondicaoPeca = 'original' | 'paralela';
@@ -187,6 +188,63 @@ export interface ResultadoPublicacaoMl {
   links: { linkId: string; mlbId: string; url: string }[];
 }
 
+// ============================================================================
+// Publicação de anúncios na Shopee (migration_045) — segundo canal,
+// companheiro do bloco do Mercado Livre acima. Espelham
+// src/services/shopeePublicacao.ts no backend. Sem "legado" nem "caminho de
+// fallback": a Shopee nasceu já com N anúncios por peça e sem o rollout
+// gradual de preço por variação que o Mercado Livre teve — ver
+// docs/proposta-publicacao-shopee.md.
+// ============================================================================
+
+// Um anúncio da Shopee vinculado a esta peça — ver
+// supabase/migration_045_shopee_publicacao.sql.
+export interface EstoqueAnuncioShopee {
+  id: string;
+  estoque_id: string;
+  shop_id: string;
+  item_id: string;
+  url: string | null;
+  category_id: string | null;
+  status_shopee: string | null;
+  atributos_shopee: Record<string, any> | null;
+  publicado_em: string | null;
+  // Join do backend (Fase 7) — null quando ainda não teve a primeira
+  // sincronização de estatísticas, undefined em payload antigo em cache.
+  estatisticas?: EstatisticasAnuncioShopee | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export interface VariacaoShopeeInput {
+  unidade_id: string;
+  // Preço efetivo do sistema (ANTES da margem) só desta ficha — ausente usa
+  // estoque_unidades.valor automaticamente no backend.
+  preco_efetivo_sistema?: number;
+}
+
+// Corpo de POST /:id/publicar-shopee.
+export interface ConfiguracaoAnuncioShopeeInput {
+  categoria_shopee_id: number;
+  logistics_channel_id: number;
+  atributos: { attribute_id: number; attribute_value_list: { value_id?: number; original_value_name?: string }[] }[];
+  // Peso em kg — campo obrigatório no add_item da Shopee, sem coluna
+  // equivalente no cadastro de estoque (a peça não tem peso salvo).
+  peso_kg: number;
+  preco_efetivo_sistema?: number;
+  variacoes?: VariacaoShopeeInput[];
+  titulo_anuncio: string;
+  descricao_anuncio: string;
+}
+
+export interface ResultadoPublicacaoShopee {
+  linkId: string;
+  itemId: string;
+  usaVariacoes: boolean;
+  /** null quando todas as fotos enviadas entraram no anúncio */
+  avisoFotos: string | null;
+}
+
 export interface Estoque {
   id: string;
   codigo: string;
@@ -228,6 +286,9 @@ export interface Estoque {
   // anexarAnunciosMl em src/server/routes/estoque.ts). Ausente em payloads
   // antigos em cache — sempre tratar como opcional.
   links_ml?: EstoqueAnuncioMl[];
+  // Anúncios da Shopee vinculados a esta peça (join do backend, Fase 7).
+  // Ausente em payloads antigos em cache — sempre tratar como opcional.
+  links_shopee?: EstoqueAnuncioShopee[];
   // Nomes das partes em que este item pode ser desmembrado na venda (ex:
   // ["Superior", "Inferior"]). null = item sempre vendido inteiro.
   componentes: string[] | null;

@@ -9,6 +9,13 @@ import { anexarPromocoes } from '../../features/promocoes/calculo.js';
 import { extrairMlbId, obterConexaoAtual } from '../../services/mercadolivreApi.js';
 import { publicarAnuncio, sincronizarEstatisticas, extrairMensagemErroMl, type ConfiguracaoAnuncioMl } from '../../services/mercadolivrePublicacao.js';
 import { aplicarSincronizacao } from '../../services/mercadolivreSync.js';
+import { obterConexaoAtualShopee } from '../../services/shopeeApi.js';
+import {
+  publicarAnuncioShopee,
+  sincronizarEstatisticasShopee,
+  republicarAnuncioShopee,
+  type ConfiguracaoAnuncioShopee,
+} from '../../services/shopeePublicacao.js';
 import { autorizar } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
@@ -211,6 +218,50 @@ async function anexarAnunciosMl(supabase: SupabaseClient, itens: any[] | null): 
   return lista.map((item) => ({ ...item, links_ml: porEstoque.get(item.id) ?? [] }));
 }
 
+// Vínculos de anúncio da Shopee (migration_045, Fase 7) — companheiro mais
+// simples de anexarAnunciosMl acima: sem "legado" pra sintetizar (a Shopee
+// nunca teve um campo único anterior, nasceu já com N anúncios por peça), só
+// degradação graciosa se a migração ainda não rodou.
+async function anexarAnunciosShopee(supabase: SupabaseClient, itens: any[] | null): Promise<any[]> {
+  const lista = itens ?? [];
+  if (lista.length === 0) return lista;
+
+  const { data, error } = await supabase.from('estoque_anuncios_shopee').select('*').order('criado_em');
+
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      return lista.map((item) => ({ ...item, links_shopee: [] }));
+    }
+    console.error('Erro ao buscar anúncios Shopee de estoque:', error);
+    return lista.map((item) => ({ ...item, links_shopee: [] }));
+  }
+
+  // Estatísticas — snapshot já pronto pro modal de detalhes não precisar
+  // chamar a Shopee ao abrir (ver shopeeScheduler.ts, que mantém isso
+  // atualizado em background). Mesma degradação graciosa de anexarAnunciosMl.
+  const linkIds = (data ?? []).map((link: any) => link.id);
+  const estatisticasPorLink = new Map<string, any>();
+  if (linkIds.length > 0) {
+    const { data: estatisticas, error: erroEstatisticas } = await supabase.from('estoque_anuncios_shopee_estatisticas').select('*').in('link_id', linkIds);
+    if (erroEstatisticas) {
+      if (erroEstatisticas.code !== '42P01' && erroEstatisticas.code !== 'PGRST205') {
+        console.error('Erro ao buscar estatísticas de anúncios Shopee:', erroEstatisticas);
+      }
+    } else {
+      for (const linha of estatisticas ?? []) estatisticasPorLink.set(linha.link_id, linha);
+    }
+  }
+
+  const porEstoque = new Map<string, any[]>();
+  for (const link of data ?? []) {
+    const atual = porEstoque.get(link.estoque_id) ?? [];
+    atual.push({ ...link, estatisticas: estatisticasPorLink.get(link.id) ?? null });
+    porEstoque.set(link.estoque_id, atual);
+  }
+
+  return lista.map((item) => ({ ...item, links_shopee: porEstoque.get(item.id) ?? [] }));
+}
+
 function montarPayloadAnuncioMl(body: any): { payload?: { url: string; mlb_id: string }; erro?: string } {
   const url = String(body?.url || '').trim();
   if (!url) return { erro: 'Informe o link do anúncio' };
@@ -260,6 +311,43 @@ function montarConfiguracaoPublicacao(body: any): { config?: ConfiguracaoAnuncio
       precoEfetivoSistema: body?.preco_efetivo_sistema != null ? Number(body.preco_efetivo_sistema) : undefined,
       variacoes,
       catalogoProdutoId: body?.catalogo_produto_id ? String(body.catalogo_produto_id) : undefined,
+      tituloAnuncio,
+      descricaoAnuncio,
+    },
+  };
+}
+
+// Corpo de POST /:id/publicar-shopee → ConfiguracaoAnuncioShopee
+// (src/services/shopeePublicacao.ts). Mesma validação mínima de
+// montarConfiguracaoPublicacao (ML) — o formulário dinâmico de atributos
+// obrigatórios por categoria já barra isso antes de chegar aqui.
+function montarConfiguracaoPublicacaoShopee(body: any): { config?: ConfiguracaoAnuncioShopee; erro?: string } {
+  const categoriaShopeeId = Number(body?.categoria_shopee_id);
+  if (!Number.isFinite(categoriaShopeeId) || categoriaShopeeId <= 0) return { erro: 'Selecione a categoria da Shopee' };
+  const logisticsChannelId = Number(body?.logistics_channel_id);
+  if (!Number.isFinite(logisticsChannelId) || logisticsChannelId <= 0) return { erro: 'Selecione o canal de logística' };
+  const pesoKg = Number(body?.peso_kg);
+  if (!Number.isFinite(pesoKg) || pesoKg <= 0) return { erro: 'Informe o peso da peça (kg)' };
+  const tituloAnuncio = String(body?.titulo_anuncio || '').trim();
+  if (!tituloAnuncio) return { erro: 'Informe o título do anúncio' };
+  const descricaoAnuncio = String(body?.descricao_anuncio || '').trim();
+  if (!descricaoAnuncio) return { erro: 'Informe a descrição do anúncio' };
+
+  const variacoes = Array.isArray(body?.variacoes)
+    ? body.variacoes.map((v: any) => ({
+        unidadeId: String(v?.unidade_id ?? ''),
+        precoEfetivoSistema: v?.preco_efetivo_sistema != null ? Number(v.preco_efetivo_sistema) : undefined,
+      }))
+    : undefined;
+
+  return {
+    config: {
+      categoriaShopeeId,
+      logisticsChannelId,
+      atributos: Array.isArray(body?.atributos) ? body.atributos : [],
+      pesoKg,
+      precoEfetivoSistema: body?.preco_efetivo_sistema != null ? Number(body.preco_efetivo_sistema) : undefined,
+      variacoes,
       tituloAnuncio,
       descricaoAnuncio,
     },
@@ -358,7 +446,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const comUnidades = await anexarUnidades(supabase, data);
       const comCompatibilidades = await anexarCompatibilidades(supabase, comUnidades);
       const comAnunciosMl = await anexarAnunciosMl(supabase, comCompatibilidades);
-      res.json({ success: true, data: await anexarPromocoes(supabase, comAnunciosMl) });
+      const comAnunciosShopee = await anexarAnunciosShopee(supabase, comAnunciosMl);
+      res.json({ success: true, data: await anexarPromocoes(supabase, comAnunciosShopee) });
     } catch (error: any) {
       console.error('Erro ao listar estoque:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -372,7 +461,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const [comUnidades] = await anexarUnidades(supabase, [data]);
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
       const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosMl]);
+      const [comAnunciosShopee] = await anexarAnunciosShopee(supabase, [comAnunciosMl]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosShopee]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       res.status(500).json({ success: false, error: error.message });
@@ -401,7 +491,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [{ ...data, unidades: [] }]);
       const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosMl]);
+      const [comAnunciosShopee] = await anexarAnunciosShopee(supabase, [comAnunciosMl]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosShopee]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       console.error('Erro ao criar item de estoque:', error);
@@ -446,7 +537,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const [comUnidades] = await anexarUnidades(supabase, [data]);
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
       const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
-      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosMl]);
+      const [comAnunciosShopee] = await anexarAnunciosShopee(supabase, [comAnunciosMl]);
+      const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosShopee]);
       res.json({ success: true, data: comPromocao });
     } catch (error: any) {
       console.error('Erro ao atualizar item de estoque:', error);
@@ -844,6 +936,84 @@ export function estoqueRouter(supabase: SupabaseClient) {
     } catch (error: any) {
       console.error('Erro ao republicar anúncio no Mercado Livre:', error.response?.data || error.message);
       res.status(500).json({ success: false, error: extrairMensagemErroMl(error.response?.data) || error.message });
+    }
+  });
+
+  // ==========================================================================
+  // Publicação de anúncios na Shopee (migration_045) — segundo canal,
+  // arquivo-espelho paralelo ao bloco do Mercado Livre acima. Lógica de
+  // verdade em src/services/shopee{Api,Publicacao}.ts; aqui só valida o
+  // corpo e checa a conexão, mesmo padrão do resto das rotas de estoque.
+  // ==========================================================================
+
+  // Lista simples dos anúncios da Shopee desta peça — usada pra atualizar a
+  // UI logo depois de publicar (a Shopee não tem fluxo de "colar link já
+  // existente" como o Mercado Livre, então não precisa de POST/PATCH/DELETE
+  // aqui, só leitura).
+  router.get('/:id/anuncios-shopee', LEITURA, async (req, res) => {
+    try {
+      const { data, error } = await supabase.from('estoque_anuncios_shopee').select('*').eq('estoque_id', req.params.id).order('criado_em');
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205') return res.json({ success: true, data: [] });
+        throw error;
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao listar anúncios da Shopee da peça:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/:id/publicar-shopee', ESCRITA, async (req, res) => {
+    try {
+      const { config, erro } = montarConfiguracaoPublicacaoShopee(req.body);
+      if (erro) return res.status(400).json({ success: false, error: erro });
+
+      const conexao = await obterConexaoAtualShopee(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });
+
+      const resultado = await publicarAnuncioShopee(supabase, conexao.accessToken, conexao.shopId, req.params.id, config!);
+      res.json({ success: true, data: resultado });
+    } catch (error: any) {
+      console.error('Erro ao publicar anúncio na Shopee:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
+    }
+  });
+
+  // Leitura pontual sob demanda (botão "Atualizar agora" na UI) — além do
+  // que o scheduler da Fase 7 já mantém fresco em background. Nunca chamado
+  // no ato de abrir o modal de detalhes.
+  router.get('/:id/anuncios-shopee/:linkId/estatisticas', LEITURA, async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtualShopee(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });
+
+      await sincronizarEstatisticasShopee(supabase, conexao.accessToken, conexao.shopId, [req.params.linkId]);
+      const { data, error } = await supabase.from('estoque_anuncios_shopee_estatisticas').select('*').eq('link_id', req.params.linkId).maybeSingle();
+      if (error) {
+        if (error.code === '42P01' || error.code === 'PGRST205' || error.code === 'PGRST204') {
+          return res.status(409).json({ success: false, error: 'Estatísticas ainda não habilitadas — rode supabase/migration_045_shopee_publicacao.sql.' });
+        }
+        throw error;
+      }
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao atualizar estatísticas do anúncio na Shopee:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
+    }
+  });
+
+  // Reenvia preço/estoque atual da peça pro anúncio já publicado.
+  router.post('/:id/anuncios-shopee/:linkId/republicar', ESCRITA, async (req, res) => {
+    try {
+      const conexao = await obterConexaoAtualShopee(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });
+
+      const resultado = await republicarAnuncioShopee(supabase, conexao.accessToken, conexao.shopId, req.params.linkId);
+      res.json({ success: true, data: resultado });
+    } catch (error: any) {
+      console.error('Erro ao republicar anúncio na Shopee:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: error.response?.data?.message || error.message });
     }
   });
 
