@@ -18,6 +18,29 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.19',
+    data: '2026-08-20',
+    titulo: 'Estoque mais rápido de usar: filtros, busca e detalhes na própria lista',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Os filtros do Estoque saíram da barra e viraram um botão "Filtros" só, que abre um painel com todos eles juntos. O botão mostra quantos filtros estão ligados, e dá pra limpar todos de uma vez.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'A busca do Estoque agora sugere as peças enquanto você digita — clique numa sugestão pra abrir a peça direto, sem precisar procurar na lista.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Pra adicionar fotos de uma peça, agora dá pra arrastar os arquivos direto pra cima da área de fotos. Arquivo que não é imagem ou que passa do tamanho é avisado na hora, antes de tentar subir.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'Cada linha da lista de Estoque ganhou uma setinha que abre os detalhes ali mesmo: categoria completa, avarias anotadas por unidade, links dos anúncios e as fotos — sem precisar abrir a peça.',
+      },
+    ],
+  },
+  {
     versao: '1.2.18',
     data: '2026-08-15',
     titulo: 'Tabelas de Estoque e Caixa com ordenação por coluna',
