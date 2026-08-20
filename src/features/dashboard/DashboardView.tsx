@@ -15,7 +15,6 @@ import {
   Wallet,
   Receipt,
   Search,
-  Bell,
   AlertTriangle,
   CheckCircle2,
   Clock,
@@ -35,6 +34,7 @@ import { useData } from '../../context/DataContext';
 import { useTarefas } from '../tarefas/useTarefas';
 import { NOME_LOJA } from '../../constants/loja';
 import { MetricCard } from '../../components/ui/MetricCard';
+import { NotificationList, type NotificationItem } from '../../components/ui/NotificationList';
 import { AlertBar } from '../../components/ui/AlertBar';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -227,7 +227,6 @@ export function DashboardView({
   const { estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, loading } = useData();
   const { tarefas } = useTarefas();
   const [searchTerm, setSearchTerm] = useState('');
-  const [notificacoesAbertas, setNotificacoesAbertas] = useState(false);
 
   // Dashboard só é visível pra admin/equipe (ver TAB_ROLES) — quem chega
   // aqui sempre vê TODAS as tarefas pendentes do sistema, não só as suas
@@ -340,6 +339,46 @@ export function DashboardView({
   );
   const variacaoTicket = useMemo(() => compararComMesPassado(metrics.ticketMedio, metrics.ticketMedioAnterior), [metrics.ticketMedio, metrics.ticketMedioAnterior]);
 
+  // Card de notificações (substitui o antigo sino do cabeçalho): agrega os
+  // sinais acionáveis do dashboard — estoque baixo, orçamentos pendentes e
+  // tarefas pendentes — numa pilha animada. Fica na coluna direita da linha
+  // de gráficos, acima de "Formas de pagamento", equilibrando a altura do
+  // gráfico de Desempenho à esquerda (ver JSX da seção 4). Só os 3 primeiros
+  // aparecem empilhados; o contador mostra o total e "Ver todas" leva pras
+  // tarefas.
+  const notificacoesDashboard = useMemo<NotificationItem[]>(() => {
+    const items: NotificationItem[] = [];
+    if (metrics.itensEstoqueBaixo.length > 0) {
+      items.push({
+        id: 'estoque-baixo',
+        title: `${metrics.itensEstoqueBaixo.length} peça(s) com estoque baixo`,
+        subtitle: '≤ 2 unidades',
+        time: 'Estoque',
+        count: metrics.itensEstoqueBaixo.length,
+        onClick: () => onNavigateEstoqueBaixo?.(),
+      });
+    }
+    metrics.pendencias.forEach((o) => {
+      items.push({
+        id: `pend-${o.id}`,
+        title: o.cliente_nome,
+        subtitle: `Orçamento #${o.codigo}`,
+        time: new Date(o.criado_em).toLocaleDateString('pt-BR'),
+        onClick: () => onTabChange('orcamentos'),
+      });
+    });
+    tarefasPendentes.forEach((t) => {
+      items.push({
+        id: `tar-${t.id}`,
+        title: t.titulo,
+        subtitle: t.atribuido?.nome_exibicao || 'Sem responsável',
+        time: t.prazo ? new Date(t.prazo).toLocaleDateString('pt-BR') : 'Sem prazo',
+        onClick: () => onTabChange('tarefas'),
+      });
+    });
+    return items;
+  }, [metrics.itensEstoqueBaixo, metrics.pendencias, tarefasPendentes, onTabChange, onNavigateEstoqueBaixo]);
+
   // Saldo acumulado dos últimos 30 dias (não o saldo líquido de cada dia
   // isolado — ver metricas.ts pro motivo: isso é o que corrige o gráfico
   // "batimento cardíaco").
@@ -396,79 +435,6 @@ export function DashboardView({
             <Search size={16} strokeWidth={1.75} />
           </button>
 
-          <div className="relative">
-            <button
-              onClick={() => setNotificacoesAbertas((v) => !v)}
-              className="relative size-9 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center transition-colors duration-fast hover:border-border-default/80"
-              aria-label="Notificações"
-            >
-              <Bell size={16} strokeWidth={1.75} />
-              {temAlerta && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-danger shadow-[0_0_6px_var(--color-danger)]" />}
-            </button>
-
-            {notificacoesAbertas && (
-              <>
-                {/* Backdrop invisível só pra fechar ao clicar fora — o painel em si não precisa de overlay escuro */}
-                <div className="fixed inset-0 z-[70]" onClick={() => setNotificacoesAbertas(false)} />
-                <motion.div
-                  initial={{ opacity: 0, y: -8, scale: 0.98 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.18, ease: EASE_STANDARD }}
-                  className="fixed inset-x-4 top-[calc(4rem+var(--safe-top))] sm:absolute sm:inset-x-auto sm:right-0 sm:top-11 z-[80] sm:w-80 sm:max-w-[85vw] max-h-[min(24rem,70vh)] flex flex-col overflow-hidden rounded-card border border-border-subtle bg-surface-overlay shadow-lg"
-                >
-                  <div className="flex items-center justify-between px-4 py-3 border-b border-border-subtle shrink-0">
-                    <h4 className="text-2xs font-semibold uppercase tracking-wide text-text-muted">Tarefas pendentes</h4>
-                    <button onClick={() => setNotificacoesAbertas(false)} className="text-text-faint hover:text-text-primary transition-colors duration-fast">
-                      <X size={14} strokeWidth={1.75} />
-                    </button>
-                  </div>
-                  <div className="overflow-y-auto flex-1">
-                    {tarefasPendentes.length === 0 ? (
-                      <div className="p-4">
-                        <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pendente." />
-                      </div>
-                    ) : (
-                      <div className="divide-y divide-border-subtle">
-                        {tarefasPendentes.slice(0, 8).map((t) => (
-                          <button
-                            key={t.id}
-                            onClick={() => {
-                              setNotificacoesAbertas(false);
-                              onTabChange('tarefas');
-                            }}
-                            className="w-full text-left px-4 py-3 hover:bg-surface-raised transition-colors duration-fast flex items-start gap-2.5"
-                          >
-                            <ClipboardList size={14} strokeWidth={1.75} className="text-accent-soft-fg shrink-0 mt-0.5" />
-                            <div className="min-w-0 flex-1">
-                              <p className="text-sm text-text-primary truncate">{t.titulo}</p>
-                              <p className="text-2xs text-text-faint truncate">
-                                {t.atribuido?.nome_exibicao || 'Sem responsável'}
-                                {t.prazo ? ` · ${new Date(t.prazo).toLocaleDateString('pt-BR')}` : ''}
-                              </p>
-                            </div>
-                            <span className="shrink-0">
-                              <StatusBadge texto={t.prioridade} tom={t.prioridade === 'alta' ? 'danger' : t.prioridade === 'media' ? 'warning' : 'neutral'} />
-                            </span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-3 border-t border-border-subtle shrink-0">
-                    <button
-                      onClick={() => {
-                        setNotificacoesAbertas(false);
-                        onTabChange('tarefas');
-                      }}
-                      className="w-full text-center text-2xs font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 transition-opacity duration-fast"
-                    >
-                      Ver todas as tarefas
-                    </button>
-                  </div>
-                </motion.div>
-              </>
-            )}
-          </div>
 
           <div className="size-9 rounded-full bg-accent-soft-bg text-accent-soft-fg flex items-center justify-center text-xs font-semibold shrink-0">
             {iniciais || 'U'}
@@ -579,10 +545,19 @@ export function DashboardView({
           </div>
         </PanelCard>
 
-        <PanelCard
-          titulo="Formas de pagamento"
-          headerExtra={pieData.length > 0 && <StatusBadge texto={variacaoVendas.texto} tom={variacaoVendas.positivo ? 'positive' : 'negative'} />}
-        >
+        <div className="flex flex-col gap-4">
+          {notificacoesDashboard.length > 0 && (
+            <NotificationList
+              itens={notificacoesDashboard}
+              label={`${notificacoesDashboard.length} notificação(ões)`}
+              onVerTudo={() => onTabChange('tarefas')}
+            />
+          )}
+
+          <PanelCard
+            titulo="Formas de pagamento"
+            headerExtra={pieData.length > 0 && <StatusBadge texto={variacaoVendas.texto} tom={variacaoVendas.positivo ? 'positive' : 'negative'} />}
+          >
           <div className="p-4">
             {pieData.length === 0 ? (
               <EmptyState icone={Receipt} mensagem="Sem vendas registradas este mês ainda." />
@@ -617,7 +592,8 @@ export function DashboardView({
               </div>
             )}
           </div>
-        </PanelCard>
+          </PanelCard>
+        </div>
       </div>
 
       {/* 5. Últimas vendas + Pendências */}

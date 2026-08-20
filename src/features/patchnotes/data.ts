@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.26',
+    data: '2026-08-20',
+    titulo: 'Card de notificações no painel',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'O sino de notificações do topo virou um card animado no painel, ao lado do gráfico de desempenho: os avisos que precisam de ação (estoque baixo, orçamentos pendentes e tarefas) ficam empilhados e se abrem em leque ao passar o mouse ou tocar, com um atalho "Ver todas".',
+      },
+    ],
+  },
+  {
     versao: '1.2.25',
     data: '2026-08-20',
     titulo: 'Motos em Configurações no estilo explorador de arquivos',
