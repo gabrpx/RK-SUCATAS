@@ -115,6 +115,12 @@ function tabela() {
   return within(document.querySelector('[data-slot="table-body"]') as HTMLElement);
 }
 
+/** Os filtros (categoria/modelo/situação) agora vivem atrás do popover
+ *  "Filtros" — abrir antes de interagir com qualquer um deles. */
+function abrirFiltros() {
+  fireEvent.click(screen.getByRole('button', { name: /Filtros/i }));
+}
+
 function limpar() {
   mockEstado.estoque = [];
   mockEstado.loading = false;
@@ -187,6 +193,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     mockEstado.estoque = [criarItem({ id: 'a', nome: 'Peça Baixa', quantidade: 1 }), criarItem({ id: 'b', nome: 'Peça Normal', quantidade: 10 })];
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.click(screen.getByText('Estoque baixo'));
 
     expect(tabela().queryByText('Peça Baixa')).not.toBeNull();
@@ -197,6 +204,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     mockEstado.estoque = [criarItem({ id: 'a', nome: 'Peça Sem Preço', valor: 0 }), criarItem({ id: 'b', nome: 'Peça Com Preço', valor: 50 })];
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.click(screen.getByText('Sem preço'));
 
     expect(tabela().queryByText('Peça Sem Preço')).not.toBeNull();
@@ -210,6 +218,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     ];
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.click(screen.getByText('Com avaria'));
 
     expect(tabela().queryByText('Peça Avariada')).not.toBeNull();
@@ -220,6 +229,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     mockEstado.estoque = [criarItem({ id: 'a', nome: 'Peça Sem Foto', imagens: [] }), criarItem({ id: 'b', nome: 'Peça Com Foto', imagens: ['https://x/a.jpg'] })];
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.click(screen.getByText('Sem foto'));
 
     expect(tabela().queryByText('Peça Sem Foto')).not.toBeNull();
@@ -233,6 +243,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     ];
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.click(screen.getByText('Sem link ML'));
 
     expect(tabela().queryByText('Peça Sem ML')).not.toBeNull();
@@ -244,6 +255,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     mockEstado.estoque = [criarItem({ id: 'a', nome: 'Peça Farol', categoria_id: 'cat-farol' }), criarItem({ id: 'b', nome: 'Peça Outra', categoria_id: null })];
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.change(screen.getByTestId('Buscar categoria...'), { target: { value: 'cat-farol' } });
 
     expect(tabela().queryByText('Peça Farol')).not.toBeNull();
@@ -255,6 +267,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     mockEstado.estoque = [criarItem({ id: 'a', nome: 'Peça CG', modelo_moto_id: 'moto-cg' }), criarItem({ id: 'b', nome: 'Peça Outra', modelo_moto_id: null })];
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.change(screen.getByTestId('Buscar moto...'), { target: { value: 'moto-cg' } });
 
     expect(tabela().queryByText('Peça CG')).not.toBeNull();
@@ -285,6 +298,7 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     mockEstado.estoque = Array.from({ length: 30 }, (_, i) => criarItem({ id: `p${i}`, nome: `Peça ${String(i).padStart(2, '0')}` }));
 
     render(<EstoqueView onSelectItem={() => {}} />);
+    abrirFiltros();
     fireEvent.click(screen.getByLabelText('Próxima página'));
     expect(screen.getByText('Página 2 de 2')).toBeTruthy();
 
@@ -300,6 +314,41 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
 
     render(<EstoqueView onSelectItem={onSelectItem} />);
     fireEvent.click(tabela().getByText('Peça Clicável'));
+
+    expect(onSelectItem).toHaveBeenCalledWith(item);
+  });
+
+  // Regressão: o chevron de expandir mora DENTRO da linha, que por sua vez tem
+  // onClick={() => onSelectItem(item)}. Sem stopPropagation no botão, abrir os
+  // detalhes inline abriria o DetailModal por cima — que é exatamente o que o
+  // painel expandido existe pra evitar. Duas variantes do mesmo bug de
+  // propagação já apareceram nesta branch (popover e trigger mobile), então
+  // este caminho fica coberto explicitamente.
+  it('clicar no chevron expande a linha sem abrir o DetailModal', () => {
+    const item = criarItem({ id: 'a', nome: 'Peça Expansível' });
+    mockEstado.estoque = [item];
+    const onSelectItem = vi.fn();
+
+    render(<EstoqueView onSelectItem={onSelectItem} />);
+    const chevron = tabela().getByRole('button', { name: 'Ver mais detalhes' });
+    expect(chevron.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(chevron);
+
+    expect(onSelectItem).not.toHaveBeenCalled();
+    expect(tabela().getByRole('button', { name: 'Recolher detalhes' }).getAttribute('aria-expanded')).toBe('true');
+    // O painel só renderiza quando aberto — "Categoria completa" é rótulo dele.
+    expect(tabela().queryByText('Categoria completa')).not.toBeNull();
+  });
+
+  it('com a linha já expandida, clicar no corpo da linha ainda abre o DetailModal', () => {
+    const item = criarItem({ id: 'a', nome: 'Peça Expansível' });
+    mockEstado.estoque = [item];
+    const onSelectItem = vi.fn();
+
+    render(<EstoqueView onSelectItem={onSelectItem} />);
+    fireEvent.click(tabela().getByRole('button', { name: 'Ver mais detalhes' }));
+    fireEvent.click(tabela().getByText('Peça Expansível'));
 
     expect(onSelectItem).toHaveBeenCalledWith(item);
   });

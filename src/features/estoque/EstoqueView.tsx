@@ -1,7 +1,7 @@
 // Aba Estoque: catálogo de peças com categoria/modelo de moto (tabelas de
 // apoio, com criação rápida inline) e condição Original/Paralela.
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence } from 'motion/react';
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { AnimatePresence, motion } from 'motion/react';
 import {
   flexRender,
   getCoreRowModel,
@@ -12,8 +12,6 @@ import {
 import type { Column, ColumnDef, PaginationState, SortingState } from '@tanstack/react-table';
 import {
   Package,
-  Search,
-  Filter,
   Bike,
   RefreshCw,
   Plus,
@@ -21,7 +19,6 @@ import {
   Loader2,
   AlertCircle,
   AlertTriangle,
-  Upload,
   Camera,
   ChevronDown,
   ChevronLeft,
@@ -46,10 +43,16 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal, ModalSection } from '../../components/ui/Modal';
 import { Switch } from '../../components/ui/switch';
 import { estoqueApi, uploadImagemEstoque } from './api';
+import { EstoqueFiltrosPopover } from './EstoqueFiltrosPopover';
+import { EstoqueBuscaSugestoes } from './EstoqueBuscaSugestoes';
+import { EstoqueUploadFotos } from './EstoqueUploadFotos';
 import { EstoqueAnunciosMlEditor } from './EstoqueAnunciosMlEditor';
 import { EstoquePublicarMlModal } from './EstoquePublicarMlModal';
 import { EstoqueAnunciosShopeeLista } from './EstoqueAnunciosShopeeLista';
 import { EstoquePublicarShopeeModal } from './EstoquePublicarShopeeModal';
+import { Expandable, ExpandableContent, ExpandableTrigger } from '../../components/ui/expandable';
+import { EstoqueItemExpandido } from './EstoqueItemExpandido';
+import { SPRING_MICRO } from '../../components/ui/motion';
 import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
@@ -72,7 +75,7 @@ import { buildTree as buildMotoTree, getDescendantIds as getDescendantIdsMoto } 
 import { CategoriaOrgChart } from '../categorias/CategoriaOrgChart';
 import { MotoOrgChart } from '../motos/MotoOrgChart';
 import { sumWithDescendants } from '../../utils/tree';
-import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
+import type { TreeDropdownNode } from '../../components/TreeDropdown';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
@@ -197,6 +200,14 @@ export function EstoqueView({
   const [soSemLinkMl, setSoSemLinkMl] = useState(false);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [pagination, setPagination] = useState<PaginationState>({ pageIndex: 0, pageSize: ITEMS_PER_PAGE });
+  const [expandidos, setExpandidos] = useState<Set<string>>(new Set());
+  const toggleExpandido = useCallback((id: string) => {
+    setExpandidos((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }, []);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
@@ -235,7 +246,6 @@ export function EstoqueView({
   // Quanto a foto encolheu no celular antes de subir; some no próximo upload.
   const [resumoCompressao, setResumoCompressao] = useState<string | null>(null);
   const inputCameraRef = useRef<HTMLInputElement>(null);
-  const inputGaleriaRef = useRef<HTMLInputElement>(null);
   // Foco volta pro nome a cada peça salva em sequência: é sempre o primeiro
   // campo a preencher e evita ter que buscar o cursor com a mão.
   const inputNomeRef = useRef<HTMLInputElement>(null);
@@ -342,7 +352,7 @@ export function EstoqueView({
 
   // Envia uma ou várias fotos de uma vez e ACRESCENTA à galeria (não
   // substitui) — mesmo padrão de UnidadesEstoque.tsx `enviarFotos`.
-  const handleUploadImagem = async (files: FileList) => {
+  const handleUploadImagem = async (files: FileList | File[]) => {
     setIsUploadingImagem(true);
     setResumoCompressao(null);
     try {
@@ -523,8 +533,21 @@ export function EstoqueView({
         header: ({ column }) => <SortableHead column={column} label="Peça" />,
         cell: ({ row }) => {
           const item = row.original;
+          const aberto = expandidos.has(item.id);
           return (
             <div className="flex items-center gap-2.5">
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleExpandido(item.id);
+                }}
+                aria-label={aberto ? 'Recolher detalhes' : 'Ver mais detalhes'}
+                aria-expanded={aberto}
+                className="shrink-0 p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised"
+              >
+                <ChevronDown size={13} className={cn('transition-transform', aberto ? 'rotate-0' : '-rotate-90')} />
+              </button>
               <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
                 {item.imagens[0] ? (
                   <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
@@ -657,7 +680,7 @@ export function EstoqueView({
         },
       },
     ],
-    [readOnly, abrirAnunciosMl, openEditModal]
+    [readOnly, abrirAnunciosMl, openEditModal, expandidos, toggleExpandido]
   );
 
   const table = useReactTable<Estoque>({
@@ -1046,95 +1069,34 @@ export function EstoqueView({
         <>
           {/* Filtros */}
           <div className="space-y-3">
-            <div className="flex items-center gap-3 rounded-control border border-border-default bg-surface-inset px-4">
-              <Search size={16} className="text-text-faint shrink-0" />
-              <input
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                placeholder="Buscar peças por nome, código, categoria ou moto..."
-                className="flex-1 py-3.5 bg-transparent outline-none text-sm text-text-primary placeholder:text-text-faint"
-              />
-              {searchTerm && (
-                <button onClick={() => setSearchTerm('')} className="p-1.5 rounded-full hover:bg-surface-raised text-text-faint">
-                  <X size={14} />
-                </button>
-              )}
-            </div>
+            <EstoqueBuscaSugestoes
+              value={searchTerm}
+              onChange={setSearchTerm}
+              sugestoes={debouncedSearch.trim() ? filtered.slice(0, 6) : []}
+              onSelecionar={onSelectItem}
+            />
 
-            <div className="flex flex-wrap items-center gap-2">
-              <TreeDropdown
-                icon={<Filter size={14} />}
-                value={categoriaFiltro}
-                onChange={setCategoriaFiltro}
-                nodes={categoriaNodes}
-                emptyOption={{ value: 'Todas', label: 'Todas categorias' }}
-                searchPlaceholder="Buscar categoria..."
-                emptyMessage="Nenhuma categoria encontrada."
-              />
-              <TreeDropdown
-                icon={<Bike size={14} />}
-                value={modeloFiltro}
-                onChange={setModeloFiltro}
-                nodes={modeloNodes}
-                emptyOption={{ value: 'Todas', label: 'Todos modelos' }}
-                searchPlaceholder="Buscar moto..."
-                emptyMessage="Nenhuma moto encontrada."
-              />
-              <button
-                onClick={() => setSoEstoqueBaixo((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soEstoqueBaixo ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Estoque baixo
-                <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soEstoqueBaixo ? 'bg-warning/20' : 'bg-surface-raised')}>{itensEstoqueBaixo}</span>
-                {soEstoqueBaixo && <X size={12} />}
-              </button>
-              <button
-                onClick={() => setSoSemPreco((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soSemPreco ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Sem preço
-                {soSemPreco && <X size={12} />}
-              </button>
-              {(itensComAvaria > 0 || soComAvaria) && (
-                <button
-                  onClick={() => setSoComAvaria((v) => !v)}
-                  className={cn(
-                    'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                    soComAvaria ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                  )}
-                >
-                  Com avaria
-                  <span className={cn('px-1.5 py-0.5 rounded-badge text-[10px]', soComAvaria ? 'bg-warning/20' : 'bg-surface-raised')}>{itensComAvaria}</span>
-                  {soComAvaria && <X size={12} />}
-                </button>
-              )}
-              <button
-                onClick={() => setSoSemFoto((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soSemFoto ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Sem foto
-                {soSemFoto && <X size={12} />}
-              </button>
-              <button
-                onClick={() => setSoSemLinkMl((v) => !v)}
-                className={cn(
-                  'h-10 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5 transition-colors',
-                  soSemLinkMl ? 'bg-warning-bg border-warning/30 text-warning' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
-                )}
-              >
-                Sem link ML
-                {soSemLinkMl && <X size={12} />}
-              </button>
-            </div>
+            <EstoqueFiltrosPopover
+              categoriaFiltro={categoriaFiltro}
+              onCategoriaChange={setCategoriaFiltro}
+              categoriaNodes={categoriaNodes}
+              modeloFiltro={modeloFiltro}
+              onModeloChange={setModeloFiltro}
+              modeloNodes={modeloNodes}
+              soEstoqueBaixo={soEstoqueBaixo}
+              onToggleEstoqueBaixo={() => setSoEstoqueBaixo((v) => !v)}
+              itensEstoqueBaixo={itensEstoqueBaixo}
+              soSemPreco={soSemPreco}
+              onToggleSemPreco={() => setSoSemPreco((v) => !v)}
+              soComAvaria={soComAvaria}
+              onToggleComAvaria={() => setSoComAvaria((v) => !v)}
+              mostrarFiltroAvaria={itensComAvaria > 0 || soComAvaria}
+              itensComAvaria={itensComAvaria}
+              soSemFoto={soSemFoto}
+              onToggleSemFoto={() => setSoSemFoto((v) => !v)}
+              soSemLinkMl={soSemLinkMl}
+              onToggleSemLinkMl={() => setSoSemLinkMl((v) => !v)}
+            />
           </div>
 
           {/* Tabela */}
@@ -1188,21 +1150,45 @@ export function EstoqueView({
                         table.getRowModel().rows.map((row) => {
                           const item = row.original;
                           const emAlerta = isEstoqueBaixo(item);
+                          const aberto = expandidos.has(item.id);
                           return (
-                            <TableRow
-                              key={row.id}
-                              onClick={() => onSelectItem(item)}
-                              className={cn(
-                                'border-b border-border-subtle last:border-b-0 cursor-pointer',
-                                emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent'
-                              )}
-                            >
-                              {row.getVisibleCells().map((cell) => (
-                                <TableCell key={cell.id} className={cn('px-3 py-2.5 text-text-secondary whitespace-normal', alinhamentoDaColuna(cell.column.id))}>
-                                  {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </TableCell>
-                              ))}
-                            </TableRow>
+                            <Fragment key={row.id}>
+                              <TableRow
+                                onClick={() => onSelectItem(item)}
+                                className={cn(
+                                  'border-b border-border-subtle last:border-b-0 cursor-pointer',
+                                  emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent'
+                                )}
+                              >
+                                {row.getVisibleCells().map((cell) => (
+                                  <TableCell key={cell.id} className={cn('px-3 py-2.5 text-text-secondary whitespace-normal', alinhamentoDaColuna(cell.column.id))}>
+                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
+                              {/* Painel expandido: precisa ser uma <TableRow> própria,
+                                  separada — um motion.div (raiz do Expandable) não pode
+                                  ficar entre duas <tr> dentro do <tbody> (HTML inválido).
+                                  Por isso aqui a altura é animada à mão, não via Expandable
+                                  (que o card mobile abaixo usa de verdade). */}
+                              <AnimatePresence>
+                                {aberto && (
+                                  <TableRow key={`${row.id}-expandido`} className="hover:bg-transparent border-b border-border-subtle">
+                                    <TableCell colSpan={columns.length} className="p-0">
+                                      <motion.div
+                                        initial={{ height: 0, opacity: 0 }}
+                                        animate={{ height: 'auto', opacity: 1 }}
+                                        exit={{ height: 0, opacity: 0 }}
+                                        transition={SPRING_MICRO}
+                                        className="overflow-hidden"
+                                      >
+                                        <EstoqueItemExpandido item={item} categorias={categorias} />
+                                      </motion.div>
+                                    </TableCell>
+                                  </TableRow>
+                                )}
+                              </AnimatePresence>
+                            </Fragment>
                           );
                         })
                       )}
@@ -1219,13 +1205,39 @@ export function EstoqueView({
                         const item = row.original;
                         const emAlerta = isEstoqueBaixo(item);
                         return (
-                          <div
+                          // Card mobile é 1 <div> só (sem a restrição de <tr>/<tbody> da
+                          // tabela desktop acima), então aqui usamos o Expandable de
+                          // verdade (Cult UI) em vez de controlar a altura à mão.
+                          <Expandable
                             key={row.id}
+                            expanded={expandidos.has(item.id)}
+                            onToggle={() => toggleExpandido(item.id)}
                             onClick={() => onSelectItem(item)}
                             className={cn('border-l-2 px-3 py-3 cursor-pointer', emAlerta ? 'border-l-warning' : 'border-l-transparent')}
                           >
-                            {renderMobileCard(item)}
-                          </div>
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="flex-1 min-w-0">{renderMobileCard(item)}</div>
+                              {/* ExpandableTrigger já seta seu próprio onClick (toggleExpand) no
+                                  mesmo <div> — um onClickCapture aqui pararia a propagação ANTES
+                                  desse onClick próprio disparar (mesmo nó, capture roda antes do
+                                  bubble). Por isso o stopPropagation mora num wrapper por fora:
+                                  toggleExpand dispara primeiro (o alvo real do clique), só depois,
+                                  ao borbulhar, o wrapper impede que chegue no onClick do card. */}
+                              <div className="shrink-0 -mr-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                <ExpandableTrigger
+                                  aria-label={expandidos.has(item.id) ? 'Recolher detalhes' : 'Ver mais detalhes'}
+                                  className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised"
+                                >
+                                  <ChevronDown size={14} className={cn('transition-transform', expandidos.has(item.id) ? 'rotate-0' : '-rotate-90')} />
+                                </ExpandableTrigger>
+                              </div>
+                            </div>
+                            <ExpandableContent keepMounted={false} preset="fade">
+                              <div className="mt-3">
+                                <EstoqueItemExpandido item={item} categorias={categorias} />
+                              </div>
+                            </ExpandableContent>
+                          </Expandable>
                         );
                       })}
                     </div>
@@ -1574,53 +1586,16 @@ export function EstoqueView({
                 <div className="space-y-3">
                   <p className="text-xs text-text-faint">A primeira foto é a capa mostrada na lista. Pode anexar mais de uma.</p>
 
-                  {formData.imagens.length > 0 && (
-                    <div className="flex flex-wrap gap-2">
-                      {formData.imagens.map((url, i) => (
-                        <div key={url} className="relative size-20 rounded-control overflow-hidden border border-border-default">
-                          <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                          {i === 0 && (
-                            <span className="absolute bottom-0 inset-x-0 bg-media-overlay-badge text-white text-[9px] font-semibold uppercase tracking-wide text-center py-0.5">Capa</span>
-                          )}
-                          <button
-                            type="button"
-                            onClick={() => setFormData((prev) => ({ ...prev, imagens: prev.imagens.filter((u) => u !== url) }))}
-                            title="Remover foto"
-                            className="absolute top-1 right-1 size-6 rounded-full bg-overlay-scrim text-white flex items-center justify-center hover:bg-danger"
-                          >
-                            <X size={12} />
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  <div className="flex gap-2">
-                    {/* Câmera separada da galeria: no celular abre direto a
-                        câmera (um toque a menos por peça) sem tirar a opção
-                        de escolher fotos já salvas. Escondida no desktop,
-                        onde `capture` não significa nada. */}
-                    <button
-                      type="button"
-                      onClick={() => inputCameraRef.current?.click()}
-                      disabled={isUploadingImagem}
-                      className="md:hidden flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
-                    >
-                      {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} Câmera
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => inputGaleriaRef.current?.click()}
-                      disabled={isUploadingImagem}
-                      className="flex-1 flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
-                    >
-                      {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                      <span className="md:hidden">{isUploadingImagem ? 'Enviando...' : 'Galeria'}</span>
-                      <span className="hidden md:inline">
-                        {isUploadingImagem ? 'Enviando...' : formData.imagens.length > 0 ? 'Adicionar mais fotos' : 'Anexar fotos'}
-                      </span>
-                    </button>
-                  </div>
+                  {/* Câmera fica separada (só mobile, abre direto a câmera) — a galeria
+                      vira o dropzone abaixo, que também mostra as miniaturas já anexadas. */}
+                  <button
+                    type="button"
+                    onClick={() => inputCameraRef.current?.click()}
+                    disabled={isUploadingImagem}
+                    className="md:hidden w-full flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
+                  >
+                    {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} Câmera
+                  </button>
                   <input
                     ref={inputCameraRef}
                     type="file"
@@ -1632,18 +1607,14 @@ export function EstoqueView({
                       e.target.value = '';
                     }}
                   />
-                  <input
-                    ref={inputGaleriaRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    multiple
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files?.length) handleUploadImagem(e.target.files);
-                      e.target.value = '';
-                    }}
+
+                  <EstoqueUploadFotos
+                    imagens={formData.imagens}
+                    onRemoverImagem={(url) => setFormData((prev) => ({ ...prev, imagens: prev.imagens.filter((u) => u !== url) }))}
+                    onArquivosSelecionados={handleUploadImagem}
+                    enviando={isUploadingImagem}
+                    resumoCompressao={resumoCompressao}
                   />
-                  {resumoCompressao && <p className="text-[11px] text-positive">{resumoCompressao}</p>}
                 </div>
               </ModalSection>
 

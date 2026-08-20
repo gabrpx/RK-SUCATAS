@@ -1,3 +1,4 @@
+/// <reference types="vitest/config" />
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
@@ -25,6 +26,18 @@ export default defineConfig(() => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+    },
+    test: {
+      // 'node' de propósito, NÃO 'jsdom': todo teste de DOM deste repo declara
+      // o próprio `// @vitest-environment jsdom` no topo do arquivo. Ligar jsdom
+      // global aqui não ajudaria nenhum deles e ainda jogaria os ~10 testes de
+      // servidor/serviço (rotas, mercadolivre*, workers) dentro de um ambiente
+      // de browser — onde código que checa `typeof window !== 'undefined'`
+      // (o adapter do axios, por exemplo) pega o caminho errado silenciosamente.
+      environment: 'node',
+      // setupFiles roda em qualquer environment; o polyfill de ResizeObserver
+      // lá dentro é guardado por `typeof === 'undefined'`, então é inócuo no node.
+      setupFiles: ['./src/test/setup.ts'],
     },
   };
 });
