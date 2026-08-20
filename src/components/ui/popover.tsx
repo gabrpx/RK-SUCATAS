@@ -121,8 +121,15 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
       {isOpen && (
         <motion.div
           layoutId={`popover-${uniqueId}`}
+          // Sem `overflow-y-auto`/`max-h` aqui de propósito: qualquer overflow
+          // diferente de `visible` transforma este box num container de corte
+          // também no eixo X, e o menu do TreeDropdown (absolute, w-80) é mais
+          // largo que o conteúdo interno do popover — ficaria cortado, com
+          // scroll dentro do painel em vez de flutuar por cima. O TreeDropdown
+          // já rola sozinho (max-h-72). Quem precisar de teto de altura passa
+          // pelo `className`.
           className={cn(
-            "absolute right-0 top-full z-[150] mt-2 max-h-[70vh] w-80 max-w-[90vw] overflow-y-auto rounded-card border border-border-default bg-surface-card p-3 shadow-2xl outline-none",
+            "absolute right-0 top-full z-[150] mt-2 w-80 max-w-[90vw] rounded-card border border-border-default bg-surface-card p-3 shadow-2xl outline-none",
             className
           )}
         >

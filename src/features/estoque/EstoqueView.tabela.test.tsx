@@ -318,6 +318,41 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     expect(onSelectItem).toHaveBeenCalledWith(item);
   });
 
+  // Regressão: o chevron de expandir mora DENTRO da linha, que por sua vez tem
+  // onClick={() => onSelectItem(item)}. Sem stopPropagation no botão, abrir os
+  // detalhes inline abriria o DetailModal por cima — que é exatamente o que o
+  // painel expandido existe pra evitar. Duas variantes do mesmo bug de
+  // propagação já apareceram nesta branch (popover e trigger mobile), então
+  // este caminho fica coberto explicitamente.
+  it('clicar no chevron expande a linha sem abrir o DetailModal', () => {
+    const item = criarItem({ id: 'a', nome: 'Peça Expansível' });
+    mockEstado.estoque = [item];
+    const onSelectItem = vi.fn();
+
+    render(<EstoqueView onSelectItem={onSelectItem} />);
+    const chevron = tabela().getByRole('button', { name: 'Ver mais detalhes' });
+    expect(chevron.getAttribute('aria-expanded')).toBe('false');
+
+    fireEvent.click(chevron);
+
+    expect(onSelectItem).not.toHaveBeenCalled();
+    expect(tabela().getByRole('button', { name: 'Recolher detalhes' }).getAttribute('aria-expanded')).toBe('true');
+    // O painel só renderiza quando aberto — "Categoria completa" é rótulo dele.
+    expect(tabela().queryByText('Categoria completa')).not.toBeNull();
+  });
+
+  it('com a linha já expandida, clicar no corpo da linha ainda abre o DetailModal', () => {
+    const item = criarItem({ id: 'a', nome: 'Peça Expansível' });
+    mockEstado.estoque = [item];
+    const onSelectItem = vi.fn();
+
+    render(<EstoqueView onSelectItem={onSelectItem} />);
+    fireEvent.click(tabela().getByRole('button', { name: 'Ver mais detalhes' }));
+    fireEvent.click(tabela().getByText('Peça Expansível'));
+
+    expect(onSelectItem).toHaveBeenCalledWith(item);
+  });
+
   it('ação de editar registrada via onRegisterActions abre o modal preenchido com os dados da peça', () => {
     const item = criarItem({ id: 'a', nome: 'Peça Editável', valor: 250 });
     mockEstado.estoque = [item];

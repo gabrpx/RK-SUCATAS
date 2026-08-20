@@ -73,7 +73,7 @@ import { buildTree as buildMotoTree, getDescendantIds as getDescendantIdsMoto } 
 import { CategoriaOrgChart } from '../categorias/CategoriaOrgChart';
 import { MotoOrgChart } from '../motos/MotoOrgChart';
 import { sumWithDescendants } from '../../utils/tree';
-import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
+import type { TreeDropdownNode } from '../../components/TreeDropdown';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
@@ -1155,7 +1155,7 @@ export function EstoqueView({
                                   (que o card mobile abaixo usa de verdade). */}
                               <AnimatePresence>
                                 {aberto && (
-                                  <TableRow className="hover:bg-transparent border-b border-border-subtle">
+                                  <TableRow key={`${row.id}-expandido`} className="hover:bg-transparent border-b border-border-subtle">
                                     <TableCell colSpan={columns.length} className="p-0">
                                       <motion.div
                                         initial={{ height: 0, opacity: 0 }}

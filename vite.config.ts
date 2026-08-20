@@ -28,7 +28,15 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     test: {
-      environment: 'jsdom',
+      // 'node' de propósito, NÃO 'jsdom': todo teste de DOM deste repo declara
+      // o próprio `// @vitest-environment jsdom` no topo do arquivo. Ligar jsdom
+      // global aqui não ajudaria nenhum deles e ainda jogaria os ~10 testes de
+      // servidor/serviço (rotas, mercadolivre*, workers) dentro de um ambiente
+      // de browser — onde código que checa `typeof window !== 'undefined'`
+      // (o adapter do axios, por exemplo) pega o caminho errado silenciosamente.
+      environment: 'node',
+      // setupFiles roda em qualquer environment; o polyfill de ResizeObserver
+      // lá dentro é guardado por `typeof === 'undefined'`, então é inócuo no node.
       setupFiles: ['./src/test/setup.ts'],
     },
   };
