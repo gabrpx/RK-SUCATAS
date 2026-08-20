@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.23',
+    data: '2026-08-20',
+    titulo: 'App Android volta a receber atualizações automáticas',
+    itens: [
+      {
+        tipo: 'fix',
+        texto: 'O app instalado no celular estava travado numa versão antiga: as novidades apareciam no computador, mas não chegavam no Android. A publicação automática das atualizações estava congelada e voltou a funcionar — agora cada novidade chega sozinha no app, sem precisar reinstalar.',
+      },
+    ],
+  },
+  {
     versao: '1.2.22',
     data: '2026-08-20',
     titulo: 'Tarefas mais fluidas, menus animados e categorias em estilo de pastas',

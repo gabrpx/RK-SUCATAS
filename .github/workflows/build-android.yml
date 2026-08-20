@@ -92,21 +92,6 @@ jobs:
       - name: Verify APK output
         run: test -f android/app/build/outputs/apk/release/app-release.apk
 
-      # Publica o bundle web (JS/CSS/assets) pro Capgo — apps já instalados
-      # baixam essa atualização sozinhos em background (CapacitorUpdater com
-      # autoUpdate:true, ver capacitor.config.ts) sem precisar reinstalar o
-      # APK. Só cobre mudança de JS/tela: mudança em código nativo (plugin
-      # novo, permissão nova, etc.) exige reinstalar o APK publicado abaixo.
-      # continue-on-error: um commit que não muda nada em dist/ (ex: só uma
-      # migration .sql) não tem por que travar o release do APK abaixo — sem
-      # isso, esquecer de subir a versão do package.json faz o Capgo recusar
-      # reenviar o mesmo número (“Version X já existe”) e os passos seguintes
-      # (release do APK, upload do artifact) ficam pulados de arrasto.
-      - name: Publish OTA update (Capgo)
-        if: ${{ env.CAPGO_API_KEY != '' }}
-        continue-on-error: true
-        run: npx @capgo/cli@latest bundle upload com.rksucatas.app --path ./dist --channel production --apikey "$CAPGO_API_KEY"
-
       # Release fixa (mesma tag sempre) com o APK mais recente — link estável
       # pra instalar/reinstalar, em vez de depender do artifact do Actions
       # (expira em 30 dias e exige estar logado no GitHub).
@@ -128,3 +113,32 @@ jobs:
           path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Publica o bundle web (JS/CSS/assets) pro Capgo — apps já instalados
+      # baixam essa atualização sozinhos em background (CapacitorUpdater com
+      # autoUpdate:true, ver capacitor.config.ts) sem precisar reinstalar o
+      # APK. Só cobre mudança de JS/tela: mudança em código nativo (plugin
+      # novo, permissão nova, etc.) exige reinstalar o APK publicado acima.
+      #
+      # Versão do bundle = versão do package.json + número do run (ex:
+      # "1.3.0-42"). Isso é ESSENCIAL: o Capgo recusa reenviar uma versão que
+      # já existe, e a estratégia padrão do canal ('none') entrega sempre o
+      # ÚLTIMO bundle enviado. Antes o comando reusava só a versão do
+      # package.json, então esquecer de bumpá-la fazia todo push reenviar o
+      # mesmo número, o Capgo rejeitar como duplicado e o canal congelar no
+      # último bundle aceito — os apps instalados paravam de atualizar sem
+      # ninguém perceber. O sufixo do run garante um bundle único por build.
+      #
+      # É o ÚLTIMO passo e SEM continue-on-error de propósito: o APK/artifact
+      # já foram publicados acima, então uma falha aqui não bloqueia o
+      # release, mas marca o run como vermelho — falha de OTA fica visível em
+      # vez de ser engolida em silêncio.
+      - name: Publish OTA update (Capgo)
+        if: ${{ env.CAPGO_API_KEY != '' }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          npx @capgo/cli@latest bundle upload com.rksucatas.app \
+            --path ./dist \
+            --channel production \
+            --bundle "${PKG_VERSION}-${GITHUB_RUN_NUMBER}" \
+            --apikey "$CAPGO_API_KEY"
