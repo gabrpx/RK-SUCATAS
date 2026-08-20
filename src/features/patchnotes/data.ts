@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.25',
+    data: '2026-08-20',
+    titulo: 'Motos em Configurações no estilo explorador de arquivos',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'A árvore de Motos em Configurações agora tem ícones de pasta (aberta/fechada) e abre/fecha os níveis com uma animação suave — igual a um explorador de arquivos, no mesmo estilo que as Categorias já tinham. Tudo o que já existia (arrastar pra reordenar, renomear, mover, adicionar foto, organograma) continua funcionando igual.',
+      },
+    ],
+  },
+  {
     versao: '1.2.24',
     data: '2026-08-20',
     titulo: 'Alternância animada entre Cotação e Envios no Frete',
