@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.24',
+    data: '2026-08-20',
+    titulo: 'Alternância animada entre Cotação e Envios no Frete',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Na tela de Frete, o botão que troca entre "Cotação" e "Envios" ganhou uma animação suave: o destaque desliza de um lado pro outro em vez de piscar. Detalhe pequeno, mas deixa a navegação mais fluida — no computador e no celular.',
+      },
+    ],
+  },
+  {
     versao: '1.2.23',
     data: '2026-08-20',
     titulo: 'App Android volta a receber atualizações automáticas',

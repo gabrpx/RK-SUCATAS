@@ -14,6 +14,7 @@ import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { CEP_ORIGEM_LOJA } from '../../constants/loja';
 import { calcularFrete, buscarCidadePorCep, enviosApi, type FreteQuote } from './api';
@@ -59,26 +60,20 @@ export const FreteView = () => {
           <h1 className="text-2xl font-medium text-text-primary">Frete</h1>
           <p className="text-sm text-text-faint mt-0.5">{secao === 'cotacao' ? 'Cotação de envio a partir da loja' : 'Envios registrados e rastreio'}</p>
         </div>
-        <div className="flex items-center gap-1 rounded-control border border-border-default bg-surface-inset p-1 shrink-0">
-          <button
-            onClick={() => setSecao('cotacao')}
-            className={cn(
-              'h-8 px-3 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
-              secao === 'cotacao' ? 'bg-accent-soft-bg text-accent-soft-fg' : 'text-text-muted hover:text-text-secondary'
-            )}
-          >
-            Cotação
-          </button>
-          <button
-            onClick={() => setSecao('envios')}
-            className={cn(
-              'h-8 px-3 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
-              secao === 'envios' ? 'bg-accent-soft-bg text-accent-soft-fg' : 'text-text-muted hover:text-text-secondary'
-            )}
-          >
-            Envios
-          </button>
-        </div>
+        <Tabs
+          value={secao}
+          onValueChange={(v) => setSecao(v as 'cotacao' | 'envios')}
+          className="shrink-0"
+        >
+          <TabsList className="h-9">
+            <TabsTrigger value="cotacao" className="px-4 text-[11px] font-semibold uppercase tracking-wider">
+              Cotação
+            </TabsTrigger>
+            <TabsTrigger value="envios" className="px-4 text-[11px] font-semibold uppercase tracking-wider">
+              Envios
+            </TabsTrigger>
+          </TabsList>
+        </Tabs>
       </div>
       {secao === 'cotacao' ? <CotacaoSection /> : <EnviosSection />}
     </div>
