@@ -9,6 +9,7 @@ import {
 import { NAV_ITEMS, NAV_GROUP_LABELS } from '../constants/navigation';
 import type { Tab, NavGroup, NavItem } from '../constants/navigation';
 import { cn } from '../utils';
+import { Tooltip } from './ui/beui-tooltip';
 
 const SidebarNavItem = memo(({
   item,
@@ -169,18 +170,23 @@ export function DashboardSidebar({
           )}
 
           {/* Collapse toggle */}
-          <div
-            className={cn(
-              'flex items-center justify-center mt-1 py-1.5 rounded-[6px] cursor-pointer transition-colors text-text-faint hover:bg-surface-raised hover:text-text-muted',
-            )}
-            onClick={onToggle}
-          >
-            {isOpen ? (
+          {isOpen ? (
+            <div
+              className="flex items-center justify-center mt-1 py-1.5 rounded-[6px] cursor-pointer transition-colors text-text-faint hover:bg-surface-raised hover:text-text-muted"
+              onClick={onToggle}
+            >
               <PanelLeftClose className="w-[18px] h-[18px]" strokeWidth={1.5} />
-            ) : (
-              <PanelLeftOpen className="w-[18px] h-[18px]" strokeWidth={1.5} />
-            )}
-          </div>
+            </div>
+          ) : (
+            <Tooltip content="Expandir menu" side="right" wrapperClassName="!flex w-full justify-center">
+              <div
+                className="flex items-center justify-center w-full mt-1 py-1.5 rounded-[6px] cursor-pointer transition-colors text-text-faint hover:bg-surface-raised hover:text-text-muted"
+                onClick={onToggle}
+              >
+                <PanelLeftOpen className="w-[18px] h-[18px]" strokeWidth={1.5} />
+              </div>
+            </Tooltip>
+          )}
         </div>
       </div>
     </aside>
@@ -198,21 +204,18 @@ const CollapsedNavItem = memo(({
   onClick: () => void;
   className?: string;
 }) => (
-  <div
-    className={cn(
-      'flex items-center justify-center py-2 rounded-[6px] cursor-pointer transition-all duration-200 group relative',
-      active
-        ? 'bg-accent/15 text-accent'
-        : 'text-text-faint hover:bg-surface-raised hover:text-text-muted',
-      className,
-    )}
-    onClick={onClick}
-    title={item.label}
-  >
-    <item.icon className="w-[18px] h-[18px]" strokeWidth={active ? 2 : 1.5} />
-    {/* Tooltip */}
-    <div className="absolute left-full ml-2 px-2.5 py-1.5 rounded-md bg-surface-overlay border border-border-default text-text-primary text-[12px] font-medium whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-[200] shadow-lg">
-      {item.label}
+  <Tooltip content={item.label} side="right" wrapperClassName="!flex w-full justify-center">
+    <div
+      className={cn(
+        'flex items-center justify-center w-full py-2 rounded-[6px] cursor-pointer transition-all duration-200',
+        active
+          ? 'bg-accent/15 text-accent'
+          : 'text-text-faint hover:bg-surface-raised hover:text-text-muted',
+        className,
+      )}
+      onClick={onClick}
+    >
+      <item.icon className="w-[18px] h-[18px]" strokeWidth={active ? 2 : 1.5} />
     </div>
-  </div>
+  </Tooltip>
 ));

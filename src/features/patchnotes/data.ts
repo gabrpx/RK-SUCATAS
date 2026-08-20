@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.21',
+    data: '2026-08-20',
+    titulo: 'Tooltip animado na barra lateral',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Quando a barra lateral está recolhida (só ícones), agora ao passar o mouse sobre qualquer ícone aparece o nome da seção com uma animação suave de blur — muito mais claro pra identificar cada opção.',
+      },
+    ],
+  },
+  {
     versao: '1.2.20',
     data: '2026-08-20',
     titulo: 'Nova barra lateral, filtros corrigidos e carregamento mais confiável',
