@@ -6,11 +6,13 @@
 // Por padrão toda a árvore começa recolhida (só as raízes aparecem) — o
 // usuário abre só o que precisa, em vez de receber a lista inteira já expandida.
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, List, Network } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, List, Network, Folder, FolderOpen, FileText } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../utils';
+import { SPRING_MICRO } from '../../components/ui/motion';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import { Modal } from '../../components/ui/Modal';
@@ -447,8 +449,27 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
           onClick={() => temFilhos && onToggleExpandido(node.id)}
           className={cn('size-5 text-text-muted', !temFilhos && 'opacity-0 pointer-events-none')}
         >
-          {expandido ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+          <motion.span animate={{ rotate: expandido ? 90 : 0 }} transition={SPRING_MICRO} className="flex">
+            <ChevronRight size={14} />
+          </motion.span>
         </Button>
+
+        {/* Ícone no estilo Files: pasta (aberta/fechada) para nós com filhos,
+            arquivo para folhas. Anima a troca com um leve fade/scale. */}
+        <span className="shrink-0 flex items-center justify-center size-5 text-accent">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={temFilhos ? (expandido ? 'aberta' : 'fechada') : 'arquivo'}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.12 }}
+              className="flex"
+            >
+              {temFilhos ? expandido ? <FolderOpen size={15} /> : <Folder size={15} /> : <FileText size={14} className="text-text-muted" />}
+            </motion.span>
+          </AnimatePresence>
+        </span>
 
         <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-2">
           {h.editandoId === node.id ? (
@@ -557,11 +578,21 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
         </div>
       )}
 
-      {temFilhos && expandido && (
-        <div className={cn('ml-3 pl-5 border-l', borderGuia)}>
-          <CategoriaNivel nodes={node.children} parentId={node.id} depth={depth + 1} h={h} />
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {temFilhos && expandido && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className={cn('ml-3 pl-5 border-l', borderGuia)}>
+              <CategoriaNivel nodes={node.children} parentId={node.id} depth={depth + 1} h={h} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

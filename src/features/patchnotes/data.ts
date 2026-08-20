@@ -18,6 +18,29 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.22',
+    data: '2026-08-20',
+    titulo: 'Tarefas mais fluidas, menus animados e categorias em estilo de pastas',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'As Tarefas agora aparecem como cards: toque em qualquer um e ele se abre suavemente num painel de detalhes com tudo da tarefa (cliente, telefone, prazo, prioridade). Vale tanto pra quem cria quanto pra quem executa.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'As ações de cada tarefa (concluir, editar, excluir) ficaram num menu "⋯" animado, mais limpo do que a fileira de botões de antes.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Todos os seletores/dropdowns do sistema (filtros, ordenação) agora abrem e fecham com uma animação suave, e o item sob o cursor ganha um realce que desliza.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Em Configurações, as Categorias de Peça ganharam ícones de pasta (aberta/fechada) e uma animação de abrir/fechar os níveis — igual a um explorador de arquivos. Todo o resto (arrastar pra reordenar, renomear, mover, organograma) continua igual.',
+      },
+    ],
+  },
+  {
     versao: '1.2.21',
     data: '2026-08-20',
     titulo: 'Tooltip animado na barra lateral',

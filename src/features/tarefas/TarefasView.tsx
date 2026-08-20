@@ -1,48 +1,27 @@
 // Aba Tarefas: admin/equipe criam e atribuem, quem tem um cargo "executor"
 // (EXECUTORES_TAREFA — mandados/Pitoco, mecanico/Itinho) só vê e dá baixa nas
 // próprias. Um componente só, dois modos de renderização por papel — ver
-// App.tsx (TAB_ROLES) pra quem enxerga esta aba.
+// App.tsx (TAB_ROLES) pra quem enxerga esta aba. As duas visões usam a grade
+// de cards expansíveis (TarefaCards); o que muda é o conjunto de ações.
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Clock, Loader2, MapPin, Phone } from 'lucide-react';
+import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Loader2, MapPin, MoreHorizontal } from 'lucide-react';
 import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
-import { DataTable } from '../../components/ui/DataTable';
-import type { DataTableColumn } from '../../components/ui/DataTable';
-import { StatusBadge } from '../../components/ui/StatusBadge';
-import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../../components/ui/dropdown-menu';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { LembretesView } from '../lembretes/LembretesView';
+import { TarefaCards } from './TarefaCards';
 import { useTarefas } from './useTarefas';
 import { tarefasApi } from './api';
 import { EXECUTORES_TAREFA } from '../../constants/roles';
 import type { Role } from '../../constants/roles';
+import { PRIORIDADE_LABELS, paraDatetimeLocal } from './tarefaUtils';
 import type { Tarefa, TarefaInput, TarefaPrioridade, UsuarioResumo } from './types';
 
 const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral' };
-
-const PRIORIDADE_LABELS: Record<TarefaPrioridade, string> = { baixa: 'Baixa', media: 'Média', alta: 'Alta' };
-const PRIORIDADE_TONS: Record<TarefaPrioridade, StatusTone> = { baixa: 'neutral', media: 'warning', alta: 'danger' };
-
-function formatarPrazo(prazo: string | null) {
-  if (!prazo) return null;
-  return new Date(prazo).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-}
-
-function estaVencida(tarefa: Tarefa) {
-  return tarefa.status === 'pendente' && !!tarefa.prazo && new Date(tarefa.prazo).getTime() < Date.now();
-}
-
-// Converte o valor do <input type="datetime-local"> (sem timezone) pra ISO,
-// e o inverso, pra reabrir o form de edição já preenchido.
-function paraDatetimeLocal(iso: string | null) {
-  if (!iso) return '';
-  const d = new Date(iso);
-  const pad = (n: number) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 export function TarefasView({ userRoles }: { userRoles: string[] }) {
   const [aba, setAba] = useState<'tarefas' | 'lembretes'>('tarefas');
@@ -112,6 +91,22 @@ function VisaoResponsavel({
     }
   };
 
+  // Estilo outline (não accent-preenchido de propósito): a lista pode ter
+  // várias tarefas pendentes ao mesmo tempo, e o design system permite no
+  // máximo um botão de acento preenchido por tela — aqui o verde (positive) já
+  // carrega o significado de "concluir".
+  const botaoConcluir = (tarefa: Tarefa) =>
+    tarefa.status !== 'concluida' ? (
+      <Button
+        variant="outline"
+        onClick={() => concluir(tarefa)}
+        disabled={concluindo === tarefa.id}
+        className="h-9 px-4 rounded-control border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider hover:text-positive"
+      >
+        <CheckCircle2 size={14} /> {concluindo === tarefa.id ? 'Concluindo...' : 'Concluir'}
+      </Button>
+    ) : null;
+
   return (
     <div className="space-y-4">
       <div>
@@ -128,70 +123,7 @@ function VisaoResponsavel({
       ) : tarefas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pra você no momento." />
       ) : (
-        <div className="space-y-3">
-          {tarefas.map((tarefa) => {
-            const vencida = estaVencida(tarefa);
-            const concluida = tarefa.status === 'concluida';
-            return (
-              <div key={tarefa.id} className="bg-surface-card border border-border-subtle rounded-card p-4 space-y-3">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      {tarefa.tipo === 'visita' && <MapPin size={13} className="text-accent shrink-0" />}
-                      <p className={cn('text-base font-medium text-text-primary', concluida && 'line-through opacity-60')}>{tarefa.titulo}</p>
-                    </div>
-                    {tarefa.descricao && <p className="text-sm text-text-secondary mt-1">{tarefa.descricao}</p>}
-                    {tarefa.cliente && (
-                      <p className="text-xs text-text-faint mt-1 flex items-center gap-1.5">
-                        {tarefa.cliente.nome}
-                        {tarefa.cliente.telefone && (
-                          <span className="inline-flex items-center gap-0.5">
-                            <Phone size={10} /> {tarefa.cliente.telefone}
-                          </span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  <div className="flex flex-col items-end gap-1 shrink-0">
-                    {concluida ? (
-                      <StatusBadge texto="Concluída" tom="positive" />
-                    ) : vencida ? (
-                      <StatusBadge texto="Atrasada" tom="danger" />
-                    ) : (
-                      <StatusBadge texto="Pendente" tom="warning" />
-                    )}
-                    {!concluida && tarefa.prioridade !== 'media' && <StatusBadge texto={PRIORIDADE_LABELS[tarefa.prioridade]} tom={PRIORIDADE_TONS[tarefa.prioridade]} />}
-                  </div>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  {tarefa.prazo ? (
-                    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', vencida ? 'text-danger' : 'text-text-faint')}>
-                      <Clock size={12} /> até {formatarPrazo(tarefa.prazo)}
-                    </span>
-                  ) : (
-                    <span />
-                  )}
-
-                  {!concluida && (
-                    // Estilo outline (não accent-preenchido de propósito): a lista pode
-                    // ter várias tarefas pendentes ao mesmo tempo, e o design system
-                    // permite no máximo um botão de acento preenchido por tela — aqui
-                    // o verde (positive) já carrega o significado de "concluir".
-                    <Button
-                      variant="outline"
-                      onClick={() => concluir(tarefa)}
-                      disabled={concluindo === tarefa.id}
-                      className="h-9 px-4 rounded-control border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider hover:text-positive"
-                    >
-                      <CheckCircle2 size={14} /> {concluindo === tarefa.id ? 'Concluindo...' : 'Concluir'}
-                    </Button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
+        <TarefaCards tarefas={tarefas} renderAcaoRapida={botaoConcluir} renderAcoes={(t) => botaoConcluir(t)} />
       )}
     </div>
   );
@@ -322,122 +254,38 @@ function VisaoCriador({
     'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
   const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
 
-  const colunas: DataTableColumn<Tarefa>[] = [
-    {
-      key: 'titulo',
-      header: 'Tarefa',
-      render: (t) => (
-        <div className="flex flex-col">
-          <span className="text-sm font-medium text-text-primary flex items-center gap-1.5">
-            {t.tipo === 'visita' && <MapPin size={12} className="text-accent shrink-0" />}
-            {t.titulo}
-          </span>
-          {t.descricao && <span className="text-xs text-text-faint line-clamp-1">{t.descricao}</span>}
-          {t.cliente && <span className="text-xs text-text-faint">{t.cliente.nome}</span>}
-        </div>
-      ),
-    },
-    { key: 'responsavel', header: 'Responsável', render: (t) => t.atribuido?.nome_exibicao || '—' },
-    {
-      key: 'prazo',
-      header: 'Prazo',
-      render: (t) => (t.prazo ? <span className={cn(estaVencida(t) && 'text-danger font-medium')}>{formatarPrazo(t.prazo)}</span> : '—'),
-    },
-    {
-      key: 'prioridade',
-      header: 'Prioridade',
-      render: (t) => <StatusBadge texto={PRIORIDADE_LABELS[t.prioridade]} tom={PRIORIDADE_TONS[t.prioridade]} />,
-    },
-    {
-      key: 'status',
-      header: 'Status',
-      render: (t) =>
-        t.status === 'concluida' ? <StatusBadge texto="Concluída" tom="positive" /> : estaVencida(t) ? <StatusBadge texto="Atrasada" tom="danger" /> : <StatusBadge texto="Pendente" tom="warning" />,
-    },
-    {
-      key: 'acoes',
-      header: 'Ações',
-      align: 'right',
-      render: (t) => (
-        <div className="flex items-center justify-end gap-1">
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            onClick={() => alternarStatus(t)}
-            disabled={alterandoStatus === t.id}
-            title={t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
-            className={cn('size-7 rounded-control', t.status === 'concluida' ? 'text-text-muted' : 'text-positive hover:text-positive')}
-          >
-            {alterandoStatus === t.id ? <Loader2 size={14} className="animate-spin" /> : t.status === 'concluida' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
-          </Button>
-          {podeEditar(t) && (
-            <>
-              <Button type="button" variant="ghost" size="icon" onClick={() => abrirEditar(t)} title="Editar" className="size-7 rounded-control text-text-muted">
-                <Pencil size={14} />
-              </Button>
-              <Button type="button" variant="ghost" size="icon" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 rounded-control text-danger hover:text-danger">
-                <Trash2 size={14} />
-              </Button>
-            </>
-          )}
-        </div>
-      ),
-    },
-  ];
-
-  // Mesmas colunas acima, empilhadas — usado pelo DataTable abaixo de `md`.
-  function renderMobileCard(t: Tarefa) {
-    return (
-      <div>
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-text-primary truncate flex items-center gap-1.5">
-              {t.tipo === 'visita' && <MapPin size={12} className="text-accent shrink-0" />}
-              {t.titulo}
-            </p>
-            {t.descricao && <p className="text-xs text-text-faint line-clamp-1">{t.descricao}</p>}
-            {t.cliente && <p className="text-xs text-text-faint">{t.cliente.nome}</p>}
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => alternarStatus(t)}
-              disabled={alterandoStatus === t.id}
-              title={t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
-              className={cn('size-7 rounded-control', t.status === 'concluida' ? 'text-text-muted' : 'text-positive hover:text-positive')}
-            >
-              {alterandoStatus === t.id ? <Loader2 size={14} className="animate-spin" /> : t.status === 'concluida' ? <RotateCcw size={14} /> : <CheckCircle2 size={14} />}
-            </Button>
-            {podeEditar(t) && (
-              <>
-                <Button type="button" variant="ghost" size="icon" onClick={() => abrirEditar(t)} title="Editar" className="size-7 rounded-control text-text-muted">
-                  <Pencil size={14} />
-                </Button>
-                <Button type="button" variant="ghost" size="icon" onClick={() => setExcluindo(t)} title="Excluir" className="size-7 rounded-control text-danger hover:text-danger">
-                  <Trash2 size={14} />
-                </Button>
-              </>
-            )}
-          </div>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap mt-2">
-          {t.status === 'concluida' ? (
-            <StatusBadge texto="Concluída" tom="positive" />
-          ) : estaVencida(t) ? (
-            <StatusBadge texto="Atrasada" tom="danger" />
-          ) : (
-            <StatusBadge texto="Pendente" tom="warning" />
-          )}
-          <span className="text-xs text-text-faint">{t.atribuido?.nome_exibicao || '—'}</span>
-          {t.prazo && <span className={cn('text-xs', estaVencida(t) ? 'text-danger font-medium' : 'text-text-faint')}>{formatarPrazo(t.prazo)}</span>}
-          <StatusBadge texto={PRIORIDADE_LABELS[t.prioridade]} tom={PRIORIDADE_TONS[t.prioridade]} />
-        </div>
-      </div>
-    );
-  }
+  // Menu de ação (⋯) de cada tarefa — o DropdownMenu animado. Concluir/reabrir
+  // é sempre permitido (regra do backend); editar/excluir só pra quem pode.
+  const menuTarefa = (t: Tarefa) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <button
+          className="flex size-10 items-center justify-center rounded-xl text-text-muted transition-colors hover:bg-surface-inset hover:text-text-primary active:bg-surface-inset"
+          title="Ações"
+          disabled={alterandoStatus === t.id}
+        >
+          {alterandoStatus === t.id ? <Loader2 size={18} className="animate-spin" /> : <MoreHorizontal size={18} />}
+        </button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem onSelect={() => alternarStatus(t)}>
+          {t.status === 'concluida' ? <RotateCcw /> : <CheckCircle2 />}
+          {t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
+        </DropdownMenuItem>
+        {podeEditar(t) && (
+          <>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={() => abrirEditar(t)}>
+              <Pencil /> Editar
+            </DropdownMenuItem>
+            <DropdownMenuItem variant="danger" onSelect={() => setExcluindo(t)}>
+              <Trash2 /> Excluir
+            </DropdownMenuItem>
+          </>
+        )}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
 
   return (
     <div className="space-y-4">
@@ -477,25 +325,15 @@ function VisaoCriador({
         </p>
       )}
 
-      <DataTable
-        colunas={colunas}
-        dados={loading ? [] : filtradas}
-        getRowKey={(t) => t.id}
-        destaqueLinha={estaVencida}
-        renderMobileCard={renderMobileCard}
-        paginaAtual={1}
-        totalPaginas={1}
-        onMudarPagina={() => {}}
-        emptyState={
-          loading ? (
-            <div className="py-12 flex items-center justify-center text-text-faint">
-              <Loader2 size={20} className="animate-spin" />
-            </div>
-          ) : (
-            <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa por aqui." />
-          )
-        }
-      />
+      {loading && tarefas.length === 0 ? (
+        <div className="py-12 flex items-center justify-center text-text-faint">
+          <Loader2 size={20} className="animate-spin" />
+        </div>
+      ) : filtradas.length === 0 ? (
+        <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa por aqui." />
+      ) : (
+        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} />
+      )}
 
       <Modal
         aberto={isFormOpen}
