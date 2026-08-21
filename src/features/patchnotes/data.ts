@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.29',
+    data: '2026-08-20',
+    titulo: 'Novo visual dos cards de métrica do painel',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Os cards de indicadores do painel (valor em estoque, vendas, saídas, ticket médio) ganharam um visual mais limpo: o número em destaque com um selo de variação ao lado (seta e porcentagem, verde pra bom, vermelho pra ruim) e a comparação com o mês passado abaixo de uma linha.',
+      },
+    ],
+  },
+  {
     versao: '1.2.28',
     data: '2026-08-20',
     titulo: 'Últimas vendas do painel viram lista interativa',

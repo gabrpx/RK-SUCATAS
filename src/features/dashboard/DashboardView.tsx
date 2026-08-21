@@ -461,8 +461,9 @@ export function DashboardView({
             icone={ShoppingCart}
             label="Vendas do mês"
             valor={formatCurrency(metrics.valorVendasMes)}
-            contexto={`${metrics.vendasMes.length} vendas · ${variacaoVendas.texto}`}
+            contexto={`${metrics.vendasMes.length} vendas neste mês`}
             tom={variacaoVendas.positivo ? 'positive' : 'negative'}
+            tendencia={variacaoVendas}
           />
         </div>
         <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
@@ -470,8 +471,9 @@ export function DashboardView({
             icone={Wallet}
             label="Saídas do mês"
             valor={formatCurrency(metrics.valorSaidasMes)}
-            contexto={variacaoSaidas.texto}
+            contexto={variacaoSaidas.pct != null ? 'vs. mês passado' : variacaoSaidas.texto}
             tom="negative"
+            tendencia={variacaoSaidas}
           />
         </div>
         <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
@@ -479,8 +481,9 @@ export function DashboardView({
             icone={Receipt}
             label="Ticket médio"
             valor={formatCurrency(metrics.ticketMedio)}
-            contexto={variacaoTicket.texto}
+            contexto={variacaoTicket.pct != null ? 'vs. mês passado' : variacaoTicket.texto}
             tom={variacaoTicket.positivo ? 'positive' : 'negative'}
+            tendencia={variacaoTicket}
           />
         </div>
       </div>

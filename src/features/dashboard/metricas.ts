@@ -40,15 +40,30 @@ export function calcularSaldoAcumulado30Dias(caixa: CaixaEntry[], hoje: Date = n
   return dias;
 }
 
-export function compararComMesPassado(atual: number, anterior: number, opcoes: { menorEhMelhor?: boolean } = {}): { texto: string; positivo: boolean } {
+// `pct` é a variação absoluta em % (inteiro) e `subiu` a direção real do
+// número (pra escolher a seta ↑/↓ no badge do card); ambos null/true quando
+// não há base de comparação. `positivo` continua sendo o juízo semântico
+// (bom/ruim), que pode divergir da direção quando menorEhMelhor.
+export function compararComMesPassado(
+  atual: number,
+  anterior: number,
+  opcoes: { menorEhMelhor?: boolean } = {}
+): { texto: string; positivo: boolean; pct: number | null; subiu: boolean } {
   const { menorEhMelhor = false } = opcoes;
   if (anterior <= 0) {
-    return { texto: atual > 0 ? 'Não dá pra comparar (mês passado não teve nada)' : 'Sem comparação com o mês passado', positivo: true };
+    return {
+      texto: atual > 0 ? 'Não dá pra comparar (mês passado não teve nada)' : 'Sem comparação com o mês passado',
+      positivo: true,
+      pct: null,
+      subiu: true,
+    };
   }
   const pct = Math.round(((atual - anterior) / anterior) * 100);
   const subiu = pct >= 0;
   return {
     texto: `${Math.abs(pct)}% ${subiu ? 'a mais' : 'a menos'} que o mês passado`,
     positivo: menorEhMelhor ? !subiu : subiu,
+    pct: Math.abs(pct),
+    subiu,
   };
 }

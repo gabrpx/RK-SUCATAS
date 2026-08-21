@@ -83,31 +83,31 @@ describe('calcularSaldoAcumulado30Dias', () => {
 describe('compararComMesPassado', () => {
   it('calcula percentual de alta em relação ao mês anterior', () => {
     const r = compararComMesPassado(1200, 1000);
-    expect(r).toEqual({ texto: '20% a mais que o mês passado', positivo: true });
+    expect(r).toEqual({ texto: '20% a mais que o mês passado', positivo: true, pct: 20, subiu: true });
   });
 
   it('calcula percentual de queda em relação ao mês anterior', () => {
     const r = compararComMesPassado(800, 1000);
-    expect(r).toEqual({ texto: '20% a menos que o mês passado', positivo: false });
+    expect(r).toEqual({ texto: '20% a menos que o mês passado', positivo: false, pct: 20, subiu: false });
   });
 
   it('sem dado do mês anterior mas com valor atual, avisa que não dá pra comparar', () => {
     const r = compararComMesPassado(500, 0);
-    expect(r).toEqual({ texto: 'Não dá pra comparar (mês passado não teve nada)', positivo: true });
+    expect(r).toEqual({ texto: 'Não dá pra comparar (mês passado não teve nada)', positivo: true, pct: null, subiu: true });
   });
 
   it('sem dado nem atual nem anterior, avisa que não há comparação', () => {
     const r = compararComMesPassado(0, 0);
-    expect(r).toEqual({ texto: 'Sem comparação com o mês passado', positivo: true });
+    expect(r).toEqual({ texto: 'Sem comparação com o mês passado', positivo: true, pct: null, subiu: true });
   });
 
   it('com menorEhMelhor, uma queda conta como positivo (ex: saídas de caixa)', () => {
     const r = compararComMesPassado(800, 1000, { menorEhMelhor: true });
-    expect(r).toEqual({ texto: '20% a menos que o mês passado', positivo: true });
+    expect(r).toEqual({ texto: '20% a menos que o mês passado', positivo: true, pct: 20, subiu: false });
   });
 
   it('com menorEhMelhor, uma alta conta como negativo (ex: saídas de caixa)', () => {
     const r = compararComMesPassado(1200, 1000, { menorEhMelhor: true });
-    expect(r).toEqual({ texto: '20% a mais que o mês passado', positivo: false });
+    expect(r).toEqual({ texto: '20% a mais que o mês passado', positivo: false, pct: 20, subiu: true });
   });
 });
