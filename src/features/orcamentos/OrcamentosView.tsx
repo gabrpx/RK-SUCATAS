@@ -162,17 +162,17 @@ export function OrcamentosView() {
         </div>
         <Button
           onClick={abrirNovo}
-          className="h-auto px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
+          className="h-auto px-5 py-3.5 md:py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Novo Orçamento
         </Button>
       </div>
 
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-surface-inset border-border-default')}>
+        <label className={cn('flex-1 flex items-center gap-2 px-4 py-3 md:py-2.5 rounded-xl border cursor-text', 'bg-surface-inset border-border-default')}>
           <Search size={16} className="text-text-muted shrink-0" />
           <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Buscar por cliente ou código..." className="bg-transparent outline-none text-sm w-full" />
-        </div>
+        </label>
         <CustomDropdown
           icon={<Calendar size={14} />}
           value={periodo}

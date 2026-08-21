@@ -537,7 +537,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
           variant="ghost"
           size="icon"
           onClick={() => temFilhos && onToggleExpandido(node.id)}
-          className={cn('size-5 text-text-muted', !temFilhos && 'opacity-0 pointer-events-none')}
+          className={cn('size-8 sm:size-5 text-text-muted', !temFilhos && 'opacity-0 pointer-events-none')}
         >
           <motion.span animate={{ rotate: expandido ? 90 : 0 }} transition={SPRING_MICRO} className="flex">
             <ChevronRight size={14} />
@@ -562,7 +562,7 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
           </AnimatePresence>
         </span>
 
-        <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-2">
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-2.5 sm:py-2">
           {h.editandoId === node.id ? (
             <>
               <input

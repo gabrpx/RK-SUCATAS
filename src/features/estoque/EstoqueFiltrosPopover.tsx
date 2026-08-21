@@ -41,7 +41,7 @@ function FiltroCheckboxRow({
   contagem?: number;
 }) {
   return (
-    <label className="flex items-center justify-between gap-3 py-1.5 px-1 rounded-control cursor-pointer hover:bg-surface-raised">
+    <label className="flex items-center justify-between gap-3 py-2.5 sm:py-1.5 px-2 sm:px-1 rounded-control cursor-pointer hover:bg-surface-raised">
       <span className="flex items-center gap-2 text-xs text-text-secondary">
         {label}
         {contagem !== undefined && (

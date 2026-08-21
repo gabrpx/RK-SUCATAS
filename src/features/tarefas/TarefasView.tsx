@@ -42,7 +42,7 @@ export function TarefasView({ userRoles }: { userRoles: string[] }) {
             key={a}
             onClick={() => setAba(a)}
             className={cn(
-              'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
+              'h-11 sm:h-9 px-4 sm:px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
               aba === a ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
             )}
           >
@@ -101,7 +101,7 @@ function VisaoResponsavel({
         variant="outline"
         onClick={() => concluir(tarefa)}
         disabled={concluindo === tarefa.id}
-        className="h-9 px-4 rounded-control border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider hover:text-positive"
+        className="h-11 sm:h-9 px-4 rounded-control border-positive/30 bg-positive-bg text-positive text-[11px] font-semibold uppercase tracking-wider hover:text-positive"
       >
         <CheckCircle2 size={14} /> {concluindo === tarefa.id ? 'Concluindo...' : 'Concluir'}
       </Button>
@@ -297,7 +297,7 @@ function VisaoCriador({
         <Button
           onClick={abrirCriar}
           disabled={responsaveis.length === 0}
-          className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm self-start md:self-auto"
+          className="h-11 md:h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm self-start md:self-auto"
         >
           <Plus size={16} /> Nova tarefa
         </Button>
@@ -309,7 +309,7 @@ function VisaoCriador({
             key={s}
             onClick={() => setFiltroStatus(s)}
             className={cn(
-              'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
+              'h-11 sm:h-9 px-4 sm:px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
               filtroStatus === s ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
             )}
           >
@@ -360,7 +360,7 @@ function VisaoCriador({
                 type="button"
                 onClick={() => setForm((f) => ({ ...f, tipo }))}
                 className={cn(
-                  'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                  'h-11 sm:h-9 px-4 sm:px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
                   form.tipo === tipo ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
                 )}
               >

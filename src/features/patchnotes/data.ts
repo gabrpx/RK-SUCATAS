@@ -18,6 +18,25 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.32',
+    data: '2026-08-21',
+    titulo: 'Telas mais fáceis de usar no dedo',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Passamos o app inteiro pela lupa do celular: as abas e filtros de Tarefas, Frete, Estoque e Configurações, os botões de "Nova venda/Novo orçamento" e o campo de busca de Vendas e Orçamentos ganharam mais altura pra acertar com o dedo sem errar. No computador nada muda — os controles continuam compactos como antes.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Na cotação de frete, dá pra remover uma "caixa salva" pelo celular tocando no X (antes ele só aparecia quando o mouse passava por cima, então no celular não tinha como apagar).',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Em Configurações, as linhas das árvores de Categorias e Motos ficaram mais altas e agora abrem/fecham ao tocar no nome inteiro, não só na setinha.',
+      },
+    ],
+  },
+  {
     versao: '1.2.31',
     data: '2026-08-21',
     titulo: 'Painel mais legível no celular',

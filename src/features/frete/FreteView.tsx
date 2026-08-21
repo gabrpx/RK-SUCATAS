@@ -65,7 +65,7 @@ export const FreteView = () => {
           onValueChange={(v) => setSecao(v as 'cotacao' | 'envios')}
           className="shrink-0"
         >
-          <TabsList className="h-9">
+          <TabsList className="h-11 sm:h-9 items-stretch sm:items-center">
             <TabsTrigger value="cotacao" className="px-4 text-[11px] font-semibold uppercase tracking-wider">
               Cotação
             </TabsTrigger>
@@ -300,7 +300,7 @@ function CotacaoSection() {
                 <button
                   type="button"
                   onClick={() => aplicarPreset(preset)}
-                  className="px-3 py-2 text-xs font-medium text-text-secondary hover:text-accent-soft-fg"
+                  className="px-3 py-3 sm:py-2 text-xs font-medium text-text-secondary hover:text-accent-soft-fg"
                 >
                   {preset.nome}
                 </button>
@@ -310,7 +310,7 @@ function CotacaoSection() {
                   size="icon"
                   onClick={() => removerPreset(preset.id)}
                   title="Remover caixa"
-                  className="size-7 rounded-none text-text-faint hover:text-danger opacity-0 group-hover:opacity-100 transition-opacity"
+                  className="size-9 sm:size-7 rounded-none text-text-faint hover:text-danger opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity"
                 >
                   <X size={12} />
                 </Button>
@@ -373,7 +373,7 @@ function CotacaoSection() {
               <button
                 onClick={() => setSortBy('price')}
                 className={cn(
-                  'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5',
+                  'h-11 sm:h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5',
                   sortBy === 'price' ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted'
                 )}
               >
@@ -382,7 +382,7 @@ function CotacaoSection() {
               <button
                 onClick={() => setSortBy('time')}
                 className={cn(
-                  'h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5',
+                  'h-11 sm:h-9 px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider flex items-center gap-1.5',
                   sortBy === 'time' ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted'
                 )}
               >
@@ -392,7 +392,7 @@ function CotacaoSection() {
                 variant="outline"
                 onClick={copiarResumo}
                 title="Copiar as 3 melhores pro WhatsApp"
-                className="h-9 px-3 rounded-control border-border-default bg-surface-inset text-text-muted hover:text-text-primary text-[11px] font-semibold uppercase tracking-wider"
+                className="h-11 sm:h-9 px-3 rounded-control border-border-default bg-surface-inset text-text-muted hover:text-text-primary text-[11px] font-semibold uppercase tracking-wider"
               >
                 {copiado ? <Check size={13} className="text-positive" /> : <Copy size={13} />}
                 <span className="hidden sm:inline">{copiado ? 'Copiado' : 'Copiar'}</span>
@@ -636,11 +636,11 @@ function EnviosSection() {
           variant="outline"
           onClick={rastrearTodos}
           disabled={rastreandoTodos}
-          className="h-10 px-4 rounded-control border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider"
+          className="h-11 md:h-10 px-4 rounded-control border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider"
         >
           {rastreandoTodos ? <Loader2 size={14} className="animate-spin" /> : <ClipboardCheck size={14} />} Atualizar todos
         </Button>
-        <Button onClick={() => setIsFormOpen(true)} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm">
+        <Button onClick={() => setIsFormOpen(true)} className="h-11 md:h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm">
           <PackagePlus size={16} /> Registrar envio
         </Button>
       </div>

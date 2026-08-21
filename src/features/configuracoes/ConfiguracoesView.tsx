@@ -76,7 +76,7 @@ export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) 
               key={item.id}
               onClick={() => setAba(item.id)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shrink-0',
+                'flex items-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors shrink-0',
                 ativo
                   ? 'bg-accent text-white shadow-sm'
                   : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised'

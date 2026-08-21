@@ -170,7 +170,7 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
             {itensExibidos.map((item) => (
               <div
                 key={item.id}
-                className={cn('flex items-center justify-between gap-2 px-3 py-2 rounded-xl', 'hover:bg-surface-raised')}
+                className={cn('flex items-center justify-between gap-2 px-3 py-2.5 sm:py-2 rounded-xl', 'hover:bg-surface-raised')}
               >
                 {editandoId === item.id ? (
                   <>
@@ -184,10 +184,10 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
                       }}
                       className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', 'bg-surface-inset border-accent/50 text-text-primary')}
                     />
-                    <Button variant="ghost" size="icon" onClick={() => salvarEdicao(item.id)} className="size-7 rounded-lg text-positive hover:text-positive hover:bg-positive/10">
+                    <Button variant="ghost" size="icon" onClick={() => salvarEdicao(item.id)} className="size-9 sm:size-7 rounded-lg text-positive hover:text-positive hover:bg-positive/10">
                       <Check size={14} />
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => setEditandoId(null)} className="size-7 rounded-lg text-text-muted">
+                    <Button variant="ghost" size="icon" onClick={() => setEditandoId(null)} className="size-9 sm:size-7 rounded-lg text-text-muted">
                       <X size={14} />
                     </Button>
                   </>
@@ -210,11 +210,11 @@ export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcl
                         </button>
                       )}
                       {onRenomear && (
-                        <Button variant="ghost" size="icon" onClick={() => iniciarEdicao(item)} className="size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10">
+                        <Button variant="ghost" size="icon" onClick={() => iniciarEdicao(item)} className="size-9 sm:size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10">
                           <Pencil size={13} />
                         </Button>
                       )}
-                      <Button variant="ghost" size="icon" onClick={() => setItemParaExcluir(item)} className="size-7 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10">
+                      <Button variant="ghost" size="icon" onClick={() => setItemParaExcluir(item)} className="size-9 sm:size-7 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10">
                         <Trash2 size={13} />
                       </Button>
                     </div>

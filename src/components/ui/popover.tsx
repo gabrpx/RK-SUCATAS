@@ -89,7 +89,7 @@ export function PopoverTrigger({ children, className }: PopoverTriggerProps) {
       layoutId={`popover-${uniqueId}`}
       aria-expanded={isOpen}
       className={cn(
-        "flex h-10 items-center gap-1.5 rounded-control border px-3 text-[11px] font-semibold uppercase tracking-wider transition-colors",
+        "flex h-11 md:h-10 items-center gap-1.5 rounded-control border px-3 text-[11px] font-semibold uppercase tracking-wider transition-colors",
         isOpen
           ? "border-accent/50 ring-2 ring-accent/20 text-text-primary"
           : "border-border-default bg-surface-inset text-text-muted hover:text-text-secondary",

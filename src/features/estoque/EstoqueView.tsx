@@ -919,7 +919,7 @@ export function EstoqueView({
             }}
             disabled={loading || isRefreshing}
             title="Sincronizar"
-            className="h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:text-text-primary"
+            className="h-11 md:h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:text-text-primary"
           >
             <RefreshCw size={14} className={cn((loading || isRefreshing) && 'animate-spin')} />
             <span className="hidden lg:inline">Sincronizar</span>
@@ -928,7 +928,7 @@ export function EstoqueView({
             onClick={exportarCsv}
             disabled={items.length === 0}
             title="Exportar estoque em CSV (backup)"
-            className="h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:text-text-primary"
+            className="h-11 md:h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 disabled:opacity-50 hover:text-text-primary"
           >
             <Download size={14} />
             <span className="hidden lg:inline">Exportar</span>
@@ -938,12 +938,12 @@ export function EstoqueView({
               <button
                 onClick={() => setIsImportOpen(true)}
                 title="Importar peças de uma planilha"
-                className="h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 hover:text-text-primary"
+                className="h-11 md:h-10 px-3 rounded-control border border-border-default bg-surface-inset text-text-secondary text-[11px] font-semibold uppercase tracking-wider flex items-center gap-2 hover:text-text-primary"
               >
                 <FileSpreadsheet size={14} />
                 <span className="hidden lg:inline">Importar</span>
               </button>
-              <button onClick={openCreateModal} className="h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90">
+              <button onClick={openCreateModal} className="h-11 md:h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90">
                 <Plus size={16} /> Nova peça
               </button>
             </>
@@ -987,7 +987,7 @@ export function EstoqueView({
             type="button"
             onClick={() => setVisualizacao('lista')}
             className={cn(
-              'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
+              'px-3 py-2.5 sm:py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
               visualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
             )}
           >
@@ -997,7 +997,7 @@ export function EstoqueView({
             type="button"
             onClick={() => setVisualizacao('por_moto')}
             className={cn(
-              'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+              'px-3 py-2.5 sm:py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
               visualizacao === 'por_moto' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
             )}
           >
@@ -1007,7 +1007,7 @@ export function EstoqueView({
             type="button"
             onClick={() => setVisualizacao('organograma')}
             className={cn(
-              'px-3 py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+              'px-3 py-2.5 sm:py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
               visualizacao === 'organograma' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
             )}
           >
@@ -1021,7 +1021,7 @@ export function EstoqueView({
               type="button"
               onClick={() => setOrgChartDominio('categorias')}
               className={cn(
-                'px-2.5 py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
+                'px-2.5 py-2 sm:py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
                 orgChartDominio === 'categorias' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
               )}
             >
@@ -1031,7 +1031,7 @@ export function EstoqueView({
               type="button"
               onClick={() => setOrgChartDominio('motos')}
               className={cn(
-                'px-2.5 py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
+                'px-2.5 py-2 sm:py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
                 orgChartDominio === 'motos' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
               )}
             >
