@@ -11,8 +11,7 @@
 // custo de aquisição de peça (só o preço de venda em estoque.valor), então
 // não há dado pra calcular lucro sem inventar um número. Essa seção fala
 // sempre em "dinheiro que entra e sai", nunca em "lucro".
-import type React from 'react';
-import { useMemo, useState } from 'react';
+import React, { Children, useMemo, useState } from 'react';
 import {
   ChevronDown,
   TrendingUp,
@@ -92,6 +91,20 @@ function Subpainel({ titulo, children }: { titulo: string; children: React.React
       <h4 className="text-xs font-semibold uppercase tracking-wide text-text-muted">{titulo}</h4>
       {children}
     </section>
+  );
+}
+
+// Linha de MetricCards: no mobile vira carrossel com scroll-snap (o valor em
+// moeda cabe inteiro em ~78% da largura, sem cortar) e no desktop volta a ser
+// grade — mesmo padrão já usado no Dashboard padrão (ver DashboardView, seção
+// "Métricas"), aqui centralizado pra não repetir a classe longa em cada linha.
+function MetricRow({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-0.5 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 sm:overflow-visible">
+      {Children.map(children, (child) => (
+        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">{child}</div>
+      ))}
+    </div>
   );
 }
 
@@ -266,7 +279,11 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-sm font-semibold text-text-primary truncate">Visão completa do negócio</span>
-          <StatusBadge texto="Só para administradores" tom="accent" />
+          {/* Selo longo só a partir de sm — no celular ele estourava e cortava o
+              título; a permissão em si já é garantida no back-end. */}
+          <span className="hidden sm:inline-flex shrink-0">
+            <StatusBadge texto="Só para administradores" tom="accent" />
+          </span>
         </div>
         <ChevronDown size={18} className={cn('text-text-faint transition-transform shrink-0', expandido && 'rotate-180')} />
       </button>
@@ -275,7 +292,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
         <div className="p-4 md:p-5 space-y-8 border-t border-border-subtle">
           {/* Faturamento & Crescimento */}
           <Subpainel titulo="Faturamento & Crescimento">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <MetricRow>
               <MetricCard
                 icone={variacaoFaturamento.positivo ? TrendingUp : TrendingDown}
                 label="Quanto entrou este mês"
@@ -292,7 +309,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
                 contexto={`${formatCurrency(faturamento.valorNovasAdicoes)} em valor de venda`}
                 tom="neutral"
               />
-            </div>
+            </MetricRow>
             <div className="bg-surface-inset rounded-control p-4">
               <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint mb-3">Como o faturamento andou nos últimos 6 meses</p>
               <ResponsiveContainer width="100%" height={140}>
@@ -307,7 +324,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
 
           {/* Desempenho da Loja */}
           <Subpainel titulo="Desempenho da Loja">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <MetricRow>
               <MetricCard
                 icone={Receipt}
                 label="Ticket médio"
@@ -324,7 +341,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
                 contexto={`${desempenho.fiadoCompleto.length} cliente(s)`}
                 tom={desempenho.fiadoTotalGeral > 0 ? 'negative' : 'positive'}
               />
-            </div>
+            </MetricRow>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="bg-surface-inset rounded-control overflow-hidden">
@@ -377,7 +394,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
 
           {/* Caixa Detalhado */}
           <Subpainel titulo="Caixa Detalhado">
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <MetricRow>
               <MetricCard icone={ArrowUpCircle} label="Quanto entrou" valor={formatCurrency(caixaDetalhado.entradas)} contexto="Neste mês" tom="positive" />
               <MetricCard icone={ArrowDownCircle} label="Quanto saiu" valor={formatCurrency(caixaDetalhado.saidas)} contexto="Neste mês" tom="negative" />
               <MetricCard
@@ -387,7 +404,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
                 contexto="Acumulado do mês"
                 tom={caixaDetalhado.saldoFinal >= 0 ? 'positive' : 'negative'}
               />
-            </div>
+            </MetricRow>
 
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <div className="bg-surface-inset rounded-control overflow-hidden">
@@ -469,7 +486,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
                 <button
                   type="button"
                   onClick={() => onTabChange('tarefas')}
-                  className="text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 shrink-0"
+                  className="-my-2 -mr-2 py-2 px-2 rounded-control text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 shrink-0"
                 >
                   + Nova tarefa
                 </button>

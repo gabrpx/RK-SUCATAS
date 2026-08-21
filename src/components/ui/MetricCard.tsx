@@ -52,14 +52,16 @@ export function MetricCard({ icone: Icone, label, valor, contexto, tom = 'neutra
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-surface-edge" />
 
       {/* Cabeçalho: rótulo à esquerda, ícone à direita (posição do menu no card original) */}
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-text-faint truncate">{label}</p>
-        <Icone size={16} strokeWidth={1.75} className={cn('shrink-0', ICON_TONE[tom])} />
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-text-faint leading-tight line-clamp-2">{label}</p>
+        <Icone size={16} strokeWidth={1.75} className={cn('shrink-0 mt-px', ICON_TONE[tom])} />
       </div>
 
-      {/* Valor grande + badge de variação */}
+      {/* Valor grande + badge de variação. No mobile o número é um degrau menor
+          pra caber sem cortar em tela estreita, mas segue dominante sobre o
+          label (regra do design system: número > label). */}
       <div className="flex flex-wrap items-center gap-2.5 mt-3">
-        <span className="text-3xl font-semibold text-text-primary leading-none tabular-nums tracking-tight">{valor}</span>
+        <span className="text-2xl sm:text-3xl font-semibold text-text-primary leading-none tabular-nums tracking-tight">{valor}</span>
         {mostraBadge && (
           <span
             className={cn(
@@ -73,9 +75,9 @@ export function MetricCard({ icone: Icone, label, valor, contexto, tom = 'neutra
         )}
       </div>
 
-      {/* Divisória + contexto */}
+      {/* Divisória + contexto (até 2 linhas no mobile em vez de cortar) */}
       {contexto && (
-        <p className="text-xs text-text-faint mt-3 border-t border-border-subtle pt-2.5 truncate">{contexto}</p>
+        <p className="text-xs text-text-faint mt-3 border-t border-border-subtle pt-2.5 leading-snug line-clamp-2">{contexto}</p>
       )}
     </div>
   );

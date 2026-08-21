@@ -47,7 +47,7 @@ export function AlertBar({ tom, icone: Icone, mensagem, acaoLabel, onAcao }: Ale
       <button
         type="button"
         onClick={onAcao}
-        className={cn('shrink-0 text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 hover:opacity-80 transition-opacity duration-fast', toneClasses.fg)}
+        className={cn('shrink-0 -my-2 -mr-2 py-2 px-2 rounded-control text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 hover:opacity-80 transition-opacity duration-fast', toneClasses.fg)}
       >
         {acaoLabel}
       </button>

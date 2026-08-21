@@ -18,6 +18,21 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.31',
+    data: '2026-08-21',
+    titulo: 'Painel mais legível no celular',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'No celular, os cartões de indicador (faturamento, caixa, desempenho) não cortam mais o valor em reais: o número aparece inteiro, o rótulo pode ocupar duas linhas e, na "Visão completa do dono", os cartões viram um carrossel que você desliza pro lado — igual ao painel principal.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Os atalhos "Ver todas/Ver itens/Buscar" no celular ganharam uma área de toque maior, mais fácil de acertar com o dedo.',
+      },
+    ],
+  },
+  {
     versao: '1.2.30',
     data: '2026-08-21',
     titulo: 'Correções no celular: notificações e foto de peça',

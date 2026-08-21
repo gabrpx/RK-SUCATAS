@@ -116,7 +116,7 @@ export function PanelCard({
           {headerExtra}
         </div>
         {acaoLabel && onAcao && (
-          <button onClick={onAcao} className="shrink-0 text-2xs font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 transition-opacity duration-fast">
+          <button onClick={onAcao} className="shrink-0 -my-2 -mr-2 py-2 pl-2 pr-2 rounded-control text-2xs font-semibold uppercase tracking-wide text-accent-soft-fg hover:opacity-80 active:bg-surface-raised transition-opacity duration-fast">
             {acaoLabel}
           </button>
         )}
@@ -430,10 +430,10 @@ export function DashboardView({
 
           <button
             onClick={() => onOpenSearch?.()}
-            className="md:hidden size-9 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center"
+            className="md:hidden size-11 rounded-control border border-border-default bg-surface-inset text-text-secondary flex items-center justify-center"
             aria-label="Buscar"
           >
-            <Search size={16} strokeWidth={1.75} />
+            <Search size={18} strokeWidth={1.75} />
           </button>
 
 
@@ -505,7 +505,7 @@ export function DashboardView({
           <button
             type="button"
             onClick={() => onNavigateEstoqueBaixo?.()}
-            className="shrink-0 text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 text-warning hover:opacity-80 transition-opacity duration-fast"
+            className="shrink-0 -my-2 -mr-2 py-2 px-2 rounded-control text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 text-warning hover:opacity-80 transition-opacity duration-fast"
           >
             Ver itens
           </button>
