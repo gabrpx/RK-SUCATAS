@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.28',
+    data: '2026-08-20',
+    titulo: 'Últimas vendas do painel viram lista interativa',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'No painel, a lista de "Últimas vendas" agora é interativa: toque em qualquer venda e ela cresce suavemente num cartão de detalhes (código, data/hora, quantidade, cliente e canal), com atalho pra abrir a venda completa.',
+      },
+    ],
+  },
+  {
     versao: '1.2.27',
     data: '2026-08-20',
     titulo: 'Ficha do cliente com cartão de perfil animado',

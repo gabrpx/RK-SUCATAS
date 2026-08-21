@@ -35,6 +35,7 @@ import { useTarefas } from '../tarefas/useTarefas';
 import { NOME_LOJA } from '../../constants/loja';
 import { MetricCard } from '../../components/ui/MetricCard';
 import { NotificationList, type NotificationItem } from '../../components/ui/NotificationList';
+import { TransactionList } from '../../components/ui/TransactionList';
 import { AlertBar } from '../../components/ui/AlertBar';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -598,27 +599,33 @@ export function DashboardView({
 
       {/* 5. Últimas vendas + Pendências */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <PanelCard titulo="Últimas vendas" acaoLabel="Ver todas" onAcao={() => onTabChange('vendas')}>
-          {metrics.ultimasVendas.length === 0 ? (
+        {metrics.ultimasVendas.length === 0 ? (
+          <PanelCard titulo="Últimas vendas" acaoLabel="Ver todas" onAcao={() => onTabChange('vendas')}>
             <EmptyState icone={ShoppingCart} mensagem="Nenhuma venda registrada ainda." />
-          ) : (
-            <div className="divide-y divide-border-subtle">
-              {metrics.ultimasVendas.map((v) => (
-                <div key={v.id}>
-                  <LinhaAtividade
-                    icone={CheckCircle2}
-                    tom="positive"
-                    titulo={v.nome_item}
-                    legenda={v.forma_pagamento?.nome || 'Outro'}
-                    data={parseLocalDate(v.data).toLocaleDateString('pt-BR')}
-                    valor={v.valor_total}
-                    onClick={() => onSelectItem(v)}
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </PanelCard>
+          </PanelCard>
+        ) : (
+          <TransactionList
+            titulo="Últimas vendas"
+            onVerTudo={() => onTabChange('vendas')}
+            transactions={metrics.ultimasVendas.map((v) => ({
+              id: v.id,
+              icon: <CheckCircle2 size={16} strokeWidth={1.75} />,
+              name: v.nome_item,
+              category: v.forma_pagamento?.nome || 'Outro',
+              amount: formatCurrency(v.valor_total),
+              transactionId: v.id.slice(0, 8),
+              date: parseLocalDate(v.data).toLocaleDateString('pt-BR'),
+              time: new Date(v.criado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+              detalhes: [
+                { label: 'Quantidade', valor: `${v.quantidade} × ${formatCurrency(v.valor_unitario)}` },
+                ...(v.cliente_nome ? [{ label: 'Cliente', valor: v.cliente_nome }] : []),
+                { label: 'Canal', valor: v.canal === 'mercado_livre' ? 'Mercado Livre' : 'Balcão' },
+                ...(v.modelo_moto?.nome ? [{ label: 'Moto', valor: v.modelo_moto.nome }] : []),
+              ],
+              onAbrir: () => onSelectItem(v),
+            }))}
+          />
+        )}
 
         <PanelCard titulo="Pendências" acaoLabel="Ver todas" onAcao={() => onTabChange('orcamentos')}>
           {metrics.pendencias.length === 0 ? (
