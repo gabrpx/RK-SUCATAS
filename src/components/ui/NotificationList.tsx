@@ -10,6 +10,7 @@ import * as React from 'react';
 import { RotateCcw, ArrowUpRight } from 'lucide-react';
 import { motion, type Transition } from 'motion/react';
 import { cn } from '../../utils';
+import { useHoverCapable } from './beui-tooltip';
 
 export interface NotificationItem {
   id: string | number;
@@ -77,6 +78,15 @@ export function NotificationList({
   // Só os 3 primeiros entram na pilha visível — o resto fica pro "Ver todas".
   const visiveis = itens.slice(0, 3);
 
+  // No desktop a pilha abre no hover (comportamento original, intacto). No
+  // mobile não existe hover: sem isso, o toque cairia direto no onClick do card
+  // do topo e navegaria pra outra tela. Aqui o primeiro toque só EXPANDE a
+  // pilha in-place (mesmo painel do hover); os toques seguintes nos cards já
+  // navegam normalmente.
+  const canHover = useHoverCapable();
+  const [expandidoTouch, setExpandidoTouch] = React.useState(false);
+  const expandido = !canHover && expandidoTouch;
+
   return (
     <motion.div
       className={cn(
@@ -84,13 +94,19 @@ export function NotificationList({
         className,
       )}
       initial="collapsed"
-      whileHover="expanded"
+      animate={canHover ? undefined : expandidoTouch ? 'expanded' : 'collapsed'}
+      whileHover={canHover ? 'expanded' : undefined}
+      onClick={!canHover && !expandidoTouch ? () => setExpandidoTouch(true) : undefined}
     >
       <div>
         {visiveis.map((notificacao, i) => (
           <motion.div
             key={notificacao.id}
-            onClick={notificacao.onClick}
+            onClick={
+              // No mobile, enquanto a pilha está fechada o toque só expande
+              // (tratado pelo container) — só navega depois de aberta.
+              !canHover && !expandido ? undefined : notificacao.onClick
+            }
             className={cn(
               'bg-surface-raised rounded-control px-4 py-2.5 shadow-elevated-sm transition-shadow duration-200 relative border border-border-subtle',
               notificacao.onClick && 'cursor-pointer hover:shadow-elevated-md',

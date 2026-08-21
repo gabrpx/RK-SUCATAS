@@ -18,6 +18,21 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.30',
+    data: '2026-08-21',
+    titulo: 'Correções no celular: notificações e foto de peça',
+    itens: [
+      {
+        tipo: 'fix',
+        texto: 'No celular, tocar no card de notificações do painel agora abre a pilha de avisos ali mesmo (igual ao passar o mouse no computador) em vez de pular direto pra outra tela. Depois de aberto, é só tocar no aviso pra ir até ele.',
+      },
+      {
+        tipo: 'fix',
+        texto: 'No cadastro de peça pelo celular, agora tem um botão "Tirar foto" que abre a câmera direto. Escolher uma foto que já está no aparelho continua disponível como opção separada ("Escolher da galeria").',
+      },
+    ],
+  },
+  {
     versao: '1.2.29',
     data: '2026-08-20',
     titulo: 'Novo visual dos cards de métrica do painel',

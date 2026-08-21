@@ -97,7 +97,7 @@ const REDUCED_VARIANTS: Variants = {
   },
 };
 
-function useHoverCapable() {
+export function useHoverCapable() {
   const [canHover, setCanHover] = useState(false);
 
   useEffect(() => {
