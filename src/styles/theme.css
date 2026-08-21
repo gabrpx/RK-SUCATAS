@@ -2,50 +2,52 @@
  * Design tokens do sistema.
  * Cor sempre carrega significado — nunca decorativa. Ver CLAUDE.md > Design system.
  *
- * Evolução (redesign visual, FASE 1):
- * - Superfícies/bordas/texto: aquecidos e redistribuídos, com um degrau novo
- *   (--surface-overlay) pra dar profundidade real a card-dentro-de-card
- *   (dropdowns, popovers, sub-painéis) em vez de só alternar entre 2 tons.
- * - --accent permanece EXATAMENTE o mesmo roxo de marca (#5b3df0), não é
- *   um rebrand. --accent-bright e --accent-strong são derivados dele só
- *   pra alimentar o gradiente do único CTA preenchido por tela (regra
- *   abaixo continua valendo: no máximo um accent preenchido por tela).
- * - positive, negative, warning e danger: inalterados, já eram bem escolhidos.
- * - Novo: escala de sombra (mapeada pra shadow-sm, shadow-md, shadow-lg),
- *   duração e easing (--duration-instant/fast/base/slow, --ease-standard,
- *   --ease-soft) e gradientes com propósito (--gradient-page,
- *   --gradient-accent-cta, --gradient-surface-edge) - sistema de animação
- *   e profundidade descrito no redesign. Tudo isso respeita a mesma
- *   otimização mobile já existente em index.css (nada pesado <=768px).
- * - Gradientes não viram utility pelo bloco de tema do Tailwind (o
- *   namespace pra background-image não é confiável entre versões do v4) -
- *   as classes .bg-gradient-* são escritas à mão em index.css.
+ * Paleta (rebrand — preto dominante / detalhes brancos / laranja):
+ * - Superfícies: escala neutra quase-preta (sem o tom azulado antigo). O app
+ *   é preto-dominante; card/raised/overlay sobem em cinza neutro só o
+ *   suficiente pra dar profundidade a card-dentro-de-card (dropdowns,
+ *   popovers, sub-painéis). --surface-inset é o degrau mais fundo (preto).
+ * - Detalhes em branco: texto neutro (sem tinta azul), bordas/divisores
+ *   neutros que leem como fio branco sutil sobre preto, e o realce de topo
+ *   dos cards (--gradient-surface-edge) em branco translúcido.
+ * - --accent agora é LARANJA (a marca deixou de ser o roxo #5b3df0).
+ *   --accent-bright/--accent-strong são derivados dele só pra alimentar o
+ *   gradiente do único CTA preenchido por tela (a regra "no máximo um accent
+ *   preenchido por tela" continua valendo — o laranja entra "levemente",
+ *   como toque, não como preenchimento em massa).
+ * - --warning deslocado de âmbar-laranja pra AMARELO-âmbar de propósito: com
+ *   o accent agora laranja, warning precisava de matiz próprio pra não
+ *   colidir com a marca (cor sempre com significado). positive/negative/
+ *   danger inalterados no matiz.
+ * - Sombras: agora preto puro (antes tinham tinta azul-escura).
+ * - Gradientes com propósito: o glow do topo da página virou laranja bem
+ *   sutil (era violeta). Respeitam a otimização mobile do index.css.
  * As 4 regras originais (cor com significado, 1 accent por tela, alerta
  * sempre com ação, número > label) continuam valendo sem mudança.
  */
 
 :root {
-  /* Superfícies */
-  --surface-page: #0a0a10;
-  --surface-card: #141420;
-  --surface-raised: #1a1a29;
-  --surface-overlay: #202032;
-  --surface-inset: #0d0d15;
-  --border-subtle: #222234;
-  --border-default: #2a2a40;
+  /* Superfícies — preto dominante, escala neutra */
+  --surface-page: #060607;
+  --surface-card: #101012;
+  --surface-raised: #18181b;
+  --surface-overlay: #212125;
+  --surface-inset: #000000;
+  --border-subtle: #212124;
+  --border-default: #33333a;
 
-  /* Texto */
-  --text-primary: #f3f3f6;
-  --text-secondary: #c9cad3;
-  --text-muted: #8d8fa0;
-  --text-faint: #6c6e80;
+  /* Texto — branco/neutro */
+  --text-primary: #f6f6f7;
+  --text-secondary: #cbcbce;
+  --text-muted: #8c8c92;
+  --text-faint: #64646a;
 
   /* Cores semânticas */
-  --accent: #5b3df0;
-  --accent-soft-bg: #26215c;
-  --accent-soft-fg: #afa9ec;
-  --accent-bright: #7c5cf6;
-  --accent-strong: #4a2fd6;
+  --accent: #f2751c;
+  --accent-soft-bg: #3a2109;
+  --accent-soft-fg: #f0b483;
+  --accent-bright: #ff8c3a;
+  --accent-strong: #d15f0f;
 
   --positive: #5dcaa5;
   --positive-bg: #04342c;
@@ -53,15 +55,17 @@
   --negative: #f0997b;
   --negative-bg: #4a1b0c;
 
-  --warning: #ef9f27;
-  --warning-bg: #412402;
+  /* Amarelo-âmbar — matiz próprio, separado do laranja da marca */
+  --warning: #f4c025;
+  --warning-bg: #3a2c02;
 
   --danger: #f09595;
   --danger-bg: #501313;
 
   /* Overlays — fundo escurecido atrás de modais/lightbox e controles
      translúcidos sobre foto. Opacidade fixa faz parte do valor, não é
-     aplicada via modificador Tailwind (/70 etc) no componente. */
+     aplicada via modificador Tailwind (/70 etc) no componente. Os controles
+     translúcidos em branco (0.1) fazem parte dos "detalhes em branco". */
   --overlay-scrim: rgba(0, 0, 0, 0.7);
   --overlay-scrim-strong: rgba(0, 0, 0, 0.95);
   --overlay-control-bg: rgba(255, 255, 255, 0.1);
@@ -69,12 +73,12 @@
   --media-overlay-dot: rgba(255, 255, 255, 0.3);
 
   /* Sombras coloridas — mesmo tom do accent/positive, pra CTAs preenchidos */
-  --accent-shadow: rgba(91, 61, 240, 0.25);
+  --accent-shadow: rgba(242, 117, 28, 0.25);
   --positive-shadow: rgba(93, 202, 165, 0.2);
 
-  --shadow-elevated-sm: 0 1px 2px rgba(4, 4, 9, 0.4);
-  --shadow-elevated-md: 0 6px 16px -4px rgba(4, 4, 9, 0.45);
-  --shadow-elevated-lg: 0 16px 40px -12px rgba(4, 4, 9, 0.55);
+  --shadow-elevated-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-elevated-md: 0 6px 16px -4px rgba(0, 0, 0, 0.55);
+  --shadow-elevated-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.65);
 
   --duration-instant: 100ms;
   --duration-fast: 150ms;
@@ -84,17 +88,18 @@
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
 
   /* Gradientes - sempre com propósito (profundidade/ênfase), nunca decorativo.
-     -page: atmosfera do app inteiro (não só Login) - um glow violeta bem
-     sutil vindo do topo, cor da marca, some rápido. -accent-cta: único
-     botão accent preenchido da tela. -surface-edge: realce de 1px no topo
-     de cards elevados - o "barato" de profundidade que substitui blur no
-     mobile. Consumidos via classes .bg-gradient-* escritas à mão em
-     index.css (namespace de background-image não é confiável no @theme). */
+     -page: atmosfera do app inteiro (não só Login) - um glow laranja bem
+     sutil vindo do topo, cor da marca, some rápido sobre o preto.
+     -accent-cta: único botão accent preenchido da tela. -surface-edge:
+     realce de 1px em branco no topo de cards elevados - o "barato" de
+     profundidade que substitui blur no mobile. Consumidos via classes
+     .bg-gradient-* escritas à mão em index.css (namespace de background-image
+     não é confiável no @theme). */
   --gradient-page:
-    radial-gradient(ellipse 1400px 700px at 50% -15%, rgba(91, 61, 240, 0.16), transparent 60%),
+    radial-gradient(ellipse 1400px 700px at 50% -15%, rgba(242, 117, 28, 0.10), transparent 60%),
     radial-gradient(ellipse at top, var(--surface-raised), var(--surface-page));
   --gradient-accent-cta: linear-gradient(135deg, var(--accent-bright), var(--accent-strong));
-  --gradient-surface-edge: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(255, 255, 255, 0) 40%);
+  --gradient-surface-edge: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 40%);
 
   /* Raios */
   --radius-card: 11px;
@@ -105,7 +110,7 @@
   /* shadcn/ui — mapeamento pros vars que os componentes esperam. Sempre
      apontando pra um token que já existe acima, nunca uma cor nova.
      Slot "accent" do shadcn (hover neutro) fica de fora de propósito: o
-     nome colide com o --accent de marca (violeta) já usado no app inteiro
+     nome colide com o --accent de marca (laranja) já usado no app inteiro
      pro CTA único da tela. Componentes shadcn que pedem hover:bg-accent
      usam bg-surface-raised/text-text-primary direto (ver button.tsx e
      dialog.tsx) em vez de um alias aqui. */
