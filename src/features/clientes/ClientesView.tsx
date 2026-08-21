@@ -19,6 +19,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
 import { clientesApi } from './api';
+import { ClienteProfileCard } from './ClienteProfileCard';
 import {
   calcularHistoricoCliente,
   calcularSegmento,
@@ -851,53 +852,37 @@ export function ClientesView({
       >
         {clienteAberto && (
           <div className="space-y-5">
-            <div className="flex flex-wrap items-center gap-2">
-              {(() => {
-                const historico = historicoPorCliente.get(clienteAberto.id);
-                if (!historico) return null;
-                const segmento = calcularSegmento(historico);
-                return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
-              })()}
-              {!clienteAberto.ativo && <StatusBadge texto="Inativo" tom="neutral" ativo={false} />}
-            </div>
-            {(badgesPorCliente.get(clienteAberto.id) || []).length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {(badgesPorCliente.get(clienteAberto.id) || []).map((b) => (
-                    <span key={b.modeloMotoId} title="Moto procurada">
-                      <StatusBadge texto={b.nome} tom={b.tom} />
-                    </span>
-                  ))}
-                </div>
-              )}
-              {clienteAberto.tags.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {clienteAberto.tags.map((t) => (
-                    <span key={t}>
-                      <StatusBadge texto={t} tom="accent" />
-                    </span>
-                  ))}
-                </div>
-              )}
-              {clienteAberto.observacoes && <p className="text-sm text-text-secondary italic">"{clienteAberto.observacoes}"</p>}
+            {(() => {
+              const historico = historicoPorCliente.get(clienteAberto.id);
+              const segmento = historico ? calcularSegmento(historico) : null;
+              return (
+                <ClienteProfileCard
+                  nome={clienteAberto.nome}
+                  telefone={clienteAberto.telefone ? formatTelefoneBR(clienteAberto.telefone) : null}
+                  documento={clienteAberto.documento ? formatDocumentoBR(clienteAberto.documento) : null}
+                  aniversario={clienteAberto.data_nascimento ? new Date(clienteAberto.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') : null}
+                  origem={clienteAberto.origem ? ORIGEM_LABELS[clienteAberto.origem] : null}
+                  contatoPreferido={clienteAberto.preferencia_contato ? CONTATO_LABELS[clienteAberto.preferencia_contato] : null}
+                  tags={clienteAberto.tags}
+                  motosCount={clienteAberto.motos?.length ?? 0}
+                  segmentoLabel={segmento ? SEGMENTO_LABELS[segmento] : undefined}
+                  segmentoTom={segmento ? SEGMENTO_TONS[segmento] : 'neutral'}
+                />
+              );
+            })()}
 
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="text-xs text-text-faint uppercase tracking-wide">Documento</p>
-                  <p className="text-text-primary">{clienteAberto.documento ? formatDocumentoBR(clienteAberto.documento) : '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-faint uppercase tracking-wide">Aniversário</p>
-                  <p className="text-text-primary">{clienteAberto.data_nascimento ? new Date(clienteAberto.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') : '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-faint uppercase tracking-wide">Origem</p>
-                  <p className="text-text-primary">{clienteAberto.origem ? ORIGEM_LABELS[clienteAberto.origem] : '—'}</p>
-                </div>
-                <div>
-                  <p className="text-xs text-text-faint uppercase tracking-wide">Contato preferido</p>
-                  <p className="text-text-primary">{clienteAberto.preferencia_contato ? CONTATO_LABELS[clienteAberto.preferencia_contato] : '—'}</p>
-                </div>
+            {(!clienteAberto.ativo || (badgesPorCliente.get(clienteAberto.id) || []).length > 0) && (
+              <div className="flex flex-wrap items-center gap-1.5">
+                {!clienteAberto.ativo && <StatusBadge texto="Inativo" tom="neutral" ativo={false} />}
+                {(badgesPorCliente.get(clienteAberto.id) || []).map((b) => (
+                  <span key={b.modeloMotoId} title="Moto procurada">
+                    <StatusBadge texto={b.nome} tom={b.tom} />
+                  </span>
+                ))}
               </div>
+            )}
+
+            {clienteAberto.observacoes && <p className="text-sm text-text-secondary italic">"{clienteAberto.observacoes}"</p>}
 
               {(() => {
                 const historico = historicoPorCliente.get(clienteAberto.id);

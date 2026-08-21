@@ -18,6 +18,17 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.27',
+    data: '2026-08-20',
+    titulo: 'Ficha do cliente com cartão de perfil animado',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Ao abrir um cliente, os dados de cadastro (telefone, documento, aniversário, origem, contato preferido, motos e tags) agora aparecem num cartão de perfil que você pode abrir e fechar com uma animação suave, com o segmento do cliente destacado no topo.',
+      },
+    ],
+  },
+  {
     versao: '1.2.26',
     data: '2026-08-20',
     titulo: 'Card de notificações no painel',
