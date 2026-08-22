@@ -18,6 +18,33 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.33',
+    data: '2026-08-22',
+    titulo: 'Números que contam e fotos que abrem',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Os valores do Painel, da "Visão completa do dono" e do Estoque agora contam até o número final quando a tela abre, em vez de simplesmente aparecerem — fica mais fácil perceber onde está o dado que importa no cartão.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'No Estoque, alternar entre Lista, Por moto e Organograma virou um botão deslizante: a marcação escorrega até a opção escolhida, e no celular ele ficou mais alto pra acertar com o dedo.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'As fotos das peças abrem em tela cheia ao toque — tanto na peça já cadastrada quanto nas fotos que você acabou de enviar. Toque em qualquer lugar (ou no X) pra fechar.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'A busca de peças do Estoque agora anda pelo teclado: setas pra cima/baixo percorrem as sugestões, Enter escolhe e Esc fecha.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Quem liga "reduzir movimento" no celular ou no computador vê o sistema inteiro sem animação — as telas continuam funcionando igual, só sem o deslize.',
+      },
+    ],
+  },
+  {
     versao: '1.2.32',
     data: '2026-08-21',
     titulo: 'Telas mais fáceis de usar no dedo',

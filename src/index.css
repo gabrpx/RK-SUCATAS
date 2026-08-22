@@ -135,3 +135,21 @@ input[type=number] {
   }
 }
 
+
+/* Menos movimento, quando o sistema pede.
+   As animações feitas em JS (motion) já tratam `prefers-reduced-motion` uma a
+   uma — cada componente decide o que fazer sem movimento. O que esta regra
+   cobre é o outro lado: as transições e animações declaradas em CSS
+   (transition-colors, transition-transform, o marquee, o thumb do switch),
+   que não passam por lá. Duração quase zero em vez de `none` porque manter a
+   transição existindo preserva os eventos `transitionend` de quem os escuta. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

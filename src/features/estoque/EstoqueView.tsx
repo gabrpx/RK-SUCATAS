@@ -1,7 +1,7 @@
 // Aba Estoque: catálogo de peças com categoria/modelo de moto (tabelas de
 // apoio, com criação rápida inline) e condição Original/Paralela.
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import {
   flexRender,
   getCoreRowModel,
@@ -53,6 +53,8 @@ import { EstoquePublicarShopeeModal } from './EstoquePublicarShopeeModal';
 import { Expandable, ExpandableContent, ExpandableTrigger } from '../../components/ui/expandable';
 import { EstoqueItemExpandido } from './EstoqueItemExpandido';
 import { SPRING_MICRO } from '../../components/ui/motion';
+import { AnimatedNumber } from '../../components/ui/animated-number';
+import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
 import { useRemocaoFundoFotos } from './useRemocaoFundoFotos';
 import { encontrarCategoriaPorNome } from './matchCategoria';
 import { encontrarModeloPorNome } from './matchModelo';
@@ -79,6 +81,12 @@ import type { TreeDropdownNode } from '../../components/TreeDropdown';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
+
+// Tipografia dos alternadores de visualização (Tabs animadas). Mantém a caixa
+// alta miúda que o alternador manual usava — o default do wrapper animate-ui é
+// text-sm/font-medium, que destoaria dos outros chips desta tela.
+const TRIGGER_CLASS = 'px-3 text-[11px] font-semibold uppercase tracking-wider';
+const SUB_TRIGGER_CLASS = 'px-2.5 text-[10.5px] font-semibold uppercase tracking-wider';
 
 const ITEMS_PER_PAGE = 25;
 
@@ -183,6 +191,9 @@ export function EstoqueView({
 }: EstoqueViewProps) {
   const { estoque: items, setEstoque, loading, estoqueError, refreshData } = useData();
   const { categorias, modelos, criarCategoria, criarNoMoto } = useCatalogos();
+  // Abertura da linha expandida vira instantânea pra quem pediu menos movimento.
+  const reduzirMovimento = useReducedMotion();
+  const transicaoExpansao = reduzirMovimento ? { duration: 0 } : SPRING_MICRO;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto' | 'organograma'>('lista');
@@ -906,7 +917,7 @@ export function EstoqueView({
         <div>
           <h1 className="text-2xl font-medium text-text-primary">Estoque</h1>
           <p className="text-sm text-text-faint mt-0.5">
-            {items.length} {items.length === 1 ? 'item' : 'itens'} · {formatCurrency(valorTotalEstoque)} em estoque
+            <AnimatedNumber value={items.length} /> {items.length === 1 ? 'item' : 'itens'} · <AnimatedNumber value={valorTotalEstoque} format={formatCurrency} /> em estoque
           </p>
         </div>
 
@@ -956,14 +967,18 @@ export function EstoqueView({
       {resumoDoDia.itens > 0 && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-card border border-border-subtle bg-surface-card px-4 py-3">
           <div>
-            <p className="text-[20px] font-medium text-text-primary leading-none tabular-nums">{resumoDoDia.itens}</p>
+            <p className="text-[20px] font-medium text-text-primary leading-none tabular-nums">
+              <AnimatedNumber value={resumoDoDia.itens} />
+            </p>
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-faint mt-1.5">
               {resumoDoDia.itens === 1 ? 'peça cadastrada hoje' : 'peças cadastradas hoje'}
             </p>
           </div>
           <div className="h-8 w-px bg-border-subtle hidden sm:block" />
           <div>
-            <p className="text-[20px] font-medium text-text-primary leading-none tabular-nums">{formatCurrency(resumoDoDia.valorTotal)}</p>
+            <p className="text-[20px] font-medium text-text-primary leading-none tabular-nums">
+              <AnimatedNumber value={resumoDoDia.valorTotal} format={formatCurrency} />
+            </p>
             <p className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-faint mt-1.5">somados hoje</p>
           </div>
           {resumoDoDia.semValor > 0 && (
@@ -980,64 +995,31 @@ export function EstoqueView({
         </div>
       )}
 
-      {/* Alternância Lista / Por Moto / Organograma */}
+      {/* Alternância Lista / Por Moto / Organograma — Tabs animadas do animate-ui
+          (a "pílula" do indicador desliza com spring). O conteúdo continua
+          renderizado condicionalmente abaixo: NÃO usamos TabsContents porque os
+          painéis são pesados (tabela de centenas de linhas / orgchart) e animar
+          a troca travaria na WebView Capacitor.
+          As classes abaixo preservam o que o alternador manual já tinha: caixa
+          alta de 11px e alvo de toque alto no mobile (h-11 sm:h-9, mesmo padrão
+          das outras telas) — o wrapper padrão do animate-ui vem em text-sm/h-9,
+          que no celular fica abaixo do alvo mínimo. */}
       <div className="flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
-          <button
-            type="button"
-            onClick={() => setVisualizacao('lista')}
-            className={cn(
-              'px-3 py-2.5 sm:py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors',
-              visualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
-            )}
-          >
-            Lista
-          </button>
-          <button
-            type="button"
-            onClick={() => setVisualizacao('por_moto')}
-            className={cn(
-              'px-3 py-2.5 sm:py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
-              visualizacao === 'por_moto' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
-            )}
-          >
-            <Bike size={13} /> Por moto
-          </button>
-          <button
-            type="button"
-            onClick={() => setVisualizacao('organograma')}
-            className={cn(
-              'px-3 py-2.5 sm:py-1.5 rounded-control text-[11px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
-              visualizacao === 'organograma' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
-            )}
-          >
-            <Network size={13} /> Organograma
-          </button>
-        </div>
+        <Tabs value={visualizacao} onValueChange={(v) => setVisualizacao(v as typeof visualizacao)}>
+          <TabsList className="h-11 sm:h-9 items-stretch border-border-default">
+            <TabsTrigger value="lista" className={TRIGGER_CLASS}>Lista</TabsTrigger>
+            <TabsTrigger value="por_moto" className={TRIGGER_CLASS}><Bike className="size-[13px]" /> Por moto</TabsTrigger>
+            <TabsTrigger value="organograma" className={TRIGGER_CLASS}><Network className="size-[13px]" /> Organograma</TabsTrigger>
+          </TabsList>
+        </Tabs>
 
         {visualizacao === 'organograma' && (
-          <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
-            <button
-              type="button"
-              onClick={() => setOrgChartDominio('categorias')}
-              className={cn(
-                'px-2.5 py-2 sm:py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
-                orgChartDominio === 'categorias' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
-              )}
-            >
-              Categorias
-            </button>
-            <button
-              type="button"
-              onClick={() => setOrgChartDominio('motos')}
-              className={cn(
-                'px-2.5 py-2 sm:py-1 rounded-control text-[10.5px] font-semibold uppercase tracking-wider transition-colors',
-                orgChartDominio === 'motos' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
-              )}
-            >
-              Motos
-            </button>
-          </div>
+          <Tabs value={orgChartDominio} onValueChange={(v) => setOrgChartDominio(v as typeof orgChartDominio)}>
+            <TabsList className="h-10 sm:h-8 items-stretch border-border-default">
+              <TabsTrigger value="categorias" className={SUB_TRIGGER_CLASS}>Categorias</TabsTrigger>
+              <TabsTrigger value="motos" className={SUB_TRIGGER_CLASS}>Motos</TabsTrigger>
+            </TabsList>
+          </Tabs>
         )}
       </div>
 
@@ -1179,7 +1161,7 @@ export function EstoqueView({
                                         initial={{ height: 0, opacity: 0 }}
                                         animate={{ height: 'auto', opacity: 1 }}
                                         exit={{ height: 0, opacity: 0 }}
-                                        transition={SPRING_MICRO}
+                                        transition={transicaoExpansao}
                                         className="overflow-hidden"
                                       >
                                         <EstoqueItemExpandido item={item} categorias={categorias} />

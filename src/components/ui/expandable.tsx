@@ -13,6 +13,7 @@ import {
   motion,
   TargetAndTransition,
   useMotionValue,
+  useReducedMotion,
   useSpring,
 } from "motion/react"
 import useMeasure from "react-use-measure"
@@ -265,8 +266,15 @@ const ExpandableContent = React.forwardRef<
     const [measureRef, { height: measuredHeight }] = useMeasure()
     // useMotionValue creates a value that can be animated smoothly
     const animatedHeight = useMotionValue(0)
+    // Refino local (não faz parte do componente original do Cult UI): com
+    // `prefers-reduced-motion` a altura troca de uma vez, sem percorrer o
+    // caminho — o conteúdo continua aparecendo, só não desliza.
+    const reduce = useReducedMotion()
     // useSpring applies a spring animation to the height value
-    const smoothHeight = useSpring(animatedHeight, springConfig)
+    const smoothHeight = useSpring(
+      animatedHeight,
+      reduce ? { duration: 0 } : springConfig
+    )
 
     useEffect(() => {
       // Animate the height based on whether the content is expanded or collapsed
@@ -287,7 +295,7 @@ const ExpandableContent = React.forwardRef<
           height: smoothHeight,
           overflow: "hidden",
         }}
-        transition={{ duration: transitionDuration, ease: easeType }}
+        transition={{ duration: reduce ? 0 : transitionDuration, ease: easeType }}
         {...props}
       >
         {/* AnimatePresence handles the entering and exiting of components */}
@@ -299,7 +307,7 @@ const ExpandableContent = React.forwardRef<
               initial={animationProps.initial}
               animate={animationProps.animate}
               exit={animationProps.exit}
-              transition={{ duration: transitionDuration, ease: easeType }}
+              transition={{ duration: reduce ? 0 : transitionDuration, ease: easeType }}
             >
               {stagger ? (
                 // If stagger is true, we apply a staggered animation to the children
