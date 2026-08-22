@@ -5,7 +5,9 @@
 // que desliza usa uma superfície elevada neutra (surface-overlay) em vez de
 // accent, pra respeitar a regra de "no máximo um accent preenchido por tela".
 import * as React from 'react';
+import { useReducedMotion } from 'motion/react';
 
+import { SPRING_MICRO } from '../../../ui/motion';
 import {
   Tabs as TabsPrimitive,
   TabsList as TabsListPrimitive,
@@ -33,8 +35,15 @@ function Tabs({ className, ...props }: TabsProps) {
 type TabsListProps = TabsListPrimitiveProps;
 
 function TabsList({ className, ...props }: TabsListProps) {
+  // A "pílula" desliza com o spring padrão da base; com `prefers-reduced-motion`
+  // ela apenas troca de lugar, sem percorrer o caminho.
+  const reduce = useReducedMotion();
+
   return (
-    <TabsHighlightPrimitive className="absolute z-0 inset-0 rounded-control border border-border-default bg-surface-overlay shadow-elevated-sm">
+    <TabsHighlightPrimitive
+      transition={reduce ? { duration: 0 } : SPRING_MICRO}
+      className="absolute z-0 inset-0 rounded-control border border-border-default bg-surface-overlay shadow-elevated-sm"
+    >
       <TabsListPrimitive
         className={cn(
           'inline-flex h-9 w-fit items-center justify-center rounded-control border border-border-subtle bg-surface-inset p-1 text-text-muted',

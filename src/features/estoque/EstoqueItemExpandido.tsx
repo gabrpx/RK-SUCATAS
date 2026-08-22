@@ -7,7 +7,9 @@
 // histórico commitado, e a integração com Shopee ainda vive só como mudanças
 // não commitadas no checkout principal — o campo não existe em `Estoque`
 // (types.ts) nesta branch. Só ML + Facebook por enquanto.
+import { Fragment } from 'react';
 import { AlertTriangle, ExternalLink, Package } from 'lucide-react';
+import { ImageZoom } from '../../components/ui/image-zoom';
 import { getAncestorChain } from '../categorias/categoriaTree';
 import type { Categoria } from '../../types/catalog';
 import type { Estoque } from './types';
@@ -67,10 +69,20 @@ export function EstoqueItemExpandido({ item, categorias }: EstoqueItemExpandidoP
 
       <div>
         <p className="text-[10px] font-semibold uppercase tracking-wider text-text-faint mb-1">Fotos ({item.imagens.length})</p>
+        {/* Cada foto abre em tela cheia no clique (ImageZoom). O Fragment é
+            quem carrega a key: ImageZoom tipa só as próprias props, mesmo
+            padrão já usado com o MotoCard em EstoqueByMoto. */}
         {item.imagens.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {item.imagens.map((url, i) => (
-              <img key={url} src={url} alt={`Foto ${i + 1}`} className="size-16 rounded-control object-cover border border-border-default" referrerPolicy="no-referrer" />
+              <Fragment key={url}>
+                <ImageZoom
+                  src={url}
+                  alt={`Foto ${i + 1}`}
+                  className="size-16 rounded-control border border-border-default"
+                  referrerPolicy="no-referrer"
+                />
+              </Fragment>
             ))}
           </div>
         ) : (

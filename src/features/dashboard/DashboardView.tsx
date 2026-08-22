@@ -34,6 +34,7 @@ import { useData } from '../../context/DataContext';
 import { useTarefas } from '../tarefas/useTarefas';
 import { NOME_LOJA } from '../../constants/loja';
 import { MetricCard } from '../../components/ui/MetricCard';
+import { AnimatedNumber } from '../../components/ui/animated-number';
 import { NotificationList, type NotificationItem } from '../../components/ui/NotificationList';
 import { TransactionList } from '../../components/ui/TransactionList';
 import { AlertBar } from '../../components/ui/AlertBar';
@@ -451,7 +452,8 @@ export function DashboardView({
           <MetricCard
             icone={Package}
             label="Valor em estoque"
-            valor={formatCurrency(metrics.valorTotalEstoque)}
+            valor={metrics.valorTotalEstoque}
+            formatarValor={formatCurrency}
             contexto={`${metrics.totalUnidadesEstoque} unidades`}
             tom="positive"
           />
@@ -460,7 +462,8 @@ export function DashboardView({
           <MetricCard
             icone={ShoppingCart}
             label="Vendas do mês"
-            valor={formatCurrency(metrics.valorVendasMes)}
+            valor={metrics.valorVendasMes}
+            formatarValor={formatCurrency}
             contexto={`${metrics.vendasMes.length} vendas neste mês`}
             tom={variacaoVendas.positivo ? 'positive' : 'negative'}
             tendencia={variacaoVendas}
@@ -470,7 +473,8 @@ export function DashboardView({
           <MetricCard
             icone={Wallet}
             label="Saídas do mês"
-            valor={formatCurrency(metrics.valorSaidasMes)}
+            valor={metrics.valorSaidasMes}
+            formatarValor={formatCurrency}
             contexto={variacaoSaidas.pct != null ? 'vs. mês passado' : variacaoSaidas.texto}
             tom="negative"
             tendencia={variacaoSaidas}
@@ -480,7 +484,8 @@ export function DashboardView({
           <MetricCard
             icone={Receipt}
             label="Ticket médio"
-            valor={formatCurrency(metrics.ticketMedio)}
+            valor={metrics.ticketMedio}
+            formatarValor={formatCurrency}
             contexto={variacaoTicket.pct != null ? 'vs. mês passado' : variacaoTicket.texto}
             tom={variacaoTicket.positivo ? 'positive' : 'negative'}
             tendencia={variacaoTicket}
@@ -498,7 +503,9 @@ export function DashboardView({
           <div className="flex items-center gap-3 min-w-0">
             <AlertTriangle size={18} strokeWidth={1.75} className="text-warning shrink-0" />
             <div className="min-w-0">
-              <p className="text-3xl font-semibold text-warning leading-none tabular-nums tracking-tight">{metrics.itensEstoqueBaixo.length}</p>
+              <p className="text-3xl font-semibold text-warning leading-none tabular-nums tracking-tight">
+                <AnimatedNumber value={metrics.itensEstoqueBaixo.length} />
+              </p>
               <p className="text-xs text-text-secondary mt-1 truncate">peça(s) com estoque baixo (≤ 2 unidades)</p>
             </div>
           </div>

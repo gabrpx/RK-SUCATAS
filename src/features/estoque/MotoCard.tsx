@@ -8,6 +8,7 @@
 // das variações em vez de ir direto pra lista de peças — ver EstoqueByMoto.tsx.
 import { Bike, Layers } from 'lucide-react';
 import { cn } from '../../utils';
+import { AnimatedNumber } from '../../components/ui/animated-number';
 
 interface MotoCardProps {
   nome: string;
@@ -45,7 +46,10 @@ export function MotoCard({ nome, ano, breadcrumb, imagemUrl, quantidadePecas, qu
           {nome}
           {ano && <span className="text-text-muted font-normal"> ({ano})</span>}
         </p>
-        <p className="text-[22px] font-medium text-text-primary leading-none mt-3 tabular-nums">{quantidadePecas}</p>
+        {/* `inView`: a grade de motos é longa; só conta o card que aparece. */}
+        <p className="text-[22px] font-medium text-text-primary leading-none mt-3 tabular-nums">
+          <AnimatedNumber value={quantidadePecas} inView />
+        </p>
         <p className="text-[10.5px] font-semibold uppercase tracking-[0.04em] text-text-faint mt-1">
           {quantidadeVariacoes > 0
             ? `${quantidadeVariacoes} ${quantidadeVariacoes === 1 ? 'versão' : 'versões'} · ${quantidadePecas === 1 ? 'peça' : 'peças'}`

@@ -8,6 +8,7 @@ import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, Camera, Loader2, UploadCloud, X } from 'lucide-react';
 import { cn } from '../../utils';
 import { SPRING_MICRO } from '../../components/ui/motion';
+import { ImageZoom } from '../../components/ui/image-zoom';
 import { useHoverCapable } from '../../components/ui/beui-tooltip';
 
 const TIPOS_ACEITOS = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
@@ -141,7 +142,13 @@ export function EstoqueUploadFotos({ imagens, onRemoverImagem, onArquivosSelecio
         <div className="flex flex-wrap gap-2">
           {imagens.map((url, i) => (
             <div key={url} className="relative size-20 rounded-control overflow-hidden border border-border-default">
-              <img src={url} alt={`Foto ${i + 1}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              <ImageZoom
+                src={url}
+                alt={`Foto ${i + 1}`}
+                triggerClassName="block w-full h-full"
+                className="w-full h-full"
+                referrerPolicy="no-referrer"
+              />
               {i === 0 && (
                 <span className="absolute bottom-0 inset-x-0 bg-media-overlay-badge text-white text-[9px] font-semibold uppercase tracking-wide text-center py-0.5">
                   Capa

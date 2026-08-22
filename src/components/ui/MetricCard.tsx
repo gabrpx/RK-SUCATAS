@@ -8,6 +8,7 @@
 import type { LucideIcon } from 'lucide-react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '../../utils';
+import { AnimatedNumber } from './animated-number';
 
 export type MetricTone = 'positive' | 'neutral' | 'negative';
 
@@ -34,8 +35,17 @@ export interface MetricCardProps {
   icone: LucideIcon;
   /** Rótulo curto da métrica (renderizado em caixa alta) */
   label: string;
-  /** Valor principal — já formatado pelo chamador (moeda, unidade, etc.) */
-  valor: string;
+  /**
+   * Valor principal. Passe `string` quando já vier formatado (nível de
+   * reputação, "12%", "—"). Passe `number` — junto de `formatarValor` — pra
+   * ganhar a contagem animada até o valor final.
+   */
+  valor: string | number;
+  /**
+   * Formata o valor a cada quadro da contagem. Só se aplica quando `valor` é
+   * número; passe a MESMA função de formatação usada no resto da tela.
+   */
+  formatarValor?: (value: number) => string;
   /** Linha de apoio abaixo do valor, após a divisória (ex: "12 vendas neste mês") */
   contexto?: string;
   /** Define a cor semântica do ícone */
@@ -44,7 +54,7 @@ export interface MetricCardProps {
   tendencia?: MetricTendencia;
 }
 
-export function MetricCard({ icone: Icone, label, valor, contexto, tom = 'neutral', tendencia }: MetricCardProps) {
+export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto, tom = 'neutral', tendencia }: MetricCardProps) {
   const mostraBadge = tendencia && tendencia.pct != null;
 
   return (
@@ -59,9 +69,16 @@ export function MetricCard({ icone: Icone, label, valor, contexto, tom = 'neutra
 
       {/* Valor grande + badge de variação. No mobile o número é um degrau menor
           pra caber sem cortar em tela estreita, mas segue dominante sobre o
-          label (regra do design system: número > label). */}
+          label (regra do design system: número > label). Quando vem como
+          número, conta até o valor final — reforça que ali está o dado. */}
       <div className="flex flex-wrap items-center gap-2.5 mt-3">
-        <span className="text-2xl sm:text-3xl font-semibold text-text-primary leading-none tabular-nums tracking-tight">{valor}</span>
+        <span className="text-2xl sm:text-3xl font-semibold text-text-primary leading-none tabular-nums tracking-tight">
+          {typeof valor === 'number' ? (
+            <AnimatedNumber value={valor} format={formatarValor} inView />
+          ) : (
+            valor
+          )}
+        </span>
         {mostraBadge && (
           <span
             className={cn(

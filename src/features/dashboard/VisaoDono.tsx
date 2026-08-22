@@ -296,16 +296,17 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
               <MetricCard
                 icone={variacaoFaturamento.positivo ? TrendingUp : TrendingDown}
                 label="Quanto entrou este mês"
-                valor={formatCurrency(faturamento.totalAtual)}
+                valor={faturamento.totalAtual}
+                formatarValor={formatCurrency}
                 contexto={variacaoFaturamento.texto}
                 tom={variacaoFaturamento.positivo ? 'positive' : 'negative'}
               />
-              <MetricCard icone={ShoppingCart} label="Vendido no balcão" valor={formatCurrency(faturamento.porCanal.balcao)} contexto="Neste mês" tom="neutral" />
-              <MetricCard icone={Store} label="Vendido no Mercado Livre" valor={formatCurrency(faturamento.porCanal.mercado_livre)} contexto="Neste mês" tom="neutral" />
+              <MetricCard icone={ShoppingCart} label="Vendido no balcão" valor={faturamento.porCanal.balcao} formatarValor={formatCurrency} contexto="Neste mês" tom="neutral" />
+              <MetricCard icone={Store} label="Vendido no Mercado Livre" valor={faturamento.porCanal.mercado_livre} formatarValor={formatCurrency} contexto="Neste mês" tom="neutral" />
               <MetricCard
                 icone={Boxes}
                 label="Peças novas no estoque"
-                valor={String(faturamento.novasAdicoes)}
+                valor={faturamento.novasAdicoes}
                 contexto={`${formatCurrency(faturamento.valorNovasAdicoes)} em valor de venda`}
                 tom="neutral"
               />
@@ -328,16 +329,18 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
               <MetricCard
                 icone={Receipt}
                 label="Ticket médio"
-                valor={formatCurrency(desempenho.ticketAtual)}
+                valor={desempenho.ticketAtual}
+                formatarValor={formatCurrency}
                 contexto={variacaoTicket.texto}
                 tom={variacaoTicket.positivo ? 'positive' : 'negative'}
               />
-              <MetricCard icone={Users} label="Clientes novos" valor={String(desempenho.clientesNovos)} contexto="Primeira compra este mês" tom="neutral" />
-              <MetricCard icone={UserX} label="Clientes sumidos" valor={String(desempenho.sumidosCompleto.length)} contexto="90+ dias sem comprar" tom="neutral" />
+              <MetricCard icone={Users} label="Clientes novos" valor={desempenho.clientesNovos} contexto="Primeira compra este mês" tom="neutral" />
+              <MetricCard icone={UserX} label="Clientes sumidos" valor={desempenho.sumidosCompleto.length} contexto="90+ dias sem comprar" tom="neutral" />
               <MetricCard
                 icone={HandCoins}
                 label="Fiado em aberto"
-                valor={formatCurrency(desempenho.fiadoTotalGeral)}
+                valor={desempenho.fiadoTotalGeral}
+                formatarValor={formatCurrency}
                 contexto={`${desempenho.fiadoCompleto.length} cliente(s)`}
                 tom={desempenho.fiadoTotalGeral > 0 ? 'negative' : 'positive'}
               />
@@ -395,12 +398,13 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
           {/* Caixa Detalhado */}
           <Subpainel titulo="Caixa Detalhado">
             <MetricRow>
-              <MetricCard icone={ArrowUpCircle} label="Quanto entrou" valor={formatCurrency(caixaDetalhado.entradas)} contexto="Neste mês" tom="positive" />
-              <MetricCard icone={ArrowDownCircle} label="Quanto saiu" valor={formatCurrency(caixaDetalhado.saidas)} contexto="Neste mês" tom="negative" />
+              <MetricCard icone={ArrowUpCircle} label="Quanto entrou" valor={caixaDetalhado.entradas} formatarValor={formatCurrency} contexto="Neste mês" tom="positive" />
+              <MetricCard icone={ArrowDownCircle} label="Quanto saiu" valor={caixaDetalhado.saidas} formatarValor={formatCurrency} contexto="Neste mês" tom="negative" />
               <MetricCard
                 icone={caixaDetalhado.saldoFinal >= 0 ? TrendingUp : TrendingDown}
                 label="Quanto sobrou no caixa"
-                valor={formatCurrency(caixaDetalhado.saldoFinal)}
+                valor={caixaDetalhado.saldoFinal}
+                formatarValor={formatCurrency}
                 contexto="Acumulado do mês"
                 tom={caixaDetalhado.saldoFinal >= 0 ? 'positive' : 'negative'}
               />
@@ -442,7 +446,8 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
                 <MetricCard
                   icone={Puzzle}
                   label="Vendido em peças avulsas"
-                  valor={`${vendasDetalhadas.percentualEmPartes.toFixed(0)}%`}
+                  valor={vendasDetalhadas.percentualEmPartes}
+                  formatarValor={(v) => `${v.toFixed(0)}%`}
                   contexto={`${vendasDetalhadas.quantidadeEmPartes} venda(s) de partes de um item, não do item inteiro`}
                   tom="neutral"
                 />
