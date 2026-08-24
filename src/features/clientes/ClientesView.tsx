@@ -3,9 +3,10 @@
 // atendimento, tarefas/visitas vinculadas e desativação (soft delete — nunca
 // some do histórico de quem já comprou).
 import { useEffect, useMemo, useState } from 'react';
-import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, Bike, PackageSearch, X } from 'lucide-react';
+import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, PackageSearch, X, MessageCircle } from 'lucide-react';
 import { cn } from '../../utils';
 import { formatTelefoneBR, formatDocumentoBR, onlyDigits } from '../../utils/formatters';
+import { linkWhatsapp } from '../../utils/whatsapp';
 import { useData } from '../../context/DataContext';
 import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
@@ -27,7 +28,6 @@ import {
   SEGMENTO_TONS,
   badgesMotoProcurada,
   motosDistintasProcuradas,
-  motosDistintasDeClientes,
   type SegmentoCliente,
 } from './metricas';
 import { preferenciasClientes, type OrdenacaoClientes } from './preferencias';
@@ -35,7 +35,7 @@ import { gerarCsvHistoricoCliente, baixarCsv } from './exportarHistoricoCsv';
 import { useTarefas } from '../tarefas/useTarefas';
 import { comprovantesApi } from '../comprovantes/api';
 import { ComprovanteListItem } from '../comprovantes/ComprovantesPixVenda';
-import type { Cliente, ClienteInput, ClienteNota, ClienteOrigem, PreferenciaContato, ClienteMotoInput, PecaProcuradaInput, PecaProcuradaStatus } from './types';
+import type { Cliente, ClienteInput, ClienteNota, ClienteOrigem, PreferenciaContato, PecaProcuradaInput, PecaProcuradaStatus } from './types';
 import type { Role } from '../../constants/roles';
 
 const ORDENACAO_LABELS: Record<OrdenacaoClientes, string> = {
@@ -55,7 +55,6 @@ const STATUS_FILTRO_LABELS: Record<'ativos' | 'inativos' | 'todos', string> = {
 const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = { aguardando: 'Aguardando', atendida: 'Atendida', cancelada: 'Cancelada' };
 const PECA_STATUS_TONS: Record<PecaProcuradaStatus, 'warning' | 'positive' | 'neutral'> = { aguardando: 'warning', atendida: 'positive', cancelada: 'neutral' };
 
-const EMPTY_MOTO: ClienteMotoInput = { modelo_moto_id: null, placa: '', chassi: '', ano: '', cor: '', observacoes: '' };
 const EMPTY_PECA: PecaProcuradaInput = { descricao: '', categoria_id: null, modelo_moto_id: null };
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
@@ -112,13 +111,12 @@ export function ClientesView({
   userRoles?: Role[];
 }) {
   const podeExcluirComprovante = userRoles.includes('admin');
-  const { clientes, vendas, orcamentos, pecasProcuradas, setPecasProcuradas, motosClientes, refreshData, loading } = useData();
+  const { clientes, vendas, orcamentos, pecasProcuradas, setPecasProcuradas, refreshData, loading } = useData();
   const { tarefas } = useTarefas();
   const { modelos, categorias } = useCatalogos();
   const [busca, setBusca] = useState('');
   const [tagFiltro, setTagFiltro] = useState<string | null>(null);
   const [motoProcuradaFiltro, setMotoProcuradaFiltro] = useState<string | null>(null);
-  const [motoClienteFiltro, setMotoClienteFiltro] = useState<string | null>(null);
   const [segmentoFiltro, setSegmentoFiltro] = useState<SegmentoCliente | null>(null);
   const [statusFiltro, setStatusFiltro] = useState<'ativos' | 'inativos' | 'todos'>('ativos');
   const [ordenacao, setOrdenacaoState] = useState<OrdenacaoClientes>(() => preferenciasClientes.lerOrdenacaoPadrao());
@@ -131,16 +129,6 @@ export function ClientesView({
   };
 
   const motosProcuradasOpcoes = useMemo(() => motosDistintasProcuradas(pecasProcuradas), [pecasProcuradas]);
-  const motosClientesOpcoes = useMemo(() => motosDistintasDeClientes(motosClientes), [motosClientes]);
-  const motoIdsPorCliente = useMemo(() => {
-    const mapa = new Map<string, Set<string>>();
-    for (const m of motosClientes) {
-      if (!m.modelo_moto_id) continue;
-      if (!mapa.has(m.cliente_id)) mapa.set(m.cliente_id, new Set());
-      mapa.get(m.cliente_id)!.add(m.modelo_moto_id);
-    }
-    return mapa;
-  }, [motosClientes]);
   const badgesPorCliente = useMemo(() => {
     const mapa = new Map<string, ReturnType<typeof badgesMotoProcurada>>();
     for (const c of clientes) mapa.set(c.id, badgesMotoProcurada(c.id, pecasProcuradas));
@@ -159,6 +147,11 @@ export function ClientesView({
   const [editando, setEditando] = useState<Cliente | null>(null);
   const [form, setForm] = useState<ClienteInput>(EMPTY_FORM);
   const [tagsTexto, setTagsTexto] = useState('');
+  // Motos que o cliente busca peças, informadas já na criação/edição. Cada uma
+  // vira uma peça procurada (com modelo_moto) ao salvar. Só dígitos aqui: id +
+  // nome do modelo pra montar o chip; o select abaixo alimenta a adição.
+  const [motosBuscaForm, setMotosBuscaForm] = useState<{ id: string; nome: string }[]>([]);
+  const [motoBuscaSel, setMotoBuscaSel] = useState('');
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
 
@@ -176,7 +169,6 @@ export function ClientesView({
       if (segmentoFiltro && calcularSegmento(historicoPorCliente.get(c.id)!) !== segmentoFiltro) return false;
       if (tagFiltro && !c.tags.includes(tagFiltro)) return false;
       if (motoProcuradaFiltro && !(badgesPorCliente.get(c.id) || []).some((b) => b.modeloMotoId === motoProcuradaFiltro)) return false;
-      if (motoClienteFiltro && !(motoIdsPorCliente.get(c.id) || new Set()).has(motoClienteFiltro)) return false;
       if (!termo) return true;
       const digitosTermo = onlyDigits(termo);
       const matchDigitos = digitosTermo.length > 0 && (onlyDigits(c.telefone || '').includes(digitosTermo) || onlyDigits(c.documento || '').includes(digitosTermo));
@@ -206,14 +198,13 @@ export function ClientesView({
       }
     });
     return resultado;
-  }, [clientes, busca, tagFiltro, motoProcuradaFiltro, motoClienteFiltro, segmentoFiltro, statusFiltro, ordenacao, historicoPorCliente, badgesPorCliente, motoIdsPorCliente]);
+  }, [clientes, busca, tagFiltro, motoProcuradaFiltro, segmentoFiltro, statusFiltro, ordenacao, historicoPorCliente, badgesPorCliente]);
 
-  const filtrosAtivos = !!(busca.trim() || tagFiltro || motoProcuradaFiltro || motoClienteFiltro || segmentoFiltro || statusFiltro !== 'ativos');
+  const filtrosAtivos = !!(busca.trim() || tagFiltro || motoProcuradaFiltro || segmentoFiltro || statusFiltro !== 'ativos');
   const limparFiltros = () => {
     setBusca('');
     setTagFiltro(null);
     setMotoProcuradaFiltro(null);
-    setMotoClienteFiltro(null);
     setSegmentoFiltro(null);
     setStatusFiltro('ativos');
   };
@@ -238,6 +229,8 @@ export function ClientesView({
     setEditando(null);
     setForm(EMPTY_FORM);
     setTagsTexto('');
+    setMotosBuscaForm([]);
+    setMotoBuscaSel('');
     setErroForm(null);
     setIsFormOpen(true);
   };
@@ -255,8 +248,19 @@ export function ClientesView({
       observacoes: cliente.observacoes || '',
     });
     setTagsTexto(tagsParaTexto(cliente.tags));
+    setMotosBuscaForm([]);
+    setMotoBuscaSel('');
     setErroForm(null);
     setIsFormOpen(true);
+  };
+
+  const adicionarMotoBusca = () => {
+    if (!motoBuscaSel) return;
+    if (motosBuscaForm.some((m) => m.id === motoBuscaSel)) return setMotoBuscaSel('');
+    const opcao = opcoesModelo.find((o) => o.id === motoBuscaSel);
+    if (!opcao) return;
+    setMotosBuscaForm((prev) => [...prev, { id: opcao.id, nome: opcao.label }]);
+    setMotoBuscaSel('');
   };
 
   const salvar = async () => {
@@ -277,9 +281,36 @@ export function ClientesView({
     try {
       const result = editando ? await clientesApi.atualizar(editando.id, payload) : await clientesApi.criar(payload);
       if (!result.success) throw new Error(result.error);
+      const clienteId = result.data.id;
+
+      // Registra cada moto buscada como peça procurada (com modelo_moto), sem
+      // duplicar as que o cliente já tem ativas — é isso que alimenta a badge de
+      // "busca peças de" no card e na lista.
+      if (motosBuscaForm.length > 0) {
+        const jaAtivas = new Set(
+          pecasProcuradas
+            .filter((p) => p.cliente_id === clienteId && p.status !== 'cancelada' && p.modelo_moto_id)
+            .map((p) => p.modelo_moto_id as string)
+        );
+        for (const moto of motosBuscaForm) {
+          if (jaAtivas.has(moto.id)) continue;
+          const nomeCurto = moto.nome.split('›').pop()?.trim() || moto.nome;
+          const pecaResult = await clientesApi.criarPecaProcurada(clienteId, {
+            descricao: `Peças para ${nomeCurto}`,
+            modelo_moto_id: moto.id,
+          });
+          if (pecaResult.success) {
+            setPecasProcuradas((prev) => [
+              { id: pecaResult.data.id, cliente_id: clienteId, status: pecaResult.data.status, modelo_moto_id: pecaResult.data.modelo_moto_id, modelo_moto: pecaResult.data.modelo_moto },
+              ...prev,
+            ]);
+          }
+        }
+      }
+
       setIsFormOpen(false);
       await refreshData();
-      if (clienteAberto && editando && result.data.id === clienteAberto.id) setClienteAberto(result.data);
+      if (clienteAberto && editando && clienteId === clienteAberto.id) setClienteAberto(result.data);
     } catch (err: any) {
       setErroForm(err.message || 'Erro ao salvar cliente');
     } finally {
@@ -355,43 +386,6 @@ export function ClientesView({
     [categorias]
   );
 
-  const [novaMoto, setNovaMoto] = useState<ClienteMotoInput>(EMPTY_MOTO);
-  const [enviandoMoto, setEnviandoMoto] = useState(false);
-
-  const enviarMoto = async () => {
-    if (!clienteAberto) return;
-    setEnviandoMoto(true);
-    try {
-      const payload: ClienteMotoInput = {
-        modelo_moto_id: novaMoto.modelo_moto_id || null,
-        placa: novaMoto.placa?.trim() || null,
-        chassi: novaMoto.chassi?.trim() || null,
-        ano: novaMoto.ano?.trim() || null,
-        cor: novaMoto.cor?.trim() || null,
-        observacoes: novaMoto.observacoes?.trim() || null,
-      };
-      const result = await clientesApi.criarMoto(clienteAberto.id, payload);
-      if (!result.success) throw new Error(result.error);
-      setClienteAberto((prev) => (prev ? { ...prev, motos: [...(prev.motos || []), result.data] } : prev));
-      setNovaMoto(EMPTY_MOTO);
-    } catch (err: any) {
-      aviso.falha(err, 'Erro ao cadastrar moto');
-    } finally {
-      setEnviandoMoto(false);
-    }
-  };
-
-  const removerMoto = async (motoId: string) => {
-    if (!clienteAberto) return;
-    try {
-      const result = await clientesApi.removerMoto(clienteAberto.id, motoId);
-      if (!result.success) throw new Error(result.error);
-      setClienteAberto((prev) => (prev ? { ...prev, motos: (prev.motos || []).filter((m) => m.id !== motoId) } : prev));
-    } catch (err: any) {
-      aviso.falha(err, 'Erro ao excluir moto');
-    }
-  };
-
   const [novaPeca, setNovaPeca] = useState<PecaProcuradaInput>(EMPTY_PECA);
   const [enviandoPeca, setEnviandoPeca] = useState(false);
 
@@ -462,9 +456,14 @@ export function ClientesView({
         <div className="flex flex-col">
           <span className="text-sm font-medium text-text-primary">{c.nome}</span>
           {(c.tags.length > 0 || (badgesPorCliente.get(c.id) || []).length > 0) && (
-            <div className="flex flex-wrap gap-1 mt-1">
+            <div className="flex flex-wrap items-center gap-1 mt-1">
+              {(badgesPorCliente.get(c.id) || []).length > 0 && (
+                <span className="inline-flex items-center text-text-muted" title="Tem pedido de peça">
+                  <PackageSearch size={13} />
+                </span>
+              )}
               {(badgesPorCliente.get(c.id) || []).map((b) => (
-                <span key={b.modeloMotoId} title="Moto procurada">
+                <span key={b.modeloMotoId} title="Moto que busca peças">
                   <StatusBadge texto={b.nome} tom={b.tom} />
                 </span>
               ))}
@@ -539,6 +538,21 @@ export function ClientesView({
             <p className="text-xs text-text-faint">{c.telefone ? formatTelefoneBR(c.telefone) : '—'}</p>
           </div>
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
+            {linkWhatsapp(c.telefone) && (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => {
+                  const url = linkWhatsapp(c.telefone);
+                  if (url) window.open(url, '_blank');
+                }}
+                title="Enviar mensagem no WhatsApp"
+                className="size-7 rounded-control text-positive hover:text-positive"
+              >
+                <MessageCircle size={14} />
+              </Button>
+            )}
             <Button type="button" variant="ghost" size="icon" onClick={() => abrirEditar(c)} title="Editar" className="size-7 rounded-control text-text-muted">
               <Pencil size={14} />
             </Button>
@@ -559,8 +573,13 @@ export function ClientesView({
             const segmento = calcularSegmento(historicoPorCliente.get(c.id)!);
             return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
           })()}
+          {(badgesPorCliente.get(c.id) || []).length > 0 && (
+            <span className="inline-flex items-center text-text-muted" title="Tem pedido de peça">
+              <PackageSearch size={13} />
+            </span>
+          )}
           {(badgesPorCliente.get(c.id) || []).map((b) => (
-            <span key={b.modeloMotoId} title="Moto procurada">
+            <span key={b.modeloMotoId} title="Moto que busca peças">
               <StatusBadge texto={b.nome} tom={b.tom} />
             </span>
           ))}
@@ -628,21 +647,6 @@ export function ClientesView({
             ))}
           </select>
 
-          {motosClientesOpcoes.length > 0 && (
-            <select
-              value={motoClienteFiltro || ''}
-              onChange={(e) => setMotoClienteFiltro(e.target.value || null)}
-              className={cn(inputClass, 'w-auto')}
-              title="Filtrar por moto que o cliente tem"
-            >
-              <option value="">Moto que tem: todas</option>
-              {motosClientesOpcoes.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nome}
-                </option>
-              ))}
-            </select>
-          )}
 
           {motosProcuradasOpcoes.length > 0 && (
             <select
@@ -793,6 +797,54 @@ export function ClientesView({
             </select>
           </div>
           <div>
+            <label className={labelClass}>Motos que ele busca peças</label>
+            <div className="flex gap-2">
+              <select
+                value={motoBuscaSel}
+                onChange={(e) => setMotoBuscaSel(e.target.value)}
+                className={cn(inputClass, 'flex-1')}
+              >
+                <option value="">Escolher modelo…</option>
+                {opcoesModelo
+                  .filter((o) => !motosBuscaForm.some((m) => m.id === o.id))
+                  .map((o) => (
+                    <option key={o.id} value={o.id}>
+                      {o.label}
+                    </option>
+                  ))}
+              </select>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={adicionarMotoBusca}
+                disabled={!motoBuscaSel}
+                className="h-auto px-4 rounded-control border-border-default text-sm shrink-0"
+              >
+                <Plus size={14} /> Add
+              </Button>
+            </div>
+            {motosBuscaForm.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mt-2">
+                {motosBuscaForm.map((m) => (
+                  <span key={m.id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft-bg text-accent-soft-fg text-xs font-medium pl-2.5 pr-1 py-1">
+                    {m.nome.split('›').pop()?.trim() || m.nome}
+                    <button
+                      type="button"
+                      onClick={() => setMotosBuscaForm((prev) => prev.filter((x) => x.id !== m.id))}
+                      className="flex size-4 items-center justify-center rounded-full hover:bg-accent/20"
+                      title="Remover"
+                    >
+                      <X size={11} />
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+            <p className="text-[11px] text-text-faint mt-1.5">
+              Vira um pedido de peça com a moto — aparece como badge no cliente e na lista.
+            </p>
+          </div>
+          <div>
             <label className={labelClass}>Tags (separadas por vírgula)</label>
             <input value={tagsTexto} onChange={(e) => setTagsTexto(e.target.value)} className={inputClass} placeholder="ex: revendedor, atacado" />
           </div>
@@ -817,6 +869,18 @@ export function ClientesView({
         rodape={
           clienteAberto && (
             <div className="flex gap-3">
+              {linkWhatsapp(clienteAberto.telefone) && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const url = linkWhatsapp(clienteAberto.telefone);
+                    if (url) window.open(url, '_blank');
+                  }}
+                  className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-positive/30 text-positive hover:bg-positive-bg hover:text-positive"
+                >
+                  <MessageCircle size={14} /> WhatsApp
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => {
@@ -864,7 +928,7 @@ export function ClientesView({
                   origem={clienteAberto.origem ? ORIGEM_LABELS[clienteAberto.origem] : null}
                   contatoPreferido={clienteAberto.preferencia_contato ? CONTATO_LABELS[clienteAberto.preferencia_contato] : null}
                   tags={clienteAberto.tags}
-                  motosCount={clienteAberto.motos?.length ?? 0}
+                  motosBusca={badgesPorCliente.get(clienteAberto.id) || []}
                   segmentoLabel={segmento ? SEGMENTO_LABELS[segmento] : undefined}
                   segmentoTom={segmento ? SEGMENTO_TONS[segmento] : 'neutral'}
                 />
@@ -982,50 +1046,6 @@ export function ClientesView({
                   </div>
                 );
               })()}
-
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
-                  <Bike size={12} /> Motos
-                </p>
-                <div className="space-y-1.5 mb-3">
-                  {(clienteAberto.motos || []).map((m) => (
-                    <div key={m.id} className="flex items-center justify-between gap-2 bg-surface-card border border-border-subtle rounded-control p-2.5">
-                      <div className="min-w-0 text-xs">
-                        <p className="text-text-primary font-medium truncate">
-                          {m.modelo_moto?.nome || 'Sem modelo'} {m.ano ? `· ${m.ano}` : ''}
-                        </p>
-                        <p className="text-text-faint truncate">{[m.placa, m.chassi, m.cor].filter(Boolean).join(' · ') || 'Sem detalhes'}</p>
-                      </div>
-                      <Button variant="ghost" size="icon" onClick={() => removerMoto(m.id)} className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
-                        <Trash2 size={12} />
-                      </Button>
-                    </div>
-                  ))}
-                  {(clienteAberto.motos || []).length === 0 && <p className="text-xs text-text-faint">Nenhuma moto cadastrada.</p>}
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <select value={novaMoto.modelo_moto_id || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, modelo_moto_id: e.target.value || null }))} className={cn(inputClass, 'col-span-2 text-xs py-2')}>
-                    <option value="">Modelo (opcional)</option>
-                    {opcoesModelo.map((o) => (
-                      <option key={o.id} value={o.id}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
-                  <input value={novaMoto.placa || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, placa: e.target.value }))} placeholder="Placa" className={cn(inputClass, 'text-xs py-2')} />
-                  <input value={novaMoto.ano || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, ano: e.target.value }))} placeholder="Ano" className={cn(inputClass, 'text-xs py-2')} />
-                  <input value={novaMoto.chassi || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, chassi: e.target.value }))} placeholder="Chassi" className={cn(inputClass, 'text-xs py-2')} />
-                  <input value={novaMoto.cor || ''} onChange={(e) => setNovaMoto((m) => ({ ...m, cor: e.target.value }))} placeholder="Cor" className={cn(inputClass, 'text-xs py-2')} />
-                  <Button
-                    variant="outline"
-                    onClick={enviarMoto}
-                    disabled={enviandoMoto}
-                    className="col-span-2 h-9 rounded-control bg-surface-inset border-border-default text-text-secondary text-xs font-medium"
-                  >
-                    {enviandoMoto ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Cadastrar moto
-                  </Button>
-                </div>
-              </div>
 
               <div>
                 <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">

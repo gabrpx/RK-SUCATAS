@@ -18,6 +18,49 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.34',
+    data: '2026-08-24',
+    titulo: 'Clientes com moto, WhatsApp na mão e telas mais limpas',
+    itens: [
+      {
+        tipo: 'feature',
+        texto: 'No cadastro do cliente você já informa a(s) moto(s) que ele procura peça — ela aparece como etiqueta no cliente e na lista, com um ícone avisando quem tem pedido em aberto, sem precisar abrir a ficha.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'Botão de WhatsApp direto na ficha e na lista de clientes: abre a conversa já com o número certo. Na tarefa com cliente, se ele ainda não tem número, dá pra cadastrar ali mesmo e já mandar mensagem.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'Agora dá pra excluir um orçamento (com confirmação antes). As vendas já geradas a partir dele continuam intactas.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Nos detalhes da tarefa aparece quem a designou, além de quem é o responsável.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'A tela de Novidades virou uma sanfona: cada versão começa recolhida e abre no toque, mais fácil de navegar no celular.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'O recebimento de vendas fiado saiu de uma aba própria e virou uma sub-aba dentro do Caixa (ao lado de Pendências) — tudo que é dinheiro a receber num lugar só.',
+      },
+      {
+        tipo: 'fix',
+        texto: 'No celular o nome da tela não aparece mais duplicado no topo.',
+      },
+      {
+        tipo: 'fix',
+        texto: 'Em Categorias de Peça, no celular, os nomes aparecem por inteiro e as ações foram para um menu (⋯) — sem mais texto cortado nem tela estourando.',
+      },
+      {
+        tipo: 'fix',
+        texto: 'No cadastro de peça sobrou só um botão de câmera (com a opção de escolher da galeria), sem o botão repetido.',
+      },
+    ],
+  },
+  {
     versao: '1.2.33',
     data: '2026-08-22',
     titulo: 'Números que contam e fotos que abrem',

@@ -15,6 +15,7 @@ export const orcamentosApi = {
   criar: (payload: OrcamentoInput): Promise<ApiResult<Orcamento>> => api.post('/api/orcamentos', payload),
   atualizar: (id: string, payload: OrcamentoHeaderInput): Promise<ApiResult<Orcamento>> => api.patch(`/api/orcamentos/${id}`, payload),
   cancelar: (id: string): Promise<ApiResult<Orcamento>> => api.patch(`/api/orcamentos/${id}/cancelar`, {}),
+  excluir: (id: string): Promise<ApiResult<null>> => api.delete(`/api/orcamentos/${id}`),
   adicionarItem: (id: string, item: OrcamentoItemInput): Promise<ApiResult<Orcamento>> => api.post(`/api/orcamentos/${id}/itens`, item),
   atualizarItem: (id: string, itemId: string, payload: { valor_unitario?: number; quantidade?: number }): Promise<ApiResult<Orcamento>> =>
     api.patch(`/api/orcamentos/${id}/itens/${itemId}`, payload),

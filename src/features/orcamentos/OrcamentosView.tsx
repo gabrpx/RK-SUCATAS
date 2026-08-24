@@ -116,6 +116,24 @@ export function OrcamentosView() {
   const [statusFiltro, setStatusFiltro] = useState('Todos');
   const [modalAberto, setModalAberto] = useState(false);
   const [orcamentoSelecionado, setOrcamentoSelecionado] = useState<Orcamento | null>(null);
+  const [orcamentoParaExcluir, setOrcamentoParaExcluir] = useState<Orcamento | null>(null);
+  const [excluindo, setExcluindo] = useState(false);
+
+  const excluirOrcamento = async () => {
+    if (!orcamentoParaExcluir) return;
+    setExcluindo(true);
+    try {
+      const result = await orcamentosApi.excluir(orcamentoParaExcluir.id);
+      if (!result.success) throw new Error(result.error);
+      await refreshData();
+      setOrcamentoParaExcluir(null);
+      aviso.sucesso('Orçamento excluído');
+    } catch (err) {
+      aviso.falha(err, 'Erro ao excluir orçamento');
+    } finally {
+      setExcluindo(false);
+    }
+  };
 
   const filtered = useMemo(() => {
     return orcamentos
@@ -231,7 +249,7 @@ export function OrcamentosView() {
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-3 shrink-0">
+                  <div className="flex items-center gap-2 sm:gap-3 shrink-0">
                     <span className="font-black text-sm text-text-primary">{formatCurrency(total)}</span>
                     <span
                       className={cn(
@@ -247,6 +265,16 @@ export function OrcamentosView() {
                     >
                       {expirado ? 'Expirado' : orcamento.status === 'aberto' ? 'Aberto' : orcamento.status === 'convertido' ? 'Convertido' : 'Cancelado'}
                     </span>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setOrcamentoParaExcluir(orcamento);
+                      }}
+                      className="flex size-9 sm:size-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-danger/10 hover:text-danger shrink-0"
+                      title="Excluir orçamento"
+                    >
+                      <Trash2 size={15} />
+                    </button>
                   </div>
                 </div>
               );
@@ -264,6 +292,29 @@ export function OrcamentosView() {
           }}
         />
       )}
+
+      <Modal
+        aberto={!!orcamentoParaExcluir}
+        onFechar={() => setOrcamentoParaExcluir(null)}
+        titulo={orcamentoParaExcluir ? `Excluir orçamento ${orcamentoParaExcluir.codigo}?` : 'Excluir orçamento?'}
+        icone={Trash2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setOrcamentoParaExcluir(null)} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
+              Voltar
+            </Button>
+            <Button variant="destructive" onClick={excluirOrcamento} disabled={excluindo} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
+              {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-text-muted">
+          Isso remove o orçamento definitivamente. Vendas já geradas a partir dele{' '}
+          <span className="font-semibold text-text-secondary">não são afetadas</span>. Essa ação não pode ser desfeita.
+        </p>
+      </Modal>
     </div>
   );
 }

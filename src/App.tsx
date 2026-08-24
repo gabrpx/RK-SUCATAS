@@ -40,7 +40,6 @@ import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
 import { OrcamentosView } from './features/orcamentos/OrcamentosView';
 import { ClientesView } from './features/clientes/ClientesView';
-import { FiadoView } from './features/fiado/FiadoView';
 import { formaPagamentoEfetiva } from './features/fiado/metricas';
 import type { FiadoRecebimento } from './features/fiado/types';
 import { valorVendidoEmPartes, valorRestanteEstimado } from './features/vendas/metricas';
@@ -68,7 +67,10 @@ import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'fiado', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes'];
+// 'fiado' saiu da navegação: virou sub-aba do Caixa. Não fica em VALID_TABS
+// pra a URL /fiado não abrir mais uma aba solta — os botões que iam pra lá
+// agora redirecionam pro Caixa na sub-aba de vendas fiado.
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes'];
 
 // Primeira aba visível pra quem tem esses papéis — usada como fallback
 // quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
@@ -540,6 +542,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
   const [pendingClienteId, setPendingClienteId] = useState<string | null>(null);
   const [pendingFiltroSumidos, setPendingFiltroSumidos] = useState(false);
+  // Abre o Caixa já na sub-aba de vendas fiado (deep-link que antes ia pra aba Fiado).
+  const [pendingCaixaFiado, setPendingCaixaFiado] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
@@ -599,13 +603,15 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
       {/* Main Content */}
       <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-[260px]' : 'md:ml-[68px]')}>
-        <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-surface-inset/40 border-border-default/50')}>
+        {/* No mobile o título da view já aparece grande dentro de cada tela;
+            este header só existe pra desktop, pra não duplicar o nome no topo. */}
+        <header className={cn('min-h-16 border-b backdrop-blur-md hidden md:flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-surface-inset/40 border-border-default/50')}>
           <div className="flex items-center gap-2 md:gap-4">
             <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-text-primary')}>{TAB_LABELS[activeTab]}</h2>
           </div>
         </header>
 
-        <div ref={contentRef} className="p-4 md:p-6 pb-32 md:pb-6 overflow-y-auto flex-1">
+        <div ref={contentRef} className="p-4 md:p-6 pt-[calc(env(safe-area-inset-top)+1rem)] md:pt-6 pb-32 md:pb-6 overflow-y-auto flex-1">
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
               {activeTab === 'dashboard' ? (
@@ -626,7 +632,10 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                     setActiveTab('clientes');
                     setPendingFiltroSumidos(true);
                   }}
-                  onNavigateFiado={() => setActiveTab('fiado')}
+                  onNavigateFiado={() => {
+                    setActiveTab('caixa');
+                    setPendingCaixaFiado(true);
+                  }}
                 />
               ) : activeTab === 'estoque' ? (
                 <EstoqueView
@@ -650,10 +659,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   setPendingFiltroSumidos={setPendingFiltroSumidos}
                   userRoles={userRoles}
                 />
-              ) : activeTab === 'fiado' ? (
-                <FiadoView userRoles={userRoles} />
               ) : activeTab === 'caixa' ? (
-                <CaixaView userRoles={userRoles} />
+                <CaixaView userRoles={userRoles} pendingFiado={pendingCaixaFiado} setPendingFiado={setPendingCaixaFiado} />
               ) : activeTab === 'frete' ? (
                 <FreteView />
               ) : activeTab === 'mercadolivre' ? (
@@ -689,7 +696,10 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
           readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
           onAlterado={refreshData}
           userRoles={userRoles}
-          onAbrirFiado={() => setActiveTab('fiado')}
+          onAbrirFiado={() => {
+            setActiveTab('caixa');
+            setPendingCaixaFiado(true);
+          }}
           fiadoRecebimentos={fiadoRecebimentos}
           vendas={todasAsVendas}
         />

@@ -6,7 +6,7 @@
 // Por padrão toda a árvore começa recolhida (só as raízes aparecem) — o
 // usuário abre só o que precisa, em vez de receber a lista inteira já expandida.
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, List, Network, Folder, FolderOpen, FileText } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, List, Network, Folder, FolderOpen, FileText, MoreHorizontal } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -17,6 +17,7 @@ import { CustomDropdown } from '../../components/CustomDropdown';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../components/ui/dropdown-menu';
 import { buildTree, filterTree, getDescendantIds, type CategoriaNode } from '../categorias/categoriaTree';
 import { CategoriaOrgChart } from '../categorias/CategoriaOrgChart';
 import type { Categoria } from '../../types/catalog';
@@ -514,13 +515,15 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
               <span
                 onClick={() => temFilhos && onToggleExpandido(node.id)}
                 className={cn(
-                  'flex items-center gap-2 text-sm truncate min-w-0',
+                  'flex items-center gap-2 text-sm min-w-0 sm:truncate',
                   temFilhos && 'cursor-pointer',
                   temFilhos ? 'font-bold' : 'font-medium',
                   'text-text-primary'
                 )}
               >
-                <span className="truncate">{node.nome}</span>
+                {/* No mobile o nome quebra em várias linhas em vez de truncar,
+                    pra ninguém ficar como "CAI..."; no desktop segue truncando. */}
+                <span className="min-w-0 break-words sm:truncate">{node.nome}</span>
                 {temFilhos && (
                   <span
                     className={cn(
@@ -532,7 +535,9 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                   </span>
                 )}
               </span>
-              <div className="flex items-center gap-1 shrink-0">
+              {/* Desktop: ações inline. Mobile: agrupadas num menu ⋯ pra o nome
+                  ter largura pra aparecer inteiro (item 2). */}
+              <div className="hidden sm:flex items-center gap-1 shrink-0">
                 <Button variant="ghost" size="icon" onClick={() => h.onIniciarSub(node.id)} className="size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10" title="Adicionar subcategoria">
                   <Plus size={13} />
                 </Button>
@@ -545,6 +550,32 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                 <Button variant="ghost" size="icon" onClick={() => h.onPedirExclusao(node)} className="size-7 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10" title="Excluir">
                   <Trash2 size={13} />
                 </Button>
+              </div>
+              <div className="sm:hidden shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex size-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-inset hover:text-text-primary active:bg-surface-inset"
+                      title="Ações"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => h.onIniciarSub(node.id)}>
+                      <Plus /> Adicionar subcategoria
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => h.setMovendoId(node.id)}>
+                      <FolderInput /> Mover
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => h.onIniciarEdicao(node)}>
+                      <Pencil /> Renomear
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="danger" onSelect={() => h.onPedirExclusao(node)}>
+                      <Trash2 /> Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </>
           )}

@@ -17,7 +17,8 @@ interface ClienteProfileCardProps {
   origem?: string | null;
   contatoPreferido?: string | null;
   tags?: string[];
-  motosCount?: number;
+  /** Motos que o cliente busca peças (derivado das peças procuradas) — vira badge. */
+  motosBusca?: { modeloMotoId: string; nome: string; tom: StatusTone }[];
   segmentoLabel?: string;
   segmentoTom?: StatusTone;
   /** Inicia expandido (default true — na ficha o usuário quer ver logo). */
@@ -43,7 +44,7 @@ export function ClienteProfileCard({
   origem,
   contatoPreferido,
   tags = [],
-  motosCount = 0,
+  motosBusca = [],
   segmentoLabel,
   segmentoTom = 'neutral',
   defaultAberto = true,
@@ -109,10 +110,18 @@ export function ClienteProfileCard({
               <DataRow icon={<MessageCircle size={15} />} label="Contato preferido">
                 <span className="text-sm font-medium text-text-primary">{contatoPreferido || '—'}</span>
               </DataRow>
-              <DataRow icon={<Bike size={15} />} label="Motos">
-                <span className="text-sm font-medium text-text-primary tabular-nums">
-                  {motosCount > 0 ? `${motosCount} cadastrada(s)` : '—'}
-                </span>
+              <DataRow icon={<Bike size={15} />} label="Busca peças de">
+                {motosBusca.length > 0 ? (
+                  <div className="flex flex-wrap justify-end gap-1.5">
+                    {motosBusca.map((m) => (
+                      <span key={m.modeloMotoId}>
+                        <StatusBadge texto={m.nome} tom={m.tom} />
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <span className="text-sm font-medium text-text-primary">—</span>
+                )}
               </DataRow>
               {tags.length > 0 && (
                 <DataRow icon={<Tag size={15} />} label="Tags">

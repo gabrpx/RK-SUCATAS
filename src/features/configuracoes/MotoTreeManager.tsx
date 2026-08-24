@@ -11,7 +11,7 @@
 // (EstoqueByMoto.tsx) mostra essas variações como cards ao clicar no modelo.
 // Por padrão toda a árvore começa recolhida (só as marcas aparecem).
 import React, { useMemo, useRef, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, Camera, ImageOff, List, Network, Folder, FolderOpen, FileText } from 'lucide-react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, GripVertical, FolderInput, Bike, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, Camera, ImageOff, List, Network, Folder, FolderOpen, FileText, MoreHorizontal } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -22,6 +22,7 @@ import { CustomDropdown } from '../../components/CustomDropdown';
 import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../components/ui/dropdown-menu';
 import { comprimirImagem } from '../../utils/comprimirImagem';
 import { uploadImagemModeloMoto } from '../motos/api';
 import { buildTree, filterTree, getDescendantIds, extrairAnoOrdenavel, type ModeloMotoNode } from '../motos/motoTree';
@@ -187,7 +188,11 @@ export function MotoTreeManager({ modelos, onCriar, onCriarRapido, onRenomear, o
   const totalRaizes = arvoreCompleta.length;
   const borderGuia = 'border-border-default';
   const inputClass = cn(
-    'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
+    // min-w-0: sem isso o input mantém a largura mínima intrínseca (~20ch) e não
+    // encolhe dentro do grid, vazando pra fora da tela no mobile. Em grid o item
+    // já estica pra preencher a célula, então não precisa de w-full (que ainda
+    // brigaria com o w-20 do campo Ano).
+    'flex-1 min-w-0 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
     'bg-surface-inset border-border-default text-text-primary'
   );
 
@@ -644,13 +649,15 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
               <span
                 onClick={() => temFilhos && onToggleExpandido(node.id)}
                 className={cn(
-                  'flex items-center gap-2 text-sm truncate min-w-0',
+                  'flex items-center gap-2 text-sm min-w-0 sm:truncate',
                   temFilhos && 'cursor-pointer',
                   temFilhos ? 'font-bold' : 'font-medium',
                   'text-text-primary'
                 )}
               >
-                <span className="truncate">
+                {/* No mobile o nome quebra em vez de truncar (ex: "Ya..." vira
+                    "Yamaha" inteiro); no desktop segue truncando. */}
+                <span className="min-w-0 break-words sm:truncate">
                   {node.nome}
                   {node.ano && <span className="text-text-muted font-normal"> ({node.ano})</span>}
                 </span>
@@ -665,7 +672,9 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                   </span>
                 )}
               </span>
-              <div className="flex items-center gap-1 shrink-0">
+              {/* Desktop: ações inline. Mobile: menu ⋯ pra o nome ter largura
+                  pra aparecer inteiro (mesmo fix das Categorias). */}
+              <div className="hidden sm:flex items-center gap-1 shrink-0">
                 <Button variant="ghost" size="icon" onClick={() => h.onIniciarSub(node.id)} className="size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10" title="Adicionar sub-nível">
                   <Plus size={13} />
                 </Button>
@@ -678,6 +687,32 @@ function MotoRow({ node, parentId, depth, h }: { node: ModeloMotoNode; parentId:
                 <Button variant="ghost" size="icon" onClick={() => h.onPedirExclusao(node)} className="size-7 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10" title="Excluir">
                   <Trash2 size={13} />
                 </Button>
+              </div>
+              <div className="sm:hidden shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex size-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-inset hover:text-text-primary active:bg-surface-inset"
+                      title="Ações"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => h.onIniciarSub(node.id)}>
+                      <Plus /> Adicionar sub-nível
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => h.setMovendoId(node.id)}>
+                      <FolderInput /> Mover
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => h.onIniciarEdicao(node)}>
+                      <Pencil /> Renomear
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="danger" onSelect={() => h.onPedirExclusao(node)}>
+                      <Trash2 /> Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </>
           )}

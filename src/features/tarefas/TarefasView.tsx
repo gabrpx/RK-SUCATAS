@@ -54,7 +54,7 @@ export function TarefasView({ userRoles }: { userRoles: string[] }) {
       {aba === 'lembretes' ? (
         <LembretesView userRoles={userRoles} />
       ) : ehResponsavel ? (
-        <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} />
+        <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} refetch={refetch} />
       ) : (
         <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} userRoles={userRoles} meuId={meuId} />
       )}
@@ -70,11 +70,13 @@ function VisaoResponsavel({
   setTarefas,
   loading,
   error,
+  refetch,
 }: {
   tarefas: Tarefa[];
   setTarefas: (fn: (prev: Tarefa[]) => Tarefa[]) => void;
   loading: boolean;
   error: string | null;
+  refetch: () => void;
 }) {
   const [concluindo, setConcluindo] = useState<string | null>(null);
 
@@ -123,7 +125,7 @@ function VisaoResponsavel({
       ) : tarefas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pra você no momento." />
       ) : (
-        <TarefaCards tarefas={tarefas} renderAcaoRapida={botaoConcluir} renderAcoes={(t) => botaoConcluir(t)} />
+        <TarefaCards tarefas={tarefas} renderAcaoRapida={botaoConcluir} renderAcoes={(t) => botaoConcluir(t)} onContatoSalvo={refetch} />
       )}
     </div>
   );
@@ -332,7 +334,7 @@ function VisaoCriador({
       ) : filtradas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa por aqui." />
       ) : (
-        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} />
+        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} onContatoSalvo={refetch} />
       )}
 
       <Modal
