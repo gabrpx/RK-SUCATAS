@@ -37,6 +37,20 @@ function comItensOrdenados<T extends { itens?: any[] | null }>(tarefa: T): T {
   return { ...tarefa, itens };
 }
 
+// Deriva o status da tarefa a partir dos itens. Retorna o patch a aplicar,
+// ou null quando não há itens ou o status já está correto (idempotente).
+export function derivarConclusao(
+  itens: { concluido: boolean }[],
+  statusAtual: 'pendente' | 'concluida',
+  agoraIso = new Date().toISOString(),
+): { status: 'pendente' | 'concluida'; concluida_em: string | null } | null {
+  if (itens.length === 0) return null;
+  const todos = itens.every((i) => i.concluido);
+  if (todos && statusAtual !== 'concluida') return { status: 'concluida', concluida_em: agoraIso };
+  if (!todos && statusAtual === 'concluida') return { status: 'pendente', concluida_em: null };
+  return null;
+}
+
 // Admin/equipe pode se autoatribuir uma tarefa (ex: lembrete pessoal) mesmo
 // sem ter papel executor — só quem NÃO é o próprio usuário logado precisa
 // necessariamente ser mandados/mecanico.
@@ -58,6 +72,17 @@ function ehExecutor(roles: string[]): boolean {
 
 export function tarefasRouter(supabase: SupabaseClient) {
   const router = Router();
+
+  // Rebusca os itens, deriva o status e aplica se mudou. Devolve a tarefa
+  // completa (SELECT_COM_JOINS) já ordenada.
+  async function recalcularEDevolver(tarefaId: string) {
+    const { data: itens } = await supabase.from('tarefa_itens').select('concluido').eq('tarefa_id', tarefaId);
+    const { data: atual } = await supabase.from('tarefas').select('status').eq('id', tarefaId).single();
+    const patch = derivarConclusao(itens ?? [], atual!.status as 'pendente' | 'concluida');
+    if (patch) await supabase.from('tarefas').update(patch).eq('id', tarefaId);
+    const { data } = await supabase.from('tarefas').select(SELECT_COM_JOINS).eq('id', tarefaId).single();
+    return comItensOrdenados(data);
+  }
 
   router.get('/', async (req: AuthenticatedRequest, res) => {
     try {
@@ -192,6 +217,8 @@ export function tarefasRouter(supabase: SupabaseClient) {
       for (const campo of CAMPOS_EDITAVEIS) {
         if (req.body?.[campo] !== undefined) payload[campo] = req.body[campo];
       }
+      // Título vazio vira null (não persistimos string vazia).
+      if (payload.titulo === '') payload.titulo = null;
 
       if (payload.atribuido_para !== undefined) {
         const { data: responsavel } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', payload.atribuido_para).maybeSingle();
@@ -200,8 +227,43 @@ export function tarefasRouter(supabase: SupabaseClient) {
         }
       }
 
-      const { data, error } = await supabase.from('tarefas').update(payload).eq('id', req.params.id).select(SELECT_COM_JOINS).single();
-      if (error) throw error;
+      // Numa edição só de itens (sem campo escalar no body), payload fica {}
+      // e .update({}) pode falhar/no-op no supabase-js — só chamamos update
+      // quando há de fato algo escalar a alterar.
+      if (Object.keys(payload).length > 0) {
+        const { error } = await supabase.from('tarefas').update(payload).eq('id', req.params.id);
+        if (error) throw error;
+      }
+
+      if (req.body?.itens !== undefined) {
+        const desejados = normalizarItens(req.body.itens);
+        const { data: atuais } = await supabase.from('tarefa_itens').select('id').eq('tarefa_id', req.params.id);
+        const idsAtuais = new Set((atuais ?? []).map((i) => i.id));
+        const idsDesejados = new Set(desejados.filter((i) => i.id).map((i) => i.id!));
+
+        // remover os que sumiram
+        const remover = [...idsAtuais].filter((id) => !idsDesejados.has(id));
+        if (remover.length) await supabase.from('tarefa_itens').delete().in('id', remover);
+
+        // upsert por posição (ordem = índice)
+        for (let i = 0; i < desejados.length; i++) {
+          const it = desejados[i];
+          if (it.id && idsAtuais.has(it.id)) {
+            await supabase.from('tarefa_itens').update({ texto: it.texto, ordem: i }).eq('id', it.id);
+          } else {
+            await supabase.from('tarefa_itens').insert({ tarefa_id: req.params.id, texto: it.texto, ordem: i });
+          }
+        }
+
+        // validar título-OU-itens após o diff
+        const { count } = await supabase.from('tarefa_itens').select('id', { count: 'exact', head: true }).eq('tarefa_id', req.params.id);
+        const tituloFinal = req.body?.titulo !== undefined ? String(req.body.titulo || '').trim() : undefined;
+        if ((count ?? 0) === 0 && tituloFinal === '') {
+          return res.status(400).json({ success: false, error: 'Informe um título ou pelo menos um item' });
+        }
+      }
+
+      const data = await recalcularEDevolver(req.params.id);
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao atualizar tarefa:', error);
@@ -219,6 +281,11 @@ export function tarefasRouter(supabase: SupabaseClient) {
       const podeConcluir = ehAdminOuEquipe(roles) || (ehExecutor(roles) && tarefa.atribuido_para === req.usuario!.id);
       if (!podeConcluir) {
         return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode dar baixa' });
+      }
+
+      const { count } = await supabase.from('tarefa_itens').select('id', { count: 'exact', head: true }).eq('tarefa_id', req.params.id);
+      if ((count ?? 0) > 0) {
+        return res.status(400).json({ success: false, error: 'Esta tarefa é controlada pelos itens do checklist — marque/desmarque os itens.' });
       }
 
       const { data, error } = await supabase
@@ -250,6 +317,11 @@ export function tarefasRouter(supabase: SupabaseClient) {
         return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode reabri-la' });
       }
 
+      const { count } = await supabase.from('tarefa_itens').select('id', { count: 'exact', head: true }).eq('tarefa_id', req.params.id);
+      if ((count ?? 0) > 0) {
+        return res.status(400).json({ success: false, error: 'Esta tarefa é controlada pelos itens do checklist — marque/desmarque os itens.' });
+      }
+
       const { data, error } = await supabase
         .from('tarefas')
         .update({ status: 'pendente', concluida_em: null })
@@ -260,6 +332,37 @@ export function tarefasRouter(supabase: SupabaseClient) {
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao reabrir tarefa:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id/itens/:itemId/toggle', async (req: AuthenticatedRequest, res) => {
+    try {
+      const roles = req.usuario?.roles ?? [];
+      const { data: tarefa, error: erroBusca } = await supabase.from('tarefas').select('id, atribuido_para').eq('id', req.params.id).maybeSingle();
+      if (erroBusca) throw erroBusca;
+      if (!tarefa) return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
+
+      const pode = ehAdminOuEquipe(roles) || (ehExecutor(roles) && tarefa.atribuido_para === req.usuario!.id);
+      if (!pode) return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode marcar os itens' });
+
+      const { data: item, error: erroItem } = await supabase
+        .from('tarefa_itens').select('id, concluido').eq('id', req.params.itemId).eq('tarefa_id', req.params.id).maybeSingle();
+      if (erroItem) throw erroItem;
+      if (!item) return res.status(404).json({ success: false, error: 'Item não encontrado' });
+
+      const novo = !item.concluido;
+      const { error: erroUp } = await supabase.from('tarefa_itens').update({
+        concluido: novo,
+        concluido_em: novo ? new Date().toISOString() : null,
+        concluido_por: novo ? req.usuario!.id : null,
+      }).eq('id', item.id);
+      if (erroUp) throw erroUp;
+
+      const data = await recalcularEDevolver(req.params.id);
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao alternar item da tarefa:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });
