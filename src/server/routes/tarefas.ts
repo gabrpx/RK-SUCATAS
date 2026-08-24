@@ -10,7 +10,8 @@ import { EXECUTORES_TAREFA } from '../../constants/roles.js';
 import type { Role } from '../../constants/roles.js';
 import { notificarUsuario } from '../../services/pushNotificationService.js';
 
-const SELECT_COM_JOINS = '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone)';
+const SELECT_COM_JOINS =
+  '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone), itens:tarefa_itens(id, texto, concluido, ordem, concluido_em, concluido_por)';
 
 const CAMPOS_EDITAVEIS = ['titulo', 'descricao', 'prazo', 'atribuido_para', 'cliente_id', 'prioridade', 'tipo'] as const;
 
@@ -18,6 +19,23 @@ const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo co
 
 const PRIORIDADES_VALIDAS = ['baixa', 'media', 'alta'] as const;
 const TIPOS_VALIDOS = ['geral', 'visita'] as const;
+
+// Filtra itens de checklist válidos preservando a ordem do array. Exportado
+// pra teste. Aceita { texto } e opcionalmente { id } (usado no diff do PATCH).
+export function normalizarItens(raw: unknown): { texto: string; id?: string }[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((i) => ({ id: i?.id as string | undefined, texto: String(i?.texto ?? '').trim() }))
+    .filter((i) => i.texto.length > 0)
+    .map((i) => (i.id ? { id: i.id, texto: i.texto } : { texto: i.texto }));
+}
+
+// Ordena os itens aninhados por `ordem` e garante array (nunca null) — o
+// supabase devolve a relação sem ordem garantida.
+function comItensOrdenados<T extends { itens?: any[] | null }>(tarefa: T): T {
+  const itens = (tarefa.itens ?? []).slice().sort((a, b) => (a.ordem ?? 0) - (b.ordem ?? 0));
+  return { ...tarefa, itens };
+}
 
 // Admin/equipe pode se autoatribuir uma tarefa (ex: lembrete pessoal) mesmo
 // sem ter papel executor — só quem NÃO é o próprio usuário logado precisa
@@ -63,7 +81,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
       const { data, error } = await query;
       if (error) throw error;
-      res.json({ success: true, data });
+      res.json({ success: true, data: (data ?? []).map(comItensOrdenados) });
     } catch (error: any) {
       console.error('Erro ao listar tarefas:', error);
       res.status(500).json({ success: false, error: error.message });
@@ -78,8 +96,11 @@ export function tarefasRouter(supabase: SupabaseClient) {
       }
 
       const titulo = String(req.body?.titulo || '').trim();
+      const itens = normalizarItens(req.body?.itens);
       const atribuido_para = req.body?.atribuido_para;
-      if (!titulo) return res.status(400).json({ success: false, error: 'Título é obrigatório' });
+      if (!titulo && itens.length === 0) {
+        return res.status(400).json({ success: false, error: 'Informe um título ou pelo menos um item' });
+      }
       if (!atribuido_para) return res.status(400).json({ success: false, error: 'Responsável é obrigatório' });
 
       const prioridade = req.body?.prioridade || 'media';
@@ -98,7 +119,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
       }
 
       const payload = {
-        titulo,
+        titulo: titulo || null,
         descricao: req.body?.descricao ? String(req.body.descricao).trim() : null,
         prazo: req.body?.prazo || null,
         atribuido_para,
@@ -111,16 +132,25 @@ export function tarefasRouter(supabase: SupabaseClient) {
       const { data, error } = await supabase.from('tarefas').insert(payload).select(SELECT_COM_JOINS).single();
       if (error) throw error;
 
+      if (itens.length > 0) {
+        const linhas = itens.map((it, i) => ({ tarefa_id: data.id, texto: it.texto, ordem: i }));
+        const { error: erroItens } = await supabase.from('tarefa_itens').insert(linhas);
+        if (erroItens) throw erroItens;
+      }
+      // Rebuscar com os itens já persistidos para devolver o objeto completo.
+      const { data: completa } = await supabase.from('tarefas').select(SELECT_COM_JOINS).eq('id', data.id).single();
+
       // Fire-and-forget: uma falha no push nunca pode derrubar a criação da
       // tarefa (mesmo espírito de casarComPecasProcuradas em estoque.ts).
       // Não notifica quem se autoatribuiu — a pessoa já sabe, acabou de criar.
       if (atribuido_para !== req.usuario!.id) {
-        notificarUsuario(supabase, atribuido_para, { titulo: 'Nova tarefa', corpo: titulo, url: '/tarefas' }).catch((e) =>
+        const corpo = titulo || itens[0]?.texto || 'Nova tarefa';
+        notificarUsuario(supabase, atribuido_para, { titulo: 'Nova tarefa', corpo, url: '/tarefas' }).catch((e) =>
           console.error('Erro ao notificar nova tarefa:', e)
         );
       }
 
-      res.json({ success: true, data });
+      res.json({ success: true, data: comItensOrdenados(completa ?? data) });
     } catch (error: any) {
       console.error('Erro ao criar tarefa:', error);
       res.status(500).json({ success: false, error: error.message });
