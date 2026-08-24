@@ -19,7 +19,6 @@ import {
   Loader2,
   AlertCircle,
   AlertTriangle,
-  Camera,
   ChevronDown,
   ChevronLeft,
   ChevronRight,
@@ -256,7 +255,6 @@ export function EstoqueView({
   const [salvasEmSequencia, setSalvasEmSequencia] = useState(0);
   // Quanto a foto encolheu no celular antes de subir; some no próximo upload.
   const [resumoCompressao, setResumoCompressao] = useState<string | null>(null);
-  const inputCameraRef = useRef<HTMLInputElement>(null);
   // Foco volta pro nome a cada peça salva em sequência: é sempre o primeiro
   // campo a preencher e evita ter que buscar o cursor com a mão.
   const inputNomeRef = useRef<HTMLInputElement>(null);
@@ -1568,28 +1566,8 @@ export function EstoqueView({
                 <div className="space-y-3">
                   <p className="text-xs text-text-faint">A primeira foto é a capa mostrada na lista. Pode anexar mais de uma.</p>
 
-                  {/* Câmera fica separada (só mobile, abre direto a câmera) — a galeria
-                      vira o dropzone abaixo, que também mostra as miniaturas já anexadas. */}
-                  <button
-                    type="button"
-                    onClick={() => inputCameraRef.current?.click()}
-                    disabled={isUploadingImagem}
-                    className="md:hidden w-full flex items-center justify-center gap-2 py-3 px-3 rounded-control border-2 border-dashed cursor-pointer text-xs font-semibold uppercase tracking-wider transition-colors border-border-default text-text-muted hover:border-accent/50 hover:text-accent-soft-fg disabled:opacity-50"
-                  >
-                    {isUploadingImagem ? <Loader2 size={14} className="animate-spin" /> : <Camera size={14} />} Câmera
-                  </button>
-                  <input
-                    ref={inputCameraRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
-                    capture="environment"
-                    className="hidden"
-                    onChange={(e) => {
-                      if (e.target.files?.length) handleUploadImagem(e.target.files);
-                      e.target.value = '';
-                    }}
-                  />
-
+                  {/* Câmera ("Tirar foto") e galeria vivem os dois dentro do
+                      EstoqueUploadFotos — um único botão de câmera, sem duplicar. */}
                   <EstoqueUploadFotos
                     imagens={formData.imagens}
                     onRemoverImagem={(url) => setFormData((prev) => ({ ...prev, imagens: prev.imagens.filter((u) => u !== url) }))}

@@ -2,7 +2,7 @@
 // (venda_id preenchido) são somente leitura aqui — pra reverter, cancela a
 // venda na aba Vendas. Lançamentos manuais (despesas, retiradas, etc.) são
 // criados/editados/excluídos direto por aqui.
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
 import type { Column, ColumnDef, SortingState } from '@tanstack/react-table';
 import {
@@ -30,6 +30,8 @@ import { aviso } from '../../components/ui/toast';
 import { Button } from '@/src/components/ui/button';
 import { caixaApi, caixaPendenciasApi } from './api';
 import { PendenciasTab } from './PendenciasTab';
+import { FiadoView } from '../fiado/FiadoView';
+import type { Role } from '../../constants/roles';
 import type { CaixaEntry, CaixaTipo } from './types';
 
 const formatCurrency = (value: number) =>
@@ -67,7 +69,7 @@ function SortableHead({ column, label, align }: { column: Column<CaixaEntry, unk
   );
 }
 
-export function CaixaView({ userRoles }: { userRoles: string[] }) {
+export function CaixaView({ userRoles, pendingFiado, setPendingFiado }: { userRoles: string[]; pendingFiado?: boolean; setPendingFiado?: (v: boolean) => void }) {
   const { caixa, setCaixa, showSensitiveInfo, setShowSensitiveInfo } = useData();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -75,7 +77,15 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<CaixaEntry | null>(null);
-  const [aba, setAba] = useState<'lancamentos' | 'pendencias'>('lancamentos');
+  const [aba, setAba] = useState<'lancamentos' | 'pendencias' | 'fiado'>('lancamentos');
+
+  // Deep-link vindo do detalhe da venda ("abrir fiado") ou do card do Dashboard,
+  // que antes iam pra aba Fiado — agora caem na sub-aba Fiado do Caixa.
+  useEffect(() => {
+    if (!pendingFiado) return;
+    setAba('fiado');
+    setPendingFiado?.(false);
+  }, [pendingFiado, setPendingFiado]);
   const [sorting, setSorting] = useState<SortingState>([]);
 
   const filtered = useMemo(() => {
@@ -242,9 +252,20 @@ export function CaixaView({ userRoles }: { userRoles: string[] }) {
         >
           Pendências
         </button>
+        <button
+          onClick={() => setAba('fiado')}
+          className={cn(
+            'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
+            aba === 'fiado' ? 'bg-accent text-white' : 'text-text-muted'
+          )}
+        >
+          Vendas fiado
+        </button>
       </div>
 
-      {aba === 'pendencias' ? (
+      {aba === 'fiado' ? (
+        <FiadoView userRoles={userRoles as Role[]} />
+      ) : aba === 'pendencias' ? (
         <PendenciasTab userRoles={userRoles} />
       ) : (
         <>

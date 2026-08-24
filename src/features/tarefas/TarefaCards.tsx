@@ -7,10 +7,14 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Clock, MapPin, Phone, X, User } from 'lucide-react';
+import { Clock, MapPin, Phone, X, User, MessageCircle, Plus, Loader2, UserCog } from 'lucide-react';
 import { cn } from '../../utils';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { SPRING_SHEET } from '../../components/ui/motion';
+import { aviso } from '../../components/ui/toast';
+import { formatTelefoneBR, onlyDigits } from '../../utils/formatters';
+import { linkWhatsapp } from '../../utils/whatsapp';
+import { clientesApi } from '../clientes/api';
 import { formatarPrazo, estaVencida, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
 import type { Tarefa } from './types';
 
@@ -44,12 +48,46 @@ interface TarefaCardsProps {
   // Menu de ação (⋯) no canto superior — aparece no card recolhido e no painel
   // expandido. É aqui que entra o DropdownMenu animado (visão do criador).
   renderMenu?: (tarefa: Tarefa) => ReactNode;
+  // Chamado quando o número do cliente é salvo aqui pelo botão "Adicionar
+  // número" — pra a lista de tarefas recarregar e refletir o telefone novo.
+  onContatoSalvo?: () => void;
 }
 
-export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu }: TarefaCardsProps) {
+export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo }: TarefaCardsProps) {
   const [ativa, setAtiva] = useState<Tarefa | null>(null);
   const id = useId();
   const painelRef = useRef<HTMLDivElement>(null);
+
+  // Estado do "Adicionar número" inline (item 7) — só uma tarefa aberta por vez.
+  const [editandoNumero, setEditandoNumero] = useState(false);
+  const [numeroInput, setNumeroInput] = useState('');
+  const [salvandoNumero, setSalvandoNumero] = useState(false);
+
+  // Ao trocar/fechar a tarefa aberta, zera o formulário de número.
+  useEffect(() => {
+    setEditandoNumero(false);
+    setNumeroInput('');
+  }, [ativa?.id]);
+
+  const salvarNumeroCliente = async () => {
+    if (!ativa?.cliente) return;
+    const digitos = onlyDigits(numeroInput);
+    if (digitos.length < 10) return aviso.atencao('Informe um número com DDD (ex: (83) 98203-9490)');
+    setSalvandoNumero(true);
+    try {
+      const result = await clientesApi.atualizar(ativa.cliente.id, { telefone: digitos });
+      if (!result.success) throw new Error(result.error);
+      // Otimista: já habilita o WhatsApp no painel aberto sem esperar o refetch.
+      setAtiva((prev) => (prev && prev.cliente ? { ...prev, cliente: { ...prev.cliente, telefone: digitos } } : prev));
+      setEditandoNumero(false);
+      setNumeroInput('');
+      onContatoSalvo?.();
+    } catch (err) {
+      aviso.falha(err, 'Erro ao salvar número');
+    } finally {
+      setSalvandoNumero(false);
+    }
+  };
 
   // Sincroniza a tarefa aberta com a lista (ex: após concluir/reabrir, a prop
   // muda de identidade) e fecha se ela sumir.
@@ -123,19 +161,80 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
 
                 <div className="space-y-2 rounded-2xl bg-surface-inset/60 p-4">
                   {ativa.cliente && (
-                    <p className="flex items-center gap-2 text-sm text-text-secondary">
-                      <User size={14} className="text-text-muted shrink-0" />
-                      {ativa.cliente.nome}
-                      {ativa.cliente.telefone && (
-                        <span className="inline-flex items-center gap-1 text-text-faint">
-                          <Phone size={12} /> {ativa.cliente.telefone}
-                        </span>
+                    <div className="space-y-2">
+                      <p className="flex items-center gap-2 text-sm text-text-secondary">
+                        <User size={14} className="text-text-muted shrink-0" />
+                        {ativa.cliente.nome}
+                        {ativa.cliente.telefone && (
+                          <span className="inline-flex items-center gap-1 text-text-faint">
+                            <Phone size={12} /> {formatTelefoneBR(ativa.cliente.telefone)}
+                          </span>
+                        )}
+                      </p>
+                      {/* Item 7: cliente com número → WhatsApp; sem número →
+                          "Adicionar número" que passa a permitir o envio. */}
+                      {linkWhatsapp(ativa.cliente.telefone) ? (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const url = linkWhatsapp(ativa.cliente!.telefone);
+                            if (url) window.open(url, '_blank');
+                          }}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-positive/30 py-2.5 text-sm font-medium text-positive transition-colors hover:bg-positive-bg"
+                        >
+                          <MessageCircle size={15} /> Enviar mensagem no WhatsApp
+                        </button>
+                      ) : editandoNumero ? (
+                        <div className="flex items-center gap-2">
+                          <input
+                            autoFocus
+                            value={numeroInput}
+                            onChange={(e) => setNumeroInput(formatTelefoneBR(e.target.value))}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') salvarNumeroCliente();
+                              if (e.key === 'Escape') setEditandoNumero(false);
+                            }}
+                            inputMode="numeric"
+                            maxLength={15}
+                            placeholder="(00) 00000-0000"
+                            className="flex-1 rounded-xl border border-border-default bg-surface-inset px-3 py-2 text-sm text-text-primary outline-none focus:ring-2 focus:ring-accent/50"
+                          />
+                          <button
+                            type="button"
+                            onClick={salvarNumeroCliente}
+                            disabled={salvandoNumero}
+                            className="flex size-9 items-center justify-center rounded-xl bg-accent text-white disabled:opacity-50"
+                            title="Salvar número"
+                          >
+                            {salvandoNumero ? <Loader2 size={15} className="animate-spin" /> : <MessageCircle size={15} />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEditandoNumero(false)}
+                            className="flex size-9 items-center justify-center rounded-xl text-text-muted hover:bg-surface-raised"
+                            title="Cancelar"
+                          >
+                            <X size={15} />
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => setEditandoNumero(true)}
+                          className="flex w-full items-center justify-center gap-2 rounded-xl border border-dashed border-border-default py-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-accent/50 hover:text-accent-soft-fg"
+                        >
+                          <Plus size={15} /> Adicionar número
+                        </button>
                       )}
-                    </p>
+                    </div>
                   )}
                   <p className="flex items-center gap-2 text-sm text-text-secondary">
                     <User size={14} className="text-text-muted shrink-0" />
                     <span className="text-text-faint">Responsável:</span> {ativa.atribuido?.nome_exibicao || '—'}
+                  </p>
+                  <p className="flex items-center gap-2 text-sm text-text-secondary">
+                    <UserCog size={14} className="text-text-muted shrink-0" />
+                    <span className="text-text-faint">Designada por:</span> {ativa.criador?.nome_exibicao || '—'}
                   </p>
                   {ativa.prazo && (
                     <p className={cn('flex items-center gap-2 text-sm', estaVencida(ativa) ? 'text-danger font-medium' : 'text-text-secondary')}>

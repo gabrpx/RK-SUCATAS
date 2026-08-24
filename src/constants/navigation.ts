@@ -10,7 +10,6 @@ import {
   Store,
   ShoppingCart,
   Receipt,
-  HandCoins,
   Wallet,
   Users,
   ClipboardList,
@@ -41,7 +40,8 @@ export const NAV_ITEMS: NavItem[] = [
   { id: 'mercadolivre', icon: Store, label: 'Mercado Livre', group: 'estoque', roles: TAB_ROLES.mercadolivre },
   { id: 'vendas', icon: ShoppingCart, label: 'Vendas', group: 'vendas', roles: TAB_ROLES.vendas },
   { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', group: 'vendas', roles: TAB_ROLES.orcamentos },
-  { id: 'fiado', icon: HandCoins, label: 'Fiado', group: 'vendas', roles: TAB_ROLES.fiado },
+  // Fiado deixou de ser aba própria: o recebimento de vendas fiado agora vive
+  // como sub-aba dentro do Caixa (ver CaixaView), pra ficar junto de Pendências.
   { id: 'caixa', icon: Wallet, label: 'Caixa', group: 'vendas', roles: TAB_ROLES.caixa },
   { id: 'clientes', icon: Users, label: 'Clientes', group: 'gestao', roles: TAB_ROLES.clientes },
   { id: 'tarefas', icon: ClipboardList, label: 'Tarefas', group: 'gestao', roles: TAB_ROLES.tarefas },

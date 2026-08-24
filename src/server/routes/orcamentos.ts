@@ -177,6 +177,21 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
+  // Exclusão definitiva do orçamento. orcamento_itens tem "on delete cascade"
+  // (migration_007), então some junto; vendas já geradas sobrevivem, porque
+  // vendas.orcamento_item_id e orcamento_itens.venda_id são "on delete set
+  // null" — apagar o orçamento só desfaz o vínculo, nunca a venda.
+  router.delete('/:id', async (req, res) => {
+    try {
+      const { error } = await supabase.from('orcamentos').delete().eq('id', req.params.id);
+      if (error) throw error;
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao excluir orçamento:', error);
+      res.status(400).json({ success: false, error: error.message });
+    }
+  });
+
   router.post('/:id/itens', async (req, res) => {
     try {
       const { data: atual, error: e1 } = await supabase.from('orcamentos').select('status').eq('id', req.params.id).single();
