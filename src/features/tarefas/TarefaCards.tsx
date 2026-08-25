@@ -7,7 +7,7 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Clock, MapPin, Phone, X, User, MessageCircle, Plus, Loader2, UserCog } from 'lucide-react';
+import { Clock, MapPin, Phone, X, User, MessageCircle, Plus, Loader2, UserCog, ListChecks, Check, CheckCircle2 } from 'lucide-react';
 import { cn } from '../../utils';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { SPRING_SHEET } from '../../components/ui/motion';
@@ -15,8 +15,24 @@ import { aviso } from '../../components/ui/toast';
 import { formatTelefoneBR, onlyDigits } from '../../utils/formatters';
 import { linkWhatsapp } from '../../utils/whatsapp';
 import { clientesApi } from '../clientes/api';
-import { formatarPrazo, estaVencida, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
+import { tarefasApi } from './api';
+import { formatarPrazo, estaVencida, formatarMomentoRelativo, progressoChecklist, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
 import type { Tarefa } from './types';
+
+function BadgeProgresso({ feitos, total }: { feitos: number; total: number }) {
+  const pct = total ? Math.round((feitos / total) * 100) : 0;
+  const completo = feitos === total;
+  return (
+    <div className="flex items-center gap-2">
+      <span className={cn('inline-flex items-center gap-1 text-xs font-medium', completo ? 'text-positive' : 'text-text-faint')}>
+        <ListChecks size={12} /> {feitos}/{total}
+      </span>
+      <div className="h-1.5 flex-1 min-w-12 max-w-24 overflow-hidden rounded-full bg-surface-inset">
+        <div className={cn('h-full rounded-full transition-all', completo ? 'bg-positive' : 'bg-accent')} style={{ width: `${pct}%` }} />
+      </div>
+    </div>
+  );
+}
 
 function useClickOutside(ref: RefObject<HTMLElement | null>, handler: () => void) {
   useEffect(() => {
@@ -51,9 +67,12 @@ interface TarefaCardsProps {
   // Chamado quando o número do cliente é salvo aqui pelo botão "Adicionar
   // número" — pra a lista de tarefas recarregar e refletir o telefone novo.
   onContatoSalvo?: () => void;
+  // Se quem está vendo pode marcar/desmarcar itens do checklist (o backend
+  // valida de verdade); sem passar, os checkboxes ficam só-leitura.
+  podeMarcarItens?: (tarefa: Tarefa) => boolean;
 }
 
-export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo }: TarefaCardsProps) {
+export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo, podeMarcarItens }: TarefaCardsProps) {
   const [ativa, setAtiva] = useState<Tarefa | null>(null);
   const id = useId();
   const painelRef = useRef<HTMLDivElement>(null);
@@ -86,6 +105,21 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
       aviso.falha(err, 'Erro ao salvar número');
     } finally {
       setSalvandoNumero(false);
+    }
+  };
+
+  const [alternandoItem, setAlternandoItem] = useState<string | null>(null);
+  const alternarItem = async (tarefa: Tarefa, itemId: string) => {
+    setAlternandoItem(itemId);
+    try {
+      const result = await tarefasApi.alternarItem(tarefa.id, itemId);
+      if (!result.success) throw new Error(result.error);
+      setAtiva(result.data); // devolve a tarefa inteira (status recalculado)
+      onContatoSalvo?.(); // reaproveita o refetch da lista
+    } catch (err) {
+      aviso.falha(err, 'Erro ao atualizar item');
+    } finally {
+      setAlternandoItem(null);
     }
   };
 
@@ -140,7 +174,10 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                 <motion.div layoutId={`tarefa-titulo-${ativa.id}-${id}`} className="min-w-0">
                   <div className="flex items-center gap-1.5 flex-wrap">
                     {ativa.tipo === 'visita' && <MapPin size={15} className="text-accent shrink-0" />}
-                    <h2 className={cn('text-lg font-medium text-text-primary', ativa.status === 'concluida' && 'line-through opacity-60')}>{ativa.titulo}</h2>
+                    <h2 className={cn('text-lg font-medium text-text-primary flex items-center gap-1.5', ativa.status === 'concluida' && 'line-through opacity-60')}>
+                      {!ativa.titulo && <ListChecks size={16} className="text-accent shrink-0" />}
+                      {ativa.titulo || ativa.itens[0]?.texto || 'Tarefa'}
+                    </h2>
                   </div>
                 </motion.div>
                 <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -158,6 +195,39 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                 </motion.div>
 
                 {ativa.descricao && <p className="text-sm text-text-secondary whitespace-pre-line">{ativa.descricao}</p>}
+
+                {ativa.itens.length > 0 && (() => {
+                  const prog = progressoChecklist(ativa)!;
+                  const podeMarcar = podeMarcarItens?.(ativa) ?? false;
+                  return (
+                    <div className="space-y-3">
+                      <BadgeProgresso feitos={prog.feitos} total={prog.total} />
+                      <ul className="space-y-1.5">
+                        {ativa.itens.map((item) => (
+                          <li key={item.id}>
+                            <button
+                              type="button"
+                              disabled={!podeMarcar || alternandoItem === item.id}
+                              onClick={() => podeMarcar && alternarItem(ativa, item.id)}
+                              className={cn(
+                                'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
+                                podeMarcar ? 'hover:bg-surface-inset cursor-pointer' : 'cursor-default',
+                              )}
+                            >
+                              <span className={cn(
+                                'flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+                                item.concluido ? 'border-positive bg-positive text-white' : 'border-border-default',
+                              )}>
+                                {item.concluido && <Check size={13} />}
+                              </span>
+                              <span className={cn('text-text-primary', item.concluido && 'line-through opacity-60')}>{item.texto}</span>
+                            </button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })()}
 
                 <div className="space-y-2 rounded-2xl bg-surface-inset/60 p-4">
                   {ativa.cliente && (
@@ -242,6 +312,16 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                       <span className="text-text-faint">Prazo:</span> {formatarPrazo(ativa.prazo)}
                     </p>
                   )}
+                  <p className="flex items-center gap-2 text-sm text-text-secondary">
+                    <Clock size={14} className="text-text-muted shrink-0" />
+                    <span className="text-text-faint">Designada em:</span> {formatarMomentoRelativo(ativa.criado_em)}
+                  </p>
+                  {ativa.status === 'concluida' && formatarMomentoRelativo(ativa.concluida_em) && (
+                    <p className="flex items-center gap-2 text-sm text-positive">
+                      <CheckCircle2 size={14} className="shrink-0" />
+                      <span className="text-text-faint">Concluída em:</span> {formatarMomentoRelativo(ativa.concluida_em)}
+                    </p>
+                  )}
                 </div>
 
                 {renderAcoes && <div className="flex items-center justify-end gap-2 pt-1">{renderAcoes(ativa, fechar)}</div>}
@@ -270,7 +350,10 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                 <motion.div layoutId={`tarefa-titulo-${tarefa.id}-${id}`} className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     {tarefa.tipo === 'visita' && <MapPin size={13} className="text-accent shrink-0" />}
-                    <p className={cn('text-sm font-medium text-text-primary truncate', concluida && 'line-through opacity-60')}>{tarefa.titulo}</p>
+                    {!tarefa.titulo && tarefa.itens.length > 0 && <ListChecks size={13} className="text-accent shrink-0" />}
+                    <p className={cn('text-sm font-medium text-text-primary truncate', concluida && 'line-through opacity-60')}>
+                      {tarefa.titulo || tarefa.itens[0]?.texto || 'Tarefa'}
+                    </p>
                   </div>
                 </motion.div>
                 {renderMenu && (
@@ -292,6 +375,25 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                 <p className={cn('mt-3 inline-flex items-center gap-1.5 text-xs font-medium', vencida ? 'text-danger' : 'text-text-faint')}>
                   <Clock size={12} /> até {formatarPrazo(tarefa.prazo)}
                 </p>
+              )}
+
+              {progressoChecklist(tarefa) && (
+                <div className="mt-3">
+                  <BadgeProgresso feitos={progressoChecklist(tarefa)!.feitos} total={progressoChecklist(tarefa)!.total} />
+                  {!tarefa.titulo && (
+                    <ul className="mt-2 space-y-1">
+                      {tarefa.itens.slice(1, 4).map((it) => (
+                        <li key={it.id} className="flex items-center gap-1.5 text-xs text-text-faint">
+                          <span className={cn('flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border', it.concluido ? 'border-positive bg-positive text-white' : 'border-border-default')}>
+                            {it.concluido && <Check size={9} />}
+                          </span>
+                          <span className={cn('truncate', it.concluido && 'line-through opacity-60')}>{it.texto}</span>
+                        </li>
+                      ))}
+                      {tarefa.itens.length > 4 && <li className="text-xs text-text-faint pl-5">+{tarefa.itens.length - 4} item(ns)</li>}
+                    </ul>
+                  )}
+                </div>
               )}
 
               {renderAcaoRapida && (

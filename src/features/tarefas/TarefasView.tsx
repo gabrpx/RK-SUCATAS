@@ -97,8 +97,11 @@ function VisaoResponsavel({
   // várias tarefas pendentes ao mesmo tempo, e o design system permite no
   // máximo um botão de acento preenchido por tela — aqui o verde (positive) já
   // carrega o significado de "concluir".
-  const botaoConcluir = (tarefa: Tarefa) =>
-    tarefa.status !== 'concluida' ? (
+  const botaoConcluir = (tarefa: Tarefa) => {
+    // Quando há checklist, a conclusão é dirigida pelos itens (marcar todos
+    // conclui sozinho) — o botão manual some pra não competir com isso.
+    if (tarefa.itens.length > 0 || tarefa.status === 'concluida') return null;
+    return (
       <Button
         variant="outline"
         onClick={() => concluir(tarefa)}
@@ -107,7 +110,8 @@ function VisaoResponsavel({
       >
         <CheckCircle2 size={14} /> {concluindo === tarefa.id ? 'Concluindo...' : 'Concluir'}
       </Button>
-    ) : null;
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -125,7 +129,13 @@ function VisaoResponsavel({
       ) : tarefas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pra você no momento." />
       ) : (
-        <TarefaCards tarefas={tarefas} renderAcaoRapida={botaoConcluir} renderAcoes={(t) => botaoConcluir(t)} onContatoSalvo={refetch} />
+        <TarefaCards
+          tarefas={tarefas}
+          renderAcaoRapida={botaoConcluir}
+          renderAcoes={(t) => botaoConcluir(t)}
+          onContatoSalvo={refetch}
+          podeMarcarItens={() => true}
+        />
       )}
     </div>
   );
@@ -273,10 +283,12 @@ function VisaoCriador({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem onSelect={() => alternarStatus(t)}>
-          {t.status === 'concluida' ? <RotateCcw /> : <CheckCircle2 />}
-          {t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
-        </DropdownMenuItem>
+        {t.itens.length === 0 && (
+          <DropdownMenuItem onSelect={() => alternarStatus(t)}>
+            {t.status === 'concluida' ? <RotateCcw /> : <CheckCircle2 />}
+            {t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
+          </DropdownMenuItem>
+        )}
         {podeEditar(t) && (
           <>
             <DropdownMenuSeparator />
@@ -337,7 +349,7 @@ function VisaoCriador({
       ) : filtradas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa por aqui." />
       ) : (
-        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} onContatoSalvo={refetch} />
+        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} onContatoSalvo={refetch} podeMarcarItens={() => true} />
       )}
 
       <Modal
