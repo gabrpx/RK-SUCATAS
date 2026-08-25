@@ -16,4 +16,6 @@ export const tarefasApi = {
   reabrir: (id: string): Promise<ApiResult<Tarefa>> => api.patch(`/api/tarefas/${id}/reabrir`, {}),
   excluir: (id: string): Promise<ApiResult<null>> => api.delete(`/api/tarefas/${id}`),
   listarResponsaveisPossiveis: (): Promise<ApiResult<UsuarioResumo[]>> => api.get('/api/usuarios/responsaveis-tarefa'),
+  alternarItem: (tarefaId: string, itemId: string): Promise<ApiResult<Tarefa>> =>
+    api.patch(`/api/tarefas/${tarefaId}/itens/${itemId}/toggle`, {}),
 };
