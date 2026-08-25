@@ -237,6 +237,22 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
       if (req.body?.itens !== undefined) {
         const desejados = normalizarItens(req.body.itens);
+
+        // valida título-OU-itens ANTES de mutar, considerando o título já
+        // armazenado quando o body não manda `titulo` (edição itens-only) —
+        // senão dá pra apagar todos os itens de uma tarefa sem título antes
+        // de barrar, ou aceitar tarefa sem título E sem itens.
+        let tituloFinal: string;
+        if (req.body?.titulo !== undefined) {
+          tituloFinal = String(req.body.titulo || '').trim();
+        } else {
+          const { data: tAtual } = await supabase.from('tarefas').select('titulo').eq('id', req.params.id).single();
+          tituloFinal = (tAtual?.titulo ?? '').trim();
+        }
+        if (desejados.length === 0 && !tituloFinal) {
+          return res.status(400).json({ success: false, error: 'Informe um título ou pelo menos um item' });
+        }
+
         const { data: atuais } = await supabase.from('tarefa_itens').select('id').eq('tarefa_id', req.params.id);
         const idsAtuais = new Set((atuais ?? []).map((i) => i.id));
         const idsDesejados = new Set(desejados.filter((i) => i.id).map((i) => i.id!));
@@ -253,13 +269,6 @@ export function tarefasRouter(supabase: SupabaseClient) {
           } else {
             await supabase.from('tarefa_itens').insert({ tarefa_id: req.params.id, texto: it.texto, ordem: i });
           }
-        }
-
-        // validar título-OU-itens após o diff
-        const { count } = await supabase.from('tarefa_itens').select('id', { count: 'exact', head: true }).eq('tarefa_id', req.params.id);
-        const tituloFinal = req.body?.titulo !== undefined ? String(req.body.titulo || '').trim() : undefined;
-        if ((count ?? 0) === 0 && tituloFinal === '') {
-          return res.status(400).json({ success: false, error: 'Informe um título ou pelo menos um item' });
         }
       }
 
