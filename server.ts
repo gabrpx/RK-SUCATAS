@@ -14,7 +14,7 @@ import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
 import axios from 'axios';
 
-import { autenticar, autorizar, type AuthenticatedRequest } from './middleware/auth.js';
+import { autenticar, autorizar, exigirPermissao, exigirAlguma, type AuthenticatedRequest } from './middleware/auth.js';
 import { supabase } from './services/supabaseClient.js';
 import { requireEnv } from './src/server/env.js';
 import { categoriasRouter } from './src/server/routes/categorias.js';
@@ -42,7 +42,7 @@ import { iniciarRenovacaoDeTokenShopee, iniciarSincronizadorDeEstatisticasShopee
 import { iniciarRastreioAutomaticoDeEnvios } from './src/services/enviosScheduler.js';
 import { iniciarChecagemDiariaDeAlertas } from './src/services/notificacoesScheduler.js';
 import { iniciarDisparoDeLembretes } from './src/services/lembretesScheduler.js';
-import { EXECUTORES_TAREFA, TAB_ROLES } from './src/constants/roles.js';
+import { pode } from './src/constants/permissoes.js';
 
 dotenv.config();
 
@@ -172,7 +172,7 @@ async function startServer() {
 
       const { data: usuario, error: erroBusca } = await supabase
         .from('usuarios')
-        .select('id, username, nome_exibicao, senha_hash, roles, ativo')
+        .select('id, username, nome_exibicao, senha_hash, roles, permissoes, ativo')
         .eq('username', String(username).trim().toLowerCase())
         .eq('ativo', true)
         .maybeSingle();
@@ -187,7 +187,11 @@ async function startServer() {
         return res.status(401).json({ success: false, error: ERRO_GENERICO });
       }
 
-      const payload = { id: usuario.id, username: usuario.username, roles: usuario.roles };
+      // `permissoes` vai no token junto com `roles`: o gate por permissão é
+      // feito no middleware a partir daí (mesmo modelo do `roles`, então
+      // mudanças de permissão passam a valer no próximo login — até 7 dias, ver
+      // expiresIn). `?? {}` cobre um usuário anterior à migration_047.
+      const payload = { id: usuario.id, username: usuario.username, roles: usuario.roles, permissoes: usuario.permissoes ?? {} };
       const token = jwt.sign(payload, JWT_SECRET, { expiresIn: '7d' });
       res.json({ success: true, token, user: { ...payload, nome_exibicao: usuario.nome_exibicao } });
     } catch (err: any) {
@@ -206,49 +210,59 @@ async function startServer() {
   app.use('/api/notificacoes', notificacoesRouter(supabase));
 
   // Lista enxuta (id + nome) de quem pode receber tarefa, pro <select> de
-  // responsável na tela de Tarefas — admin/equipe precisam disso pra criar
-  // tarefas, mas não têm acesso ao resto de /api/usuarios (admin-only).
-  // Inclui todo cargo "executor" (EXECUTORES_TAREFA: mandados + mecanico) MAIS
-  // o próprio usuário logado, que pode se autoatribuir tarefa mesmo sem papel
-  // executor (ver responsavelValido em tarefas.ts).
-  app.get('/api/usuarios/responsaveis-tarefa', autorizar('admin', 'equipe'), async (req: AuthenticatedRequest, res) => {
+  // responsável na tela de Tarefas — quem cria tarefa (tarefas.criar) precisa
+  // disso, mas não tem acesso ao resto de /api/usuarios (admin-only). Inclui
+  // todo "executor de campo" (quem pode dar baixa mas NÃO gerencia tarefas —
+  // permissao tarefas.concluir sem tarefas.criar, o equivalente dos antigos
+  // mandados/mecanico) MAIS o próprio usuário logado, que pode se autoatribuir
+  // tarefa mesmo sem ser executor (ver responsavelValido em tarefas.ts).
+  // Filtra em JS por `permissoes` (não mais por cargo) pra pegar também os
+  // usuários criados já no modelo novo, sem papel mandados/mecanico.
+  app.get('/api/usuarios/responsaveis-tarefa', exigirPermissao('tarefas.criar'), async (req: AuthenticatedRequest, res) => {
     try {
       const { data, error } = await supabase
         .from('usuarios')
-        .select('id, nome_exibicao')
+        .select('id, nome_exibicao, roles, permissoes')
         .eq('ativo', true)
-        .or(`roles.ov.{${EXECUTORES_TAREFA.join(',')}},id.eq.${req.usuario!.id}`)
         .order('nome_exibicao');
       if (error) throw error;
-      res.json({ success: true, data });
+      const filtrados = (data ?? [])
+        .filter((u: any) => {
+          const admin = Array.isArray(u.roles) && u.roles.includes('admin');
+          const ehExecutor = pode(u.permissoes, admin, 'tarefas.concluir') && !pode(u.permissoes, admin, 'tarefas.criar');
+          return ehExecutor || u.id === req.usuario!.id;
+        })
+        .map((u: any) => ({ id: u.id, nome_exibicao: u.nome_exibicao }));
+      res.json({ success: true, data: filtrados });
     } catch (err: any) {
       console.error('Erro ao listar usuários responsáveis por tarefa:', err);
       res.status(500).json({ success: false, error: err.message });
     }
   });
 
-  // Lista enxuta (id + nome) de todo usuário ativo com algum papel que vê
-  // Tarefas, pro <select> de responsável na tela de Lembretes — diferente de
-  // responsaveis-tarefa acima, aqui NÃO filtra por EXECUTORES_TAREFA: um
-  // lembrete pode ser atribuído a qualquer um dos 4 papéis (admin/equipe/
-  // mandados/mecanico), não só quem executa mandado de campo.
-  app.get('/api/usuarios/ativos-resumo', autorizar(...TAB_ROLES.tarefas), async (_req: AuthenticatedRequest, res) => {
+  // Lista enxuta (id + nome) de todo usuário ativo que vê Tarefas, pro <select>
+  // de responsável na tela de Lembretes — diferente de responsaveis-tarefa
+  // acima, aqui um lembrete pode ir pra qualquer um que veja Tarefas
+  // (permissao tarefas.ver), não só executor de campo.
+  app.get('/api/usuarios/ativos-resumo', exigirPermissao('tarefas.ver'), async (_req: AuthenticatedRequest, res) => {
     try {
       const { data, error } = await supabase
         .from('usuarios')
-        .select('id, nome_exibicao')
+        .select('id, nome_exibicao, roles, permissoes')
         .eq('ativo', true)
-        .or(`roles.ov.{${TAB_ROLES.tarefas.join(',')}}`)
         .order('nome_exibicao');
       if (error) throw error;
-      res.json({ success: true, data });
+      const filtrados = (data ?? [])
+        .filter((u: any) => pode(u.permissoes, Array.isArray(u.roles) && u.roles.includes('admin'), 'tarefas.ver'))
+        .map((u: any) => ({ id: u.id, nome_exibicao: u.nome_exibicao }));
+      res.json({ success: true, data: filtrados });
     } catch (err: any) {
       console.error('Erro ao listar usuários ativos:', err);
       res.status(500).json({ success: false, error: err.message });
     }
   });
 
-  app.post('/api/frete/calculate', autorizar('admin', 'equipe'), async (req, res) => {
+  app.post('/api/frete/calculate', exigirPermissao('frete.ver'), async (req, res) => {
     try {
       const { cep_origem, cep_destino, peso, largura, altura, comprimento } = req.body || {};
       const token = process.env.MELHOR_ENVIO_TOKEN;
@@ -293,23 +307,36 @@ async function startServer() {
   // papel por rota/método (Eloisa lê estoque/categorias/motos mas não
   // escreve; tarefas varia por dono) — o resto é bloco fechado pra
   // admin+equipe, e usuarios é admin-only.
+  // Cada router agora faz seu próprio gate por PERMISSÃO GRANULAR por
+  // rota/método (ver src/server/routes/*): GET de tabela de apoio
+  // (categorias/modelos/formas-pagamento) fica aberto a qualquer usuário
+  // autenticado porque é dado de referência usado por várias telas; a escrita
+  // é que exige a permissão específica. `usuarios` continua admin-only no
+  // mount (gestão de usuários é exclusiva do admin).
   app.use('/api/categorias', categoriasRouter(supabase));
   app.use('/api/modelos-moto', modelosMotoRouter(supabase));
-  app.use('/api/formas-pagamento', autorizar('admin', 'equipe'), formasPagamentoRouter(supabase));
+  app.use('/api/formas-pagamento', formasPagamentoRouter(supabase));
   app.use('/api/estoque', estoqueRouter(supabase));
-  app.use('/api/promocoes', autorizar('admin', 'equipe'), promocoesRouter(supabase));
-  app.use('/api/vendas', autorizar('admin', 'equipe'), vendasRouter(supabase));
-  app.use('/api/orcamentos', autorizar('admin', 'equipe'), orcamentosRouter(supabase));
-  app.use('/api/clientes', autorizar('admin', 'equipe'), clientesRouter(supabase));
-  app.use('/api/caixa', autorizar('admin', 'equipe'), caixaRouter(supabase));
-  app.use('/api/caixa-pendencias', autorizar('admin', 'equipe'), caixaPendenciasRouter(supabase));
-  app.use('/api/fiado', autorizar('admin', 'equipe'), fiadoRouter(supabase));
-  app.use('/api/envios', autorizar('admin', 'equipe'), enviosRouter(supabase));
-  app.use('/api/upload', autorizar('admin', 'equipe'), uploadRouter());
+  app.use('/api/promocoes', promocoesRouter(supabase));
+  app.use('/api/vendas', vendasRouter(supabase));
+  app.use('/api/orcamentos', orcamentosRouter(supabase));
+  app.use('/api/clientes', clientesRouter(supabase));
+  app.use('/api/caixa', caixaRouter(supabase));
+  app.use('/api/caixa-pendencias', caixaPendenciasRouter(supabase));
+  app.use('/api/fiado', fiadoRouter(supabase));
+  app.use('/api/envios', enviosRouter(supabase));
+  // Upload é usado por Estoque (imagem de peça/unidade/modelo) e por Vendas
+  // (comprovante PIX): libera pra quem pode escrever em algum desses fluxos —
+  // o vínculo real do arquivo é gated de novo na rota de domínio.
+  app.use(
+    '/api/upload',
+    exigirAlguma('estoque.criar', 'estoque.editar', 'vendas.criar', 'vendas.editar', 'clientes.editar', 'configuracoes.gerenciar_motos'),
+    uploadRouter()
+  );
   app.use('/api/tarefas', tarefasRouter(supabase));
   app.use('/api/lembretes', lembretesRouter(supabase));
-  app.use('/api/mercadolivre', autorizar('admin', 'equipe'), mercadolivreRouter(supabase));
-  app.use('/api/shopee', autorizar('admin', 'equipe'), shopeeRouter(supabase));
+  app.use('/api/mercadolivre', mercadolivreRouter(supabase));
+  app.use('/api/shopee', shopeeRouter(supabase));
   app.use('/api/usuarios', autorizar('admin'), usuariosRouter(supabase));
 
   // Único processo em background do sistema: só detecta pergunta/pedido novo

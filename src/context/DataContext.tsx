@@ -3,7 +3,7 @@
 // instantaneamente na próxima abertura, e faz polling silencioso a cada 10s.
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { fetchWithRetry, parseJson } from '../lib/apiClient';
-import { EXECUTORES_TAREFA } from '../constants/roles';
+import { podeAtual } from '../hooks/usePermissao';
 import type { Role } from '../constants/roles';
 import type { Estoque } from '../features/estoque/types';
 import type { Venda } from '../features/vendas/types';
@@ -125,43 +125,37 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    // Cargos "executores" (EXECUTORES_TAREFA: mandados/Pitoco, mecanico/Itinho)
-    // não têm permissão pra nenhum destes quatro endpoints — a aba deles
-    // (Tarefas) busca os próprios dados via useTarefas, não via este contexto.
-    // Sem isso, o app ficaria repetindo requisições que sempre voltam 403 a
-    // cada poll. Um usuário pode ter vários papéis (ver migration_020): só
-    // pula tudo se NENHUM papel dele está fora de EXECUTORES_TAREFA — quem
-    // também é estoque_leitura/admin/equipe continua buscando normalmente.
-    let roles: Role[] = [];
-    try {
-      const raw = localStorage.getItem('user_roles');
-      roles = raw ? JSON.parse(raw) : [];
-    } catch {
-      roles = [];
-    }
-    if (roles.length > 0 && roles.every((r) => EXECUTORES_TAREFA.includes(r))) {
+    // Cada endpoint abaixo é gateado no backend pela permissão da sua tela
+    // (ver exigirPermissao em src/server/routes/*). Buscar o que o usuário
+    // não pode ver só renderia 403 a cada poll, então nem tenta: quem só
+    // tem Tarefas, por exemplo, não dispara nada daqui (a aba busca os
+    // próprios dados via useTarefas).
+    const verEstoque = podeAtual('estoque.ver');
+    const verVendas = podeAtual('vendas.ver');
+    const verCaixa = podeAtual('caixa.ver');
+    const verOrcamentos = podeAtual('orcamentos.ver');
+    const verClientes = podeAtual('clientes.ver');
+    const verFrete = podeAtual('frete.ver');
+
+    if (!verEstoque && !verVendas && !verCaixa && !verOrcamentos && !verClientes && !verFrete) {
       setLoading(false);
       return;
     }
-    // 'estoque_leitura' sem admin/equipe só pode ler estoque — os outros
-    // três endpoints são bloqueados no backend pra esse papel, então nem
-    // tenta (evita 403 previsível a cada poll).
-    const podeVendasCaixaOrcamentos = roles.includes('admin') || roles.includes('equipe');
 
     if (!silent) setLoading(true);
 
     const results = await Promise.allSettled([
-      fetchWithRetry('/api/estoque'),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/vendas') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes?incluir_inativos=true') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes/pecas-procuradas/todas') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/clientes/motos/todas') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/fiado/recebimentos') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa-pendencias') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/caixa-pendencias/recebimentos') : Promise.resolve(null),
-      podeVendasCaixaOrcamentos ? fetchWithRetry('/api/envios') : Promise.resolve(null),
+      verEstoque ? fetchWithRetry('/api/estoque') : Promise.resolve(null),
+      verVendas ? fetchWithRetry('/api/vendas') : Promise.resolve(null),
+      verCaixa ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
+      verOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
+      verClientes ? fetchWithRetry('/api/clientes?incluir_inativos=true') : Promise.resolve(null),
+      verClientes ? fetchWithRetry('/api/clientes/pecas-procuradas/todas') : Promise.resolve(null),
+      verClientes ? fetchWithRetry('/api/clientes/motos/todas') : Promise.resolve(null),
+      verCaixa ? fetchWithRetry('/api/fiado/recebimentos') : Promise.resolve(null),
+      verCaixa ? fetchWithRetry('/api/caixa-pendencias') : Promise.resolve(null),
+      verCaixa ? fetchWithRetry('/api/caixa-pendencias/recebimentos') : Promise.resolve(null),
+      verFrete ? fetchWithRetry('/api/envios') : Promise.resolve(null),
     ]);
 
     const [
@@ -178,8 +172,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       enviosRes,
     ] = results;
 
+    // Sem permissão de ver estoque não há falha a reportar — só não há dado.
     let falhouEstoque = false;
-    if (estoqueRes.status === 'fulfilled') {
+    if (!verEstoque) {
+      // nada a fazer
+    } else if (estoqueRes.status === 'fulfilled' && estoqueRes.value) {
       try {
         const data = await parseJson(estoqueRes.value);
         if (data.success) {
@@ -192,7 +189,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         falhouEstoque = true;
       }
     } else {
-      console.error('Erro ao buscar estoque:', estoqueRes.reason);
+      if (estoqueRes.status === 'rejected') console.error('Erro ao buscar estoque:', estoqueRes.reason);
       falhouEstoque = true;
     }
     setEstoqueError(falhouEstoque);

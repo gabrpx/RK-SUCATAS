@@ -6,8 +6,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import bcrypt from 'bcryptjs';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { ALL_ROLES } from '../../constants/roles.js';
+import { sanitizarPermissoes } from '../../constants/permissoes.js';
 
-const SELECT_SEM_SENHA = 'id, username, nome_exibicao, roles, ativo, criado_em';
+const SELECT_SEM_SENHA = 'id, username, nome_exibicao, roles, permissoes, ativo, criado_em';
 
 export function usuariosRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -40,10 +41,14 @@ export function usuariosRouter(supabase: SupabaseClient) {
         return res.status(400).json({ success: false, error: 'Selecione pelo menos um papel válido' });
       }
 
+      // Permissões finas por tela/ação — admin ignora este mapa (super-usuário),
+      // então pode vir vazio pra ele; pra qualquer outro é o que define o acesso.
+      const permissoes = sanitizarPermissoes(req.body?.permissoes);
+
       const senha_hash = bcrypt.hashSync(password, 10);
       const { data, error } = await supabase
         .from('usuarios')
-        .insert({ username, nome_exibicao: nomeExibicao, senha_hash, roles })
+        .insert({ username, nome_exibicao: nomeExibicao, senha_hash, roles, permissoes })
         .select(SELECT_SEM_SENHA)
         .single();
 
@@ -76,6 +81,7 @@ export function usuariosRouter(supabase: SupabaseClient) {
         }
         payload.roles = roles;
       }
+      if (req.body?.permissoes !== undefined) payload.permissoes = sanitizarPermissoes(req.body.permissoes);
       if (req.body?.ativo !== undefined) payload.ativo = Boolean(req.body.ativo);
 
       const { data: atual, error: erroAtual } = await supabase.from('usuarios').select('id, roles, ativo').eq('id', req.params.id).maybeSingle();

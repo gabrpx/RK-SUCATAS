@@ -8,16 +8,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { mensagemErroExclusao } from '../dbErrors.js';
 import { getDescendantIds, ehDescendenteOuIgual } from '../../features/motos/motoTree.js';
 import type { ModeloMoto } from '../../types/catalog.js';
-import { autorizar } from '../../../middleware/auth.js';
+import { exigirAlguma } from '../../../middleware/auth.js';
 
 const MSG_NOME_DUPLICADO = 'Já existe um modelo com esse nome neste nível.';
 const MSG_PAI_INVALIDO = 'Modelo pai inválido.';
 
-// GET fica aberto pra estoque_leitura (precisa disso pra a visão "Por Moto"
-// e o filtro por modelo do Estoque renderizarem); toda escrita continua
-// admin/equipe only.
-const LEITURA = autorizar('admin', 'equipe', 'estoque_leitura');
-const ESCRITA = autorizar('admin', 'equipe');
+// Modelos de moto são dado de referência (GET aberto a qualquer autenticado,
+// usado pra montar a visão "Por Moto" e filtros). A escrita normalmente é da
+// tela de Configurações, MAS o cadastro-rápido está embutido no formulário de
+// Estoque/Vendas — então quem pode criar peça/venda também precisa poder criar
+// um modelo na hora. Por isso a escrita aceita QUALQUER uma dessas permissões.
+const ESCRITA = exigirAlguma('configuracoes.gerenciar_motos', 'estoque.criar', 'estoque.editar', 'vendas.criar', 'orcamentos.criar');
 
 export function modelosMotoRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -52,7 +53,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     return criado as ModeloMoto;
   }
 
-  router.get('/', LEITURA, async (_req, res) => {
+  router.get('/', async (_req, res) => {
     try {
       const { data, error } = await supabase.from('modelos_moto').select('*').order('ordem');
       if (error) throw error;

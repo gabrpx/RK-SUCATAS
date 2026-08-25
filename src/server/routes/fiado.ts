@@ -6,6 +6,7 @@
 // (src/features/fiado/metricas.ts) a partir de vendas + fiado_recebimentos.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
 const SELECT_COM_JOINS = '*, forma_pagamento:formas_pagamento(id, nome), usuario:usuarios(id, nome_exibicao)';
@@ -13,7 +14,7 @@ const SELECT_COM_JOINS = '*, forma_pagamento:formas_pagamento(id, nome), usuario
 export function fiadoRouter(supabase: SupabaseClient) {
   const router = Router();
 
-  router.get('/recebimentos', async (_req, res) => {
+  router.get('/recebimentos', exigirPermissao('caixa.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from('fiado_recebimentos').select(SELECT_COM_JOINS).order('recebido_em', { ascending: false });
       if (error) throw error;
@@ -27,7 +28,7 @@ export function fiadoRouter(supabase: SupabaseClient) {
   // A validação de valor/saldo/forma de pagamento acontece toda dentro da
   // RPC (transacional, trava a venda) — aqui só repassa o erro dela como 400,
   // mesmo padrão de vendas.ts pro registrar_venda.
-  router.post('/recebimentos', async (req: AuthenticatedRequest, res) => {
+  router.post('/recebimentos', exigirPermissao('caixa.receber_fiado'), async (req: AuthenticatedRequest, res) => {
     try {
       const vendaId = req.body?.venda_id;
       const valor = Number(req.body?.valor);
@@ -57,7 +58,7 @@ export function fiadoRouter(supabase: SupabaseClient) {
 
   // Reverter um recebimento registrado por engano — apaga a entrada de caixa
   // vinculada junto, senão o dinheiro ficaria "fantasma" lançado no Caixa.
-  router.delete('/recebimentos/:id', async (req, res) => {
+  router.delete('/recebimentos/:id', exigirPermissao('caixa.receber_fiado'), async (req, res) => {
     try {
       const { data: recebimento, error: erroBusca } = await supabase.from('fiado_recebimentos').select('id, caixa_id').eq('id', req.params.id).maybeSingle();
       if (erroBusca) throw erroBusca;

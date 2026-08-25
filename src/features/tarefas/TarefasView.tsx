@@ -1,8 +1,8 @@
-// Aba Tarefas: admin/equipe criam e atribuem, quem tem um cargo "executor"
-// (EXECUTORES_TAREFA — mandados/Pitoco, mecanico/Itinho) só vê e dá baixa nas
-// próprias. Um componente só, dois modos de renderização por papel — ver
-// App.tsx (TAB_ROLES) pra quem enxerga esta aba. As duas visões usam a grade
-// de cards expansíveis (TarefaCards); o que muda é o conjunto de ações.
+// Aba Tarefas: quem tem `tarefas.criar` é gerente (cria, atribui e vê tudo);
+// quem só tem `tarefas.concluir` é executor de campo e vê/dá baixa apenas nas
+// próprias. Um componente só, dois modos de renderização por permissão — o
+// mesmo corte vale no backend (src/server/routes/tarefas.ts). As duas visões
+// usam a grade de cards expansíveis (TarefaCards); muda o conjunto de ações.
 import { useEffect, useMemo, useState } from 'react';
 import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Loader2, MapPin, MoreHorizontal } from 'lucide-react';
 import { cn } from '../../utils';
@@ -16,21 +16,20 @@ import { LembretesView } from '../lembretes/LembretesView';
 import { TarefaCards } from './TarefaCards';
 import { useTarefas } from './useTarefas';
 import { tarefasApi } from './api';
-import { EXECUTORES_TAREFA } from '../../constants/roles';
-import type { Role } from '../../constants/roles';
+import { usePermissao } from '../../hooks/usePermissao';
 import { PRIORIDADE_LABELS, paraDatetimeLocal } from './tarefaUtils';
 import type { Tarefa, TarefaInput, TarefaPrioridade, UsuarioResumo } from './types';
 
 const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral', itens: [] };
 
-export function TarefasView({ userRoles }: { userRoles: string[] }) {
+export function TarefasView() {
   const [aba, setAba] = useState<'tarefas' | 'lembretes'>('tarefas');
   const { tarefas, setTarefas, loading, error, refetch } = useTarefas();
-  // Admin/equipe sempre cai na visão de quem cria, mesmo se também tiver um
-  // papel executor (mandados/mecanico) — só quem é EXCLUSIVAMENTE executor
-  // (ex: estoque_leitura + mandados) fica na visão restrita "minhas tarefas".
-  const ehAdminOuEquipe = userRoles.includes('admin') || userRoles.includes('equipe');
-  const ehResponsavel = !ehAdminOuEquipe && userRoles.some((r) => EXECUTORES_TAREFA.includes(r as Role));
+  const { pode, isAdmin } = usePermissao();
+  // Quem pode criar/atribuir é gerente e cai na visão completa, mesmo que
+  // também consiga concluir. Executor de campo = conclui mas não cria, e fica
+  // na visão restrita "minhas tarefas" (o escopo real vem do backend).
+  const ehResponsavel = pode('tarefas.concluir') && !pode('tarefas.criar');
   const meuId = localStorage.getItem('user_id');
 
   return (
@@ -52,11 +51,11 @@ export function TarefasView({ userRoles }: { userRoles: string[] }) {
       </div>
 
       {aba === 'lembretes' ? (
-        <LembretesView userRoles={userRoles} />
+        <LembretesView />
       ) : ehResponsavel ? (
         <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} refetch={refetch} />
       ) : (
-        <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} userRoles={userRoles} meuId={meuId} />
+        <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} isAdmin={isAdmin} meuId={meuId} />
       )}
     </div>
   );
@@ -142,21 +141,21 @@ function VisaoResponsavel({
 }
 
 // =============================================================================
-// Visão de quem cria (admin/equipe): lista tudo, cria/edita/exclui.
+// Visão de quem cria (tarefas.criar): lista tudo, cria/edita/exclui.
 // =============================================================================
 function VisaoCriador({
   tarefas,
   loading,
   error,
   refetch,
-  userRoles,
+  isAdmin,
   meuId,
 }: {
   tarefas: Tarefa[];
   loading: boolean;
   error: string | null;
   refetch: () => void;
-  userRoles: string[];
+  isAdmin: boolean;
   meuId: string | null;
 }) {
   const [filtroStatus, setFiltroStatus] = useState<'todas' | 'pendente' | 'concluida'>('todas');
@@ -180,7 +179,7 @@ function VisaoCriador({
 
   const filtradas = useMemo(() => (filtroStatus === 'todas' ? tarefas : tarefas.filter((t) => t.status === filtroStatus)), [tarefas, filtroStatus]);
 
-  const podeEditar = (tarefa: Tarefa) => userRoles.includes('admin') || tarefa.criado_por === meuId;
+  const podeEditar = (tarefa: Tarefa) => isAdmin || tarefa.criado_por === meuId;
 
   const abrirCriar = () => {
     setEditando(null);

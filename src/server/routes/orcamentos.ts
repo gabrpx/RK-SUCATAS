@@ -5,6 +5,7 @@
 // RPC de venda e depois faz updates simples pra linkar/fechar a linha.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 import { avisarAnunciosDesatualizados } from '../../services/mercadolivreSync.js';
 
 const SELECT_COM_ITENS = '*, itens:orcamento_itens(*), cliente:clientes(id, nome, telefone)';
@@ -80,7 +81,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     return venda;
   };
 
-  router.get('/', async (_req, res) => {
+  router.get('/', exigirPermissao('orcamentos.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase
         .from('orcamentos')
@@ -95,7 +96,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req, res) => {
+  router.post('/', exigirPermissao('orcamentos.criar'), async (req, res) => {
     try {
       const { cliente_nome, cliente_telefone, cliente_id, desconto_tipo, desconto_valor, observacoes, validade, itens } = req.body || {};
 
@@ -138,7 +139,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id', async (req, res) => {
+  router.patch('/:id', exigirPermissao('orcamentos.editar'), async (req, res) => {
     try {
       const { data: atual, error: e1 } = await supabase.from('orcamentos').select('status').eq('id', req.params.id).single();
       if (e1) throw e1;
@@ -160,7 +161,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id/cancelar', async (req, res) => {
+  router.patch('/:id/cancelar', exigirPermissao('orcamentos.cancelar'), async (req, res) => {
     try {
       const { data: atual, error: e1 } = await supabase.from('orcamentos').select('status').eq('id', req.params.id).single();
       if (e1) throw e1;
@@ -181,7 +182,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
   // (migration_007), então some junto; vendas já geradas sobrevivem, porque
   // vendas.orcamento_item_id e orcamento_itens.venda_id são "on delete set
   // null" — apagar o orçamento só desfaz o vínculo, nunca a venda.
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', exigirPermissao('orcamentos.excluir'), async (req, res) => {
     try {
       const { error } = await supabase.from('orcamentos').delete().eq('id', req.params.id);
       if (error) throw error;
@@ -192,7 +193,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/itens', async (req, res) => {
+  router.post('/:id/itens', exigirPermissao('orcamentos.editar'), async (req, res) => {
     try {
       const { data: atual, error: e1 } = await supabase.from('orcamentos').select('status').eq('id', req.params.id).single();
       if (e1) throw e1;
@@ -220,7 +221,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id/itens/:itemId', async (req, res) => {
+  router.patch('/:id/itens/:itemId', exigirPermissao('orcamentos.editar'), async (req, res) => {
     try {
       const { data: item, error: e1 } = await supabase.from('orcamento_itens').select('venda_id').eq('id', req.params.itemId).eq('orcamento_id', req.params.id).single();
       if (e1) throw e1;
@@ -241,7 +242,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id/itens/:itemId', async (req, res) => {
+  router.delete('/:id/itens/:itemId', exigirPermissao('orcamentos.editar'), async (req, res) => {
     try {
       const { data: item, error: e1 } = await supabase.from('orcamento_itens').select('venda_id').eq('id', req.params.itemId).eq('orcamento_id', req.params.id).single();
       if (e1) throw e1;
@@ -258,7 +259,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/itens/:itemId/vender', async (req, res) => {
+  router.post('/:id/itens/:itemId/vender', exigirPermissao('orcamentos.vender'), async (req, res) => {
     try {
       const { forma_pagamento_id, componente, data: dataVenda } = req.body || {};
       if (!forma_pagamento_id) return res.status(400).json({ success: false, error: 'Forma de pagamento é obrigatória' });
@@ -286,7 +287,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/vender-tudo', async (req, res) => {
+  router.post('/:id/vender-tudo', exigirPermissao('orcamentos.vender'), async (req, res) => {
     try {
       const { forma_pagamento_id, data: dataVenda } = req.body || {};
       if (!forma_pagamento_id) return res.status(400).json({ success: false, error: 'Forma de pagamento é obrigatória' });

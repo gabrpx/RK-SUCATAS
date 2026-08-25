@@ -17,6 +17,7 @@ import {
   TABELA_CONEXAO,
 } from '../../services/shopeeApi.js';
 import { buscarAtributosCategoriaComCache, buscarCanalLogisticaPadrao } from '../../services/shopeePublicacao.js';
+import { exigirPermissao, exigirAlguma } from '../../../middleware/auth.js';
 
 // `state` do OAuth: prova que o callback corresponde a um login que a gente
 // mesmo iniciou (proteção contra CSRF) — mesmo mecanismo do Mercado Livre.
@@ -42,14 +43,14 @@ export function shopeeRouter(supabase: SupabaseClient) {
   // Gera a URL de login da loja Shopee. O frontend chama isso (autenticado)
   // e faz `window.location = url` — a troca de code por token de verdade
   // acontece no callback público, ver shopeeCallbackHandler abaixo.
-  router.get('/auth/login', (_req, res) => {
+  router.get('/auth/login', exigirPermissao('estoque.anunciar_shopee'), (_req, res) => {
     limparEstadosExpirados();
     const estado = crypto.randomBytes(24).toString('hex');
     estadosPendentes.set(estado, Date.now());
     res.json({ success: true, url: gerarUrlAutorizacaoShopee(estado) });
   });
 
-  router.get('/status', async (_req, res) => {
+  router.get('/status', exigirAlguma('estoque.ver', 'estoque.anunciar_shopee'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from(TABELA_CONEXAO).select('shop_id, atualizado_em').order('atualizado_em', { ascending: false }).limit(1).maybeSingle();
       if (error) {
@@ -67,7 +68,7 @@ export function shopeeRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/desconectar', async (_req, res) => {
+  router.delete('/desconectar', exigirPermissao('estoque.anunciar_shopee'), async (_req, res) => {
     try {
       const { error } = await supabase.from(TABELA_CONEXAO).delete().not('shop_id', 'is', null);
       if (error) throw error;
@@ -83,7 +84,7 @@ export function shopeeRouter(supabase: SupabaseClient) {
   // coluna do Mercado Livre. Padrão 30%, editável pela própria tela.
   // ==========================================================================
 
-  router.get('/configuracoes', async (_req, res) => {
+  router.get('/configuracoes', exigirAlguma('estoque.ver', 'estoque.anunciar_shopee'), async (_req, res) => {
     try {
       const margemPercentual = await obterMargemSincronizacaoShopee(supabase);
       res.json({ success: true, data: { margemPercentual } });
@@ -93,7 +94,7 @@ export function shopeeRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/configuracoes', async (req, res) => {
+  router.patch('/configuracoes', exigirPermissao('estoque.anunciar_shopee'), async (req, res) => {
     try {
       const margemPercentual = Number(req.body?.margem_percentual);
       if (!Number.isFinite(margemPercentual) || margemPercentual < 0 || margemPercentual > 500) {
@@ -115,7 +116,7 @@ export function shopeeRouter(supabase: SupabaseClient) {
 
   // Sem preditor de categoria confirmado pra Shopee (Parte 1.3 da proposta)
   // — a navegação nasce só em árvore. Sem parâmetro = raiz.
-  router.get('/categorias', async (_req, res) => {
+  router.get('/categorias', exigirAlguma('estoque.ver', 'estoque.anunciar_shopee'), async (_req, res) => {
     try {
       const conexao = await obterConexaoAtualShopee(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });
@@ -133,7 +134,7 @@ export function shopeeRouter(supabase: SupabaseClient) {
   // nó: se a categoria for folha (sem filhos), os atributos já vêm prontos
   // pro formulário; se não for, os atributos ficam vazios até o usuário
   // descer mais.
-  router.get('/categorias/:id', async (req, res) => {
+  router.get('/categorias/:id', exigirAlguma('estoque.ver', 'estoque.anunciar_shopee'), async (req, res) => {
     try {
       const conexao = await obterConexaoAtualShopee(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });
@@ -148,7 +149,7 @@ export function shopeeRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.get('/canais-logistica', async (_req, res) => {
+  router.get('/canais-logistica', exigirAlguma('estoque.ver', 'estoque.anunciar_shopee'), async (_req, res) => {
     try {
       const conexao = await obterConexaoAtualShopee(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });

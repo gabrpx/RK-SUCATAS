@@ -20,7 +20,7 @@ import { vendasFiadoEmAberto, resumoFiadoPorCliente } from './metricas';
 import type { ResumoFiadoCliente } from './metricas';
 import type { Venda } from '../vendas/types';
 import type { FiadoRecebimento } from './types';
-import type { Role } from '../../constants/roles';
+import { usePermissao } from '../../hooks/usePermissao';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -173,9 +173,10 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto, podeReverter }: { venda: 
   );
 }
 
-export function FiadoView({ userRoles = [] }: { userRoles?: Role[] }) {
+export function FiadoView() {
+  const { pode } = usePermissao();
   const { vendas, fiadoRecebimentos, loading } = useData();
-  const podeReverter = userRoles.includes('admin');
+  const podeReverter = pode('caixa.receber_fiado');
   const [clienteAberto, setClienteAberto] = useState<string | null>(null);
 
   const resumos = useMemo(() => resumoFiadoPorCliente(vendas, fiadoRecebimentos), [vendas, fiadoRecebimentos]);

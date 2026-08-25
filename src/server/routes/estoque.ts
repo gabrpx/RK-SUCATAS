@@ -16,13 +16,18 @@ import {
   republicarAnuncioShopee,
   type ConfiguracaoAnuncioShopee,
 } from '../../services/shopeePublicacao.js';
-import { autorizar } from '../../../middleware/auth.js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
-// GET fica aberto pra Eloisa (estoque_leitura, só consulta); toda escrita
-// (criar/editar/excluir/ações em massa) é admin/equipe only.
-const LEITURA = autorizar('admin', 'equipe', 'estoque_leitura');
-const ESCRITA = autorizar('admin', 'equipe');
+// Gates por permissão granular (ver src/constants/permissoes.ts). Leitura é
+// separada da escrita, e a escrita ainda se divide por ação: criar/editar
+// (inclui fichas de unidade e ações em lote)/excluir/anunciar em cada canal.
+const VER = exigirPermissao('estoque.ver');
+const CRIAR = exigirPermissao('estoque.criar');
+const EDITAR = exigirPermissao('estoque.editar');
+const DELETAR = exigirPermissao('estoque.deletar');
+const ANUNCIAR_ML = exigirPermissao('estoque.anunciar_ml');
+const ANUNCIAR_SHOPEE = exigirPermissao('estoque.anunciar_shopee');
 
 // !estoque_modelo_moto_id_fkey desambigua explicitamente a FK: desde a
 // migration_019, `estoque_modelos_compativeis` criou um caminho N:N implícito
@@ -439,7 +444,7 @@ async function validarNotaCadastro(supabase: SupabaseClient, categoriaId: string
 export function estoqueRouter(supabase: SupabaseClient) {
   const router = Router();
 
-  router.get('/', LEITURA, async (_req, res) => {
+  router.get('/', VER, async (_req, res) => {
     try {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).order('criado_em', { ascending: false });
       if (error) throw error;
@@ -454,7 +459,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.get('/:id', LEITURA, async (req, res) => {
+  router.get('/:id', VER, async (req, res) => {
     try {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).eq('id', req.params.id).single();
       if (error) throw error;
@@ -469,7 +474,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', ESCRITA, async (req: AuthenticatedRequest, res) => {
+  router.post('/', CRIAR, async (req: AuthenticatedRequest, res) => {
     try {
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome da peça é obrigatório' });
@@ -546,12 +551,12 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   };
 
-  router.put('/:id', ESCRITA, atualizarItem);
+  router.put('/:id', EDITAR, atualizarItem);
   // PATCH usa a mesma lógica do PUT — a diferença semântica (parcial vs total)
   // já é garantida por montarPayload só incluir os campos enviados.
-  router.patch('/:id', ESCRITA, atualizarItem);
+  router.patch('/:id', EDITAR, atualizarItem);
 
-  router.delete('/:id', ESCRITA, async (req, res) => {
+  router.delete('/:id', DELETAR, async (req, res) => {
     try {
       const { data: item } = await supabase.from('estoque').select('imagens').eq('id', req.params.id).single();
       const { error } = await supabase.from('estoque').delete().eq('id', req.params.id);
@@ -568,7 +573,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/bulk-delete', ESCRITA, async (req, res) => {
+  router.post('/bulk-delete', DELETAR, async (req, res) => {
     try {
       const ids: string[] = req.body?.ids || [];
       if (!Array.isArray(ids) || ids.length === 0) {
@@ -655,7 +660,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     return executar(semNota);
   }
 
-  router.get('/:id/unidades', LEITURA, async (req, res) => {
+  router.get('/:id/unidades', VER, async (req, res) => {
     try {
       const { data, error } = await supabase.from('estoque_unidades').select('*').eq('estoque_id', req.params.id).order('criado_em');
       if (error) throw error;
@@ -666,7 +671,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/unidades', ESCRITA, async (req, res) => {
+  router.post('/:id/unidades', EDITAR, async (req, res) => {
     try {
       const { data: item, error: erroItem } = await supabase.from('estoque').select('id, quantidade').eq('id', req.params.id).maybeSingle();
       if (erroItem) throw erroItem;
@@ -700,7 +705,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id/unidades/:unidadeId', ESCRITA, async (req, res) => {
+  router.patch('/:id/unidades/:unidadeId', EDITAR, async (req, res) => {
     try {
       const payload = montarPayloadUnidade(req.body);
 
@@ -737,7 +742,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id/unidades/:unidadeId', ESCRITA, async (req, res) => {
+  router.delete('/:id/unidades/:unidadeId', EDITAR, async (req, res) => {
     try {
       const { data: unidade } = await supabase.from('estoque_unidades').select('fotos').eq('id', req.params.unidadeId).single();
 
@@ -762,7 +767,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // padrão de /:id/unidades acima.
   // ==========================================================================
 
-  router.get('/:id/anuncios-ml', LEITURA, async (req, res) => {
+  router.get('/:id/anuncios-ml', VER, async (req, res) => {
     try {
       const { data, error } = await supabase.from('estoque_anuncios_ml').select('*').eq('estoque_id', req.params.id).order('criado_em');
       if (error) {
@@ -779,7 +784,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/anuncios-ml', ESCRITA, async (req, res) => {
+  router.post('/:id/anuncios-ml', ANUNCIAR_ML, async (req, res) => {
     try {
       const { payload, erro } = montarPayloadAnuncioMl(req.body);
       if (erro) return res.status(400).json({ success: false, error: erro });
@@ -824,7 +829,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id/anuncios-ml/:linkId', ESCRITA, async (req, res) => {
+  router.patch('/:id/anuncios-ml/:linkId', ANUNCIAR_ML, async (req, res) => {
     try {
       const { payload, erro } = montarPayloadAnuncioMl(req.body);
       if (erro) return res.status(400).json({ success: false, error: erro });
@@ -860,7 +865,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id/anuncios-ml/:linkId', ESCRITA, async (req, res) => {
+  router.delete('/:id/anuncios-ml/:linkId', ANUNCIAR_ML, async (req, res) => {
     try {
       if (req.params.linkId.startsWith('legado:')) {
         const { error } = await supabase.from('estoque').update({ anuncio_ml_url: null }).eq('id', req.params.id);
@@ -884,7 +889,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // corpo e checa a conexão, mesmo padrão do resto das rotas de ML.
   // ==========================================================================
 
-  router.post('/:id/publicar-ml', ESCRITA, async (req, res) => {
+  router.post('/:id/publicar-ml', ANUNCIAR_ML, async (req, res) => {
     try {
       const { config, erro } = montarConfiguracaoPublicacao(req.body);
       if (erro) return res.status(400).json({ success: false, error: erro });
@@ -902,7 +907,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   // Leitura pontual sob demanda (botão "Atualizar agora" na UI) — além do
   // que o scheduler da Fase 7 já mantém fresco em background.
-  router.get('/:id/anuncios-ml/:linkId/estatisticas', LEITURA, async (req, res) => {
+  router.get('/:id/anuncios-ml/:linkId/estatisticas', VER, async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -926,7 +931,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // 100% a lógica de mercadolivreSync.ts (mesmo cálculo de margem, mesma
   // comparação em centavos) em vez de duplicá-la; "republicar" aqui é só
   // aplicar a sincronização existente pra 1 link específico.
-  router.post('/:id/anuncios-ml/:linkId/republicar', ESCRITA, async (req, res) => {
+  router.post('/:id/anuncios-ml/:linkId/republicar', ANUNCIAR_ML, async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -950,7 +955,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // UI logo depois de publicar (a Shopee não tem fluxo de "colar link já
   // existente" como o Mercado Livre, então não precisa de POST/PATCH/DELETE
   // aqui, só leitura).
-  router.get('/:id/anuncios-shopee', LEITURA, async (req, res) => {
+  router.get('/:id/anuncios-shopee', VER, async (req, res) => {
     try {
       const { data, error } = await supabase.from('estoque_anuncios_shopee').select('*').eq('estoque_id', req.params.id).order('criado_em');
       if (error) {
@@ -964,7 +969,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/publicar-shopee', ESCRITA, async (req, res) => {
+  router.post('/:id/publicar-shopee', ANUNCIAR_SHOPEE, async (req, res) => {
     try {
       const { config, erro } = montarConfiguracaoPublicacaoShopee(req.body);
       if (erro) return res.status(400).json({ success: false, error: erro });
@@ -983,7 +988,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // Leitura pontual sob demanda (botão "Atualizar agora" na UI) — além do
   // que o scheduler da Fase 7 já mantém fresco em background. Nunca chamado
   // no ato de abrir o modal de detalhes.
-  router.get('/:id/anuncios-shopee/:linkId/estatisticas', LEITURA, async (req, res) => {
+  router.get('/:id/anuncios-shopee/:linkId/estatisticas', VER, async (req, res) => {
     try {
       const conexao = await obterConexaoAtualShopee(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });
@@ -1004,7 +1009,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   });
 
   // Reenvia preço/estoque atual da peça pro anúncio já publicado.
-  router.post('/:id/anuncios-shopee/:linkId/republicar', ESCRITA, async (req, res) => {
+  router.post('/:id/anuncios-shopee/:linkId/republicar', ANUNCIAR_SHOPEE, async (req, res) => {
     try {
       const conexao = await obterConexaoAtualShopee(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Loja da Shopee ainda não conectada' });
@@ -1017,7 +1022,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/bulk-update-categoria', ESCRITA, async (req, res) => {
+  router.post('/bulk-update-categoria', EDITAR, async (req, res) => {
     try {
       const ids: string[] = req.body?.ids || [];
       const categoria_id: string = req.body?.categoria_id;
@@ -1035,7 +1040,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   // Ajuste relativo de quantidade (delta pode ser negativo), usado pelos
   // botões +1/-1 em lote na UI.
-  router.post('/bulk-update-quantidade', ESCRITA, async (req, res) => {
+  router.post('/bulk-update-quantidade', EDITAR, async (req, res) => {
     try {
       const ids: string[] = req.body?.ids || [];
       const delta: number = Number(req.body?.delta) || 0;

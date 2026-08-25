@@ -31,7 +31,7 @@ import { Button } from '@/src/components/ui/button';
 import { caixaApi, caixaPendenciasApi } from './api';
 import { PendenciasTab } from './PendenciasTab';
 import { FiadoView } from '../fiado/FiadoView';
-import type { Role } from '../../constants/roles';
+import { usePermissao } from '../../hooks/usePermissao';
 import type { CaixaEntry, CaixaTipo } from './types';
 
 const formatCurrency = (value: number) =>
@@ -69,7 +69,7 @@ function SortableHead({ column, label, align }: { column: Column<CaixaEntry, unk
   );
 }
 
-export function CaixaView({ userRoles, pendingFiado, setPendingFiado }: { userRoles: string[]; pendingFiado?: boolean; setPendingFiado?: (v: boolean) => void }) {
+export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: boolean; setPendingFiado?: (v: boolean) => void }) {
   const { caixa, setCaixa, showSensitiveInfo, setShowSensitiveInfo } = useData();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
@@ -264,9 +264,9 @@ export function CaixaView({ userRoles, pendingFiado, setPendingFiado }: { userRo
       </div>
 
       {aba === 'fiado' ? (
-        <FiadoView userRoles={userRoles as Role[]} />
+        <FiadoView />
       ) : aba === 'pendencias' ? (
-        <PendenciasTab userRoles={userRoles} />
+        <PendenciasTab />
       ) : (
         <>
       {/* Totais */}

@@ -7,6 +7,7 @@
 // mudaria a natureza do registro.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 
 const ESCOPOS = ['peca', 'modelo_moto', 'categoria', 'global'] as const;
 const TIPOS_DESCONTO = ['percentual', 'valor_fixo'] as const;
@@ -20,7 +21,7 @@ function parseData(valor: unknown): string | null {
 export function promocoesRouter(supabase: SupabaseClient) {
   const router = Router();
 
-  router.get('/', async (_req, res) => {
+  router.get('/', exigirPermissao('configuracoes.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from('promocoes').select('*').order('criado_em', { ascending: false });
       if (error) throw error;
@@ -31,7 +32,7 @@ export function promocoesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req, res) => {
+  router.post('/', exigirPermissao('configuracoes.gerenciar_promocoes'), async (req, res) => {
     try {
       const escopo = String(req.body?.escopo || '');
       if (!ESCOPOS.includes(escopo as any)) {
@@ -82,7 +83,7 @@ export function promocoesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id', async (req, res) => {
+  router.patch('/:id', exigirPermissao('configuracoes.gerenciar_promocoes'), async (req, res) => {
     try {
       const atualizacao: Record<string, any> = {};
 
@@ -117,7 +118,7 @@ export function promocoesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', exigirPermissao('configuracoes.gerenciar_promocoes'), async (req, res) => {
     try {
       const { error } = await supabase.from('promocoes').delete().eq('id', req.params.id);
       if (error) throw error;

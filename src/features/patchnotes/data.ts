@@ -18,6 +18,32 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.0',
+    data: '2026-08-25',
+    titulo: 'Permissões por pessoa: você escolhe tela por tela, ação por ação',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'O acesso deixou de depender de "cargos" fixos. Ao cadastrar ou editar um usuário, você marca exatamente quais telas ele enxerga e, dentro de cada uma, o que ele pode fazer — ex.: ver o estoque mas não excluir peça, registrar venda mas não cancelar, anunciar no Mercado Livre mas não na Shopee.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'No Dashboard o controle é ainda mais fino: dá pra liberar o painel sem os valores em dinheiro, ou liberar SÓ a "Visão do Dono" (o resumo completo do negócio) pra uma pessoa específica.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'O que a pessoa não pode fazer simplesmente não aparece pra ela — e o sistema também recusa a ação por trás, mesmo que alguém tente pelo caminho direto.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Ninguém perdeu nem ganhou acesso na virada: todo mundo continua exatamente com o que já tinha, agora descrito em permissões.',
+      },
+    ],
+  },
+  {
     versao: '1.2.35',
     data: '2026-08-24',
     titulo: 'Checklist dentro das tarefas e horários mais claros',

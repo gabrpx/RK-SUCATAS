@@ -49,7 +49,7 @@ import type { Estoque } from '../estoque/types';
 import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
 import type { Tarefa } from '../tarefas/types';
-import type { Role } from '../../constants/roles';
+import { usePermissao } from '../../hooks/usePermissao';
 
 export const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -208,7 +208,6 @@ function DashboardSkeleton() {
 }
 
 export function DashboardView({
-  userRoles,
   onSelectItem,
   onTabChange,
   onOpenSearch,
@@ -217,7 +216,6 @@ export function DashboardView({
   onNavigateClientesSumidos,
   onNavigateFiado,
 }: {
-  userRoles?: Role[];
   onSelectItem: (item: Estoque | Venda) => void;
   onTabChange: (tab: string) => void;
   onOpenSearch?: () => void;
@@ -228,6 +226,12 @@ export function DashboardView({
 }) {
   const { estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, loading } = useData();
   const { tarefas } = useTarefas();
+  // Duas permissões independentes dentro do Dashboard: os números do negócio
+  // (cards de métrica + gráficos) e a Visão do Dono. Dá pra liberar só uma —
+  // ex: alguém que abre o Dashboard e enxerga APENAS a visão completa.
+  const { pode } = usePermissao();
+  const verValores = pode('dashboard.ver_valores');
+  const verVisaoDono = pode('dashboard.ver_visao_dono');
   const [searchTerm, setSearchTerm] = useState('');
 
   // Dashboard só é visível pra admin/equipe (ver TAB_ROLES) — quem chega
@@ -446,7 +450,9 @@ export function DashboardView({
 
       {/* 2. Métricas — no mobile é um carrossel com scroll-snap (dá pra sentir
           que tem mais card fora da tela); no desktop vira grade 4 colunas.
-          Não é a mesma composição só empilhada em breakpoints diferentes. */}
+          Não é a mesma composição só empilhada em breakpoints diferentes.
+          Só aparece com `dashboard.ver_valores`. */}
+      {verValores && (
       <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-0.5 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 sm:overflow-visible">
         <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
           <MetricCard
@@ -492,6 +498,7 @@ export function DashboardView({
           />
         </div>
       </div>
+      )}
 
       {/* 3. Alertas */}
       {/* Estoque baixo ganha um tratamento próprio (não o AlertBar genérico):
@@ -537,7 +544,9 @@ export function DashboardView({
         />
       )}
 
-      {/* 4. Desempenho + Formas de pagamento */}
+      {/* 4. Desempenho + Formas de pagamento — são valores do negócio, então
+          seguem a mesma permissão dos cards de métrica. */}
+      {verValores && (
       <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-4">
         <PanelCard titulo="Desempenho (30 dias)">
           <div className="p-4">
@@ -606,6 +615,7 @@ export function DashboardView({
           </PanelCard>
         </div>
       </div>
+      )}
 
       {/* 5. Últimas vendas + Pendências */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -722,9 +732,9 @@ export function DashboardView({
         )}
       </PanelCard>
 
-      {/* 7. Visão do dono — só pra quem tem role admin (não pra 'equipe',
-          mesmo essa também vendo o resto do Dashboard). */}
-      {userRoles?.includes('admin') && (
+      {/* 7. Visão do dono — permissão própria (`dashboard.ver_visao_dono`),
+          independente dos cards de valores acima. */}
+      {verVisaoDono && (
         <VisaoDono
           estoque={estoque}
           vendas={vendas}

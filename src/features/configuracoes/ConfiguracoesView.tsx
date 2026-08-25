@@ -9,6 +9,7 @@
 import { useState } from 'react';
 import { Settings, Layers, Bike, Wallet, Users, Tag } from 'lucide-react';
 import { cn } from '../../utils';
+import { usePermissao } from '../../hooks/usePermissao';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { ManageListSection } from './ManageListSection';
 import { CategoriaTreeManager } from './CategoriaTreeManager';
@@ -18,7 +19,8 @@ import { PromocoesView } from '../promocoes/PromocoesView';
 
 type Aba = 'categorias' | 'motos' | 'pagamento' | 'promocoes' | 'usuarios';
 
-export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) {
+export function ConfiguracoesView() {
+  const { isAdmin } = usePermissao();
   const {
     categorias,
     modelos,
@@ -47,7 +49,7 @@ export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) 
     { id: 'motos', label: 'Motos', icone: Bike, total: modelos.length },
     { id: 'pagamento', label: 'Formas de Pagamento', icone: Wallet, total: formasPagamento.length },
     { id: 'promocoes', label: 'Promoções', icone: Tag },
-    ...(userRoles.includes('admin') ? [{ id: 'usuarios' as Aba, label: 'Usuários', icone: Users }] : []),
+    ...(isAdmin ? [{ id: 'usuarios' as Aba, label: 'Usuários', icone: Users }] : []),
   ];
 
   return (
@@ -136,7 +138,7 @@ export function ConfiguracoesView({ userRoles = [] }: { userRoles?: string[] }) 
         />
       )}
       {aba === 'promocoes' && <PromocoesView />}
-      {aba === 'usuarios' && userRoles.includes('admin') && <UsuariosView />}
+      {aba === 'usuarios' && isAdmin && <UsuariosView />}
     </div>
   );
 }

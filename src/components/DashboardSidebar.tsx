@@ -10,6 +10,7 @@ import { NAV_ITEMS, NAV_GROUP_LABELS } from '../constants/navigation';
 import type { Tab, NavGroup, NavItem } from '../constants/navigation';
 import { cn } from '../utils';
 import { Tooltip } from './ui/beui-tooltip';
+import { usePermissao } from '../hooks/usePermissao';
 
 const SidebarNavItem = memo(({
   item,
@@ -54,7 +55,6 @@ const SidebarNavItem = memo(({
 interface DashboardSidebarProps {
   activeTab: Tab;
   onTabChange: (tab: Tab) => void;
-  userRoles: string[];
   isOpen: boolean;
   onToggle: () => void;
   onLogoutClick: () => void;
@@ -63,14 +63,12 @@ interface DashboardSidebarProps {
 export function DashboardSidebar({
   activeTab,
   onTabChange,
-  userRoles,
   isOpen,
   onToggle,
   onLogoutClick,
 }: DashboardSidebarProps) {
-  const visibleItems = NAV_ITEMS.filter((item) =>
-    item.roles.some((r) => userRoles.includes(r))
-  );
+  const { pode } = usePermissao();
+  const visibleItems = NAV_ITEMS.filter((item) => pode(`${item.id}.ver`));
 
   const groups: Array<{ group: NavGroup; label?: string; items: NavItem[] }> = [];
   for (const item of visibleItems) {
@@ -118,7 +116,7 @@ export function DashboardSidebar({
         {/* Navigation */}
         <nav className="flex-1 overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none] px-2 flex flex-col gap-3">
           {groups.map((section, idx) => (
-            <div key={section.group ?? `no-group-${idx}`} className="flex flex-col gap-0.5">
+            <div key={`${section.group ?? 'no-group'}-${idx}`} className="flex flex-col gap-0.5">
               {section.label && isOpen && (
                 <span className="px-2.5 mb-1 text-[10px] font-semibold tracking-wider text-text-faint/60 uppercase">
                   {section.label}

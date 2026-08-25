@@ -5,6 +5,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ShoppingCart, Search, Plus, Trash2, Loader2, Calendar, Package, Edit2, AlertCircle } from 'lucide-react';
 import { cn, parseLocalDate } from '../../utils';
+import { usePermissao } from '../../hooks/usePermissao';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
@@ -43,14 +44,14 @@ function isDentroDoPeriodo(dataStr: string, periodo: PeriodoFiltro): boolean {
 interface VendasViewProps {
   onSelectItem: (item: Venda) => void;
   onRegisterActions?: (actions: { edit: (item: Venda) => void; delete: (id: string) => void }) => void;
-  userRoles?: Role[];
 }
 
-export function VendasView({ onSelectItem, onRegisterActions, userRoles = [] }: VendasViewProps) {
+export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps) {
+  const { pode } = usePermissao();
   const { vendas, setVendas, estoque, fiadoRecebimentos, refreshData, loading } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
-  const podeForcarCancelamento = userRoles.includes('admin');
+  const podeForcarCancelamento = pode('vendas.cancelar_fiado');
   const [search, setSearch] = useState('');
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [pagamentoFiltro, setPagamentoFiltro] = useState('Todos');

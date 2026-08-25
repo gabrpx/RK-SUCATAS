@@ -5,6 +5,7 @@ import { twMerge } from 'tailwind-merge';
 import { NAV_ITEMS, NAV_GROUP_LABELS } from '../constants/navigation';
 import type { NavGroup } from '../constants/navigation';
 import { Button } from './ui/button';
+import { usePermissao } from '../hooks/usePermissao';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -15,8 +16,9 @@ function cn(...inputs: ClassValue[]) {
 // prioridade de uso mobile).
 const MOBILE_MAIN_IDS = ['dashboard', 'estoque', 'vendas', 'caixa'];
 
-export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen, setIsMoreOpen, onLogoutClick }: any) => {
-  const allowedItems = NAV_ITEMS.filter(item => item.roles.some((r: string) => userRoles.includes(r)));
+export const MobileBottomNav = ({ activeTab, setActiveTab, isMoreOpen, setIsMoreOpen, onLogoutClick }: any) => {
+  const { pode } = usePermissao();
+  const allowedItems = NAV_ITEMS.filter((item) => pode(`${item.id}.ver`));
 
   const mainItems = MOBILE_MAIN_IDS
     .map(id => allowedItems.find(item => item.id === id))
@@ -129,7 +131,7 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, userRoles, isMoreOpen
 
               <div className="space-y-5">
                 {moreGroups.map((section, idx) => (
-                  <div key={section.group ?? `no-group-${idx}`}>
+                  <div key={`${section.group ?? 'no-group'}-${idx}`}>
                     {section.group && (
                       <span className={cn(
                         "block mb-2 text-[10px] font-black uppercase tracking-[0.2em]",

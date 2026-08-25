@@ -5,6 +5,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, PackageSearch, X, MessageCircle } from 'lucide-react';
 import { cn } from '../../utils';
+import { usePermissao } from '../../hooks/usePermissao';
 import { formatTelefoneBR, formatDocumentoBR, onlyDigits } from '../../utils/formatters';
 import { linkWhatsapp } from '../../utils/whatsapp';
 import { useData } from '../../context/DataContext';
@@ -102,15 +103,14 @@ export function ClientesView({
   setPendingClienteId,
   pendingFiltroSumidos,
   setPendingFiltroSumidos,
-  userRoles = [],
 }: {
   pendingClienteId?: string | null;
   setPendingClienteId?: (id: string | null) => void;
   pendingFiltroSumidos?: boolean;
   setPendingFiltroSumidos?: (v: boolean) => void;
-  userRoles?: Role[];
 }) {
-  const podeExcluirComprovante = userRoles.includes('admin');
+  const { pode } = usePermissao();
+  const podeExcluirComprovante = pode('vendas.excluir_comprovante');
   const { clientes, vendas, orcamentos, pecasProcuradas, setPecasProcuradas, refreshData, loading } = useData();
   const { tarefas } = useTarefas();
   const { modelos, categorias } = useCatalogos();

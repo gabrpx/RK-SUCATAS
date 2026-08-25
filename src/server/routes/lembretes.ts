@@ -8,16 +8,21 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
-import { TAB_ROLES } from '../../constants/roles.js';
-import type { Role } from '../../constants/roles.js';
+import { temPermissao, ehAdmin, type UsuarioLogado } from '../../../middleware/auth.js';
 import { notificarUsuario } from '../../services/pushNotificationService.js';
 
 const SELECT_COM_JOINS = '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao)';
 
-const PAPEIS_LEMBRETE = TAB_ROLES.tarefas;
+// Qualquer um que veja Tarefas (tarefas.ver) usa lembretes — o escopo por dono
+// continua sendo aplicado por linha (cada um vê os que criou ou recebeu).
+function podeAcessar(usuario: UsuarioLogado | undefined): boolean {
+  return temPermissao(usuario, 'tarefas.ver');
+}
 
-function podeAcessar(roles: string[]): boolean {
-  return roles.some((r) => PAPEIS_LEMBRETE.includes(r as Role));
+// "Gerente" (tarefas.criar) conclui/reabre qualquer lembrete; os demais só os
+// atribuídos a eles.
+function ehGerente(usuario: UsuarioLogado | undefined): boolean {
+  return temPermissao(usuario, 'tarefas.criar');
 }
 
 // now() calculado no Node (não no banco) porque o valor de horario_fixo já
@@ -34,8 +39,7 @@ export function lembretesRouter(supabase: SupabaseClient) {
 
   router.get('/', async (req: AuthenticatedRequest, res) => {
     try {
-      const roles = req.usuario?.roles ?? [];
-      if (!podeAcessar(roles)) {
+      if (!podeAcessar(req.usuario)) {
         return res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
       }
 
@@ -60,8 +64,7 @@ export function lembretesRouter(supabase: SupabaseClient) {
 
   router.post('/', async (req: AuthenticatedRequest, res) => {
     try {
-      const roles = req.usuario?.roles ?? [];
-      if (!podeAcessar(roles)) {
+      if (!podeAcessar(req.usuario)) {
         return res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
       }
 
@@ -121,8 +124,7 @@ export function lembretesRouter(supabase: SupabaseClient) {
   // criador, ou admin mexe em qualquer um). Retorna o lembrete atual ou já
   // responde o erro.
   async function carregarLembreteEditavel(req: AuthenticatedRequest, res: any) {
-    const roles = req.usuario?.roles ?? [];
-    if (!podeAcessar(roles)) {
+    if (!podeAcessar(req.usuario)) {
       res.status(403).json({ success: false, error: 'Acesso negado para este perfil' });
       return null;
     }
@@ -135,7 +137,7 @@ export function lembretesRouter(supabase: SupabaseClient) {
       res.status(404).json({ success: false, error: 'Lembrete não encontrado' });
       return null;
     }
-    if (!roles.includes('admin') && lembrete.criado_por !== req.usuario!.id) {
+    if (!ehAdmin(req.usuario) && lembrete.criado_por !== req.usuario!.id) {
       res.status(403).json({ success: false, error: 'Só quem criou o lembrete pode alterá-lo' });
       return null;
     }
@@ -184,12 +186,11 @@ export function lembretesRouter(supabase: SupabaseClient) {
 
   router.patch('/:id/concluir', async (req: AuthenticatedRequest, res) => {
     try {
-      const roles = req.usuario?.roles ?? [];
       const { data: lembrete, error: erroBusca } = await supabase.from('lembretes').select('id, atribuido_para').eq('id', req.params.id).maybeSingle();
       if (erroBusca) throw erroBusca;
       if (!lembrete) return res.status(404).json({ success: false, error: 'Lembrete não encontrado' });
 
-      const podeConcluir = roles.includes('admin') || roles.includes('equipe') || lembrete.atribuido_para === req.usuario!.id;
+      const podeConcluir = ehGerente(req.usuario) || lembrete.atribuido_para === req.usuario!.id;
       if (!podeConcluir) {
         return res.status(403).json({ success: false, error: 'Só o responsável pelo lembrete pode concluí-lo' });
       }
@@ -214,7 +215,6 @@ export function lembretesRouter(supabase: SupabaseClient) {
   // quiser outro alerta, edita e escolhe um novo horário.
   router.patch('/:id/reabrir', async (req: AuthenticatedRequest, res) => {
     try {
-      const roles = req.usuario?.roles ?? [];
       const { data: lembrete, error: erroBusca } = await supabase
         .from('lembretes')
         .select('id, atribuido_para, intervalo_minutos')
@@ -223,7 +223,7 @@ export function lembretesRouter(supabase: SupabaseClient) {
       if (erroBusca) throw erroBusca;
       if (!lembrete) return res.status(404).json({ success: false, error: 'Lembrete não encontrado' });
 
-      const podeReabrir = roles.includes('admin') || roles.includes('equipe') || lembrete.atribuido_para === req.usuario!.id;
+      const podeReabrir = ehGerente(req.usuario) || lembrete.atribuido_para === req.usuario!.id;
       if (!podeReabrir) {
         return res.status(403).json({ success: false, error: 'Só o responsável pelo lembrete pode reabri-lo' });
       }

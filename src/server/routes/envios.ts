@@ -11,6 +11,7 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 import { rastrearEnvio } from '../../services/rastreioMelhorEnvioService.js';
 
 const SELECT_COM_JOIN = '*, cliente:clientes(id, nome, telefone)';
@@ -33,7 +34,7 @@ const CAMPOS_EDITAVEIS = [
 export function enviosRouter(supabase: SupabaseClient) {
   const router = Router();
 
-  router.get('/', async (_req, res) => {
+  router.get('/', exigirPermissao('frete.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from('envios').select(SELECT_COM_JOIN).order('criado_em', { ascending: false });
       if (error) throw error;
@@ -44,7 +45,7 @@ export function enviosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req: AuthenticatedRequest, res) => {
+  router.post('/', exigirPermissao('frete.criar'), async (req: AuthenticatedRequest, res) => {
     try {
       const payload = {
         cliente_id: req.body?.cliente_id || null,
@@ -67,7 +68,7 @@ export function enviosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id', async (req, res) => {
+  router.patch('/:id', exigirPermissao('frete.editar'), async (req, res) => {
     try {
       const payload: Record<string, any> = {};
       for (const campo of CAMPOS_EDITAVEIS) {
@@ -92,7 +93,7 @@ export function enviosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', exigirPermissao('frete.deletar'), async (req, res) => {
     try {
       const { error } = await supabase.from('envios').delete().eq('id', req.params.id);
       if (error) throw error;
@@ -103,7 +104,7 @@ export function enviosRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/rastrear', async (req, res) => {
+  router.post('/:id/rastrear', exigirPermissao('frete.editar'), async (req, res) => {
     try {
       const { data: envio, error: erroBusca } = await supabase.from('envios').select('*').eq('id', req.params.id).maybeSingle();
       if (erroBusca) throw erroBusca;

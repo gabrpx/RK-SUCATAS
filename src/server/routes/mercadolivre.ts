@@ -7,6 +7,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import axios from 'axios';
 import crypto from 'crypto';
 import { requireEnv } from '../env.js';
+import { exigirPermissao, exigirAlguma } from '../../../middleware/auth.js';
 import { obterConexaoAtual, obterAccessTokenValido, trocarTokens, responderPergunta, obterMargemSincronizacao, atualizarMargemSincronizacao } from '../../services/mercadolivreApi.js';
 import {
   buscarPreviewSincronizacao,
@@ -57,7 +58,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Gera a URL de login do Mercado Livre. O frontend chama isso (autenticado)
   // e faz `window.location = url` — a troca de code por token de verdade
   // acontece no callback público, ver mercadolivreCallbackHandler abaixo.
-  router.get('/auth/login', (_req, res) => {
+  router.get('/auth/login', exigirPermissao('mercadolivre.conectar'), (_req, res) => {
     limparEstadosExpirados();
     const estado = crypto.randomBytes(24).toString('hex');
     estadosPendentes.set(estado, Date.now());
@@ -71,7 +72,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     res.json({ success: true, url: url.toString() });
   });
 
-  router.get('/status', async (_req, res) => {
+  router.get('/status', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from('mercadolivre_conexao').select('ml_user_id, atualizado_em').order('atualizado_em', { ascending: false }).limit(1).maybeSingle();
       if (error) {
@@ -91,7 +92,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   });
 
   // Dados da própria página (nome, nickname, reputação).
-  router.get('/me', async (_req, res) => {
+  router.get('/me', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const token = await obterAccessTokenValido(supabase);
       if (!token) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -103,7 +104,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/desconectar', async (_req, res) => {
+  router.delete('/desconectar', exigirPermissao('mercadolivre.conectar'), async (_req, res) => {
     try {
       const { error } = await supabase.from('mercadolivre_conexao').delete().not('ml_user_id', 'is', null);
       if (error) throw error;
@@ -119,7 +120,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // o que foi selecionado na lista.
   // ==========================================================================
 
-  router.get('/sincronizacao/preview', async (_req, res) => {
+  router.get('/sincronizacao/preview', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -132,7 +133,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/sincronizacao/aplicar', async (req, res) => {
+  router.post('/sincronizacao/aplicar', exigirPermissao('mercadolivre.sincronizar'), async (req, res) => {
     try {
       const linkIds = Array.isArray(req.body?.linkIds) ? req.body.linkIds.map((id: any) => String(id)) : [];
       if (linkIds.length === 0) return res.status(400).json({ success: false, error: 'Selecione ao menos um anúncio pra sincronizar' });
@@ -153,7 +154,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // (migration_026) — padrão 30%, editável pela própria tela.
   // ==========================================================================
 
-  router.get('/configuracoes', async (_req, res) => {
+  router.get('/configuracoes', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const margemPercentual = await obterMargemSincronizacao(supabase);
       res.json({ success: true, data: { margemPercentual } });
@@ -163,7 +164,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/configuracoes', async (req, res) => {
+  router.patch('/configuracoes', exigirPermissao('mercadolivre.conectar'), async (req, res) => {
     try {
       const margemPercentual = Number(req.body?.margem_percentual);
       if (!Number.isFinite(margemPercentual) || margemPercentual < 0 || margemPercentual > 500) {
@@ -181,7 +182,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Feature 6 — anúncios ativos no ML sem peça local correspondente
   // ==========================================================================
 
-  router.get('/anuncios-orfaos', async (_req, res) => {
+  router.get('/anuncios-orfaos', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -198,7 +199,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Feature C — anúncios duplicados no próprio catálogo do ML
   // ==========================================================================
 
-  router.get('/anuncios-duplicados', async (_req, res) => {
+  router.get('/anuncios-duplicados', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -211,7 +212,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/anuncios/:mlbId/pausar', async (req, res) => {
+  router.post('/anuncios/:mlbId/pausar', exigirPermissao('mercadolivre.pausar_anuncio'), async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -228,7 +229,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Feature 2 — preview e importação de pedidos como venda
   // ==========================================================================
 
-  router.get('/pedidos/novos', async (req, res) => {
+  router.get('/pedidos/novos', exigirPermissao('mercadolivre.ver'), async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -242,7 +243,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/pedidos/importar', async (req, res) => {
+  router.post('/pedidos/importar', exigirPermissao('mercadolivre.importar_pedidos'), async (req, res) => {
     try {
       const itensBody = Array.isArray(req.body?.itens) ? req.body.itens : [];
       if (itensBody.length === 0) return res.status(400).json({ success: false, error: 'Selecione ao menos um item pra importar' });
@@ -272,7 +273,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Feature 10 — dados de envio (Mercado Envios) de um pedido já importado
   // ==========================================================================
 
-  router.get('/pedidos/:mlOrderId/envio', async (req, res) => {
+  router.get('/pedidos/:mlOrderId/envio', exigirPermissao('mercadolivre.ver'), async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -289,7 +290,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Feature 3 — central de perguntas
   // ==========================================================================
 
-  router.get('/perguntas', async (_req, res) => {
+  router.get('/perguntas', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -302,7 +303,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/perguntas/:questionId/responder', async (req, res) => {
+  router.post('/perguntas/:questionId/responder', exigirPermissao('mercadolivre.responder_perguntas'), async (req, res) => {
     try {
       const texto = String(req.body?.texto || '').trim();
       if (!texto) return res.status(400).json({ success: false, error: 'Escreva uma resposta antes de enviar' });
@@ -323,7 +324,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // scheduler é só um sinal de frescor, não a fonte desta contagem)
   // ==========================================================================
 
-  router.get('/pendencias', async (_req, res) => {
+  router.get('/pendencias', exigirPermissao('mercadolivre.ver'), async (_req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       // Sem conta conectada não há nada pendente a mostrar — devolve zerado
@@ -349,7 +350,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // POST /:id/publicar-ml.
   // ==========================================================================
 
-  router.get('/categorias/sugerir', async (req, res) => {
+  router.get('/categorias/sugerir', exigirAlguma('mercadolivre.ver', 'estoque.anunciar_ml'), async (req, res) => {
     try {
       const titulo = String(req.query.titulo || '').trim();
       if (!titulo) return res.status(400).json({ success: false, error: 'Informe um título pra sugerir a categoria' });
@@ -368,7 +369,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Navegação manual em árvore — parâmetro ausente = categorias raiz do site.
   // Equivalente ao "É de outra categoria" do site oficial, pra quando o
   // preditor (rota acima) erra o domínio.
-  router.get('/categorias/filhos', async (req, res) => {
+  router.get('/categorias/filhos', exigirAlguma('mercadolivre.ver', 'estoque.anunciar_ml'), async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -386,7 +387,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // só guarda o id — esta rota resolve nome/caminho pra pré-selecionar a
   // categoria no formulário sem precisar rebuscar por título nem navegar de
   // novo em árvore.
-  router.get('/categorias/:id', async (req, res) => {
+  router.get('/categorias/:id', exigirAlguma('mercadolivre.ver', 'estoque.anunciar_ml'), async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -399,7 +400,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.get('/categorias/:id/atributos', async (req, res) => {
+  router.get('/categorias/:id/atributos', exigirAlguma('mercadolivre.ver', 'estoque.anunciar_ml'), async (req, res) => {
     try {
       const conexao = await obterConexaoAtual(supabase);
       if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
@@ -416,7 +417,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // produtos" antes de publicar numa categoria catalog_required (Parte do
   // fluxo de EstoquePublicarMlModal.tsx: escolhe um produto ou segue sem
   // vínculo, "Não é o que eu vendo").
-  router.get('/produtos-catalogo', async (req, res) => {
+  router.get('/produtos-catalogo', exigirAlguma('mercadolivre.ver', 'estoque.anunciar_ml'), async (req, res) => {
     try {
       const titulo = String(req.query.titulo || '').trim();
       if (!titulo) return res.status(400).json({ success: false, error: 'Informe um título pra buscar produtos de catálogo' });
@@ -435,7 +436,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
   // Sem parâmetro de categoria de propósito: GET /sites/{site}/listing_prices
   // (a API real por trás disso) só filtra por preço — não existe um recurso
   // do Mercado Livre que filtre tipo de anúncio por categoria.
-  router.get('/tipos-anuncio', async (req, res) => {
+  router.get('/tipos-anuncio', exigirAlguma('mercadolivre.ver', 'estoque.anunciar_ml'), async (req, res) => {
     try {
       const preco = Number(req.query.preco);
       if (!Number.isFinite(preco) || preco <= 0) return res.status(400).json({ success: false, error: 'Informe um preço válido' });

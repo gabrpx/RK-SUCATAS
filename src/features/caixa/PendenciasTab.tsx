@@ -9,6 +9,7 @@
 import { useMemo, useState } from 'react';
 import { Clock3, Loader2, Check, History, Undo2 } from 'lucide-react';
 import { cn } from '../../utils';
+import { usePermissao } from '../../hooks/usePermissao';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { Modal } from '../../components/ui/Modal';
@@ -190,9 +191,10 @@ function LinhaPendencia({
   );
 }
 
-export function PendenciasTab({ userRoles }: { userRoles: string[] }) {
+export function PendenciasTab() {
   const { caixaPendencias, caixaPendenciaRecebimentos, loading } = useData();
-  const podeReverter = userRoles.includes('admin');
+  const { pode } = usePermissao();
+  const podeReverter = pode('caixa.gerenciar_pendencias');
 
   const abertas = useMemo(
     () => caixaPendencias.filter((p) => p.status === 'aberta').sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime()),

@@ -1,7 +1,9 @@
 // Gestão de usuários — visível só pro admin (Ayrton), embutida como uma aba
-// a mais dentro de Configurações (ver ConfiguracoesView.tsx). Cada pessoa
-// tem seu próprio login; papel define o que ela vê no resto do sistema
-// (ver TAB_ROLES em src/App.tsx).
+// a mais dentro de Configurações (ver ConfiguracoesView.tsx). Cada pessoa tem
+// seu próprio login e um mapa de PERMISSÕES por tela/ação (EditorPermissoes,
+// catálogo em src/constants/permissoes.ts) que define exatamente o que ela vê
+// e faz. `roles` sobrou só pra marcar quem é administrador — o super-usuário,
+// que ignora o mapa e é o único que abre esta tela.
 import { Fragment, useEffect, useState } from 'react';
 import { UserPlus, KeyRound, Pencil, Ban, RotateCcw, Loader2, Check } from 'lucide-react';
 import { cn } from '../../utils';
@@ -14,26 +16,40 @@ import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
 import { usuariosApi } from './api';
-import { ALL_ROLES } from '../../constants/roles';
-import type { Role, Usuario, UsuarioInput } from './types';
+import { EditorPermissoes } from './EditorPermissoes';
+import { CATALOGO_PERMISSOES } from '../../constants/permissoes';
+import type { Permissoes } from '../../constants/permissoes';
+import type { Usuario, UsuarioInput } from './types';
 
-const ROLE_LABEL: Record<Role, string> = {
-  admin: 'Administrador',
-  equipe: 'Equipe',
-  estoque_leitura: 'Estoque (leitura)',
-  mandados: 'Mandados',
-  mecanico: 'Mecânico',
-};
+// `roles` virou um sinalizador binário: ['admin'] = super-usuário, ['equipe']
+// = usuário comum (valor inerte, só pra satisfazer o NOT NULL/validação da
+// coluna — nenhum gate lê 'equipe' desde a migration 047). O acesso de quem
+// não é admin vem inteiro de `permissoes`.
+const ROLES_ADMIN = ['admin'] as const;
+const ROLES_COMUM = ['equipe'] as const;
 
-const ROLE_TOM: Record<Role, StatusTone> = {
-  admin: 'accent',
-  equipe: 'positive',
-  estoque_leitura: 'neutral',
-  mandados: 'warning',
-  mecanico: 'warning',
-};
+const EMPTY_FORM: UsuarioInput = { username: '', nome_exibicao: '', password: '', roles: [...ROLES_COMUM], permissoes: {} };
 
-const EMPTY_FORM: UsuarioInput = { username: '', nome_exibicao: '', password: '', roles: ['equipe'] };
+// Resumo pra tabela: quais telas a pessoa enxerga.
+function telasVisiveis(permissoes: Permissoes): string[] {
+  return CATALOGO_PERMISSOES.filter((t) => permissoes?.[t.chave]?.ver === true).map((t) => t.rotulo);
+}
+
+function ResumoAcesso({ usuario }: { usuario: Usuario }) {
+  if (usuario.roles.includes('admin')) return <StatusBadge texto="Administrador" tom={'accent' as StatusTone} />;
+  const telas = telasVisiveis(usuario.permissoes ?? {});
+  if (telas.length === 0) return <span className="text-xs text-text-faint">Sem acesso</span>;
+  return (
+    <div className="flex flex-wrap gap-1">
+      {telas.slice(0, 3).map((t) => (
+        <Fragment key={t}>
+          <StatusBadge texto={t} tom={'neutral' as StatusTone} />
+        </Fragment>
+      ))}
+      {telas.length > 3 && <span className="text-xs text-text-faint self-center">+{telas.length - 3}</span>}
+    </div>
+  );
+}
 
 export function UsuariosView() {
   const meuId = localStorage.getItem('user_id');
@@ -47,6 +63,11 @@ export function UsuariosView() {
   const [form, setForm] = useState<UsuarioInput>(EMPTY_FORM);
   const [salvando, setSalvando] = useState(false);
   const [erroForm, setErroForm] = useState<string | null>(null);
+
+  const ehAdminNoForm = form.roles.includes('admin');
+  // Ninguém edita o próprio nível de acesso (o backend também barra) — evita
+  // se auto-rebaixar e perder a gestão de usuários.
+  const editandoAMimMesmo = editando?.id === meuId;
 
   const [redefinindoSenhaDe, setRedefinindoSenhaDe] = useState<Usuario | null>(null);
   const [novaSenha, setNovaSenha] = useState('');
@@ -79,7 +100,13 @@ export function UsuariosView() {
 
   const abrirEditar = (usuario: Usuario) => {
     setEditando(usuario);
-    setForm({ username: usuario.username, nome_exibicao: usuario.nome_exibicao, password: '', roles: usuario.roles });
+    setForm({
+      username: usuario.username,
+      nome_exibicao: usuario.nome_exibicao,
+      password: '',
+      roles: usuario.roles,
+      permissoes: usuario.permissoes ?? {},
+    });
     setErroForm(null);
     setIsFormOpen(true);
   };
@@ -90,8 +117,8 @@ export function UsuariosView() {
       setErroForm('Usuário não pode ficar em branco.');
       return;
     }
-    if (form.roles.length === 0) {
-      setErroForm('Selecione pelo menos um papel.');
+    if (!ehAdminNoForm && Object.keys(form.permissoes).length === 0) {
+      setErroForm('Marque pelo menos uma tela que este usuário pode ver — ou torne-o administrador.');
       return;
     }
     if (!editando) {
@@ -103,7 +130,12 @@ export function UsuariosView() {
     setSalvando(true);
     try {
       const result = editando
-        ? await usuariosApi.atualizar(editando.id, { username: form.username.trim(), nome_exibicao: form.nome_exibicao, roles: form.roles })
+        ? await usuariosApi.atualizar(editando.id, {
+            username: form.username.trim(),
+            nome_exibicao: form.nome_exibicao,
+            roles: form.roles,
+            permissoes: form.permissoes,
+          })
         : await usuariosApi.criar(form);
       if (!result.success) throw new Error(result.error);
       setIsFormOpen(false);
@@ -166,17 +198,9 @@ export function UsuariosView() {
       ),
     },
     {
-      key: 'roles',
-      header: 'Papéis',
-      render: (u) => (
-        <div className="flex flex-wrap gap-1">
-          {u.roles.map((r) => (
-            <Fragment key={r}>
-              <StatusBadge texto={ROLE_LABEL[r]} tom={ROLE_TOM[r]} />
-            </Fragment>
-          ))}
-        </div>
-      ),
+      key: 'acesso',
+      header: 'Acesso',
+      render: (u) => <ResumoAcesso usuario={u} />,
     },
     {
       key: 'status',
@@ -234,11 +258,7 @@ export function UsuariosView() {
           <p className="text-sm font-medium text-text-primary truncate">{u.nome_exibicao}</p>
           <p className="text-xs text-text-faint">@{u.username}</p>
           <div className="flex items-center gap-1.5 flex-wrap mt-1.5">
-            {u.roles.map((r) => (
-              <Fragment key={r}>
-                <StatusBadge texto={ROLE_LABEL[r]} tom={ROLE_TOM[r]} />
-              </Fragment>
-            ))}
+            <ResumoAcesso usuario={u} />
             <StatusBadge texto={u.ativo ? 'Ativo' : 'Inativo'} tom="positive" ativo={u.ativo} />
           </div>
         </div>
@@ -317,7 +337,7 @@ export function UsuariosView() {
         aberto={isFormOpen}
         onFechar={() => setIsFormOpen(false)}
         titulo={editando ? 'Editar usuário' : 'Novo usuário'}
-        tamanho="md"
+        tamanho="lg"
         rodape={
           <div className="flex gap-3">
             <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
@@ -364,37 +384,48 @@ export function UsuariosView() {
             </div>
           )}
           <div>
-            <label className={labelClass}>Papéis</label>
+            <label className={labelClass}>Nível de acesso</label>
+            <button
+              type="button"
+              disabled={editandoAMimMesmo}
+              onClick={() =>
+                setForm((f) => ({ ...f, roles: ehAdminNoForm ? [...ROLES_COMUM] : [...ROLES_ADMIN] }))
+              }
+              className={cn(
+                'w-full flex items-start gap-2.5 py-3 px-3 rounded-control border text-left transition-colors disabled:opacity-50 disabled:cursor-not-allowed',
+                ehAdminNoForm ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-secondary'
+              )}
+            >
+              <span
+                className={cn(
+                  'size-4 rounded shrink-0 mt-0.5 flex items-center justify-center border',
+                  ehAdminNoForm ? 'bg-accent border-accent text-white' : 'border-border-default'
+                )}
+              >
+                {ehAdminNoForm && <Check size={12} />}
+              </span>
+              <span>
+                <span className="block text-sm font-medium">Administrador</span>
+                <span className="block text-xs text-text-faint mt-0.5">
+                  Acesso total ao sistema e único que gerencia usuários.
+                </span>
+              </span>
+            </button>
+            {editandoAMimMesmo && (
+              <p className="text-xs text-text-faint mt-1.5">Você não pode alterar o próprio nível de acesso.</p>
+            )}
+          </div>
+
+          <div>
+            <label className={labelClass}>Permissões</label>
             <p className="text-xs text-text-faint mb-2">
-              Pode marcar mais de um — ex: "Estoque (leitura)" + "Mandados" pra ver o estoque e também receber tarefas.
+              Marque a tela pra liberar o acesso e, dentro dela, exatamente o que essa pessoa pode fazer.
             </p>
-            <div className="grid grid-cols-2 gap-2">
-              {ALL_ROLES.map((r) => {
-                const marcado = form.roles.includes(r);
-                return (
-                  <button
-                    key={r}
-                    type="button"
-                    disabled={editando?.id === meuId}
-                    onClick={() =>
-                      setForm((f) => ({
-                        ...f,
-                        roles: marcado ? f.roles.filter((x) => x !== r) : [...f.roles, r],
-                      }))
-                    }
-                    className={cn(
-                      'flex items-center gap-2 py-2.5 px-3 rounded-control border text-sm text-left transition-colors disabled:opacity-50',
-                      marcado ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-secondary'
-                    )}
-                  >
-                    <span className={cn('size-4 rounded shrink-0 flex items-center justify-center border', marcado ? 'bg-accent border-accent text-white' : 'border-border-default')}>
-                      {marcado && <Check size={12} />}
-                    </span>
-                    {ROLE_LABEL[r]}
-                  </button>
-                );
-              })}
-            </div>
+            <EditorPermissoes
+              permissoes={form.permissoes}
+              onChange={(permissoes) => setForm((f) => ({ ...f, permissoes }))}
+              desabilitado={ehAdminNoForm}
+            />
           </div>
         </div>
       </Modal>

@@ -105,7 +105,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
       criarEntry({ id: 'c', descricao: 'Meio termo', data: isoDaysAgo(2) }),
     ];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
 
     // Ordem padrão (sem coluna clicada) já é mais recente primeiro.
     expect(ordemNaTabela('Recente', 'Meio termo', 'Antiga')).toBe(true);
@@ -124,7 +124,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
       criarEntry({ id: 'c', descricao: 'Medio', valor: 200 }),
     ];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Valor' }));
     expect(ordemNaTabela('Alto', 'Medio', 'Baixo')).toBe(true);
@@ -140,7 +140,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
       criarEntry({ id: 'c', descricao: 'Cartao', forma_pagamento: { id: 'f3', nome: 'Cartão', natureza: 'avista' } }),
     ];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Forma de pagamento' }));
     expect(ordemNaTabela('Cartao', 'Dinheiro', 'Pix')).toBe(true);
@@ -152,7 +152,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
       criarEntry({ id: 'b', descricao: 'Antiquíssima', data: isoDaysAgo(40) }),
     ];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
 
     expect(tabela().queryByText('Recente')).not.toBeNull();
     expect(tabela().queryByText('Antiquíssima')).toBeNull();
@@ -166,7 +166,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
   it('preserva o filtro de tipo (entrada/saída)', () => {
     mockEstado.caixa = [criarEntry({ id: 'a', descricao: 'Venda balcão', tipo: 'entrada' }), criarEntry({ id: 'b', descricao: 'Conta de luz', tipo: 'saida' })];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
     fireEvent.change(screen.getByTestId('dropdown-todos'), { target: { value: 'entrada' } });
 
     expect(tabela().queryByText('Venda balcão')).not.toBeNull();
@@ -176,7 +176,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
   it('preserva a busca por descrição', () => {
     mockEstado.caixa = [criarEntry({ id: 'a', descricao: 'Conta de luz' }), criarEntry({ id: 'b', descricao: 'Salário Pitoco' })];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
     fireEvent.change(screen.getByPlaceholderText('Buscar por descrição...'), { target: { value: 'luz' } });
 
     expect(tabela().queryByText('Conta de luz')).not.toBeNull();
@@ -189,7 +189,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
       criarEntry({ id: 'b', descricao: 'Conta', tipo: 'saida', valor: 100 }),
     ];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
 
     expect(screen.getByText('R$ 300,00')).toBeTruthy();
     expect(screen.getByText('R$ 100,00')).toBeTruthy();
@@ -205,7 +205,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
   it('exclui um lançamento pela tabela nova: ícone de lixeira abre confirmação e, ao confirmar, some da lista', () => {
     mockEstado.caixa = [criarEntry({ id: 'a', descricao: 'Retirada de caixa' })];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
     expect(tabela().queryByText('Retirada de caixa')).not.toBeNull();
 
     const linha = tabela().getByText('Retirada de caixa').closest('tr')!;
@@ -222,7 +222,7 @@ describe('CaixaView — tabela (TanStack + shadcn)', () => {
   it('lançamento vinculado a uma venda (venda_id) não mostra botão de excluir', () => {
     mockEstado.caixa = [criarEntry({ id: 'a', descricao: 'Venda #123', venda_id: 'v1' })];
 
-    render(<CaixaView userRoles={['admin']} />);
+    render(<CaixaView />);
     const linha = tabela().getByText('Venda #123').closest('tr')!;
 
     expect(within(linha).queryByRole('button')).toBeNull();

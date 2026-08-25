@@ -5,6 +5,7 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
 
 const SELECT_COM_DETALHES =
@@ -33,7 +34,7 @@ export function clientesRouter(supabase: SupabaseClient) {
 
   // Por padrão só lista ativos — ?incluir_inativos=true traz todos, usado
   // pela tela de reativação.
-  router.get('/', async (req, res) => {
+  router.get('/', exigirPermissao('clientes.ver'), async (req, res) => {
     try {
       let query = supabase.from('clientes').select('*').order('nome');
       if (req.query.incluir_inativos !== 'true') query = query.eq('ativo', true);
@@ -50,7 +51,7 @@ export function clientesRouter(supabase: SupabaseClient) {
   // usado pra montar badges de "moto procurada" e o filtro na listagem
   // principal, sem precisar abrir a ficha de cada cliente (que só traz isso
   // no GET /:id). Precisa vir ANTES de '/:id' pra não ser capturado por ele.
-  router.get('/pecas-procuradas/todas', async (_req, res) => {
+  router.get('/pecas-procuradas/todas', exigirPermissao('clientes.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase
         .from('pecas_procuradas')
@@ -68,7 +69,7 @@ export function clientesRouter(supabase: SupabaseClient) {
   // "moto que o cliente tem" na listagem (diferente de "moto procurada", ver
   // rota acima). Mesma ideia: evita abrir a ficha de cada cliente só pra
   // saber quais motos ele tem. Precisa vir ANTES de '/:id'.
-  router.get('/motos/todas', async (_req, res) => {
+  router.get('/motos/todas', exigirPermissao('clientes.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase
         .from('clientes_motos')
@@ -82,7 +83,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.get('/:id', async (req, res) => {
+  router.get('/:id', exigirPermissao('clientes.ver'), async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('clientes')
@@ -117,7 +118,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req, res) => {
+  router.post('/', exigirPermissao('clientes.criar'), async (req, res) => {
     try {
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
@@ -147,7 +148,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id', async (req, res) => {
+  router.patch('/:id', exigirPermissao('clientes.editar'), async (req, res) => {
     try {
       const payload: Record<string, any> = {};
       for (const campo of CAMPOS_EDITAVEIS) {
@@ -182,7 +183,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/notas', async (req: AuthenticatedRequest, res) => {
+  router.post('/:id/notas', exigirPermissao('clientes.editar'), async (req: AuthenticatedRequest, res) => {
     try {
       const texto = String(req.body?.texto || '').trim();
       if (!texto) return res.status(400).json({ success: false, error: 'Texto da nota é obrigatório' });
@@ -202,7 +203,7 @@ export function clientesRouter(supabase: SupabaseClient) {
 
   // Só quem escreveu a nota ou um admin pode apagá-la — mesma regra de
   // carregarTarefaEditavel em tarefas.ts.
-  router.delete('/:id/notas/:notaId', async (req: AuthenticatedRequest, res) => {
+  router.delete('/:id/notas/:notaId', exigirPermissao('clientes.editar'), async (req: AuthenticatedRequest, res) => {
     try {
       const roles = req.usuario?.roles ?? [];
       const { data: nota, error: erroBusca } = await supabase.from('clientes_notas').select('id, criado_por').eq('id', req.params.notaId).maybeSingle();
@@ -224,7 +225,7 @@ export function clientesRouter(supabase: SupabaseClient) {
   // Motos do cliente (migration_032) — entidade distinta de modelos_moto
   // (catálogo usado por estoque/vendas): aqui é o veículo físico que o
   // cliente tem, com placa/chassi/ano/cor próprios.
-  router.post('/:id/motos', async (req, res) => {
+  router.post('/:id/motos', exigirPermissao('clientes.editar'), async (req, res) => {
     try {
       const payload = {
         cliente_id: req.params.id,
@@ -244,7 +245,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id/motos/:motoId', async (req, res) => {
+  router.patch('/:id/motos/:motoId', exigirPermissao('clientes.editar'), async (req, res) => {
     try {
       const payload: Record<string, any> = {};
       for (const campo of ['modelo_moto_id', 'placa', 'chassi', 'ano', 'cor', 'observacoes'] as const) {
@@ -266,7 +267,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id/motos/:motoId', async (req, res) => {
+  router.delete('/:id/motos/:motoId', exigirPermissao('clientes.editar'), async (req, res) => {
     try {
       const { error } = await supabase.from('clientes_motos').delete().eq('id', req.params.motoId).eq('cliente_id', req.params.id);
       if (error) throw error;
@@ -281,7 +282,7 @@ export function clientesRouter(supabase: SupabaseClient) {
   // tinha em estoque. O match automático que fecha isso (vira tarefa quando
   // uma peça compatível é cadastrada) vive em src/server/routes/estoque.ts;
   // aqui é só o CRUD manual do pedido em si.
-  router.post('/:id/pecas-procuradas', async (req: AuthenticatedRequest, res) => {
+  router.post('/:id/pecas-procuradas', exigirPermissao('clientes.editar'), async (req: AuthenticatedRequest, res) => {
     try {
       const descricao = String(req.body?.descricao || '').trim();
       if (!descricao) return res.status(400).json({ success: false, error: 'Descrição é obrigatória' });
@@ -309,7 +310,7 @@ export function clientesRouter(supabase: SupabaseClient) {
 
   // Só o status é editável manualmente (ex: cancelar um pedido) — "atendida"
   // normalmente é setado automaticamente pelo match em estoque.ts.
-  router.patch('/:id/pecas-procuradas/:pedidoId', async (req, res) => {
+  router.patch('/:id/pecas-procuradas/:pedidoId', exigirPermissao('clientes.editar'), async (req, res) => {
     try {
       const status = req.body?.status;
       if (!['aguardando', 'atendida', 'cancelada'].includes(status)) {
@@ -333,7 +334,7 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id/pecas-procuradas/:pedidoId', async (req, res) => {
+  router.delete('/:id/pecas-procuradas/:pedidoId', exigirPermissao('clientes.editar'), async (req, res) => {
     try {
       const { error } = await supabase.from('pecas_procuradas').delete().eq('id', req.params.pedidoId).eq('cliente_id', req.params.id);
       if (error) throw error;

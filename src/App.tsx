@@ -60,9 +60,8 @@ import { NotaCadastroBadge } from './components/NotaCadastroBadge';
 import { PromocaoBadge } from './features/promocoes/PromocaoBadge';
 import { ComprovantesPixVenda } from './features/comprovantes/ComprovantesPixVenda';
 import { VendaClienteResumo } from './features/vendas/VendaClienteResumo';
-import { TAB_ROLES } from './constants/roles';
-import type { Role } from './constants/roles';
 import type { Tab } from './constants/navigation';
+import { usePermissao } from './hooks/usePermissao';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
@@ -72,24 +71,11 @@ type DetailItem = Estoque | Venda;
 // agora redirecionam pro Caixa na sub-aba de vendas fiado.
 const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes'];
 
-// Primeira aba visível pra quem tem esses papéis — usada como fallback
-// quando a URL pede uma aba que nenhum papel do usuário logado pode ver.
-function primeiraAbaPermitida(roles: Role[]): Tab {
-  return VALID_TABS.find((tab) => TAB_ROLES[tab].some((r) => roles.includes(r))) as Tab;
-}
-
-// Lê a lista de papéis do usuário do localStorage (gravada por Login.tsx
-// como JSON). JSON inválido/ausente não deve derrubar o app — cai no
-// fallback de quem chama.
-function lerRolesArmazenados(): Role[] | null {
-  try {
-    const raw = localStorage.getItem('user_roles');
-    if (!raw) return null;
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) && parsed.length > 0 ? (parsed as Role[]) : null;
-  } catch {
-    return null;
-  }
+// Primeira aba que o usuário pode VER — usada como fallback quando a URL pede
+// uma aba que ele não tem permissão de ver. `dashboard` como último recurso
+// (nunca deveria acontecer: todo usuário vê ao menos patchnotes/notificacoes).
+function primeiraAbaPermitida(pode: (chave: string) => boolean): Tab {
+  return (VALID_TABS.find((tab) => pode(`${tab}.ver`)) ?? 'dashboard') as Tab;
 }
 
 function isVenda(item: DetailItem): item is Venda {
@@ -153,6 +139,7 @@ export default function App() {
     sessionStorage.setItem(FORCE_REAL_AUTH_KEY, '1');
     localStorage.removeItem('auth_token');
     localStorage.removeItem('user_roles');
+    localStorage.removeItem('user_permissoes');
     localStorage.removeItem('user_name');
     localStorage.removeItem('user_id');
     setIsUserAuthenticated(false);
@@ -215,7 +202,6 @@ function DetailModal({
   onDelete,
   readOnly,
   onAlterado,
-  userRoles,
   onAbrirFiado,
   fiadoRecebimentos = [],
   vendas: todasAsVendas = [],
@@ -226,11 +212,12 @@ function DetailModal({
   onDelete?: (id: string) => void;
   readOnly?: boolean;
   onAlterado?: () => void;
-  userRoles: Role[];
   onAbrirFiado?: () => void;
   fiadoRecebimentos?: FiadoRecebimento[];
   vendas?: Venda[];
 }) {
+  const { pode } = usePermissao();
+  const podeExcluirComprovante = pode('vendas.excluir_comprovante');
   const venda = isVenda(item) ? item : null;
   const estoque = !venda ? (item as Estoque) : null;
   const imagens = estoque?.imagens ?? [];
@@ -423,12 +410,12 @@ function DetailModal({
 
           {venda && (
             <div className="space-y-4">
-              <ComprovantesPixVenda vendaId={venda.id} podeExcluir={userRoles.includes('admin')} readOnly={readOnly} />
+              <ComprovantesPixVenda vendaId={venda.id} podeExcluir={podeExcluirComprovante} readOnly={readOnly} />
               {venda.cliente_id && (
                 <VendaClienteResumo
                   clienteId={venda.cliente_id}
                   venda={venda}
-                  podeExcluirComprovante={userRoles.includes('admin')}
+                  podeExcluirComprovante={podeExcluirComprovante}
                   onAbrirFiado={
                     onAbrirFiado
                       ? () => {
@@ -520,23 +507,19 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   // cálculo de quanto já foi vendido em partes de um item incompleto.
   const { refreshData, fiadoRecebimentos, vendas: todasAsVendas } = useData();
 
-  // IS_LOCALHOST pula o login (ver comentário acima) e nunca grava
-  // user_roles no localStorage — nesse caso replica o mesmo ['admin'] que o
-  // backend atribui via bypass de loopback. Fora do localhost,
-  // checkAuthStatus só autentica com token E roles presentes, então este
-  // branch não deveria ser alcançável — mas se o storage for
-  // corrompido/alterado em runtime, cai no papel menos privilegiado em vez
-  // de assumir admin.
-  const userRoles = lerRolesArmazenados() ?? (IS_LOCALHOST ? ['admin'] : ['estoque_leitura']);
+  // Permissões do usuário logado (ver src/hooks/usePermissao.ts). Substitui o
+  // controle por cargo: `pode('tela.acao')` decide o que aparece, `isAdmin`
+  // marca o super-usuário. No localhost o hook já devolve admin (mesmo bypass
+  // de dev de App/middleware).
+  const { pode, isAdmin } = usePermissao();
 
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
     const abaValida = VALID_TABS.includes(path);
-    if (abaValida && TAB_ROLES[path].some((r) => userRoles.includes(r))) return path;
-    // Aba inexistente OU nenhum papel do usuário tem permissão pra ela: cai
-    // na primeira aba que algum papel dele pode ver, em vez de sempre
-    // tentar 'dashboard' (que Eloisa/mandados/mecanico não conseguem ver).
-    return primeiraAbaPermitida(userRoles);
+    if (abaValida && pode(`${path}.ver`)) return path;
+    // Aba inexistente OU sem permissão de ver: cai na primeira aba que o
+    // usuário pode ver, em vez de sempre tentar 'dashboard'.
+    return primeiraAbaPermitida(pode);
   });
   const [pendingEditItem, setPendingEditItem] = useState<Estoque | null>(null);
   const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
@@ -595,7 +578,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       <DashboardSidebar
         activeTab={activeTab}
         onTabChange={setActiveTab}
-        userRoles={userRoles}
         isOpen={isSidebarOpen}
         onToggle={() => setIsSidebarOpen((v) => !v)}
         onLogoutClick={() => setIsLogoutModalOpen(true)}
@@ -616,7 +598,6 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
               {activeTab === 'dashboard' ? (
                 <DashboardView
-                                   userRoles={userRoles}
                   onSelectItem={setSelectedDetailItem}
                   onTabChange={(tab) => setActiveTab(tab as Tab)}
                   onOpenSearch={() => setIsSearchOpen(true)}
@@ -645,10 +626,10 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   setPendingEditItem={setPendingEditItem}
                   filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
                   setFiltroEstoqueBaixoInicial={setPendingEstoqueBaixo}
-                  readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
+                  readOnly={!(pode('estoque.criar') || pode('estoque.editar') || pode('estoque.deletar') || pode('estoque.anunciar_ml') || pode('estoque.anunciar_shopee'))}
                 />
               ) : activeTab === 'vendas' ? (
-                <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} userRoles={userRoles} />
+                <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
               ) : activeTab === 'orcamentos' ? (
                 <OrcamentosView />
               ) : activeTab === 'clientes' ? (
@@ -657,29 +638,28 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   setPendingClienteId={setPendingClienteId}
                   pendingFiltroSumidos={pendingFiltroSumidos}
                   setPendingFiltroSumidos={setPendingFiltroSumidos}
-                  userRoles={userRoles}
                 />
               ) : activeTab === 'caixa' ? (
-                <CaixaView userRoles={userRoles} pendingFiado={pendingCaixaFiado} setPendingFiado={setPendingCaixaFiado} />
+                <CaixaView pendingFiado={pendingCaixaFiado} setPendingFiado={setPendingCaixaFiado} />
               ) : activeTab === 'frete' ? (
                 <FreteView />
               ) : activeTab === 'mercadolivre' ? (
                 <MercadoLivreView />
               ) : activeTab === 'tarefas' ? (
-                <TarefasView userRoles={userRoles} />
+                <TarefasView />
               ) : activeTab === 'patchnotes' ? (
                 <PatchNotesView />
               ) : activeTab === 'notificacoes' ? (
                 <NotificacoesView />
               ) : (
-                <ConfiguracoesView userRoles={userRoles} />
+                <ConfiguracoesView />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} userRoles={userRoles} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} onLogoutClick={() => setIsLogoutModalOpen(true)} />
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} onLogoutClick={() => setIsLogoutModalOpen(true)} />
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
@@ -693,9 +673,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
           onClose={() => setSelectedDetailItem(null)}
           onEdit={itemActions.edit}
           onDelete={itemActions.delete}
-          readOnly={!(userRoles.includes('admin') || userRoles.includes('equipe'))}
+          readOnly={!(pode('estoque.editar') || pode('vendas.editar'))}
           onAlterado={refreshData}
-          userRoles={userRoles}
           onAbrirFiado={() => {
             setActiveTab('caixa');
             setPendingCaixaFiado(true);

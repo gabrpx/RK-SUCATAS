@@ -7,15 +7,15 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { mensagemErroExclusao } from '../dbErrors.js';
 import { getDescendantIds, ehDescendenteOuIgual } from '../../features/categorias/categoriaTree.js';
 import type { Categoria } from '../../types/catalog.js';
-import { autorizar } from '../../../middleware/auth.js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 
 const MSG_NOME_DUPLICADO = 'Já existe uma categoria com esse nome neste nível.';
 const MSG_PAI_INVALIDO = 'Categoria pai inválida.';
 
-// GET fica aberto pra estoque_leitura (precisa disso pra Estoque renderizar
-// nomes/filtros de categoria); toda escrita continua admin/equipe only.
-const LEITURA = autorizar('admin', 'equipe', 'estoque_leitura');
-const ESCRITA = autorizar('admin', 'equipe');
+// Categorias são dado de referência (o frontend usa pra montar filtros/nomes
+// em várias telas), então o GET fica aberto a qualquer usuário autenticado.
+// A escrita (criar/renomear/mover/reordenar/excluir) é da tela de Configurações.
+const ESCRITA = exigirPermissao('configuracoes.gerenciar_categorias');
 
 export function categoriasRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -26,7 +26,7 @@ export function categoriasRouter(supabase: SupabaseClient) {
     return (data || []) as Categoria[];
   }
 
-  router.get('/', LEITURA, async (_req, res) => {
+  router.get('/', async (_req, res) => {
     try {
       const { data, error } = await supabase.from('categorias').select('*').order('ordem');
       if (error) throw error;

@@ -4,7 +4,7 @@
 // descontar o estoque, como acontecia no sistema antigo.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { autorizar } from '../../../middleware/auth.js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
 import { avisarAnunciosDesatualizados } from '../../services/mercadolivreSync.js';
@@ -17,7 +17,7 @@ const SELECT_COMPROVANTE = '*, autor:usuarios!comprovantes_pix_criado_por_fkey(i
 export function vendasRouter(supabase: SupabaseClient) {
   const router = Router();
 
-  router.get('/', async (_req, res) => {
+  router.get('/', exigirPermissao('vendas.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from('vendas').select(SELECT_COM_JOIN).order('data', { ascending: false });
       if (error) throw error;
@@ -28,7 +28,7 @@ export function vendasRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req, res) => {
+  router.post('/', exigirPermissao('vendas.criar'), async (req, res) => {
     try {
       const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, cliente_id, observacoes, data, componente, unidade_id } = req.body || {};
 
@@ -70,7 +70,7 @@ export function vendasRouter(supabase: SupabaseClient) {
 
   // Só campos que não mexem em estoque/valor — mudar item ou quantidade exige
   // cancelar a venda e registrar de novo, pra não perder a consistência do estoque.
-  router.patch('/:id', async (req, res) => {
+  router.patch('/:id', exigirPermissao('vendas.editar'), async (req, res) => {
     try {
       const payload: Record<string, any> = {};
       for (const campo of ['forma_pagamento_id', 'observacoes', 'cliente_nome', 'cliente_id'] as const) {
@@ -85,7 +85,7 @@ export function vendasRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', exigirPermissao('vendas.cancelar'), async (req, res) => {
     try {
       const { error } = await supabase.rpc('cancelar_venda', { p_venda_id: req.params.id });
       if (error) {
@@ -108,7 +108,7 @@ export function vendasRouter(supabase: SupabaseClient) {
   // todos os fiado_recebimentos dela (e as entradas de caixa vinculadas) e só
   // então cancela a venda em si — tudo numa transação (migration_037). Ação
   // sensível (mexe com dinheiro já recebido), por isso só admin.
-  router.delete('/:id/fiado-completo', autorizar('admin'), async (req, res) => {
+  router.delete('/:id/fiado-completo', exigirPermissao('vendas.cancelar_fiado'), async (req, res) => {
     try {
       const { error } = await supabase.rpc('cancelar_venda_fiado_completa', { p_venda_id: req.params.id });
       if (error) throw error;
@@ -123,7 +123,7 @@ export function vendasRouter(supabase: SupabaseClient) {
   // migration_036). Upload do arquivo em si acontece em POST
   // /api/upload/comprovante; esta rota só registra o vínculo com a venda
   // depois que o arquivo já está no Storage.
-  router.get('/:id/comprovantes', async (req, res) => {
+  router.get('/:id/comprovantes', exigirPermissao('vendas.ver'), async (req, res) => {
     try {
       const { data, error } = await supabase
         .from('comprovantes_pix')
@@ -142,7 +142,7 @@ export function vendasRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/:id/comprovantes', async (req: AuthenticatedRequest, res) => {
+  router.post('/:id/comprovantes', exigirPermissao('vendas.editar'), async (req: AuthenticatedRequest, res) => {
     try {
       const { storage_path, nome_arquivo, tipo_mime, tamanho_bytes } = req.body || {};
       if (!storage_path || !nome_arquivo || !tipo_mime || !tamanho_bytes) {
@@ -180,7 +180,7 @@ export function vendasRouter(supabase: SupabaseClient) {
 
   // Soft-delete, só admin — o arquivo em si nunca é apagado do Storage (ver
   // storageService.ts, sem função de exclusão de comprovante de propósito).
-  router.delete('/:id/comprovantes/:comprovanteId', autorizar('admin'), async (req: AuthenticatedRequest, res) => {
+  router.delete('/:id/comprovantes/:comprovanteId', exigirPermissao('vendas.excluir_comprovante'), async (req: AuthenticatedRequest, res) => {
     try {
       const { error } = await supabase
         .from('comprovantes_pix')

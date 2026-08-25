@@ -6,6 +6,7 @@
 // associado.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
 const SELECT_PENDENCIA = '*, criador:usuarios!criado_por(id, nome_exibicao)';
@@ -14,7 +15,7 @@ const SELECT_RECEBIMENTO = '*, forma_pagamento:formas_pagamento(id, nome), usuar
 export function caixaPendenciasRouter(supabase: SupabaseClient) {
   const router = Router();
 
-  router.get('/', async (_req, res) => {
+  router.get('/', exigirPermissao('caixa.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from('caixa_pendencias').select(SELECT_PENDENCIA).order('criado_em', { ascending: false });
       if (error) throw error;
@@ -25,7 +26,7 @@ export function caixaPendenciasRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.get('/recebimentos', async (_req, res) => {
+  router.get('/recebimentos', exigirPermissao('caixa.ver'), async (_req, res) => {
     try {
       const { data, error } = await supabase.from('caixa_pendencia_recebimentos').select(SELECT_RECEBIMENTO).order('recebido_em', { ascending: false });
       if (error) throw error;
@@ -36,7 +37,7 @@ export function caixaPendenciasRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req: AuthenticatedRequest, res) => {
+  router.post('/', exigirPermissao('caixa.gerenciar_pendencias'), async (req: AuthenticatedRequest, res) => {
     try {
       const { descricao, valor_total, data } = req.body || {};
       if (!descricao || !String(descricao).trim()) {
@@ -67,7 +68,7 @@ export function caixaPendenciasRouter(supabase: SupabaseClient) {
   // A validação de valor/saldo/forma de pagamento acontece toda dentro da
   // RPC (transacional, trava a pendência) — aqui só repassa o erro dela como
   // 400, mesmo padrão de fiado.ts pro registrar_recebimento_fiado.
-  router.post('/:id/recebimentos', async (req: AuthenticatedRequest, res) => {
+  router.post('/:id/recebimentos', exigirPermissao('caixa.gerenciar_pendencias'), async (req: AuthenticatedRequest, res) => {
     try {
       const valor = Number(req.body?.valor);
       const formaPagamentoId = req.body?.forma_pagamento_id;
@@ -97,7 +98,7 @@ export function caixaPendenciasRouter(supabase: SupabaseClient) {
   // vinculada junto, senão o dinheiro ficaria "fantasma" lançado no Caixa, e
   // reabre o status da pendência ('aberta'): remover um recebimento positivo
   // necessariamente deixa saldo > 0.
-  router.delete('/:id/recebimentos/:recebimentoId', async (req, res) => {
+  router.delete('/:id/recebimentos/:recebimentoId', exigirPermissao('caixa.gerenciar_pendencias'), async (req, res) => {
     try {
       const { data: recebimento, error: erroBusca } = await supabase
         .from('caixa_pendencia_recebimentos')
@@ -129,7 +130,7 @@ export function caixaPendenciasRouter(supabase: SupabaseClient) {
   // Apagar uma pendência criada por engano — FK "on delete restrict" em
   // caixa_pendencia_recebimentos.pendencia_id barra sozinha se já tiver
   // recebimento (reverta os recebimentos primeiro).
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', exigirPermissao('caixa.gerenciar_pendencias'), async (req, res) => {
     try {
       const { error } = await supabase.from('caixa_pendencias').delete().eq('id', req.params.id);
       if (error) throw error;

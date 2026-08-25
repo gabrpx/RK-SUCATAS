@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Bell, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Repeat, Clock, Loader2 } from 'lucide-react';
 import { cn } from '../../utils';
+import { usePermissao } from '../../hooks/usePermissao';
 import { aviso } from '../../components/ui/toast';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -61,8 +62,9 @@ function descreverDisparo(lembrete: Lembrete): string {
   return 'Horário já disparado';
 }
 
-export function LembretesView({ userRoles }: { userRoles: string[] }) {
+export function LembretesView() {
   const { lembretes, loading, error, refetch } = useLembretes();
+  const { isAdmin } = usePermissao();
   const meuId = localStorage.getItem('user_id') || '';
   const [usuarios, setUsuarios] = useState<UsuarioResumo[]>([]);
   const [filtroStatus, setFiltroStatus] = useState<'pendente' | 'concluido' | 'todos'>('pendente');
@@ -83,7 +85,7 @@ export function LembretesView({ userRoles }: { userRoles: string[] }) {
 
   const filtrados = useMemo(() => (filtroStatus === 'todos' ? lembretes : lembretes.filter((l) => l.status === filtroStatus)), [lembretes, filtroStatus]);
 
-  const podeEditar = (l: Lembrete) => userRoles.includes('admin') || l.criado_por === meuId;
+  const podeEditar = (l: Lembrete) => isAdmin || l.criado_por === meuId;
 
   const abrirCriar = () => {
     setEditando(null);
