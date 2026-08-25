@@ -18,6 +18,25 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.2.35',
+    data: '2026-08-24',
+    titulo: 'Checklist dentro das tarefas e horários mais claros',
+    itens: [
+      {
+        tipo: 'feature',
+        texto: 'Agora dá pra colocar uma lista de itens (checkboxes) dentro de uma tarefa — ex.: "Postar no Facebook", "Postar no WhatsApp", "Renovar anúncios". A tarefa só é dada como concluída quando todos os itens estão marcados; desmarcar um item reabre a tarefa.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'Tarefa pode ser criada só com a lista de itens, sem título — o primeiro item vira o nome e o progresso (ex.: 2/3) aparece no card.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Nos detalhes da tarefa aparece quando ela foi designada e quando foi concluída, com o tempo relativo (ex.: "2h atrás").',
+      },
+    ],
+  },
+  {
     versao: '1.2.34',
     data: '2026-08-24',
     titulo: 'Clientes com moto, WhatsApp na mão e telas mais limpas',
