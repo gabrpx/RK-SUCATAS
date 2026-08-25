@@ -24,3 +24,26 @@ export function paraDatetimeLocal(iso: string | null) {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
+
+// Formata um ISO como "24/08 às 14:30 · 2h atrás". `agora` é injetável só
+// pra os testes não dependerem do relógio real.
+export function formatarMomentoRelativo(iso: string | null, agora = Date.now()): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  const abs = d.toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(', ', ' às ');
+  const diff = agora - d.getTime();
+  const min = 60_000, hora = 60 * min, dia = 24 * hora;
+  let rel: string;
+  if (diff < min) rel = 'agora';
+  else if (diff < hora) rel = `${Math.floor(diff / min)}min atrás`;
+  else if (diff < dia) rel = `${Math.floor(diff / hora)}h atrás`;
+  else if (diff < 2 * dia) rel = 'ontem';
+  else rel = `${Math.floor(diff / dia)}d atrás`;
+  return `${abs} · ${rel}`;
+}
+
+export function progressoChecklist(tarefa: Pick<Tarefa, 'itens'>): { feitos: number; total: number } | null {
+  const total = tarefa.itens?.length ?? 0;
+  if (total === 0) return null;
+  return { feitos: tarefa.itens.filter((i) => i.concluido).length, total };
+}

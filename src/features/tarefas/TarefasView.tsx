@@ -21,7 +21,7 @@ import type { Role } from '../../constants/roles';
 import { PRIORIDADE_LABELS, paraDatetimeLocal } from './tarefaUtils';
 import type { Tarefa, TarefaInput, TarefaPrioridade, UsuarioResumo } from './types';
 
-const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral' };
+const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral', itens: [] };
 
 export function TarefasView({ userRoles }: { userRoles: string[] }) {
   const [aba, setAba] = useState<'tarefas' | 'lembretes'>('tarefas');
@@ -97,8 +97,11 @@ function VisaoResponsavel({
   // várias tarefas pendentes ao mesmo tempo, e o design system permite no
   // máximo um botão de acento preenchido por tela — aqui o verde (positive) já
   // carrega o significado de "concluir".
-  const botaoConcluir = (tarefa: Tarefa) =>
-    tarefa.status !== 'concluida' ? (
+  const botaoConcluir = (tarefa: Tarefa) => {
+    // Quando há checklist, a conclusão é dirigida pelos itens (marcar todos
+    // conclui sozinho) — o botão manual some pra não competir com isso.
+    if (tarefa.itens.length > 0 || tarefa.status === 'concluida') return null;
+    return (
       <Button
         variant="outline"
         onClick={() => concluir(tarefa)}
@@ -107,7 +110,8 @@ function VisaoResponsavel({
       >
         <CheckCircle2 size={14} /> {concluindo === tarefa.id ? 'Concluindo...' : 'Concluir'}
       </Button>
-    ) : null;
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -125,7 +129,13 @@ function VisaoResponsavel({
       ) : tarefas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pra você no momento." />
       ) : (
-        <TarefaCards tarefas={tarefas} renderAcaoRapida={botaoConcluir} renderAcoes={(t) => botaoConcluir(t)} onContatoSalvo={refetch} />
+        <TarefaCards
+          tarefas={tarefas}
+          renderAcaoRapida={botaoConcluir}
+          renderAcoes={(t) => botaoConcluir(t)}
+          onContatoSalvo={refetch}
+          podeMarcarItens={() => true}
+        />
       )}
     </div>
   );
@@ -183,13 +193,14 @@ function VisaoCriador({
   const abrirEditar = (tarefa: Tarefa) => {
     setEditando(tarefa);
     setForm({
-      titulo: tarefa.titulo,
+      titulo: tarefa.titulo || '',
       descricao: tarefa.descricao || '',
       prazo: paraDatetimeLocal(tarefa.prazo),
       atribuido_para: tarefa.atribuido_para,
       cliente_id: tarefa.cliente_id,
       prioridade: tarefa.prioridade,
       tipo: tarefa.tipo,
+      itens: tarefa.itens.map((i) => ({ id: i.id, texto: i.texto })),
     });
     setClienteNomeTexto(tarefa.cliente?.nome || '');
     setErroForm(null);
@@ -197,19 +208,21 @@ function VisaoCriador({
   };
 
   const salvar = async () => {
-    if (!form.titulo.trim()) return setErroForm('Título é obrigatório');
+    const temItem = (form.itens ?? []).some((i) => i.texto.trim());
+    if (!form.titulo.trim() && !temItem) return setErroForm('Informe um título ou pelo menos um item');
     if (!form.atribuido_para) return setErroForm('Escolha um responsável');
 
     setSalvando(true);
     setErroForm(null);
     const payload: TarefaInput = {
-      titulo: form.titulo.trim(),
+      titulo: form.titulo.trim() || null,
       descricao: form.descricao?.trim() || null,
       prazo: form.prazo ? new Date(form.prazo).toISOString() : null,
       atribuido_para: form.atribuido_para,
       cliente_id: form.cliente_id || null,
       prioridade: form.prioridade || 'media',
       tipo: form.tipo || 'geral',
+      itens: (form.itens ?? []).map((i) => ({ ...(i.id ? { id: i.id } : {}), texto: i.texto.trim() })).filter((i) => i.texto),
     };
     try {
       const result = editando ? await tarefasApi.atualizar(editando.id, payload) : await tarefasApi.criar(payload);
@@ -270,13 +283,15 @@ function VisaoCriador({
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent>
-        <DropdownMenuItem onSelect={() => alternarStatus(t)}>
-          {t.status === 'concluida' ? <RotateCcw /> : <CheckCircle2 />}
-          {t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
-        </DropdownMenuItem>
+        {t.itens.length === 0 && (
+          <DropdownMenuItem onSelect={() => alternarStatus(t)}>
+            {t.status === 'concluida' ? <RotateCcw /> : <CheckCircle2 />}
+            {t.status === 'concluida' ? 'Reabrir' : 'Marcar como concluída'}
+          </DropdownMenuItem>
+        )}
         {podeEditar(t) && (
           <>
-            <DropdownMenuSeparator />
+            {t.itens.length === 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem onSelect={() => abrirEditar(t)}>
               <Pencil /> Editar
             </DropdownMenuItem>
@@ -334,7 +349,7 @@ function VisaoCriador({
       ) : filtradas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa por aqui." />
       ) : (
-        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} onContatoSalvo={refetch} />
+        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} onContatoSalvo={refetch} podeMarcarItens={() => true} />
       )}
 
       <Modal
@@ -374,10 +389,12 @@ function VisaoCriador({
           <div>
             <label className={labelClass}>Título</label>
             <input
-              value={form.titulo}
+              value={form.titulo || ''}
               onChange={(e) => setForm((f) => ({ ...f, titulo: e.target.value }))}
               className={inputClass}
-              placeholder={form.tipo === 'visita' ? 'ex: Visita pra ver a moto' : 'ex: Buscar peça no fornecedor'}
+              placeholder={
+                form.tipo === 'visita' ? 'ex: Visita pra ver a moto (opcional se houver itens)' : 'ex: Buscar peça no fornecedor (opcional se houver itens)'
+              }
             />
           </div>
           <div>
@@ -388,6 +405,44 @@ function VisaoCriador({
               className={cn(inputClass, 'min-h-20 resize-none')}
               placeholder="Detalhes do que precisa ser feito"
             />
+          </div>
+          <div>
+            <label className={labelClass}>Checklist (opcional)</label>
+            <div className="space-y-2">
+              {(form.itens ?? []).map((item, idx) => (
+                <div key={idx} className="flex items-center gap-2">
+                  <input
+                    value={item.texto}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, itens: (f.itens ?? []).map((it, i) => (i === idx ? { ...it, texto: e.target.value } : it)) }))
+                    }
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        setForm((f) => ({ ...f, itens: [...(f.itens ?? []), { texto: '' }] }));
+                      }
+                    }}
+                    placeholder={`Item ${idx + 1}`}
+                    className={cn(inputClass, 'h-11 sm:h-10 py-0')}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, itens: (f.itens ?? []).filter((_, i) => i !== idx) }))}
+                    className="flex size-11 sm:size-10 shrink-0 items-center justify-center rounded-control text-text-muted hover:bg-surface-inset hover:text-danger"
+                    title="Remover item"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, itens: [...(f.itens ?? []), { texto: '' }] }))}
+                className="flex w-full items-center justify-center gap-2 rounded-control border border-dashed border-border-default py-2.5 text-sm font-medium text-text-secondary transition-colors hover:border-accent/50 hover:text-accent-soft-fg"
+              >
+                <Plus size={15} /> Adicionar item
+              </button>
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>

@@ -9,9 +9,23 @@ export interface UsuarioResumo {
   nome_exibicao: string;
 }
 
+export interface TarefaItem {
+  id: string;
+  texto: string;
+  concluido: boolean;
+  ordem: number;
+  concluido_em: string | null;
+  concluido_por: string | null;
+}
+
+export interface TarefaItemInput {
+  id?: string; // presente = item existente (diff no PATCH); ausente = novo
+  texto: string;
+}
+
 export interface Tarefa {
   id: string;
-  titulo: string;
+  titulo: string | null;
   descricao: string | null;
   prazo: string | null;
   atribuido_para: string;
@@ -26,24 +40,27 @@ export interface Tarefa {
   atribuido: UsuarioResumo | null;
   criador: UsuarioResumo | null;
   cliente: ClienteResumo | null;
+  itens: TarefaItem[];
 }
 
 export interface TarefaInput {
-  titulo: string;
+  titulo?: string | null;
   descricao?: string | null;
   prazo?: string | null;
   atribuido_para: string;
   cliente_id?: string | null;
   prioridade?: TarefaPrioridade;
   tipo?: TarefaTipo;
+  itens?: TarefaItemInput[];
 }
 
 export interface TarefaUpdateInput {
-  titulo?: string;
+  titulo?: string | null;
   descricao?: string | null;
   prazo?: string | null;
   atribuido_para?: string;
   cliente_id?: string | null;
   prioridade?: TarefaPrioridade;
   tipo?: TarefaTipo;
+  itens?: TarefaItemInput[];
 }
