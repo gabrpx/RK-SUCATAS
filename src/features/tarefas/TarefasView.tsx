@@ -291,7 +291,7 @@ function VisaoCriador({
         )}
         {podeEditar(t) && (
           <>
-            <DropdownMenuSeparator />
+            {t.itens.length === 0 && <DropdownMenuSeparator />}
             <DropdownMenuItem onSelect={() => abrirEditar(t)}>
               <Pencil /> Editar
             </DropdownMenuItem>

@@ -80,7 +80,8 @@ export function tarefasRouter(supabase: SupabaseClient) {
     const { data: atual } = await supabase.from('tarefas').select('status').eq('id', tarefaId).single();
     const patch = derivarConclusao(itens ?? [], atual!.status as 'pendente' | 'concluida');
     if (patch) await supabase.from('tarefas').update(patch).eq('id', tarefaId);
-    const { data } = await supabase.from('tarefas').select(SELECT_COM_JOINS).eq('id', tarefaId).single();
+    const { data, error } = await supabase.from('tarefas').select(SELECT_COM_JOINS).eq('id', tarefaId).single();
+    if (error || !data) throw error ?? new Error('Tarefa não encontrada ao recarregar após atualização');
     return comItensOrdenados(data);
   }
 
@@ -163,7 +164,8 @@ export function tarefasRouter(supabase: SupabaseClient) {
         if (erroItens) throw erroItens;
       }
       // Rebuscar com os itens já persistidos para devolver o objeto completo.
-      const { data: completa } = await supabase.from('tarefas').select(SELECT_COM_JOINS).eq('id', data.id).single();
+      const { data: completa, error: erroCompleta } = await supabase.from('tarefas').select(SELECT_COM_JOINS).eq('id', data.id).single();
+      if (erroCompleta) throw erroCompleta;
 
       // Fire-and-forget: uma falha no push nunca pode derrubar a criação da
       // tarefa (mesmo espírito de casarComPecasProcuradas em estoque.ts).
@@ -227,6 +229,39 @@ export function tarefasRouter(supabase: SupabaseClient) {
         }
       }
 
+      // Valida o invariante "título OU ≥1 item" ANTES de qualquer mutação,
+      // sempre que o título estiver sendo limpo OU os itens estiverem sendo
+      // alterados — considerando o estado final efetivo (o que vem no body
+      // quando presente, senão o que já está armazenado). Sem isso, um PATCH
+      // { titulo: '' } sem `itens` numa tarefa sem itens zerava o título sem
+      // validar nada, deixando a tarefa sem título e sem itens.
+      const itensSendoAlterados = req.body?.itens !== undefined;
+      const tituloSendoLimpo = req.body?.titulo !== undefined && !payload.titulo;
+      let desejados: { texto: string; id?: string }[] | undefined;
+      if (itensSendoAlterados) desejados = normalizarItens(req.body.itens);
+
+      if (tituloSendoLimpo || itensSendoAlterados) {
+        let tituloFinal: string;
+        if (req.body?.titulo !== undefined) {
+          tituloFinal = String(req.body.titulo || '').trim();
+        } else {
+          const { data: tAtual } = await supabase.from('tarefas').select('titulo').eq('id', req.params.id).single();
+          tituloFinal = (tAtual?.titulo ?? '').trim();
+        }
+
+        let totalItensFinal: number;
+        if (desejados !== undefined) {
+          totalItensFinal = desejados.length;
+        } else {
+          const { count } = await supabase.from('tarefa_itens').select('id', { count: 'exact', head: true }).eq('tarefa_id', req.params.id);
+          totalItensFinal = count ?? 0;
+        }
+
+        if (totalItensFinal === 0 && !tituloFinal) {
+          return res.status(400).json({ success: false, error: 'Informe um título ou pelo menos um item' });
+        }
+      }
+
       // Numa edição só de itens (sem campo escalar no body), payload fica {}
       // e .update({}) pode falhar/no-op no supabase-js — só chamamos update
       // quando há de fato algo escalar a alterar.
@@ -235,24 +270,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
         if (error) throw error;
       }
 
-      if (req.body?.itens !== undefined) {
-        const desejados = normalizarItens(req.body.itens);
-
-        // valida título-OU-itens ANTES de mutar, considerando o título já
-        // armazenado quando o body não manda `titulo` (edição itens-only) —
-        // senão dá pra apagar todos os itens de uma tarefa sem título antes
-        // de barrar, ou aceitar tarefa sem título E sem itens.
-        let tituloFinal: string;
-        if (req.body?.titulo !== undefined) {
-          tituloFinal = String(req.body.titulo || '').trim();
-        } else {
-          const { data: tAtual } = await supabase.from('tarefas').select('titulo').eq('id', req.params.id).single();
-          tituloFinal = (tAtual?.titulo ?? '').trim();
-        }
-        if (desejados.length === 0 && !tituloFinal) {
-          return res.status(400).json({ success: false, error: 'Informe um título ou pelo menos um item' });
-        }
-
+      if (desejados !== undefined) {
         const { data: atuais } = await supabase.from('tarefa_itens').select('id').eq('tarefa_id', req.params.id);
         const idsAtuais = new Set((atuais ?? []).map((i) => i.id));
         const idsDesejados = new Set(desejados.filter((i) => i.id).map((i) => i.id!));
