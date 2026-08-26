@@ -4,7 +4,7 @@
 // mesmo corte vale no backend (src/server/routes/tarefas.ts). As duas visões
 // usam a grade de cards expansíveis (TarefaCards); muda o conjunto de ações.
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Loader2, MapPin, MoreHorizontal } from 'lucide-react';
+import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Loader2, MapPin, MoreHorizontal, ListChecks, X } from 'lucide-react';
 import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -17,7 +17,7 @@ import { TarefaCards } from './TarefaCards';
 import { useTarefas } from './useTarefas';
 import { tarefasApi } from './api';
 import { usePermissao } from '../../hooks/usePermissao';
-import { PRIORIDADE_LABELS, paraDatetimeLocal } from './tarefaUtils';
+import { PRIORIDADE_LABELS, paraDatetimeLocal, elegiveisParaConcluirEmLote } from './tarefaUtils';
 import type { Tarefa, TarefaInput, TarefaPrioridade, UsuarioResumo } from './types';
 
 const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral', itens: [] };
@@ -264,6 +264,75 @@ function VisaoCriador({
     }
   };
 
+  // ===========================================================================
+  // Modo de seleção em lote (grade de cards) — excluir ou concluir várias de
+  // uma vez. Mesmo padrão pragmático do "vender tudo" em orçamentos: loop
+  // sequencial, sucesso e falha de cada item reportados juntos ao fim, sem
+  // travar no primeiro erro (ex: uma tarefa sem permissão não impede o resto).
+  // ===========================================================================
+  const [modoSelecao, setModoSelecao] = useState(false);
+  const [selecionadas, setSelecionadas] = useState<Set<string>>(new Set());
+  const [processandoLote, setProcessandoLote] = useState(false);
+  const [confirmandoExclusaoLote, setConfirmandoExclusaoLote] = useState(false);
+
+  const sairDoModoSelecao = () => {
+    setModoSelecao(false);
+    setSelecionadas(new Set());
+  };
+
+  const alternarSelecao = (id: string) => {
+    setSelecionadas((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+  };
+
+  const idsExcluiveisSelecionados = useMemo(() => tarefas.filter((t) => selecionadas.has(t.id) && podeEditar(t)).map((t) => t.id), [tarefas, selecionadas]); // eslint-disable-line react-hooks/exhaustive-deps
+  const idsConcluiveisSelecionados = useMemo(() => elegiveisParaConcluirEmLote(tarefas, selecionadas), [tarefas, selecionadas]);
+
+  const excluirEmLote = async () => {
+    setProcessandoLote(true);
+    let sucesso = 0;
+    let falhas = 0;
+    for (const id of idsExcluiveisSelecionados) {
+      try {
+        const result = await tarefasApi.excluir(id);
+        if (result.success) sucesso++;
+        else falhas++;
+      } catch {
+        falhas++;
+      }
+    }
+    setProcessandoLote(false);
+    setConfirmandoExclusaoLote(false);
+    sairDoModoSelecao();
+    refetch();
+    if (falhas > 0) aviso.atencao(`${sucesso} tarefa(s) excluída(s), ${falhas} falharam`);
+    else aviso.sucesso(`${sucesso} tarefa(s) excluída(s)`);
+  };
+
+  const concluirEmLote = async () => {
+    setProcessandoLote(true);
+    let sucesso = 0;
+    let falhas = 0;
+    for (const id of idsConcluiveisSelecionados) {
+      try {
+        const result = await tarefasApi.concluir(id);
+        if (result.success) sucesso++;
+        else falhas++;
+      } catch {
+        falhas++;
+      }
+    }
+    setProcessandoLote(false);
+    sairDoModoSelecao();
+    refetch();
+    if (falhas > 0) aviso.atencao(`${sucesso} tarefa(s) concluída(s), ${falhas} falharam`);
+    else aviso.sucesso(`${sucesso} tarefa(s) concluída(s)`);
+  };
+
   const inputClass =
     'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
   const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
@@ -319,25 +388,65 @@ function VisaoCriador({
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
-        {(['todas', 'pendente', 'concluida'] as const).map((s) => (
+      <div className="flex items-center justify-between gap-2 flex-wrap">
+        <div className="flex items-center gap-2">
+          {(['todas', 'pendente', 'concluida'] as const).map((s) => (
+            <button
+              key={s}
+              onClick={() => setFiltroStatus(s)}
+              className={cn(
+                'h-11 sm:h-9 px-4 sm:px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
+                filtroStatus === s ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+              )}
+            >
+              {s === 'todas' ? 'Todas' : s === 'pendente' ? 'Pendentes' : 'Concluídas'}
+            </button>
+          ))}
+        </div>
+        {filtradas.length > 0 && (
           <button
-            key={s}
-            onClick={() => setFiltroStatus(s)}
+            onClick={() => (modoSelecao ? sairDoModoSelecao() : setModoSelecao(true))}
             className={cn(
-              'h-11 sm:h-9 px-4 sm:px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors',
-              filtroStatus === s ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
+              'h-11 sm:h-9 px-4 sm:px-3 rounded-control border text-[11px] font-semibold uppercase tracking-wider transition-colors inline-flex items-center gap-1.5',
+              modoSelecao ? 'bg-accent-soft-bg border-accent/30 text-accent-soft-fg' : 'bg-surface-inset border-border-default text-text-muted hover:text-text-secondary'
             )}
           >
-            {s === 'todas' ? 'Todas' : s === 'pendente' ? 'Pendentes' : 'Concluídas'}
+            {modoSelecao ? <X size={13} /> : <ListChecks size={13} />}
+            {modoSelecao ? 'Cancelar seleção' : 'Selecionar'}
           </button>
-        ))}
+        )}
       </div>
+
+      {modoSelecao && selecionadas.size > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-control border border-border-default bg-surface-inset px-4 py-3 flex-wrap">
+          <p className="text-xs font-semibold uppercase tracking-wider text-text-muted">{selecionadas.size} selecionada(s)</p>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={processandoLote || idsConcluiveisSelecionados.length === 0}
+              onClick={concluirEmLote}
+              className="h-9 px-4 rounded-control text-[11px] font-semibold uppercase tracking-wider"
+              title={idsConcluiveisSelecionados.length === 0 ? 'Nenhuma selecionada pode ser concluída direto (checklist conclui sozinho)' : undefined}
+            >
+              {processandoLote ? <Loader2 size={14} className="animate-spin" /> : <CheckCircle2 size={14} />}
+              Concluir ({idsConcluiveisSelecionados.length})
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={processandoLote || idsExcluiveisSelecionados.length === 0}
+              onClick={() => setConfirmandoExclusaoLote(true)}
+              className="h-9 px-4 rounded-control text-[11px] font-semibold uppercase tracking-wider"
+            >
+              <Trash2 size={14} /> Excluir ({idsExcluiveisSelecionados.length})
+            </Button>
+          </div>
+        </div>
+      )}
 
       {error && <p className="text-sm text-danger">{error}</p>}
       {responsaveis.length === 0 && !loading && (
         <p className="text-sm text-text-faint">
-          Nenhum usuário com papel "Mandados" ou "Mecânico" cadastrado ainda — crie um em Configurações → Usuários antes de atribuir tarefas.
+          Nenhum outro usuário disponível pra receber tarefa ainda — crie um em Configurações → Usuários (com permissão de concluir ou de criar tarefas) antes de atribuir.
         </p>
       )}
 
@@ -348,7 +457,14 @@ function VisaoCriador({
       ) : filtradas.length === 0 ? (
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa por aqui." />
       ) : (
-        <TarefaCards tarefas={filtradas} renderMenu={menuTarefa} onContatoSalvo={refetch} podeMarcarItens={() => true} />
+        <TarefaCards
+          tarefas={filtradas}
+          renderMenu={menuTarefa}
+          onContatoSalvo={refetch}
+          podeMarcarItens={() => true}
+          podeReordenar={podeEditar}
+          selecao={modoSelecao ? { ativos: selecionadas, alternar: alternarSelecao } : undefined}
+        />
       )}
 
       <Modal
@@ -501,6 +617,25 @@ function VisaoCriador({
         }
       >
         {excluindo && <p className="text-sm text-text-secondary">"{excluindo.titulo}" será removida definitivamente.</p>}
+      </Modal>
+
+      <Modal
+        aberto={confirmandoExclusaoLote}
+        onFechar={() => setConfirmandoExclusaoLote(false)}
+        titulo="Excluir tarefas selecionadas?"
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setConfirmandoExclusaoLote(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={excluirEmLote} disabled={processandoLote} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
+              {processandoLote ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
+            </Button>
+          </div>
+        }
+      >
+        <p className="text-sm text-text-secondary">{idsExcluiveisSelecionados.length} tarefa(s) serão removidas definitivamente.</p>
       </Modal>
     </div>
   );

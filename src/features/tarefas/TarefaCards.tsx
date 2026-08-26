@@ -7,7 +7,10 @@
 
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
-import { Clock, MapPin, Phone, X, User, MessageCircle, Plus, Loader2, UserCog, ListChecks, Check, CheckCircle2 } from 'lucide-react';
+import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
+import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
+import { Clock, MapPin, Phone, X, User, MessageCircle, Plus, Loader2, UserCog, ListChecks, Check, CheckCircle2, GripVertical, Square, CheckSquare } from 'lucide-react';
 import { cn } from '../../utils';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { SPRING_SHEET } from '../../components/ui/motion';
@@ -16,8 +19,8 @@ import { formatTelefoneBR, onlyDigits } from '../../utils/formatters';
 import { linkWhatsapp } from '../../utils/whatsapp';
 import { clientesApi } from '../clientes/api';
 import { tarefasApi } from './api';
-import { formatarPrazo, estaVencida, formatarMomentoRelativo, progressoChecklist, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
-import type { Tarefa } from './types';
+import { formatarPrazo, estaVencida, formatarMomentoRelativo, progressoChecklist, moverItem, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
+import type { Tarefa, TarefaItem } from './types';
 
 function BadgeProgresso({ feitos, total }: { feitos: number; total: number }) {
   const pct = total ? Math.round((feitos / total) * 100) : 0;
@@ -70,9 +73,71 @@ interface TarefaCardsProps {
   // Se quem está vendo pode marcar/desmarcar itens do checklist (o backend
   // valida de verdade); sem passar, os checkboxes ficam só-leitura.
   podeMarcarItens?: (tarefa: Tarefa) => boolean;
+  // Se quem está vendo pode reordenar o checklist (drag-and-drop) — é uma
+  // EDIÇÃO da tarefa (PATCH /:id), não uma conclusão de item, então usa a
+  // mesma regra de podeEditar (backend: só admin ou quem criou), diferente e
+  // mais restrita que podeMarcarItens. Sem passar, a lista fica sem drag.
+  podeReordenar?: (tarefa: Tarefa) => boolean;
+  // Modo de seleção em lote (grade de cards recolhidos) — quando presente,
+  // cada card ganha um checkbox no canto superior esquerdo (renderMenu já
+  // ocupa o direito) que só alterna a seleção, sem abrir o painel de detalhes.
+  selecao?: { ativos: Set<string>; alternar: (id: string) => void };
 }
 
-export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo, podeMarcarItens }: TarefaCardsProps) {
+// Uma linha do checklist arrastável. Só fica "pegável" (listeners do
+// dnd-kit) quando `arrastavel` é true — senão o clique continua marcando o
+// item normalmente.
+function ItemChecklistArrastavel({
+  item,
+  arrastavel,
+  podeMarcar,
+  alternando,
+  onToggle,
+}: {
+  item: TarefaItem;
+  arrastavel: boolean;
+  podeMarcar: boolean;
+  alternando: boolean;
+  onToggle: () => void;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: item.id, disabled: !arrastavel });
+  const style = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.5 : 1 };
+
+  return (
+    <li ref={setNodeRef} style={style} className="flex items-center gap-1">
+      {arrastavel && (
+        <button
+          type="button"
+          {...attributes}
+          {...listeners}
+          className="flex size-8 shrink-0 items-center justify-center rounded-lg text-text-faint touch-none hover:bg-surface-inset hover:text-text-muted cursor-grab active:cursor-grabbing"
+          title="Arrastar pra reordenar"
+        >
+          <GripVertical size={15} />
+        </button>
+      )}
+      <button
+        type="button"
+        disabled={!podeMarcar || alternando}
+        onClick={onToggle}
+        className={cn(
+          'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
+          podeMarcar ? 'hover:bg-surface-inset cursor-pointer' : 'cursor-default',
+        )}
+      >
+        <span className={cn(
+          'flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
+          item.concluido ? 'border-positive bg-positive text-white' : 'border-border-default',
+        )}>
+          {item.concluido && <Check size={13} />}
+        </span>
+        <span className={cn('text-text-primary', item.concluido && 'line-through opacity-60')}>{item.texto}</span>
+      </button>
+    </li>
+  );
+}
+
+export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo, podeMarcarItens, podeReordenar, selecao }: TarefaCardsProps) {
   const [ativa, setAtiva] = useState<Tarefa | null>(null);
   const id = useId();
   const painelRef = useRef<HTMLDivElement>(null);
@@ -120,6 +185,33 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
       aviso.falha(err, 'Erro ao atualizar item');
     } finally {
       setAlternandoItem(null);
+    }
+  };
+
+  // Sensors com um pequeno threshold de distância — sem isso, um simples
+  // toque/clique pra marcar o item já dispara um drag de 1px.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+  );
+
+  const [reordenando, setReordenando] = useState(false);
+  const reordenarItens = async (tarefa: Tarefa, e: DragEndEvent) => {
+    const overId = e.over?.id;
+    if (!overId || overId === e.active.id) return;
+    const novaOrdem = moverItem(tarefa.itens, String(e.active.id), String(overId));
+    setAtiva((prev) => (prev && prev.id === tarefa.id ? { ...prev, itens: novaOrdem } : prev)); // otimista
+    setReordenando(true);
+    try {
+      const result = await tarefasApi.atualizar(tarefa.id, { itens: novaOrdem.map((i) => ({ id: i.id, texto: i.texto })) });
+      if (!result.success) throw new Error(result.error);
+      setAtiva(result.data);
+      onContatoSalvo?.();
+    } catch (err) {
+      aviso.falha(err, 'Erro ao reordenar itens');
+      setAtiva((prev) => (prev && prev.id === tarefa.id ? { ...prev, itens: tarefa.itens } : prev)); // desfaz o otimista
+    } finally {
+      setReordenando(false);
     }
   };
 
@@ -199,32 +291,28 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                 {ativa.itens.length > 0 && (() => {
                   const prog = progressoChecklist(ativa)!;
                   const podeMarcar = podeMarcarItens?.(ativa) ?? false;
+                  const arrastavel = (podeReordenar?.(ativa) ?? false) && !reordenando;
                   return (
                     <div className="space-y-3">
                       <BadgeProgresso feitos={prog.feitos} total={prog.total} />
-                      <ul className="space-y-1.5">
-                        {ativa.itens.map((item) => (
-                          <li key={item.id}>
-                            <button
-                              type="button"
-                              disabled={!podeMarcar || alternandoItem === item.id}
-                              onClick={() => podeMarcar && alternarItem(ativa, item.id)}
-                              className={cn(
-                                'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
-                                podeMarcar ? 'hover:bg-surface-inset cursor-pointer' : 'cursor-default',
-                              )}
-                            >
-                              <span className={cn(
-                                'flex size-5 shrink-0 items-center justify-center rounded-md border transition-colors',
-                                item.concluido ? 'border-positive bg-positive text-white' : 'border-border-default',
-                              )}>
-                                {item.concluido && <Check size={13} />}
-                              </span>
-                              <span className={cn('text-text-primary', item.concluido && 'line-through opacity-60')}>{item.texto}</span>
-                            </button>
-                          </li>
-                        ))}
-                      </ul>
+                      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={(e) => reordenarItens(ativa, e)}>
+                        <SortableContext items={ativa.itens.map((i) => i.id)} strategy={verticalListSortingStrategy}>
+                          <ul className="space-y-1.5">
+                            {ativa.itens.map((item: TarefaItem) => (
+                              <ItemChecklistArrastavel
+                                key={item.id}
+                                item={item}
+                                arrastavel={arrastavel}
+                                podeMarcar={podeMarcar}
+                                alternando={alternandoItem === item.id}
+                                onToggle={() => {
+                                  if (podeMarcar) void alternarItem(ativa, item.id);
+                                }}
+                              />
+                            ))}
+                          </ul>
+                        </SortableContext>
+                      </DndContext>
                     </div>
                   );
                 })()}
@@ -339,24 +427,31 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
             <motion.div
               key={tarefa.id}
               layoutId={`tarefa-${tarefa.id}-${id}`}
-              onClick={() => setAtiva(tarefa)}
+              onClick={() => (selecao ? selecao.alternar(tarefa.id) : setAtiva(tarefa))}
               transition={SPRING_SHEET}
               className={cn(
                 'cursor-pointer rounded-card border bg-surface-card p-4 transition-colors hover:border-border-default',
-                vencida ? 'border-danger/30' : 'border-border-subtle'
+                selecao?.ativos.has(tarefa.id) ? 'border-accent/50 bg-accent-soft-bg/20' : vencida ? 'border-danger/30' : 'border-border-subtle'
               )}
             >
               <div className="flex items-start justify-between gap-2">
-                <motion.div layoutId={`tarefa-titulo-${tarefa.id}-${id}`} className="min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    {tarefa.tipo === 'visita' && <MapPin size={13} className="text-accent shrink-0" />}
-                    {!tarefa.titulo && tarefa.itens.length > 0 && <ListChecks size={13} className="text-accent shrink-0" />}
-                    <p className={cn('text-sm font-medium text-text-primary truncate', concluida && 'line-through opacity-60')}>
-                      {tarefa.titulo || tarefa.itens[0]?.texto || 'Tarefa'}
-                    </p>
-                  </div>
-                </motion.div>
-                {renderMenu && (
+                <div className="flex items-start gap-2 min-w-0">
+                  {selecao && (
+                    <span className="shrink-0 mt-0.5 text-accent">
+                      {selecao.ativos.has(tarefa.id) ? <CheckSquare size={17} /> : <Square size={17} className="text-text-faint" />}
+                    </span>
+                  )}
+                  <motion.div layoutId={`tarefa-titulo-${tarefa.id}-${id}`} className="min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      {tarefa.tipo === 'visita' && <MapPin size={13} className="text-accent shrink-0" />}
+                      {!tarefa.titulo && tarefa.itens.length > 0 && <ListChecks size={13} className="text-accent shrink-0" />}
+                      <p className={cn('text-sm font-medium text-text-primary truncate', concluida && 'line-through opacity-60')}>
+                        {tarefa.titulo || tarefa.itens[0]?.texto || 'Tarefa'}
+                      </p>
+                    </div>
+                  </motion.div>
+                </div>
+                {renderMenu && !selecao && (
                   <div className="shrink-0 -mr-1 -mt-1" onClick={(e) => e.stopPropagation()}>
                     {renderMenu(tarefa)}
                   </div>

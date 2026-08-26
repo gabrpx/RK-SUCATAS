@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatarMomentoRelativo, progressoChecklist } from './tarefaUtils';
+import { formatarMomentoRelativo, progressoChecklist, moverItem, elegiveisParaConcluirEmLote } from './tarefaUtils';
 import type { TarefaItem } from './types';
 
 const AGORA = new Date('2026-08-24T18:00:00').getTime();
@@ -41,5 +41,49 @@ describe('progressoChecklist', () => {
   });
   it('conta feitos e total', () => {
     expect(progressoChecklist({ itens: [item(true), item(false), item(true)] })).toEqual({ feitos: 2, total: 3 });
+  });
+});
+
+describe('moverItem', () => {
+  const itemComId = (id: string): TarefaItem => ({ id, texto: id, concluido: false, ordem: 0, concluido_em: null, concluido_por: null });
+  const lista = [itemComId('a'), itemComId('b'), itemComId('c'), itemComId('d')];
+
+  it('move um item pra baixo, preservando os outros na mesma ordem relativa', () => {
+    expect(moverItem(lista, 'a', 'c').map((i) => i.id)).toEqual(['b', 'c', 'a', 'd']);
+  });
+  it('move um item pra cima', () => {
+    expect(moverItem(lista, 'd', 'b').map((i) => i.id)).toEqual(['a', 'd', 'b', 'c']);
+  });
+  it('activeId === overId não muda nada', () => {
+    expect(moverItem(lista, 'b', 'b').map((i) => i.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+  it('id inexistente devolve a lista original sem quebrar', () => {
+    expect(moverItem(lista, 'x', 'b').map((i) => i.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('elegiveisParaConcluirEmLote', () => {
+  const tarefa = (over: Partial<Tarefa>): Tarefa => ({
+    id: over.id ?? 'x', titulo: 't', descricao: null, prazo: null, atribuido_para: 'u', criado_por: 'u',
+    status: 'pendente', prioridade: 'media', tipo: 'geral', cliente_id: null, concluida_em: null,
+    criado_em: '', atualizado_em: '', atribuido: null, criador: null, cliente: null, itens: [],
+    ...over,
+  });
+
+  it('inclui tarefa pendente sem checklist selecionada', () => {
+    const tarefas = [tarefa({ id: '1' })];
+    expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual(['1']);
+  });
+  it('ignora tarefa já concluída', () => {
+    const tarefas = [tarefa({ id: '1', status: 'concluida' })];
+    expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual([]);
+  });
+  it('ignora tarefa com checklist (conclui sozinha ao marcar os itens)', () => {
+    const tarefas = [tarefa({ id: '1', itens: [{ id: 'i1', texto: 'x', concluido: false, ordem: 0, concluido_em: null, concluido_por: null }] })];
+    expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual([]);
+  });
+  it('ignora tarefa não selecionada', () => {
+    const tarefas = [tarefa({ id: '1' }), tarefa({ id: '2' })];
+    expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual(['1']);
   });
 });

@@ -12,6 +12,31 @@ const SELECT_COM_ITENS = '*, itens:orcamento_itens(*), cliente:clientes(id, nome
 
 const CAMPOS_HEADER_EDITAVEIS = ['cliente_nome', 'cliente_telefone', 'cliente_id', 'desconto_tipo', 'desconto_valor', 'observacoes', 'validade'] as const;
 
+// Monta o payload de registrar_venda a partir de uma linha de orçamento.
+// Exportada pra teste. Item avulso (sem estoque_id — nome_item digitado na
+// hora, ver POST /:id/itens) não tem peça de estoque pra a RPC tirar o nome
+// dela, então manda p_nome_item; item vinculado ao estoque continua sem
+// mandar (a RPC tira o nome de lá, como sempre fez).
+export function montarParamsRegistrarVenda(
+  item: any,
+  params: { forma_pagamento_id: string; componente?: string | null; data?: string | null; cliente_nome: string; cliente_id?: string | null }
+) {
+  const componenteFinal = params.componente ?? item.componente ?? null;
+  return {
+    p_estoque_id: item.estoque_id ?? null,
+    p_quantidade: componenteFinal ? 1 : item.quantidade,
+    p_valor_unitario: item.valor_unitario,
+    p_forma_pagamento_id: params.forma_pagamento_id,
+    p_modelo_moto_id: null,
+    p_cliente_nome: params.cliente_nome,
+    p_observacoes: null,
+    p_data: params.data || null,
+    p_componente: componenteFinal,
+    p_cliente_id: params.cliente_id ?? null,
+    p_nome_item: item.estoque_id ? null : item.nome_item,
+  };
+}
+
 export function orcamentosRouter(supabase: SupabaseClient) {
   const router = Router();
 
@@ -47,20 +72,8 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     item: any,
     params: { forma_pagamento_id: string; componente?: string | null; data?: string | null; cliente_nome: string; cliente_id?: string | null }
   ) => {
-    const componenteFinal = params.componente ?? item.componente ?? null;
-
-    const { data: venda, error } = await supabase.rpc('registrar_venda', {
-      p_estoque_id: item.estoque_id,
-      p_quantidade: componenteFinal ? 1 : item.quantidade,
-      p_valor_unitario: item.valor_unitario,
-      p_forma_pagamento_id: params.forma_pagamento_id,
-      p_modelo_moto_id: null,
-      p_cliente_nome: params.cliente_nome,
-      p_observacoes: null,
-      p_data: params.data || null,
-      p_componente: componenteFinal,
-      p_cliente_id: params.cliente_id ?? null,
-    });
+    const paramsRpc = montarParamsRegistrarVenda(item, params);
+    const { data: venda, error } = await supabase.rpc('registrar_venda', paramsRpc);
     if (error) throw error;
 
     const { error: linkError } = await supabase.from('vendas').update({ orcamento_item_id: item.id }).eq('id', venda.id);
@@ -73,7 +86,7 @@ export function orcamentosRouter(supabase: SupabaseClient) {
     // se a venda também foi do item completo — se na hora de vender o
     // usuário escolheu vender só uma parte dela, a linha continua aberta,
     // mostrando que falta vender o resto.
-    if (componenteFinal === (item.componente ?? null)) {
+    if (paramsRpc.p_componente === (item.componente ?? null)) {
       const { error: fecharError } = await supabase.from('orcamento_itens').update({ venda_id: venda.id }).eq('id', item.id);
       if (fecharError) throw fecharError;
     }

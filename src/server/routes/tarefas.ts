@@ -63,10 +63,12 @@ function ehExecutorDeCampo(usuario: { roles: string[]; permissoes: any }): boole
 // Quem gerencia tarefas pode se autoatribuir uma (ex: lembrete pessoal) mesmo
 // sem ser executor — só quem NÃO é o próprio usuário logado precisa ser um
 // executor de campo.
-function responsavelValido(responsavel: { roles: string[]; permissoes: any; ativo: boolean } | null, souEuMesmo: boolean): boolean {
+export function responsavelValido(responsavel: { roles: string[]; permissoes: any; ativo: boolean } | null, souEuMesmo: boolean): boolean {
   if (!responsavel || !responsavel.ativo) return false;
   if (souEuMesmo) return true;
-  return ehExecutorDeCampo(responsavel);
+  const admin = Array.isArray(responsavel.roles) && responsavel.roles.includes('admin');
+  const ehGerente = pode(responsavel.permissoes, admin, 'tarefas.criar');
+  return ehExecutorDeCampo(responsavel) || ehGerente;
 }
 
 export function tarefasRouter(supabase: SupabaseClient) {
