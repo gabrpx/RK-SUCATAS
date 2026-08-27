@@ -6,7 +6,7 @@
 // do cliente (ClientesView) no lugar da grade de infos estática.
 import { useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
-import { ChevronUp, Phone, IdCard, Cake, Compass, MessageCircle, Bike, Tag } from 'lucide-react';
+import { ChevronUp, Phone, IdCard, Cake, Compass, MessageCircle, Bike, Tag, MapPin } from 'lucide-react';
 import { StatusBadge, type StatusTone } from '../../components/ui/StatusBadge';
 
 interface ClienteProfileCardProps {
@@ -16,6 +16,7 @@ interface ClienteProfileCardProps {
   aniversario?: string | null;
   origem?: string | null;
   contatoPreferido?: string | null;
+  cidade?: string | null;
   tags?: string[];
   /** Motos que o cliente busca peças (derivado das peças procuradas) — vira badge. */
   motosBusca?: { modeloMotoId: string; nome: string; tom: StatusTone }[];
@@ -44,6 +45,7 @@ export function ClienteProfileCard({
   aniversario,
   origem,
   contatoPreferido,
+  cidade,
   tags = [],
   motosBusca = [],
   segmentoLabel,
@@ -112,6 +114,9 @@ export function ClienteProfileCard({
               </DataRow>
               <DataRow icon={<MessageCircle size={15} />} label="Contato preferido">
                 <span className="text-sm font-medium text-text-primary">{contatoPreferido || '—'}</span>
+              </DataRow>
+              <DataRow icon={<MapPin size={15} />} label="Cidade">
+                <span className="text-sm font-medium text-text-primary">{cidade || '—'}</span>
               </DataRow>
               <DataRow icon={<Bike size={15} />} label="Busca peças de">
                 {motosBusca.length > 0 ? (

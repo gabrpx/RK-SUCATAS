@@ -9,7 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 
-const SELECT_PENDENCIA = '*, criador:usuarios!criado_por(id, nome_exibicao)';
+const SELECT_PENDENCIA = '*, criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone)';
 const SELECT_RECEBIMENTO = '*, forma_pagamento:formas_pagamento(id, nome), usuario:usuarios(id, nome_exibicao)';
 
 export function caixaPendenciasRouter(supabase: SupabaseClient) {
@@ -52,6 +52,7 @@ export function caixaPendenciasRouter(supabase: SupabaseClient) {
         valor_total: Number(valor_total),
         data: data || new Date().toISOString().slice(0, 10),
         criado_por: req.usuario!.id,
+        cliente_id: req.body?.cliente_id || null,
       };
 
       // NÃO insere em `caixa` — é exatamente o ponto desta rota (ver

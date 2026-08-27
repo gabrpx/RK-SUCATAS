@@ -25,6 +25,7 @@ import { ClienteProfileCard } from './ClienteProfileCard';
 import {
   calcularHistoricoCliente,
   calcularSegmento,
+  rankingTopClientes,
   SEGMENTO_LABELS,
   SEGMENTO_TONS,
   badgesMotoProcurada,
@@ -73,6 +74,7 @@ const EMPTY_FORM: ClienteInput = {
   preferencia_contato: null,
   tags: [],
   observacoes: '',
+  cidade: '',
 };
 
 const ORIGEM_LABELS: Record<ClienteOrigem, string> = {
@@ -142,6 +144,16 @@ export function ClientesView({
     for (const c of clientes) mapa.set(c.id, calcularHistoricoCliente(c.id, vendas, orcamentos));
     return mapa;
   }, [clientes, vendas, orcamentos]);
+
+  const idCampeao = useMemo(() => {
+    const top = rankingTopClientes(clientes, vendas, orcamentos, { limite: 1 });
+    return top[0]?.cliente.id ?? null;
+  }, [clientes, vendas, orcamentos]);
+
+  const segmentoParaExibicao = (segmento: SegmentoCliente, clienteId: string): SegmentoCliente => {
+    if (segmento === 'campeao' && clienteId !== idCampeao) return 'ativo';
+    return segmento;
+  };
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editando, setEditando] = useState<Cliente | null>(null);
@@ -246,6 +258,7 @@ export function ClientesView({
       preferencia_contato: cliente.preferencia_contato,
       tags: cliente.tags,
       observacoes: cliente.observacoes || '',
+      cidade: cliente.cidade || '',
     });
     setTagsTexto(tagsParaTexto(cliente.tags));
     setMotosBuscaForm([]);
@@ -277,6 +290,7 @@ export function ClientesView({
       preferencia_contato: form.preferencia_contato || null,
       tags: textoParaTags(tagsTexto),
       observacoes: form.observacoes?.trim() || null,
+      cidade: form.cidade?.trim() || null,
     };
     try {
       const result = editando ? await clientesApi.atualizar(editando.id, payload) : await clientesApi.criar(payload);
@@ -492,11 +506,12 @@ export function ClientesView({
       ),
     },
     { key: 'telefone', header: 'Telefone', render: (c) => (c.telefone ? formatTelefoneBR(c.telefone) : '—') },
+    { key: 'cidade', header: 'Cidade', render: (c) => c.cidade || '—' },
     {
       key: 'segmento',
       header: 'Segmento',
       render: (c) => {
-        const segmento = calcularSegmento(historicoPorCliente.get(c.id)!, c.criado_em);
+        const segmento = segmentoParaExibicao(calcularSegmento(historicoPorCliente.get(c.id)!, c.criado_em), c.id);
         return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
       },
     },
@@ -549,7 +564,7 @@ export function ClientesView({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium text-text-primary truncate">{c.nome}</p>
-            <p className="text-xs text-text-faint">{c.telefone ? formatTelefoneBR(c.telefone) : '—'}</p>
+            <p className="text-xs text-text-faint">{c.telefone ? formatTelefoneBR(c.telefone) : '—'}{c.cidade ? ` · ${c.cidade}` : ''}</p>
           </div>
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             {linkWhatsapp(c.telefone) && (
@@ -585,7 +600,7 @@ export function ClientesView({
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
           {c.banido && <StatusBadge texto="Banido" tom="danger" />}
           {(() => {
-            const segmento = calcularSegmento(historicoPorCliente.get(c.id)!, c.criado_em);
+            const segmento = segmentoParaExibicao(calcularSegmento(historicoPorCliente.get(c.id)!, c.criado_em), c.id);
             return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
           })()}
           {(badgesPorCliente.get(c.id) || []).length > 0 && (
@@ -812,6 +827,10 @@ export function ClientesView({
             </select>
           </div>
           <div>
+            <label className={labelClass}>Cidade</label>
+            <input value={form.cidade || ''} onChange={(e) => setForm((f) => ({ ...f, cidade: e.target.value }))} className={inputClass} placeholder="Ex: São Paulo" />
+          </div>
+          <div>
             <label className={labelClass}>Motos que ele busca peças</label>
             <div className="flex gap-2">
               <select
@@ -947,7 +966,8 @@ export function ClientesView({
           <div className="space-y-5">
             {(() => {
               const historico = historicoPorCliente.get(clienteAberto.id);
-              const segmento = historico ? calcularSegmento(historico, clienteAberto.criado_em) : null;
+              const segmentoRaw = historico ? calcularSegmento(historico, clienteAberto.criado_em) : null;
+              const segmento = segmentoRaw ? segmentoParaExibicao(segmentoRaw, clienteAberto.id) : null;
               return (
                 <ClienteProfileCard
                   nome={clienteAberto.nome}
@@ -956,6 +976,7 @@ export function ClientesView({
                   aniversario={clienteAberto.data_nascimento ? new Date(clienteAberto.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') : null}
                   origem={clienteAberto.origem ? ORIGEM_LABELS[clienteAberto.origem] : null}
                   contatoPreferido={clienteAberto.preferencia_contato ? CONTATO_LABELS[clienteAberto.preferencia_contato] : null}
+                  cidade={clienteAberto.cidade}
                   tags={clienteAberto.tags}
                   motosBusca={badgesPorCliente.get(clienteAberto.id) || []}
                   segmentoLabel={segmento ? SEGMENTO_LABELS[segmento] : undefined}

@@ -7,7 +7,7 @@ export function dashboardRouter(supabase: SupabaseClient) {
 
   router.get('/resumo-pendencias', exigirPermissao('dashboard.ver'), async (_req, res) => {
     try {
-      const [orcRes, vendasFiadoRes, fiadoRecRes] = await Promise.all([
+      const [orcRes, vendasFiadoRes, fiadoRecRes, pendenciasManuaisRes] = await Promise.all([
         supabase
           .from('orcamentos')
           .select('id, codigo, cliente_nome, criado_em, itens:orcamento_itens(valor_unitario, quantidade)')
@@ -21,6 +21,10 @@ export function dashboardRouter(supabase: SupabaseClient) {
         supabase
           .from('fiado_recebimentos')
           .select('id, venda_id, valor, data'),
+        supabase
+          .from('caixa_pendencias')
+          .select('id, valor_total, descricao, data, criado_em, recebimentos:caixa_pendencia_recebimentos(valor)')
+          .eq('status', 'aberta'),
       ]);
 
       if (orcRes.error) throw orcRes.error;
@@ -63,6 +67,12 @@ export function dashboardRouter(supabase: SupabaseClient) {
         .sort((a, b) => b.totalEmAberto - a.totalEmAberto);
       const fiadoTotalEmAberto = fiadoResumo.reduce((s, r) => s + r.totalEmAberto, 0);
 
+      const pendenciasManuais = (pendenciasManuaisRes.data || []).map((p: any) => {
+        const recebido = (p.recebimentos || []).reduce((s: number, r: any) => s + Number(r.valor), 0);
+        return { id: p.id, descricao: p.descricao, saldo: Number(p.valor_total) - recebido };
+      }).filter((p: any) => p.saldo > EPSILON);
+      const pendenciasManuaisTotalEmAberto = pendenciasManuais.reduce((s: number, p: any) => s + p.saldo, 0);
+
       res.json({
         success: true,
         data: {
@@ -70,6 +80,8 @@ export function dashboardRouter(supabase: SupabaseClient) {
           totalPendencias: pendencias.length,
           fiadoResumo,
           fiadoTotalEmAberto,
+          pendenciasManuaisTotalEmAberto,
+          pendenciasManuaisQtd: pendenciasManuais.length,
         },
       });
     } catch (error: any) {

@@ -225,7 +225,7 @@ export function DashboardView({
   onNavigateClientesSumidos?: () => void;
   onNavigateFiado?: () => void;
 }) {
-  const { estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, loading } = useData();
+  const { estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, caixaPendencias, loading } = useData();
   const { tarefas } = useTarefas();
   // Duas permissões independentes dentro do Dashboard: os números do negócio
   // (cards de métrica + gráficos) e a Visão do Dono. Dá pra liberar só uma —
@@ -249,6 +249,8 @@ export function DashboardView({
     pendencias: any[];
     fiadoResumo: { clienteNome: string; totalEmAberto: number; diasEmAbertoMax: number }[];
     fiadoTotalEmAberto: number;
+    pendenciasManuaisTotalEmAberto?: number;
+    pendenciasManuaisQtd?: number;
   } | null>(null);
   useEffect(() => {
     const verDash = pode('dashboard.ver');
@@ -359,6 +361,11 @@ export function DashboardView({
       fiadoTotalEmAberto = 0;
     }
 
+    const pendenciasManuaisAberto = caixaPendencias.filter((p) => p.status === 'aberta');
+    const pendenciasManuaisTotal = pendenciasManuaisAberto.reduce((s, p) => s + Number(p.valor_total), 0);
+    const pendenciasTotalGeral = fiadoTotalEmAberto + (pendenciasManuaisTotal || resumoDashboard?.pendenciasManuaisTotalEmAberto || 0);
+    const pendenciasQtdGeral = fiadoEmAberto.length + (pendenciasManuaisAberto.length || resumoDashboard?.pendenciasManuaisQtd || 0);
+
     return {
       valorTotalEstoque,
       totalUnidadesEstoque,
@@ -376,8 +383,10 @@ export function DashboardView({
       topClientes,
       fiadoEmAberto,
       fiadoTotalEmAberto,
+      pendenciasTotalGeral,
+      pendenciasQtdGeral,
     };
-  }, [estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, resumoDashboard]);
+  }, [estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, caixaPendencias, resumoDashboard]);
 
   const variacaoVendas = useMemo(() => compararComMesPassado(metrics.valorVendasMes, metrics.valorVendasMesAnterior), [metrics.valorVendasMes, metrics.valorVendasMesAnterior]);
   const variacaoSaidas = useMemo(
@@ -497,6 +506,7 @@ export function DashboardView({
           orcamentos={orcamentos}
           clientes={clientes}
           fiadoRecebimentos={fiadoRecebimentos}
+          caixaPendencias={caixaPendencias}
           tarefas={tarefas}
           onTabChange={onTabChange}
           onNavigateCliente={onNavigateCliente}
@@ -504,6 +514,7 @@ export function DashboardView({
           onAlternarPosicao={alternarPosicaoVisaoDono}
           resumoFiado={resumoDashboard?.fiadoResumo}
           resumoFiadoTotal={resumoDashboard?.fiadoTotalEmAberto}
+          resumoPendenciasManuaisTotal={resumoDashboard?.pendenciasManuaisTotalEmAberto}
         />
       )}
 
@@ -593,12 +604,12 @@ export function DashboardView({
           onAcao={() => onNavigateClientesSumidos?.()}
         />
       )}
-      {metrics.fiadoEmAberto.length > 0 && (
+      {metrics.pendenciasTotalGeral > 0 && (
         <AlertBar
           tom="warning"
           icone={HandCoins}
-          mensagem={`${metrics.fiadoEmAberto.length} cliente(s) com fiado em aberto há 15+ dias (${formatCurrency(metrics.fiadoTotalEmAberto)})`}
-          acaoLabel="Ver fiado"
+          mensagem={`${metrics.pendenciasQtdGeral} pendência(s) em aberto (${formatCurrency(metrics.pendenciasTotalGeral)})`}
+          acaoLabel="Ver pendências"
           onAcao={() => onNavigateFiado?.()}
         />
       )}
@@ -799,6 +810,7 @@ export function DashboardView({
           orcamentos={orcamentos}
           clientes={clientes}
           fiadoRecebimentos={fiadoRecebimentos}
+          caixaPendencias={caixaPendencias}
           tarefas={tarefas}
           onTabChange={onTabChange}
           onNavigateCliente={onNavigateCliente}
@@ -806,6 +818,7 @@ export function DashboardView({
           onAlternarPosicao={alternarPosicaoVisaoDono}
           resumoFiado={resumoDashboard?.fiadoResumo}
           resumoFiadoTotal={resumoDashboard?.fiadoTotalEmAberto}
+          resumoPendenciasManuaisTotal={resumoDashboard?.pendenciasManuaisTotalEmAberto}
         />
       )}
     </div>

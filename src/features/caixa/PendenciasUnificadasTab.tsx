@@ -10,7 +10,6 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { Modal } from '../../components/ui/Modal';
 import { aviso } from '../../components/ui/toast';
 import { Button } from '@/src/components/ui/button';
-import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
 import { caixaPendenciasApi, cobrancasApi, anexarBoletoCobranca } from './api';
 import { fiadoApi } from '../fiado/api';
 import { vendasFiadoEmAberto } from '../fiado/metricas';
@@ -23,7 +22,6 @@ const formatCurrency = (value: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
 type TipoItem = 'fiado' | 'avulso';
-type Filtro = 'todos' | 'fiado' | 'avulso';
 
 interface ItemPendencia {
   id: string;
@@ -77,8 +75,8 @@ function usePendenciasUnificadas() {
         id: `avulso-${p.id}`,
         tipo: 'avulso',
         descricao: p.descricao,
-        clienteNome: null,
-        clienteTelefone: null,
+        clienteNome: p.cliente?.nome || null,
+        clienteTelefone: p.cliente?.telefone || null,
         data: p.data,
         saldo,
         diasEmAberto: calcularDiasEmAberto(p.data),
@@ -390,7 +388,7 @@ function PainelCobranca({ item, cobranca, onAtualizar }: { item: ItemPendencia; 
           </Button>
         )}
 
-        {item.tipo === 'fiado' && (
+        {item.clienteTelefone && (
           <Button
             variant="outline"
             onClick={handleCobrarWhatsApp}
@@ -566,10 +564,6 @@ function CardPendencia({ item, cobranca, onAtualizarCobranca }: { item: ItemPend
         <div className="min-w-0">
           <div className="flex items-center gap-2 min-w-0">
             <p className="text-sm font-semibold text-text-primary truncate">{item.descricao}</p>
-            <StatusBadge
-              texto={item.tipo === 'fiado' ? 'Fiado' : 'Avulso'}
-              tom={item.tipo === 'fiado' ? 'warning' : 'neutral'}
-            />
           </div>
           <p className="text-xs text-text-faint mt-0.5">
             {item.clienteNome && <span className="text-text-secondary">{item.clienteNome} · </span>}
@@ -651,12 +645,6 @@ function CardPendencia({ item, cobranca, onAtualizarCobranca }: { item: ItemPend
 export function PendenciasUnificadasTab() {
   const { itens, totais, loading } = usePendenciasUnificadas();
   const { cobrancaDoItem, carregar: carregarCobrancas } = useCobrancas();
-  const [filtro, setFiltro] = useState<Filtro>('todos');
-
-  const filtrados = useMemo(() => {
-    if (filtro === 'todos') return itens;
-    return itens.filter((i) => i.tipo === filtro);
-  }, [itens, filtro]);
 
   return (
     <div className="space-y-5">
@@ -684,22 +672,13 @@ export function PendenciasUnificadasTab() {
         <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
           <MetricCard
             icone={HandCoins}
-            label="Composição"
-            valor={`${totais.qtdFiado} fiado · ${totais.qtdAvulso} avulso`}
-            contexto="Distribuição por tipo"
+            label="Ticket médio"
+            valor={totais.qtdTotal > 0 ? totais.total / totais.qtdTotal : 0}
+            formatarValor={formatCurrency}
+            contexto={`${totais.qtdTotal} pendência${totais.qtdTotal === 1 ? '' : 's'}`}
             tom="neutral"
           />
         </div>
-      </div>
-
-      <div className="flex items-center justify-between gap-4">
-        <Tabs value={filtro} onValueChange={(v) => setFiltro(v as Filtro)}>
-          <TabsList className="h-9 items-stretch">
-            <TabsTrigger value="todos" className="text-xs font-semibold px-3">Todos ({totais.qtdTotal})</TabsTrigger>
-            <TabsTrigger value="fiado" className="text-xs font-semibold px-3">Fiado ({totais.qtdFiado})</TabsTrigger>
-            <TabsTrigger value="avulso" className="text-xs font-semibold px-3">Avulso ({totais.qtdAvulso})</TabsTrigger>
-          </TabsList>
-        </Tabs>
       </div>
 
       <p className="text-xs text-text-faint bg-surface-inset border border-border-subtle rounded-control px-4 py-2.5">
@@ -710,20 +689,14 @@ export function PendenciasUnificadasTab() {
         <div className="py-12 flex items-center justify-center text-text-faint">
           <Loader2 size={20} className="animate-spin" />
         </div>
-      ) : filtrados.length === 0 ? (
+      ) : itens.length === 0 ? (
         <EmptyState
-          icone={filtro === 'fiado' ? HandCoins : filtro === 'avulso' ? Clock : Receipt}
-          mensagem={
-            filtro === 'fiado'
-              ? 'Nenhuma venda fiado em aberto.'
-              : filtro === 'avulso'
-                ? 'Nenhuma pendência avulsa em aberto.'
-                : 'Nenhuma pendência em aberto.'
-          }
+          icone={Receipt}
+          mensagem="Nenhuma pendência em aberto."
         />
       ) : (
         <div className="space-y-3">
-          {filtrados.map((item) => (
+          {itens.map((item) => (
             <div key={item.id}>
               <CardPendencia item={item} cobranca={cobrancaDoItem(item)} onAtualizarCobranca={carregarCobrancas} />
             </div>

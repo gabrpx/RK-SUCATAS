@@ -15,7 +15,7 @@ export type SegmentoCliente = 'sem_compras' | 'novo' | 'ativo' | 'campeao' | 'em
 export const SEGMENTO_LABELS: Record<SegmentoCliente, string> = {
   sem_compras: 'Sem compras',
   novo: 'Novo',
-  ativo: 'Ativo',
+  ativo: 'Com compras',
   campeao: 'Campeão',
   em_risco: 'Em risco',
   sumido: 'Sumido',

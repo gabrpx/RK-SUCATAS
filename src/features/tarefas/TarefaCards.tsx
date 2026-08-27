@@ -426,6 +426,7 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
           return (
             <motion.div
               key={tarefa.id}
+              layout
               layoutId={`tarefa-${tarefa.id}-${id}`}
               onClick={() => (selecao ? selecao.alternar(tarefa.id) : setAtiva(tarefa))}
               transition={SPRING_SHEET}

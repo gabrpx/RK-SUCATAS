@@ -44,6 +44,7 @@ import { iniciarRenovacaoDeTokenShopee, iniciarSincronizadorDeEstatisticasShopee
 import { iniciarRastreioAutomaticoDeEnvios } from './src/services/enviosScheduler.js';
 import { iniciarChecagemDiariaDeAlertas } from './src/services/notificacoesScheduler.js';
 import { iniciarDisparoDeLembretes } from './src/services/lembretesScheduler.js';
+import { iniciarDisparoDeCobrancas } from './src/services/cobrancasScheduler.js';
 import { pode } from './src/constants/permissoes.js';
 
 dotenv.config();
@@ -359,6 +360,7 @@ async function startServer() {
   iniciarRastreioAutomaticoDeEnvios(supabase);
   iniciarChecagemDiariaDeAlertas(supabase);
   iniciarDisparoDeLembretes(supabase);
+  iniciarDisparoDeCobrancas(supabase);
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {

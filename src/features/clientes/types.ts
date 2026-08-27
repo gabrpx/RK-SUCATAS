@@ -92,6 +92,7 @@ export interface Cliente {
   observacoes: string | null;
   ativo: boolean;
   banido: boolean;
+  cidade: string | null;
   criado_em: string;
   atualizado_em: string;
   // Vínculo manual com o comprador do Mercado Livre (ver migration_035) —
@@ -123,6 +124,7 @@ export interface ClienteInput {
   preferencia_contato?: PreferenciaContato | null;
   tags?: string[];
   observacoes?: string | null;
+  cidade?: string | null;
 }
 
 export type ClienteUpdateInput = Partial<ClienteInput> & { ativo?: boolean };

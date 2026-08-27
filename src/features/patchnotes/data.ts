@@ -18,6 +18,63 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.6',
+    data: '2026-08-27',
+    titulo: 'Correção de vendas, cidade do cliente e melhorias gerais',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Correção crítica: vendas voltaram a funcionar — overloads duplicados da função registrar_venda foram removidos.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Campo "Cidade" no cadastro de clientes — aparece na tabela, no card mobile e na ficha do cliente.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Pendências manuais do Caixa agora podem ser vinculadas a um cliente cadastrado.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Tarefas concluídas vão automaticamente para o fim da lista, com animação suave de reordenação.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Lista de vendas mostra há quanto tempo cada venda foi feita (ex: "há 5min", "ontem").',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Segmento "Ativo" na tabela de clientes renomeado para "Com compras" para não confundir com o status.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Cliente campeão de compras aparece como "Top cliente" no segmento — destaque visual para quem mais compra.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Dashboard agora soma pendências manuais do Caixa ao total de fiado, exibindo "Pendências em aberto" com o valor combinado.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Aba Pendências do Caixa simplificada: sem filtros desnecessários, ticket médio no lugar de composição, e botão WhatsApp aparece para qualquer pendência com telefone.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Notificação automática de cobrança: o sistema dispara push para toda a equipe quando uma cobrança agendada vence.',
+      },
+    ],
+  },
+  {
     versao: '1.3.5',
     data: '2026-08-27',
     titulo: 'Cobranças, banimento, exclusão de usuários e mais',

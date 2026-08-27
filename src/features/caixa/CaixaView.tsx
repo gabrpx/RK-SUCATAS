@@ -30,6 +30,7 @@ import { aviso } from '../../components/ui/toast';
 import { Button } from '@/src/components/ui/button';
 import { caixaApi, caixaPendenciasApi } from './api';
 import { PendenciasUnificadasTab } from './PendenciasUnificadasTab';
+import { SeletorCliente } from '../clientes/SeletorCliente';
 import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
 import { usePermissao } from '../../hooks/usePermissao';
 import type { CaixaEntry, CaixaTipo } from './types';
@@ -457,6 +458,8 @@ function LancamentoModal({
   const [valor, setValor] = useState('');
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [clienteNomeTexto, setClienteNomeTexto] = useState('');
 
   const reset = () => {
     setModo('saida');
@@ -464,6 +467,8 @@ function LancamentoModal({
     setValor('');
     setFormaPagamentoId('');
     setData(new Date().toISOString().slice(0, 10));
+    setClienteId(null);
+    setClienteNomeTexto('');
   };
 
   const handleClose = () => {
@@ -479,7 +484,7 @@ function LancamentoModal({
         // "Fiado/Pendência" é sempre um valor a RECEBER no futuro — não
         // lança em `caixa` agora, só quando um recebimento for confirmado
         // na sub-aba Pendências (ver migration_041).
-        const result = await caixaPendenciasApi.criar({ descricao: descricao.trim(), valor_total: Number(valor), data });
+        const result = await caixaPendenciasApi.criar({ descricao: descricao.trim(), valor_total: Number(valor), data, cliente_id: clienteId });
         if (result.success) {
           setCaixaPendencias((prev) => [result.data, ...prev]);
           handleClose();
@@ -577,9 +582,17 @@ function LancamentoModal({
         </div>
 
         {modo === 'pendencia' ? (
-          <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-surface-card text-text-secondary')}>
-            Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
-          </p>
+          <div className="space-y-4">
+            <SeletorCliente
+              clienteId={clienteId}
+              nome={clienteNomeTexto}
+              onChange={(id, nome) => { setClienteId(id); setClienteNomeTexto(nome); }}
+              placeholder="Vincular cliente (opcional)"
+            />
+            <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-surface-card text-text-secondary')}>
+              Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
+            </p>
+          </div>
         ) : (
           <div>
             <label className={labelClass}>Forma de pagamento (opcional)</label>

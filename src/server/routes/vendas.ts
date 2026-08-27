@@ -58,6 +58,7 @@ export function vendasRouter(supabase: SupabaseClient) {
         p_componente: componente || null,
         p_cliente_id: cliente_id || null,
         p_unidade_id: unidade_id || null,
+        p_nome_item: null,
       });
 
       if (error) throw error;

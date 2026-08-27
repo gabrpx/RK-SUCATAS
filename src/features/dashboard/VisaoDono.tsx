@@ -42,7 +42,7 @@ import { rankingTopClientes, clientesSumidos } from '../clientes/metricas';
 import { resumoFiadoPorCliente } from '../fiado/metricas';
 import type { Estoque } from '../estoque/types';
 import type { Venda } from '../vendas/types';
-import type { CaixaEntry } from '../caixa/types';
+import type { CaixaEntry, CaixaPendencia } from '../caixa/types';
 import type { Orcamento } from '../orcamentos/types';
 import type { Cliente } from '../clientes/types';
 import type { FiadoRecebimento } from '../fiado/types';
@@ -117,6 +117,7 @@ export interface VisaoDonoProps {
   orcamentos: Orcamento[];
   clientes: Cliente[];
   fiadoRecebimentos: FiadoRecebimento[];
+  caixaPendencias: CaixaPendencia[];
   tarefas: Tarefa[];
   onTabChange: (tab: string) => void;
   onNavigateCliente?: (clienteId: string) => void;
@@ -124,9 +125,10 @@ export interface VisaoDonoProps {
   onAlternarPosicao?: () => void;
   resumoFiado?: { clienteNome: string; totalEmAberto: number; diasEmAbertoMax: number }[];
   resumoFiadoTotal?: number;
+  resumoPendenciasManuaisTotal?: number;
 }
 
-export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, tarefas, onTabChange, onNavigateCliente, noTopo, onAlternarPosicao, resumoFiado, resumoFiadoTotal }: VisaoDonoProps) {
+export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, caixaPendencias, tarefas, onTabChange, onNavigateCliente, noTopo, onAlternarPosicao, resumoFiado, resumoFiadoTotal, resumoPendenciasManuaisTotal }: VisaoDonoProps) {
   const [expandido, setExpandido] = useState(true);
 
   const periodo = useMemo(() => {
@@ -189,8 +191,13 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
       ? fiadoCompleto.reduce((s, r) => s + r.totalEmAberto, 0)
       : (resumoFiadoTotal ?? 0);
 
-    return { ticketAtual, ticketAnterior, clientesNovos, topClientesCompleto, sumidosCompleto, fiadoCompleto, fiadoTotalGeral };
-  }, [vendas, clientes, orcamentos, fiadoRecebimentos, periodo, faturamento.totalAtual, faturamento.totalAnterior, faturamento.vendasMesAtual, resumoFiado, resumoFiadoTotal]);
+    const pendenciasManuaisAberto = caixaPendencias.filter((p) => p.status === 'aberta');
+    const pendenciasManuaisTotal = pendenciasManuaisAberto.reduce((s, p) => s + Number(p.valor_total), 0);
+    const pendenciasTotalGeral = fiadoTotalGeral + (pendenciasManuaisTotal || resumoPendenciasManuaisTotal || 0);
+    const pendenciasQtdGeral = fiadoCompleto.length + pendenciasManuaisAberto.length;
+
+    return { ticketAtual, ticketAnterior, clientesNovos, topClientesCompleto, sumidosCompleto, fiadoCompleto, fiadoTotalGeral, pendenciasTotalGeral, pendenciasQtdGeral };
+  }, [vendas, clientes, orcamentos, fiadoRecebimentos, caixaPendencias, periodo, faturamento.totalAtual, faturamento.totalAnterior, faturamento.vendasMesAtual, resumoFiado, resumoFiadoTotal, resumoPendenciasManuaisTotal]);
 
   const variacaoTicket = compararComMesPassado(desempenho.ticketAtual, desempenho.ticketAnterior);
 
@@ -356,11 +363,11 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
               <MetricCard icone={UserX} label="Clientes sumidos" valor={desempenho.sumidosCompleto.length} contexto="90+ dias sem comprar" tom="neutral" />
               <MetricCard
                 icone={HandCoins}
-                label="Fiado em aberto"
-                valor={desempenho.fiadoTotalGeral}
+                label="Pendências em aberto"
+                valor={desempenho.pendenciasTotalGeral}
                 formatarValor={formatCurrency}
-                contexto={`${desempenho.fiadoCompleto.length} cliente(s)`}
-                tom={desempenho.fiadoTotalGeral > 0 ? 'negative' : 'positive'}
+                contexto={`${desempenho.pendenciasQtdGeral} pendência(s)`}
+                tom={desempenho.pendenciasTotalGeral > 0 ? 'negative' : 'positive'}
               />
             </MetricRow>
 
@@ -389,7 +396,7 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
               </div>
 
               <div className="bg-surface-inset rounded-control overflow-hidden">
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint px-5 pt-4 pb-2">Fiado em aberto — quem deve e há quanto tempo</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint px-5 pt-4 pb-2">Pendências em aberto — quem deve e há quanto tempo</p>
                 {desempenho.fiadoCompleto.length === 0 ? (
                   <EmptyState icone={HandCoins} mensagem="Nenhum fiado em aberto no momento." />
                 ) : (

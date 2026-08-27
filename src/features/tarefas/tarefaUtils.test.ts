@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatarMomentoRelativo, progressoChecklist, moverItem, elegiveisParaConcluirEmLote } from './tarefaUtils';
-import type { TarefaItem } from './types';
+import { formatarMomentoRelativo, progressoChecklist, moverItem, elegiveisParaConcluirEmLote, ordenarTarefas } from './tarefaUtils';
+import type { Tarefa, TarefaItem } from './types';
 
 const AGORA = new Date('2026-08-24T18:00:00').getTime();
 const isoAtras = (ms: number) => new Date(AGORA - ms).toISOString();
@@ -59,6 +59,31 @@ describe('moverItem', () => {
   });
   it('id inexistente devolve a lista original sem quebrar', () => {
     expect(moverItem(lista, 'x', 'b').map((i) => i.id)).toEqual(['a', 'b', 'c', 'd']);
+  });
+});
+
+describe('ordenarTarefas', () => {
+  const fakeTarefa = (id: string, status: 'pendente' | 'concluida'): Tarefa => ({
+    id, titulo: `T ${id}`, descricao: null, status, prioridade: 'media', tipo: 'geral',
+    atribuido_para: 'u1', criado_por: 'u2', prazo: null, criado_em: '', atualizado_em: '',
+    concluida_em: null, cliente_id: null, cliente: null, itens: [], atribuido: null, criador: null,
+  });
+
+  it('moves concluded tasks after pending ones', () => {
+    const tarefas = [fakeTarefa('c1', 'concluida'), fakeTarefa('p1', 'pendente'), fakeTarefa('c2', 'concluida'), fakeTarefa('p2', 'pendente')];
+    expect(ordenarTarefas(tarefas).map((t) => t.id)).toEqual(['p1', 'p2', 'c1', 'c2']);
+  });
+
+  it('preserves relative order within each group', () => {
+    const tarefas = [fakeTarefa('p3', 'pendente'), fakeTarefa('p1', 'pendente'), fakeTarefa('p2', 'pendente')];
+    expect(ordenarTarefas(tarefas).map((t) => t.id)).toEqual(['p3', 'p1', 'p2']);
+  });
+
+  it('does not mutate the original array', () => {
+    const tarefas = [fakeTarefa('c1', 'concluida'), fakeTarefa('p1', 'pendente')];
+    const ids = tarefas.map((t) => t.id);
+    ordenarTarefas(tarefas);
+    expect(tarefas.map((t) => t.id)).toEqual(ids);
   });
 });
 

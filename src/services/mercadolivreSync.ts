@@ -417,6 +417,8 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
     p_data: params.data,
     p_cliente_id: params.clienteId || null,
     p_unidade_id: params.unidadeId || null,
+    p_componente: null,
+    p_nome_item: null,
   });
   if (error) throw error;
 

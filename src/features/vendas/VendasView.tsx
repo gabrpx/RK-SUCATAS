@@ -4,7 +4,9 @@
 // precisa se preocupar em manter as três tabelas sincronizadas na mão.
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ShoppingCart, Search, Plus, Trash2, Loader2, Calendar, Package, Edit2, AlertCircle } from 'lucide-react';
+import { motion } from 'motion/react';
 import { cn, parseLocalDate } from '../../utils';
+import { formatarTempoRelativoCurto } from '../../utils/tempoRelativo';
 import { usePermissao } from '../../hooks/usePermissao';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
@@ -201,6 +203,14 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
                         );
                       })()}
                       {venda.cliente_nome && <span>· {venda.cliente_nome}</span>}
+                      {venda.criado_em && (() => {
+                        const rel = formatarTempoRelativoCurto(venda.criado_em);
+                        return rel ? (
+                          <motion.span initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }} className="text-text-faint">
+                            · {rel}
+                          </motion.span>
+                        ) : null;
+                      })()}
                     </p>
                   </div>
                 </div>

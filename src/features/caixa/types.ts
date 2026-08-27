@@ -29,12 +29,19 @@ export interface CaixaPendencia {
   status: CaixaPendenciaStatus;
   data: string;
   criado_por: string;
+  cliente_id: string | null;
   criador?: { id: string; nome_exibicao: string } | null;
+  cliente?: { id: string; nome: string; telefone: string | null } | null;
   criado_em: string;
   atualizado_em: string;
 }
 
-export type CaixaPendenciaInput = Pick<CaixaPendencia, 'descricao' | 'valor_total' | 'data'>;
+export interface CaixaPendenciaInput {
+  descricao: string;
+  valor_total: number;
+  data: string;
+  cliente_id?: string | null;
+}
 
 export interface CaixaPendenciaRecebimento {
   id: string;

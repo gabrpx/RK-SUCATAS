@@ -17,7 +17,7 @@ import { TarefaCards } from './TarefaCards';
 import { useTarefas } from './useTarefas';
 import { tarefasApi } from './api';
 import { usePermissao } from '../../hooks/usePermissao';
-import { PRIORIDADE_LABELS, paraDatetimeLocal, elegiveisParaConcluirEmLote } from './tarefaUtils';
+import { PRIORIDADE_LABELS, paraDatetimeLocal, elegiveisParaConcluirEmLote, ordenarTarefas } from './tarefaUtils';
 import type { Tarefa, TarefaInput, TarefaPrioridade, UsuarioResumo } from './types';
 
 const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral', itens: [] };
@@ -129,7 +129,7 @@ function VisaoResponsavel({
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa pra você no momento." />
       ) : (
         <TarefaCards
-          tarefas={tarefas}
+          tarefas={ordenarTarefas(tarefas)}
           renderAcaoRapida={botaoConcluir}
           renderAcoes={(t) => botaoConcluir(t)}
           onContatoSalvo={refetch}
@@ -458,7 +458,7 @@ function VisaoCriador({
         <EmptyState icone={ClipboardList} mensagem="Nenhuma tarefa por aqui." />
       ) : (
         <TarefaCards
-          tarefas={filtradas}
+          tarefas={ordenarTarefas(filtradas)}
           renderMenu={menuTarefa}
           onContatoSalvo={refetch}
           podeMarcarItens={() => true}
