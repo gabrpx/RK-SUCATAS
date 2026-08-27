@@ -18,6 +18,53 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.5',
+    data: '2026-08-27',
+    titulo: 'Cobranças, banimento, exclusão de usuários e mais',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Sistema de cobrança nas Pendências: anexe boleto em PDF, configure lembrete automático (repetir a cada X horas ou horário fixo) e cobre o cliente via WhatsApp com um clique — tudo na mesma tela.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Fiado e Pendências avulsas agora vivem numa aba única "Pendências" dentro do Caixa, com cards consistentes, métricas no topo e filtro animado por tipo.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Visão do Dono aparece no topo do Dashboard (sem mais badge "Só para administradores") e a posição é configurável por usuário.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Cards de pendência e fiado no Dashboard agora mostram dados corretamente mesmo quando o usuário não tem permissão de orçamentos ou caixa individualmente.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Tarefas agora abre direto no filtro "Pendentes" em vez de "Todas".',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Segmentação de clientes corrigida: o badge "Novo" agora é por antiguidade real (conta criada há menos de 30 dias), e clientes com ticket alto são classificados como "Campeão" mesmo com poucas compras.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Banimento de clientes: clientes banidos ficam impedidos de receber novas vendas ou orçamentos. O banimento é reversível e independente de desativar.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Exclusão permanente de usuários: remove a conta e reatribui todas as tarefas, lembretes e registros vinculados para o administrador que executou a ação.',
+      },
+    ],
+  },
+  {
     versao: '1.3.0',
     data: '2026-08-25',
     titulo: 'Permissões por pessoa: você escolhe tela por tela, ação por ação',

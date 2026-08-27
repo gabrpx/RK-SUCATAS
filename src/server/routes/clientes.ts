@@ -13,7 +13,7 @@ const SELECT_COM_DETALHES =
   'motos:clientes_motos(*, modelo_moto:modelos_moto(id, nome, ano)), ' +
   'pecas_procuradas:pecas_procuradas(*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano))';
 
-const CAMPOS_EDITAVEIS = ['nome', 'telefone', 'documento', 'data_nascimento', 'origem', 'preferencia_contato', 'tags', 'observacoes', 'ativo', 'ml_nickname'] as const;
+const CAMPOS_EDITAVEIS = ['nome', 'telefone', 'documento', 'data_nascimento', 'origem', 'preferencia_contato', 'tags', 'observacoes', 'ativo', 'banido', 'ml_nickname'] as const;
 
 function normalizarTags(tags: unknown): string[] | undefined {
   if (!Array.isArray(tags)) return undefined;

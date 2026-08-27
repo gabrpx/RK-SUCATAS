@@ -91,6 +91,7 @@ export interface Cliente {
   tags: string[];
   observacoes: string | null;
   ativo: boolean;
+  banido: boolean;
   criado_em: string;
   atualizado_em: string;
   // Vínculo manual com o comprador do Mercado Livre (ver migration_035) —

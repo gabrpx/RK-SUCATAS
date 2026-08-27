@@ -29,6 +29,8 @@ import {
   ClipboardList,
   CheckCircle2,
   Package,
+  ArrowUpToLine,
+  ArrowDownToLine,
 } from 'lucide-react';
 import { BarChart, Bar, LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn, parseLocalDate } from '../../utils';
@@ -118,9 +120,13 @@ export interface VisaoDonoProps {
   tarefas: Tarefa[];
   onTabChange: (tab: string) => void;
   onNavigateCliente?: (clienteId: string) => void;
+  noTopo?: boolean;
+  onAlternarPosicao?: () => void;
+  resumoFiado?: { clienteNome: string; totalEmAberto: number; diasEmAbertoMax: number }[];
+  resumoFiadoTotal?: number;
 }
 
-export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, tarefas, onTabChange, onNavigateCliente }: VisaoDonoProps) {
+export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, tarefas, onTabChange, onNavigateCliente, noTopo, onAlternarPosicao, resumoFiado, resumoFiadoTotal }: VisaoDonoProps) {
   const [expandido, setExpandido] = useState(true);
 
   const periodo = useMemo(() => {
@@ -177,11 +183,14 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
 
     const topClientesCompleto = rankingTopClientes(clientes, vendas, orcamentos, { limite: 10 });
     const sumidosCompleto = clientesSumidos(clientes, vendas, orcamentos);
-    const fiadoCompleto = resumoFiadoPorCliente(vendas, fiadoRecebimentos);
-    const fiadoTotalGeral = fiadoCompleto.reduce((s, r) => s + r.totalEmAberto, 0);
+    const fiadoCalculado = resumoFiadoPorCliente(vendas, fiadoRecebimentos);
+    const fiadoCompleto = fiadoCalculado.length > 0 ? fiadoCalculado : (resumoFiado || []);
+    const fiadoTotalGeral = fiadoCompleto.length > 0 && fiadoCalculado.length > 0
+      ? fiadoCompleto.reduce((s, r) => s + r.totalEmAberto, 0)
+      : (resumoFiadoTotal ?? 0);
 
     return { ticketAtual, ticketAnterior, clientesNovos, topClientesCompleto, sumidosCompleto, fiadoCompleto, fiadoTotalGeral };
-  }, [vendas, clientes, orcamentos, fiadoRecebimentos, periodo, faturamento.totalAtual, faturamento.totalAnterior, faturamento.vendasMesAtual]);
+  }, [vendas, clientes, orcamentos, fiadoRecebimentos, periodo, faturamento.totalAtual, faturamento.totalAnterior, faturamento.vendasMesAtual, resumoFiado, resumoFiadoTotal]);
 
   const variacaoTicket = compararComMesPassado(desempenho.ticketAtual, desempenho.ticketAnterior);
 
@@ -279,13 +288,22 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
       >
         <div className="flex items-center gap-2.5 min-w-0">
           <span className="text-sm font-semibold text-text-primary truncate">Visão completa do negócio</span>
-          {/* Selo longo só a partir de sm — no celular ele estourava e cortava o
-              título; a permissão em si já é garantida no back-end. */}
-          <span className="hidden sm:inline-flex shrink-0">
-            <StatusBadge texto="Só para administradores" tom="accent" />
-          </span>
         </div>
-        <ChevronDown size={18} className={cn('text-text-faint transition-transform shrink-0', expandido && 'rotate-180')} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {onAlternarPosicao && (
+            <span
+              role="button"
+              tabIndex={0}
+              title={noTopo ? 'Mover para o final' : 'Mover para o topo'}
+              onClick={(e) => { e.stopPropagation(); onAlternarPosicao(); }}
+              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onAlternarPosicao(); } }}
+              className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-inset transition-colors"
+            >
+              {noTopo ? <ArrowDownToLine size={15} /> : <ArrowUpToLine size={15} />}
+            </span>
+          )}
+          <ChevronDown size={18} className={cn('text-text-faint transition-transform shrink-0', expandido && 'rotate-180')} />
+        </div>
       </button>
 
       {expandido && (

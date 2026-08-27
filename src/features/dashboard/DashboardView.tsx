@@ -7,7 +7,7 @@
 // Construída inteiramente com os componentes de src/components/ui/ e os
 // tokens de src/styles/theme.css — nada de hex/cor direta aqui.
 import type React from 'react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   Package,
@@ -50,6 +50,7 @@ import type { Venda } from '../vendas/types';
 import type { Orcamento } from '../orcamentos/types';
 import type { Tarefa } from '../tarefas/types';
 import { usePermissao } from '../../hooks/usePermissao';
+import { fetchWithRetry } from '../../utils/api';
 
 export const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -233,6 +234,33 @@ export function DashboardView({
   const verValores = pode('dashboard.ver_valores');
   const verVisaoDono = pode('dashboard.ver_visao_dono');
   const [searchTerm, setSearchTerm] = useState('');
+  const [visaoDonoNoTopo, setVisaoDonoNoTopo] = useState(() => {
+    try { return localStorage.getItem('dashboard_visao_dono_posicao') !== 'fim'; } catch { return true; }
+  });
+  const alternarPosicaoVisaoDono = () => {
+    setVisaoDonoNoTopo((prev) => {
+      const nova = !prev;
+      try { localStorage.setItem('dashboard_visao_dono_posicao', nova ? 'topo' : 'fim'); } catch {}
+      return nova;
+    });
+  };
+
+  const [resumoDashboard, setResumoDashboard] = useState<{
+    pendencias: any[];
+    fiadoResumo: { clienteNome: string; totalEmAberto: number; diasEmAbertoMax: number }[];
+    fiadoTotalEmAberto: number;
+  } | null>(null);
+  useEffect(() => {
+    const verDash = pode('dashboard.ver');
+    const verOrc = pode('orcamentos.ver');
+    const verCx = pode('caixa.ver');
+    if (verDash && (!verOrc || !verCx)) {
+      fetchWithRetry('/api/dashboard/resumo-pendencias')
+        .then((r) => r.json())
+        .then((j: any) => { if (j.success) setResumoDashboard(j.data); })
+        .catch(() => {});
+    }
+  }, []);
 
   // Dashboard só é visível pra admin/equipe (ver TAB_ROLES) — quem chega
   // aqui sempre vê TODAS as tarefas pendentes do sistema, não só as suas
@@ -304,10 +332,12 @@ export function DashboardView({
     const valorSaidasMesAnterior = saidasMesAnterior.reduce((sum, c) => sum + Number(c.valor), 0);
 
     const ultimasVendas = [...vendas].sort((a, b) => parseLocalDate(b.data).getTime() - parseLocalDate(a.data).getTime()).slice(0, 5);
-    const pendencias = orcamentos
-      .filter((o) => o.status === 'aberto')
-      .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
-      .slice(0, 5);
+    const pendencias = orcamentos.length > 0
+      ? orcamentos
+          .filter((o) => o.status === 'aberto')
+          .sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime())
+          .slice(0, 5)
+      : (resumoDashboard?.pendencias || []);
 
     const sumidos = clientesSumidos(clientes, vendas, orcamentos);
     const topClientes = rankingTopClientes(clientes, vendas, orcamentos, { limite: 5 });
@@ -315,8 +345,19 @@ export function DashboardView({
     // Só alerta fiado parado há um tempo — recém-vendido não precisa de
     // cobrança ainda, isso é ruído (ver regra "todo alerta precisa de ação").
     const DIAS_FIADO_ALERTA = 15;
-    const fiadoEmAberto = resumoFiadoPorCliente(vendas, fiadoRecebimentos).filter((r) => r.diasEmAbertoMax >= DIAS_FIADO_ALERTA);
-    const fiadoTotalEmAberto = fiadoEmAberto.reduce((soma, r) => soma + r.totalEmAberto, 0);
+    let fiadoEmAberto: { clienteNome?: string; totalEmAberto: number; diasEmAbertoMax: number }[];
+    let fiadoTotalEmAberto: number;
+    if (vendas.length > 0 || fiadoRecebimentos.length > 0) {
+      const resumo = resumoFiadoPorCliente(vendas, fiadoRecebimentos).filter((r) => r.diasEmAbertoMax >= DIAS_FIADO_ALERTA);
+      fiadoEmAberto = resumo;
+      fiadoTotalEmAberto = resumo.reduce((soma, r) => soma + r.totalEmAberto, 0);
+    } else if (resumoDashboard) {
+      fiadoEmAberto = resumoDashboard.fiadoResumo;
+      fiadoTotalEmAberto = resumoDashboard.fiadoTotalEmAberto;
+    } else {
+      fiadoEmAberto = [];
+      fiadoTotalEmAberto = 0;
+    }
 
     return {
       valorTotalEstoque,
@@ -336,7 +377,7 @@ export function DashboardView({
       fiadoEmAberto,
       fiadoTotalEmAberto,
     };
-  }, [estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos]);
+  }, [estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, resumoDashboard]);
 
   const variacaoVendas = useMemo(() => compararComMesPassado(metrics.valorVendasMes, metrics.valorVendasMesAnterior), [metrics.valorVendasMes, metrics.valorVendasMesAnterior]);
   const variacaoSaidas = useMemo(
@@ -447,6 +488,24 @@ export function DashboardView({
           </div>
         </div>
       </div>
+
+      {verVisaoDono && visaoDonoNoTopo && (
+        <VisaoDono
+          estoque={estoque}
+          vendas={vendas}
+          caixa={caixa}
+          orcamentos={orcamentos}
+          clientes={clientes}
+          fiadoRecebimentos={fiadoRecebimentos}
+          tarefas={tarefas}
+          onTabChange={onTabChange}
+          onNavigateCliente={onNavigateCliente}
+          noTopo={visaoDonoNoTopo}
+          onAlternarPosicao={alternarPosicaoVisaoDono}
+          resumoFiado={resumoDashboard?.fiadoResumo}
+          resumoFiadoTotal={resumoDashboard?.fiadoTotalEmAberto}
+        />
+      )}
 
       {/* 2. Métricas — no mobile é um carrossel com scroll-snap (dá pra sentir
           que tem mais card fora da tela); no desktop vira grade 4 colunas.
@@ -660,7 +719,7 @@ export function DashboardView({
                     titulo={o.cliente_nome}
                     legenda={`#${o.codigo}`}
                     data={new Date(o.criado_em).toLocaleDateString('pt-BR')}
-                    valor={totalOrcamento(o)}
+                    valor={o.itens ? totalOrcamento(o) : (o.total ?? 0)}
                     onClick={() => onTabChange('orcamentos')}
                   />
                 </div>
@@ -732,9 +791,7 @@ export function DashboardView({
         )}
       </PanelCard>
 
-      {/* 7. Visão do dono — permissão própria (`dashboard.ver_visao_dono`),
-          independente dos cards de valores acima. */}
-      {verVisaoDono && (
+      {verVisaoDono && !visaoDonoNoTopo && (
         <VisaoDono
           estoque={estoque}
           vendas={vendas}
@@ -745,6 +802,10 @@ export function DashboardView({
           tarefas={tarefas}
           onTabChange={onTabChange}
           onNavigateCliente={onNavigateCliente}
+          noTopo={visaoDonoNoTopo}
+          onAlternarPosicao={alternarPosicaoVisaoDono}
+          resumoFiado={resumoDashboard?.fiadoResumo}
+          resumoFiadoTotal={resumoDashboard?.fiadoTotalEmAberto}
         />
       )}
     </div>

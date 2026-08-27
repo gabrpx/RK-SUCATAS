@@ -158,7 +158,7 @@ function VisaoCriador({
   isAdmin: boolean;
   meuId: string | null;
 }) {
-  const [filtroStatus, setFiltroStatus] = useState<'todas' | 'pendente' | 'concluida'>('todas');
+  const [filtroStatus, setFiltroStatus] = useState<'todas' | 'pendente' | 'concluida'>('pendente');
   const [responsaveis, setResponsaveis] = useState<UsuarioResumo[]>([]);
 
   const [isFormOpen, setIsFormOpen] = useState(false);

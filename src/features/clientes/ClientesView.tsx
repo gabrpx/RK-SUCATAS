@@ -3,7 +3,7 @@
 // atendimento, tarefas/visitas vinculadas e desativação (soft delete — nunca
 // some do histórico de quem já comprou).
 import { useEffect, useMemo, useState } from 'react';
-import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, PackageSearch, X, MessageCircle } from 'lucide-react';
+import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, PackageSearch, X, MessageCircle, ShieldAlert } from 'lucide-react';
 import { cn } from '../../utils';
 import { usePermissao } from '../../hooks/usePermissao';
 import { formatTelefoneBR, formatDocumentoBR, onlyDigits } from '../../utils/formatters';
@@ -166,7 +166,7 @@ export function ClientesView({
     const resultado = clientes.filter((c) => {
       if (statusFiltro === 'ativos' && !c.ativo) return false;
       if (statusFiltro === 'inativos' && c.ativo) return false;
-      if (segmentoFiltro && calcularSegmento(historicoPorCliente.get(c.id)!) !== segmentoFiltro) return false;
+      if (segmentoFiltro && calcularSegmento(historicoPorCliente.get(c.id)!, c.criado_em) !== segmentoFiltro) return false;
       if (tagFiltro && !c.tags.includes(tagFiltro)) return false;
       if (motoProcuradaFiltro && !(badgesPorCliente.get(c.id) || []).some((b) => b.modeloMotoId === motoProcuradaFiltro)) return false;
       if (!termo) return true;
@@ -329,6 +329,20 @@ export function ClientesView({
     }
   };
 
+  const alternarBanido = async (cliente: Cliente) => {
+    try {
+      const result = cliente.banido ? await clientesApi.desbanir(cliente.id) : await clientesApi.banir(cliente.id);
+      if (!result.success) throw new Error(result.error);
+      await refreshData();
+      if (clienteAberto?.id === cliente.id) setClienteAberto(result.data);
+      aviso.sucesso(cliente.banido ? 'Banimento removido' : 'Cliente banido');
+    } catch (err: any) {
+      aviso.falha(err, cliente.banido ? 'Erro ao remover banimento' : 'Erro ao banir cliente');
+    }
+  };
+
+  const [confirmarBanir, setConfirmarBanir] = useState<Cliente | null>(null);
+
   const [carregandoFicha, setCarregandoFicha] = useState(false);
 
   const abrirFicha = async (cliente: Cliente) => {
@@ -482,7 +496,7 @@ export function ClientesView({
       key: 'segmento',
       header: 'Segmento',
       render: (c) => {
-        const segmento = calcularSegmento(historicoPorCliente.get(c.id)!);
+        const segmento = calcularSegmento(historicoPorCliente.get(c.id)!, c.criado_em);
         return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
       },
     },
@@ -569,8 +583,9 @@ export function ClientesView({
           </div>
         </div>
         <div className="flex items-center gap-1.5 flex-wrap mt-2">
+          {c.banido && <StatusBadge texto="Banido" tom="danger" />}
           {(() => {
-            const segmento = calcularSegmento(historicoPorCliente.get(c.id)!);
+            const segmento = calcularSegmento(historicoPorCliente.get(c.id)!, c.criado_em);
             return <StatusBadge texto={SEGMENTO_LABELS[segmento]} tom={SEGMENTO_TONS[segmento]} />;
           })()}
           {(badgesPorCliente.get(c.id) || []).length > 0 && (
@@ -910,6 +925,20 @@ export function ClientesView({
                   </>
                 )}
               </Button>
+              <Button
+                variant="outline"
+                onClick={() => clienteAberto.banido ? alternarBanido(clienteAberto) : setConfirmarBanir(clienteAberto)}
+                className={cn(
+                  'h-auto flex-1 py-3 rounded-control font-medium text-sm',
+                  clienteAberto.banido ? 'border-positive/30 text-positive hover:bg-positive-bg hover:text-positive' : 'border-danger/30 text-danger hover:bg-danger-bg hover:text-danger'
+                )}
+              >
+                {clienteAberto.banido ? (
+                  <><ShieldAlert size={14} /> Desbanir</>
+                ) : (
+                  <><ShieldAlert size={14} /> Banir</>
+                )}
+              </Button>
             </div>
           )
         }
@@ -918,7 +947,7 @@ export function ClientesView({
           <div className="space-y-5">
             {(() => {
               const historico = historicoPorCliente.get(clienteAberto.id);
-              const segmento = historico ? calcularSegmento(historico) : null;
+              const segmento = historico ? calcularSegmento(historico, clienteAberto.criado_em) : null;
               return (
                 <ClienteProfileCard
                   nome={clienteAberto.nome}
@@ -931,6 +960,7 @@ export function ClientesView({
                   motosBusca={badgesPorCliente.get(clienteAberto.id) || []}
                   segmentoLabel={segmento ? SEGMENTO_LABELS[segmento] : undefined}
                   segmentoTom={segmento ? SEGMENTO_TONS[segmento] : 'neutral'}
+                  banido={clienteAberto.banido}
                 />
               );
             })()}
@@ -1174,6 +1204,37 @@ export function ClientesView({
                 )}
               </div>
             </div>
+        )}
+      </Modal>
+
+      <Modal
+        aberto={!!confirmarBanir}
+        onFechar={() => setConfirmarBanir(null)}
+        titulo="Banir cliente?"
+        icone={ShieldAlert}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setConfirmarBanir(null)} className="h-11 flex-1 rounded-control font-medium text-sm">
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => {
+                if (confirmarBanir) alternarBanido(confirmarBanir);
+                setConfirmarBanir(null);
+              }}
+              className="h-11 flex-1 rounded-control font-medium text-sm"
+            >
+              Banir
+            </Button>
+          </div>
+        }
+      >
+        {confirmarBanir && (
+          <p className="text-sm text-text-secondary">
+            <span className="text-text-primary font-medium">{confirmarBanir.nome}</span> não poderá receber novas vendas nem orçamentos enquanto estiver banido. Essa ação pode ser revertida a qualquer momento.
+          </p>
         )}
       </Modal>
     </div>

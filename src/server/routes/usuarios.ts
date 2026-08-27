@@ -126,6 +126,64 @@ export function usuariosRouter(supabase: SupabaseClient) {
     }
   });
 
+  router.delete('/:id', async (req: AuthenticatedRequest, res) => {
+    try {
+      const alvoId = req.params.id;
+      const adminId = req.usuario!.id;
+
+      if (alvoId === adminId) {
+        return res.status(400).json({ success: false, error: 'Não é possível excluir a si mesmo' });
+      }
+
+      const { data: alvo, error: erroAlvo } = await supabase.from('usuarios').select('id, roles, ativo, nome_exibicao').eq('id', alvoId).maybeSingle();
+      if (erroAlvo) throw erroAlvo;
+      if (!alvo) return res.status(404).json({ success: false, error: 'Usuário não encontrado' });
+
+      if (alvo.roles.includes('admin') && alvo.ativo) {
+        const { count, error: erroContagem } = await supabase
+          .from('usuarios')
+          .select('id', { count: 'exact', head: true })
+          .contains('roles', ['admin'])
+          .eq('ativo', true)
+          .neq('id', alvoId);
+        if (erroContagem) throw erroContagem;
+        if (!count) {
+          return res.status(400).json({ success: false, error: 'Não é possível excluir o último administrador ativo do sistema' });
+        }
+      }
+
+      const reatribuicoes: PromiseLike<any>[] = [
+        supabase.from('tarefas').update({ atribuido_para: adminId }).eq('atribuido_para', alvoId),
+        supabase.from('tarefas').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('lembretes').update({ atribuido_para: adminId }).eq('atribuido_para', alvoId),
+        supabase.from('lembretes').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('clientes_notas').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('comprovantes_pix').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('comprovantes_pix').update({ removido_por: adminId }).eq('removido_por', alvoId),
+        supabase.from('pecas_procuradas').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('envios').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('caixa_pendencias').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('caixa_pendencia_recebimentos').update({ recebido_por: adminId }).eq('recebido_por', alvoId),
+        supabase.from('fiado_recebimentos').update({ recebido_por: adminId }).eq('recebido_por', alvoId),
+        supabase.from('cobrancas').update({ criado_por: adminId }).eq('criado_por', alvoId),
+        supabase.from('cobrancas').update({ enviado_por: adminId }).eq('enviado_por', alvoId),
+      ];
+
+      const resultados = await Promise.all(reatribuicoes);
+      for (const r of resultados) {
+        if (r.error) throw new Error(`Erro na reatribuição: ${r.error.message}`);
+      }
+
+      const { error: erroDeletar } = await supabase.from('usuarios').delete().eq('id', alvoId);
+      if (erroDeletar) throw erroDeletar;
+
+      res.json({ success: true, data: null, mensagem: `Usuário "${alvo.nome_exibicao}" excluído. Registros reatribuídos para você.` });
+    } catch (error: any) {
+      console.error('Erro ao excluir usuário:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
   router.post('/:id/reset-password', async (req, res) => {
     try {
       const password = String(req.body?.password || '');

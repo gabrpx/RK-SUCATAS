@@ -52,3 +52,34 @@ export interface CaixaPendenciaRecebimentoInput {
   valor: number;
   forma_pagamento_id: string;
 }
+
+export interface Cobranca {
+  id: string;
+  venda_id: string | null;
+  pendencia_id: string | null;
+  boleto_storage_path: string | null;
+  boleto_nome_arquivo: string | null;
+  boleto_tipo_mime: string | null;
+  boleto_tamanho_bytes: number | null;
+  intervalo_minutos: number | null;
+  horario_fixo: string | null;
+  proxima_notificacao_em: string | null;
+  timer_ativo: boolean;
+  ultimo_envio_em: string | null;
+  enviado_por: string | null;
+  criador?: { id: string; nome_exibicao: string } | null;
+  enviador?: { id: string; nome_exibicao: string } | null;
+  criado_por: string | null;
+  criado_em: string;
+}
+
+export interface CobrancaInput {
+  venda_id?: string | null;
+  pendencia_id?: string | null;
+  intervalo_minutos?: number | null;
+  horario_fixo?: string | null;
+  boleto_storage_path?: string | null;
+  boleto_nome_arquivo?: string | null;
+  boleto_tipo_mime?: string | null;
+  boleto_tamanho_bytes?: number | null;
+}

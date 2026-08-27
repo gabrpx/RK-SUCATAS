@@ -39,6 +39,11 @@ export function vendasRouter(supabase: SupabaseClient) {
       }
       if (!forma_pagamento_id) return res.status(400).json({ success: false, error: 'Forma de pagamento é obrigatória' });
 
+      if (cliente_id) {
+        const { data: cli } = await supabase.from('clientes').select('banido').eq('id', cliente_id).maybeSingle();
+        if (cli?.banido) return res.status(400).json({ success: false, error: 'Este cliente está banido e não pode receber novas vendas' });
+      }
+
       const { data: venda, error } = await supabase.rpc('registrar_venda', {
         p_estoque_id: estoque_id,
         p_quantidade: Number(quantidade),

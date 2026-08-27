@@ -36,6 +36,8 @@ import { lembretesRouter } from './src/server/routes/lembretes.js';
 import { notificacoesRouter } from './src/server/routes/notificacoes.js';
 import { mercadolivreRouter, mercadolivreCallbackHandler, mercadolivreWebhookHandler } from './src/server/routes/mercadolivre.js';
 import { shopeeRouter, shopeeCallbackHandler } from './src/server/routes/shopee.js';
+import { dashboardRouter } from './src/server/routes/dashboard.js';
+import { cobrancasRouter } from './src/server/routes/cobrancas.js';
 import { iniciarDetectorDePendenciasML } from './src/services/mercadolivreScheduler.js';
 import { iniciarSincronizadorDeEstatisticasML } from './src/services/mercadolivreEstatisticasScheduler.js';
 import { iniciarRenovacaoDeTokenShopee, iniciarSincronizadorDeEstatisticasShopee } from './src/services/shopeeScheduler.js';
@@ -326,6 +328,7 @@ async function startServer() {
   app.use('/api/clientes', clientesRouter(supabase));
   app.use('/api/caixa', caixaRouter(supabase));
   app.use('/api/caixa-pendencias', caixaPendenciasRouter(supabase));
+  app.use('/api/cobrancas', cobrancasRouter(supabase));
   app.use('/api/fiado', fiadoRouter(supabase));
   app.use('/api/envios', enviosRouter(supabase));
   // Upload é usado por Estoque (imagem de peça/unidade/modelo) e por Vendas
@@ -336,6 +339,7 @@ async function startServer() {
     exigirAlguma('estoque.criar', 'estoque.editar', 'vendas.criar', 'vendas.editar', 'clientes.editar', 'configuracoes.gerenciar_motos'),
     uploadRouter()
   );
+  app.use('/api/dashboard', dashboardRouter(supabase));
   app.use('/api/tarefas', tarefasRouter(supabase));
   app.use('/api/lembretes', lembretesRouter(supabase));
   app.use('/api/mercadolivre', mercadolivreRouter(supabase));

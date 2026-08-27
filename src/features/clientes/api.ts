@@ -15,6 +15,8 @@ export const clientesApi = {
   atualizar: (id: string, payload: ClienteUpdateInput): Promise<ApiResult<Cliente>> => api.patch(`/api/clientes/${id}`, payload),
   desativar: (id: string): Promise<ApiResult<Cliente>> => api.patch(`/api/clientes/${id}`, { ativo: false }),
   reativar: (id: string): Promise<ApiResult<Cliente>> => api.patch(`/api/clientes/${id}`, { ativo: true }),
+  banir: (id: string): Promise<ApiResult<Cliente>> => api.patch(`/api/clientes/${id}`, { banido: true }),
+  desbanir: (id: string): Promise<ApiResult<Cliente>> => api.patch(`/api/clientes/${id}`, { banido: false }),
   adicionarNota: (id: string, texto: string): Promise<ApiResult<ClienteNota>> => api.post(`/api/clientes/${id}/notas`, { texto }),
   removerNota: (id: string, notaId: string): Promise<ApiResult<null>> => api.delete(`/api/clientes/${id}/notas/${notaId}`),
 

@@ -116,6 +116,11 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       if (!cliente_nome || !String(cliente_nome).trim()) return res.status(400).json({ success: false, error: 'Nome do cliente é obrigatório' });
       if (!Array.isArray(itens) || itens.length === 0) return res.status(400).json({ success: false, error: 'Adicione ao menos um item ao orçamento' });
 
+      if (cliente_id) {
+        const { data: cli } = await supabase.from('clientes').select('banido').eq('id', cliente_id).maybeSingle();
+        if (cli?.banido) return res.status(400).json({ success: false, error: 'Este cliente está banido e não pode receber novos orçamentos' });
+      }
+
       const { data: orcamento, error: e1 } = await supabase
         .from('orcamentos')
         .insert({
@@ -281,6 +286,11 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       if (e1) throw e1;
       if (orcamento.status !== 'aberto') return res.status(400).json({ success: false, error: 'Este orçamento não está mais em aberto' });
 
+      if (orcamento.cliente_id) {
+        const { data: cli } = await supabase.from('clientes').select('banido').eq('id', orcamento.cliente_id).maybeSingle();
+        if (cli?.banido) return res.status(400).json({ success: false, error: 'Este cliente está banido e não pode receber vendas' });
+      }
+
       const { data: item, error: e2 } = await supabase.from('orcamento_itens').select('*').eq('id', req.params.itemId).eq('orcamento_id', req.params.id).single();
       if (e2) throw e2;
       if (item.venda_id) return res.status(400).json({ success: false, error: 'Esta linha já foi vendida' });
@@ -308,6 +318,11 @@ export function orcamentosRouter(supabase: SupabaseClient) {
       const { data: orcamento, error: e1 } = await supabase.from('orcamentos').select('status, cliente_nome, cliente_id').eq('id', req.params.id).single();
       if (e1) throw e1;
       if (orcamento.status !== 'aberto') return res.status(400).json({ success: false, error: 'Este orçamento não está mais em aberto' });
+
+      if (orcamento.cliente_id) {
+        const { data: cli } = await supabase.from('clientes').select('banido').eq('id', orcamento.cliente_id).maybeSingle();
+        if (cli?.banido) return res.status(400).json({ success: false, error: 'Este cliente está banido e não pode receber vendas' });
+      }
 
       const { data: pendentes, error: e2 } = await supabase.from('orcamento_itens').select('*').eq('orcamento_id', req.params.id).is('venda_id', null);
       if (e2) throw e2;

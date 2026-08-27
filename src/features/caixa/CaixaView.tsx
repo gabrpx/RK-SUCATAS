@@ -29,8 +29,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '.
 import { aviso } from '../../components/ui/toast';
 import { Button } from '@/src/components/ui/button';
 import { caixaApi, caixaPendenciasApi } from './api';
-import { PendenciasTab } from './PendenciasTab';
-import { FiadoView } from '../fiado/FiadoView';
+import { PendenciasUnificadasTab } from './PendenciasUnificadasTab';
+import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
 import { usePermissao } from '../../hooks/usePermissao';
 import type { CaixaEntry, CaixaTipo } from './types';
 
@@ -77,13 +77,11 @@ export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: bo
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<CaixaEntry | null>(null);
-  const [aba, setAba] = useState<'lancamentos' | 'pendencias' | 'fiado'>('lancamentos');
+  const [aba, setAba] = useState<'lancamentos' | 'pendencias'>('lancamentos');
 
-  // Deep-link vindo do detalhe da venda ("abrir fiado") ou do card do Dashboard,
-  // que antes iam pra aba Fiado — agora caem na sub-aba Fiado do Caixa.
   useEffect(() => {
     if (!pendingFiado) return;
-    setAba('fiado');
+    setAba('pendencias');
     setPendingFiado?.(false);
   }, [pendingFiado, setPendingFiado]);
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -232,41 +230,15 @@ export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: bo
         </Button>
       </div>
 
-      {/* Sub-abas: Lançamentos (o que já existia) / Pendências (fiado do Caixa) */}
-      <div className={cn('inline-flex items-center gap-1 p-1.5 rounded-2xl border w-fit', 'bg-surface-card border-border-subtle')}>
-        <button
-          onClick={() => setAba('lancamentos')}
-          className={cn(
-            'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
-            aba === 'lancamentos' ? 'bg-accent text-white' : 'text-text-muted'
-          )}
-        >
-          Lançamentos
-        </button>
-        <button
-          onClick={() => setAba('pendencias')}
-          className={cn(
-            'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
-            aba === 'pendencias' ? 'bg-accent text-white' : 'text-text-muted'
-          )}
-        >
-          Pendências
-        </button>
-        <button
-          onClick={() => setAba('fiado')}
-          className={cn(
-            'px-4 py-2 rounded-xl font-black text-xs uppercase tracking-widest transition-all',
-            aba === 'fiado' ? 'bg-accent text-white' : 'text-text-muted'
-          )}
-        >
-          Vendas fiado
-        </button>
-      </div>
+      <Tabs value={aba} onValueChange={(v) => setAba(v as typeof aba)}>
+        <TabsList className="h-11 sm:h-9 items-stretch border-border-default">
+          <TabsTrigger value="lancamentos" className="text-xs font-semibold px-4">Lançamentos</TabsTrigger>
+          <TabsTrigger value="pendencias" className="text-xs font-semibold px-4">Pendências</TabsTrigger>
+        </TabsList>
+      </Tabs>
 
-      {aba === 'fiado' ? (
-        <FiadoView />
-      ) : aba === 'pendencias' ? (
-        <PendenciasTab />
+      {aba === 'pendencias' ? (
+        <PendenciasUnificadasTab />
       ) : (
         <>
       {/* Totais */}

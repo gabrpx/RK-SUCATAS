@@ -5,7 +5,7 @@
 // e faz. `roles` sobrou só pra marcar quem é administrador — o super-usuário,
 // que ignora o mapa e é o único que abre esta tela.
 import { Fragment, useEffect, useState } from 'react';
-import { UserPlus, KeyRound, Pencil, Ban, RotateCcw, Loader2, Check } from 'lucide-react';
+import { UserPlus, KeyRound, Pencil, Ban, RotateCcw, Loader2, Check, Trash2 } from 'lucide-react';
 import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
@@ -72,6 +72,7 @@ export function UsuariosView() {
   const [redefinindoSenhaDe, setRedefinindoSenhaDe] = useState<Usuario | null>(null);
   const [novaSenha, setNovaSenha] = useState('');
   const [desativando, setDesativando] = useState<Usuario | null>(null);
+  const [excluindo, setExcluindo] = useState<Usuario | null>(null);
 
   const carregar = async () => {
     setLoading(true);
@@ -166,6 +167,19 @@ export function UsuariosView() {
     setDesativando(null);
   };
 
+  const confirmarExclusao = async () => {
+    if (!excluindo) return;
+    try {
+      const result = await usuariosApi.excluir(excluindo.id);
+      if (!result.success) throw new Error(result.error);
+      setExcluindo(null);
+      await carregar();
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao excluir usuário');
+      setExcluindo(null);
+    }
+  };
+
   const confirmarRedefinicao = async () => {
     if (!redefinindoSenhaDe) return;
     if (novaSenha.length < 6) {
@@ -234,16 +248,28 @@ export function UsuariosView() {
             <KeyRound size={14} />
           </Button>
           {u.id !== meuId && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
-              title={u.ativo ? 'Desativar' : 'Reativar'}
-              className={cn('size-7 rounded-control', u.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
-            >
-              {u.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
+                title={u.ativo ? 'Desativar' : 'Reativar'}
+                className={cn('size-7 rounded-control', u.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
+              >
+                {u.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setExcluindo(u)}
+                title="Excluir permanentemente"
+                className="size-7 rounded-control text-danger hover:text-danger"
+              >
+                <Trash2 size={14} />
+              </Button>
+            </>
           )}
         </div>
       ),
@@ -284,16 +310,28 @@ export function UsuariosView() {
             <KeyRound size={14} />
           </Button>
           {u.id !== meuId && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
-              title={u.ativo ? 'Desativar' : 'Reativar'}
-              className={cn('size-7 rounded-control', u.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
-            >
-              {u.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => (u.ativo ? setDesativando(u) : alternarAtivo(u))}
+                title={u.ativo ? 'Desativar' : 'Reativar'}
+                className={cn('size-7 rounded-control', u.ativo ? 'text-danger hover:text-danger' : 'text-positive hover:text-positive')}
+              >
+                {u.ativo ? <Ban size={14} /> : <RotateCcw size={14} />}
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                onClick={() => setExcluindo(u)}
+                title="Excluir permanentemente"
+                className="size-7 rounded-control text-danger hover:text-danger"
+              >
+                <Trash2 size={14} />
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -487,6 +525,35 @@ export function UsuariosView() {
       >
         {desativando && (
           <p className="text-sm text-text-secondary">A conta @{desativando.username} não vai conseguir mais entrar no sistema até ser reativada.</p>
+        )}
+      </Modal>
+
+      <Modal
+        aberto={!!excluindo}
+        onFechar={() => setExcluindo(null)}
+        titulo={excluindo ? `Excluir ${excluindo.nome_exibicao}?` : 'Excluir?'}
+        icone={Trash2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <Button variant="outline" onClick={() => setExcluindo(null)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmarExclusao} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
+              Excluir permanentemente
+            </Button>
+          </div>
+        }
+      >
+        {excluindo && (
+          <div className="space-y-2">
+            <p className="text-sm text-text-secondary">
+              A conta @{excluindo.username} será <strong>removida permanentemente</strong> do sistema.
+            </p>
+            <p className="text-sm text-text-secondary">
+              Tarefas, lembretes, notas e demais registros vinculados serão reatribuídos para você.
+            </p>
+          </div>
         )}
       </Modal>
     </div>

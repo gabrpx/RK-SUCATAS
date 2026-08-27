@@ -21,6 +21,7 @@ interface ClienteProfileCardProps {
   motosBusca?: { modeloMotoId: string; nome: string; tom: StatusTone }[];
   segmentoLabel?: string;
   segmentoTom?: StatusTone;
+  banido?: boolean;
   /** Inicia expandido (default true — na ficha o usuário quer ver logo). */
   defaultAberto?: boolean;
 }
@@ -47,6 +48,7 @@ export function ClienteProfileCard({
   motosBusca = [],
   segmentoLabel,
   segmentoTom = 'neutral',
+  banido = false,
   defaultAberto = true,
 }: ClienteProfileCardProps) {
   const [aberto, setAberto] = useState(defaultAberto);
@@ -74,6 +76,7 @@ export function ClienteProfileCard({
         </div>
 
         <div className="flex shrink-0 items-center gap-2.5">
+          {banido && <StatusBadge texto="Banido" tom="danger" />}
           {segmentoLabel && <StatusBadge texto={segmentoLabel} tom={segmentoTom} />}
           <motion.span
             animate={{ rotate: aberto ? 0 : 180 }}

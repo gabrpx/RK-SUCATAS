@@ -12,4 +12,5 @@ export const usuariosApi = {
   criar: (payload: UsuarioInput): Promise<ApiResult<Usuario>> => api.post('/api/usuarios', payload),
   atualizar: (id: string, payload: UsuarioUpdateInput): Promise<ApiResult<Usuario>> => api.patch(`/api/usuarios/${id}`, payload),
   redefinirSenha: (id: string, password: string): Promise<ApiResult<null>> => api.post(`/api/usuarios/${id}/reset-password`, { password }),
+  excluir: (id: string): Promise<ApiResult<null>> => api.delete(`/api/usuarios/${id}`),
 };

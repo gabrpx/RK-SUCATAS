@@ -32,7 +32,9 @@ export const SEGMENTO_TONS: Record<SegmentoCliente, StatusTone> = {
 
 const DIAS_SUMIDO = 90;
 const DIAS_EM_RISCO = 45;
+const DIAS_NOVO = 30;
 const COMPRAS_CAMPEAO = 5;
+const GASTO_CAMPEAO = 500;
 
 export interface HistoricoCliente {
   vendas: Venda[];
@@ -57,13 +59,15 @@ export function calcularHistoricoCliente(clienteId: string, vendas: Venda[], orc
   return { vendas: vendasCliente, orcamentosAbertos, totalGasto, quantidadeCompras, ticketMedio, ultimaCompraEm, diasDesdeUltimaCompra };
 }
 
-export function calcularSegmento(historico: HistoricoCliente): SegmentoCliente {
-  const { quantidadeCompras, diasDesdeUltimaCompra } = historico;
+export function calcularSegmento(historico: HistoricoCliente, criadoEm?: string | null, agora: Date = new Date()): SegmentoCliente {
+  const { quantidadeCompras, diasDesdeUltimaCompra, totalGasto } = historico;
   if (quantidadeCompras === 0 || diasDesdeUltimaCompra === null) return 'sem_compras';
   if (diasDesdeUltimaCompra >= DIAS_SUMIDO) return 'sumido';
   if (diasDesdeUltimaCompra >= DIAS_EM_RISCO) return 'em_risco';
-  if (quantidadeCompras >= COMPRAS_CAMPEAO) return 'campeao';
-  return quantidadeCompras <= 1 ? 'novo' : 'ativo';
+  if (quantidadeCompras >= COMPRAS_CAMPEAO || totalGasto >= GASTO_CAMPEAO) return 'campeao';
+  const diasDesdeCriacao = criadoEm ? Math.floor((agora.getTime() - new Date(criadoEm).getTime()) / 86400000) : null;
+  if (diasDesdeCriacao != null && diasDesdeCriacao <= DIAS_NOVO && quantidadeCompras <= 2) return 'novo';
+  return 'ativo';
 }
 
 export function clientesSumidos(clientes: Cliente[], vendas: Venda[], orcamentos: Orcamento[], limiteDias: number = DIAS_SUMIDO, agora: Date = new Date()) {
