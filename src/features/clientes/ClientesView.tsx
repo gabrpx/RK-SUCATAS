@@ -3,7 +3,7 @@
 // atendimento, tarefas/visitas vinculadas e desativação (soft delete — nunca
 // some do histórico de quem já comprou).
 import { useEffect, useMemo, useState } from 'react';
-import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, StickyNote, Trash2, Send, ShoppingBag, Receipt, ClipboardList, Download, MapPin, Clock, UserX, PackageSearch, X, MessageCircle, ShieldAlert } from 'lucide-react';
+import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, Trash2, UserX, PackageSearch, X, MessageCircle, ShieldAlert } from 'lucide-react';
 import { cn } from '../../utils';
 import { usePermissao } from '../../hooks/usePermissao';
 import { formatTelefoneBR, formatDocumentoBR, onlyDigits } from '../../utils/formatters';
@@ -21,7 +21,8 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
 import { clientesApi } from './api';
-import { ClienteProfileCard } from './ClienteProfileCard';
+import { ClienteFormModal, type ClienteFormData } from './ClienteFormModal';
+import { ClienteDetalheModal } from './ClienteDetalheModal';
 import {
   calcularHistoricoCliente,
   calcularSegmento,
@@ -36,8 +37,7 @@ import { preferenciasClientes, type OrdenacaoClientes } from './preferencias';
 import { gerarCsvHistoricoCliente, baixarCsv } from './exportarHistoricoCsv';
 import { useTarefas } from '../tarefas/useTarefas';
 import { comprovantesApi } from '../comprovantes/api';
-import { ComprovanteListItem } from '../comprovantes/ComprovantesPixVenda';
-import type { Cliente, ClienteInput, ClienteNota, ClienteOrigem, PreferenciaContato, PecaProcuradaInput, PecaProcuradaStatus } from './types';
+import type { Cliente, ClienteInput, ClienteOrigem, PreferenciaContato, PecaProcuradaStatus } from './types';
 import type { Role } from '../../constants/roles';
 
 const ORDENACAO_LABELS: Record<OrdenacaoClientes, string> = {
@@ -57,7 +57,7 @@ const STATUS_FILTRO_LABELS: Record<'ativos' | 'inativos' | 'todos', string> = {
 const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = { aguardando: 'Aguardando', atendida: 'Atendida', cancelada: 'Cancelada' };
 const PECA_STATUS_TONS: Record<PecaProcuradaStatus, 'warning' | 'positive' | 'neutral'> = { aguardando: 'warning', atendida: 'positive', cancelada: 'neutral' };
 
-const EMPTY_PECA: PecaProcuradaInput = { descricao: '', categoria_id: null, modelo_moto_id: null };
+
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -65,7 +65,7 @@ function formatarData(data: string) {
   return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
 }
 
-const EMPTY_FORM: ClienteInput = {
+const EMPTY_FORM: ClienteFormData = {
   nome: '',
   telefone: '',
   documento: '',
@@ -75,6 +75,7 @@ const EMPTY_FORM: ClienteInput = {
   tags: [],
   observacoes: '',
   cidade: '',
+  cep: '',
 };
 
 const ORIGEM_LABELS: Record<ClienteOrigem, string> = {
@@ -157,7 +158,7 @@ export function ClientesView({
 
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [editando, setEditando] = useState<Cliente | null>(null);
-  const [form, setForm] = useState<ClienteInput>(EMPTY_FORM);
+  const [form, setForm] = useState<ClienteFormData>(EMPTY_FORM);
   const [tagsTexto, setTagsTexto] = useState('');
   // Motos que o cliente busca peças, informadas já na criação/edição. Cada uma
   // vira uma peça procurada (com modelo_moto) ao salvar. Só dígitos aqui: id +
@@ -168,8 +169,6 @@ export function ClientesView({
   const [erroForm, setErroForm] = useState<string | null>(null);
 
   const [clienteAberto, setClienteAberto] = useState<Cliente | null>(null);
-  const [novaNota, setNovaNota] = useState('');
-  const [enviandoNota, setEnviandoNota] = useState(false);
 
   const todasTags = useMemo(() => Array.from(new Set(clientes.flatMap((c) => c.tags))).sort(), [clientes]);
 
@@ -372,21 +371,6 @@ export function ClientesView({
     }
   };
 
-  const enviarNota = async () => {
-    if (!clienteAberto || !novaNota.trim()) return;
-    setEnviandoNota(true);
-    try {
-      const result = await clientesApi.adicionarNota(clienteAberto.id, novaNota.trim());
-      if (!result.success) throw new Error(result.error);
-      setClienteAberto((prev) => (prev ? { ...prev, notas: [result.data, ...(prev.notas || [])] } : prev));
-      setNovaNota('');
-    } catch (err: any) {
-      aviso.falha(err, 'Erro ao adicionar nota');
-    } finally {
-      setEnviandoNota(false);
-    }
-  };
-
   const excluirNota = async (notaId: string) => {
     if (!clienteAberto) return;
     try {
@@ -400,7 +384,7 @@ export function ClientesView({
 
   const inputClass =
     'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
-  const labelClass = 'text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted';
+
 
   // Opções em lista plana (caminho completo como label) em vez do seletor em
   // cascata usado em Estoque/Configurações — mantém a mesma linguagem visual
@@ -413,30 +397,6 @@ export function ClientesView({
     () => categorias.map((c) => ({ id: c.id, label: getAncestorChainCategoria(c.id, categorias).map((n) => n.nome).join(' › ') })).sort((a, b) => a.label.localeCompare(b.label, 'pt')),
     [categorias]
   );
-
-  const [novaPeca, setNovaPeca] = useState<PecaProcuradaInput>(EMPTY_PECA);
-  const [enviandoPeca, setEnviandoPeca] = useState(false);
-
-  const enviarPeca = async () => {
-    if (!clienteAberto || !novaPeca.descricao.trim()) return;
-    setEnviandoPeca(true);
-    try {
-      const payload: PecaProcuradaInput = {
-        descricao: novaPeca.descricao.trim(),
-        categoria_id: novaPeca.categoria_id || null,
-        modelo_moto_id: novaPeca.modelo_moto_id || null,
-      };
-      const result = await clientesApi.criarPecaProcurada(clienteAberto.id, payload);
-      if (!result.success) throw new Error(result.error);
-      setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: [result.data, ...(prev.pecas_procuradas || [])] } : prev));
-      setPecasProcuradas((prev) => [{ id: result.data.id, cliente_id: clienteAberto.id, status: result.data.status, modelo_moto_id: result.data.modelo_moto_id, modelo_moto: result.data.modelo_moto }, ...prev]);
-      setNovaPeca(EMPTY_PECA);
-    } catch (err: any) {
-      aviso.falha(err, 'Erro ao cadastrar peça procurada');
-    } finally {
-      setEnviandoPeca(false);
-    }
-  };
 
   const atualizarStatusPeca = async (pedidoId: string, status: PecaProcuradaStatus) => {
     if (!clienteAberto) return;
@@ -748,485 +708,73 @@ export function ClientesView({
         }
       />
 
-      <Modal
+      <ClienteFormModal
         aberto={isFormOpen}
         onFechar={() => setIsFormOpen(false)}
-        titulo={editando ? 'Editar cliente' : 'Novo cliente'}
-        tamanho="md"
-        rodape={
-          <div className="flex gap-3">
-            <Button variant="outline" onClick={() => setIsFormOpen(false)} className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default">
-              Cancelar
-            </Button>
-            <Button onClick={salvar} disabled={salvando} className="h-auto flex-1 py-3 rounded-control font-medium text-sm">
-              {salvando ? 'Salvando...' : 'Salvar'}
-            </Button>
-          </div>
-        }
-      >
-        <div className="space-y-4">
-          {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
-          <div>
-            <label className={labelClass}>Nome</label>
-            <input value={form.nome} onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))} className={inputClass} placeholder="Nome do cliente" />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Telefone</label>
-              <input
-                value={form.telefone || ''}
-                onChange={(e) => setForm((f) => ({ ...f, telefone: formatTelefoneBR(e.target.value) }))}
-                inputMode="numeric"
-                maxLength={15}
-                className={inputClass}
-                placeholder="(00) 00000-0000"
-              />
-            </div>
-            <div>
-              <label className={labelClass}>CPF/CNPJ</label>
-              <input
-                value={form.documento || ''}
-                onChange={(e) => setForm((f) => ({ ...f, documento: formatDocumentoBR(e.target.value) }))}
-                inputMode="numeric"
-                maxLength={18}
-                className={inputClass}
-                placeholder="Opcional"
-              />
-            </div>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Aniversário</label>
-              <input type="date" value={form.data_nascimento || ''} onChange={(e) => setForm((f) => ({ ...f, data_nascimento: e.target.value }))} className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Preferência de contato</label>
-              <select
-                value={form.preferencia_contato || ''}
-                onChange={(e) => setForm((f) => ({ ...f, preferencia_contato: (e.target.value || null) as PreferenciaContato | null }))}
-                className={inputClass}
-              >
-                <option value="">—</option>
-                {(Object.keys(CONTATO_LABELS) as PreferenciaContato[]).map((k) => (
-                  <option key={k} value={k}>
-                    {CONTATO_LABELS[k]}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className={labelClass}>Como conheceu a loja</label>
-            <select value={form.origem || ''} onChange={(e) => setForm((f) => ({ ...f, origem: (e.target.value || null) as ClienteOrigem | null }))} className={inputClass}>
-              <option value="">—</option>
-              {(Object.keys(ORIGEM_LABELS) as ClienteOrigem[]).map((k) => (
-                <option key={k} value={k}>
-                  {ORIGEM_LABELS[k]}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className={labelClass}>Cidade</label>
-            <input value={form.cidade || ''} onChange={(e) => setForm((f) => ({ ...f, cidade: e.target.value }))} className={inputClass} placeholder="Ex: São Paulo" />
-          </div>
-          <div>
-            <label className={labelClass}>Motos que ele busca peças</label>
-            <div className="flex gap-2">
-              <select
-                value={motoBuscaSel}
-                onChange={(e) => setMotoBuscaSel(e.target.value)}
-                className={cn(inputClass, 'flex-1')}
-              >
-                <option value="">Escolher modelo…</option>
-                {opcoesModelo
-                  .filter((o) => !motosBuscaForm.some((m) => m.id === o.id))
-                  .map((o) => (
-                    <option key={o.id} value={o.id}>
-                      {o.label}
-                    </option>
-                  ))}
-              </select>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={adicionarMotoBusca}
-                disabled={!motoBuscaSel}
-                className="h-auto px-4 rounded-control border-border-default text-sm shrink-0"
-              >
-                <Plus size={14} /> Add
-              </Button>
-            </div>
-            {motosBuscaForm.length > 0 && (
-              <div className="flex flex-wrap gap-1.5 mt-2">
-                {motosBuscaForm.map((m) => (
-                  <span key={m.id} className="inline-flex items-center gap-1 rounded-full bg-accent-soft-bg text-accent-soft-fg text-xs font-medium pl-2.5 pr-1 py-1">
-                    {m.nome.split('›').pop()?.trim() || m.nome}
-                    <button
-                      type="button"
-                      onClick={() => setMotosBuscaForm((prev) => prev.filter((x) => x.id !== m.id))}
-                      className="flex size-4 items-center justify-center rounded-full hover:bg-accent/20"
-                      title="Remover"
-                    >
-                      <X size={11} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-            )}
-            <p className="text-[11px] text-text-faint mt-1.5">
-              Vira um pedido de peça com a moto — aparece como badge no cliente e na lista.
-            </p>
-          </div>
-          <div>
-            <label className={labelClass}>Tags (separadas por vírgula)</label>
-            <input value={tagsTexto} onChange={(e) => setTagsTexto(e.target.value)} className={inputClass} placeholder="ex: revendedor, atacado" />
-          </div>
-          <div>
-            <label className={labelClass}>Observações</label>
-            <textarea
-              value={form.observacoes || ''}
-              onChange={(e) => setForm((f) => ({ ...f, observacoes: e.target.value }))}
-              className={cn(inputClass, 'min-h-20 resize-none')}
-              placeholder='Nota fixa, ex: "só liga depois das 18h"'
-            />
-          </div>
-        </div>
-      </Modal>
+        onSalvar={salvar}
+        salvando={salvando}
+        form={form}
+        onFormChange={setForm}
+        editando={!!editando}
+        erroForm={erroForm}
+        opcoesModelo={opcoesModelo}
+        motosBuscaForm={motosBuscaForm}
+        onAdicionarMoto={adicionarMotoBusca}
+        onRemoverMoto={(id) => setMotosBuscaForm((prev) => prev.filter((x) => x.id !== id))}
+        motoBuscaSel={motoBuscaSel}
+        onMotoBuscaSelChange={setMotoBuscaSel}
+        tagsTexto={tagsTexto}
+        onTagsTextoChange={setTagsTexto}
+      />
 
-      <Modal
-        aberto={!!clienteAberto}
-        onFechar={() => setClienteAberto(null)}
-        titulo={clienteAberto?.nome || ''}
-        subtitulo={clienteAberto?.telefone ? formatTelefoneBR(clienteAberto.telefone) : 'Sem telefone cadastrado'}
-        tamanho="lg"
-        rodape={
-          clienteAberto && (
-            <div className="flex gap-3">
-              {linkWhatsapp(clienteAberto.telefone) && (
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    const url = linkWhatsapp(clienteAberto.telefone);
-                    if (url) window.open(url, '_blank');
-                  }}
-                  className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-positive/30 text-positive hover:bg-positive-bg hover:text-positive"
-                >
-                  <MessageCircle size={14} /> WhatsApp
-                </Button>
-              )}
-              <Button
-                variant="outline"
-                onClick={() => {
-                  const cliente = clienteAberto;
-                  setClienteAberto(null);
-                  abrirEditar(cliente);
-                }}
-                className="h-auto flex-1 py-3 rounded-control font-medium text-sm border-border-default"
-              >
-                <Pencil size={14} /> Editar
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => alternarAtivo(clienteAberto)}
-                className={cn(
-                  'h-auto flex-1 py-3 rounded-control font-medium text-sm',
-                  clienteAberto.ativo ? 'border-danger/30 text-danger hover:bg-danger-bg hover:text-danger' : 'border-positive/30 text-positive hover:bg-positive-bg hover:text-positive'
-                )}
-              >
-                {clienteAberto.ativo ? (
-                  <>
-                    <Ban size={14} /> Desativar
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw size={14} /> Reativar
-                  </>
-                )}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => clienteAberto.banido ? alternarBanido(clienteAberto) : setConfirmarBanir(clienteAberto)}
-                className={cn(
-                  'h-auto flex-1 py-3 rounded-control font-medium text-sm',
-                  clienteAberto.banido ? 'border-positive/30 text-positive hover:bg-positive-bg hover:text-positive' : 'border-danger/30 text-danger hover:bg-danger-bg hover:text-danger'
-                )}
-              >
-                {clienteAberto.banido ? (
-                  <><ShieldAlert size={14} /> Desbanir</>
-                ) : (
-                  <><ShieldAlert size={14} /> Banir</>
-                )}
-              </Button>
-            </div>
-          )
-        }
-      >
-        {clienteAberto && (
-          <div className="space-y-5">
-            {(() => {
-              const historico = historicoPorCliente.get(clienteAberto.id);
-              const segmentoRaw = historico ? calcularSegmento(historico, clienteAberto.criado_em) : null;
-              const segmento = segmentoRaw ? segmentoParaExibicao(segmentoRaw, clienteAberto.id) : null;
-              return (
-                <ClienteProfileCard
-                  nome={clienteAberto.nome}
-                  telefone={clienteAberto.telefone ? formatTelefoneBR(clienteAberto.telefone) : null}
-                  documento={clienteAberto.documento ? formatDocumentoBR(clienteAberto.documento) : null}
-                  aniversario={clienteAberto.data_nascimento ? new Date(clienteAberto.data_nascimento + 'T00:00:00').toLocaleDateString('pt-BR') : null}
-                  origem={clienteAberto.origem ? ORIGEM_LABELS[clienteAberto.origem] : null}
-                  contatoPreferido={clienteAberto.preferencia_contato ? CONTATO_LABELS[clienteAberto.preferencia_contato] : null}
-                  cidade={clienteAberto.cidade}
-                  tags={clienteAberto.tags}
-                  motosBusca={badgesPorCliente.get(clienteAberto.id) || []}
-                  segmentoLabel={segmento ? SEGMENTO_LABELS[segmento] : undefined}
-                  segmentoTom={segmento ? SEGMENTO_TONS[segmento] : 'neutral'}
-                  banido={clienteAberto.banido}
-                />
-              );
-            })()}
-
-            {(!clienteAberto.ativo || (badgesPorCliente.get(clienteAberto.id) || []).length > 0) && (
-              <div className="flex flex-wrap items-center gap-1.5">
-                {!clienteAberto.ativo && <StatusBadge texto="Inativo" tom="neutral" ativo={false} />}
-                {(badgesPorCliente.get(clienteAberto.id) || []).map((b) => (
-                  <span key={b.modeloMotoId} title="Moto procurada">
-                    <StatusBadge texto={b.nome} tom={b.tom} />
-                  </span>
-                ))}
-              </div>
-            )}
-
-            {clienteAberto.observacoes && <p className="text-sm text-text-secondary italic">"{clienteAberto.observacoes}"</p>}
-
-              {(() => {
-                const historico = historicoPorCliente.get(clienteAberto.id);
-                if (!historico) return null;
-                return (
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-semibold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
-                        <ShoppingBag size={12} /> Histórico de compras
-                      </p>
-                      {historico.vendas.length > 0 && (
-                        <Button
-                          variant="ghost"
-                          onClick={() => baixarCsv(`historico-${clienteAberto.nome.replace(/\s+/g, '-').toLowerCase()}.csv`, gerarCsvHistoricoCliente(clienteAberto, historico))}
-                          className="h-auto p-0 text-[11px] font-semibold uppercase tracking-wide text-accent-soft-fg hover:bg-transparent hover:text-accent-soft-fg hover:opacity-80"
-                        >
-                          <Download size={12} /> Exportar CSV
-                        </Button>
-                      )}
-                    </div>
-                    {historico.vendas.length === 0 ? (
-                      <p className="text-xs text-text-faint">Nenhuma venda vinculada a este cliente ainda.</p>
-                    ) : (
-                      <>
-                        <div className="grid grid-cols-3 gap-2 mb-2 text-center">
-                          <div className="bg-surface-inset rounded-control py-2">
-                            <p className="text-sm font-medium text-text-primary">{formatCurrency(historico.totalGasto)}</p>
-                            <p className="text-[10px] text-text-faint uppercase">Total gasto</p>
-                          </div>
-                          <div className="bg-surface-inset rounded-control py-2">
-                            <p className="text-sm font-medium text-text-primary">{formatCurrency(historico.ticketMedio)}</p>
-                            <p className="text-[10px] text-text-faint uppercase">Ticket médio</p>
-                          </div>
-                          <div className="bg-surface-inset rounded-control py-2">
-                            <p className="text-sm font-medium text-text-primary">{historico.diasDesdeUltimaCompra}d</p>
-                            <p className="text-[10px] text-text-faint uppercase">Última compra</p>
-                          </div>
-                        </div>
-                        <div className="space-y-1.5 max-h-40 overflow-y-auto">
-                          {historico.vendas.map((v) => (
-                            <div key={v.id} className="flex items-center justify-between text-xs">
-                              <span className="text-text-secondary truncate">
-                                {formatarData(v.data)} · {v.nome_item}
-                              </span>
-                              <span className="text-text-primary font-medium shrink-0 ml-2">{formatCurrency(v.valor_total)}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </>
-                    )}
-
-                    {historico.orcamentosAbertos.length > 0 && (
-                      <div className="mt-3">
-                        <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-1.5 flex items-center gap-1.5">
-                          <Receipt size={12} /> Orçamentos em aberto
-                        </p>
-                        <div className="space-y-1.5">
-                          {historico.orcamentosAbertos.map((o) => (
-                            <div key={o.id} className="flex items-center justify-between text-xs">
-                              <span className="text-text-secondary">{o.codigo}</span>
-                              <span className="text-text-faint">{formatarData(o.criado_em.slice(0, 10))}</span>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
-
-              {(() => {
-                const tarefasDoCliente = tarefas.filter((t) => t.cliente_id === clienteAberto.id);
-                if (tarefasDoCliente.length === 0) return null;
-                return (
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
-                      <ClipboardList size={12} /> Tarefas e visitas
-                    </p>
-                    <div className="space-y-1.5">
-                      {tarefasDoCliente.map((t) => (
-                        <div key={t.id} className="flex items-center justify-between gap-2 text-xs">
-                          <span className="text-text-secondary flex items-center gap-1.5 min-w-0">
-                            {t.tipo === 'visita' && <MapPin size={11} className="text-accent shrink-0" />}
-                            <span className="truncate">{t.titulo}</span>
-                          </span>
-                          <span className="flex items-center gap-1.5 shrink-0">
-                            {t.prazo && (
-                              <span className="text-text-faint flex items-center gap-1">
-                                <Clock size={10} /> {new Date(t.prazo).toLocaleDateString('pt-BR')}
-                              </span>
-                            )}
-                            {t.status === 'concluida' ? <StatusBadge texto="Concluída" tom="positive" /> : <StatusBadge texto="Pendente" tom="warning" />}
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
-                  <PackageSearch size={12} /> Peças procuradas
-                </p>
-                <div className="space-y-1.5 mb-3">
-                  {(clienteAberto.pecas_procuradas || []).map((p) => (
-                    <div key={p.id} className="flex items-center justify-between gap-2 bg-surface-card border border-border-subtle rounded-control p-2.5">
-                      <div className="min-w-0 text-xs flex-1">
-                        <p className="text-text-primary truncate">{p.descricao}</p>
-                        <p className="text-text-faint truncate">{[p.categoria?.nome, p.modelo_moto?.nome].filter(Boolean).join(' · ') || 'Sem filtro'}</p>
-                      </div>
-                      <StatusBadge texto={PECA_STATUS_LABELS[p.status]} tom={PECA_STATUS_TONS[p.status]} />
-                      {p.status === 'aguardando' && (
-                        <Button variant="ghost" size="icon" onClick={() => atualizarStatusPeca(p.id, 'cancelada')} title="Cancelar pedido" className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
-                          <X size={12} />
-                        </Button>
-                      )}
-                      <Button variant="ghost" size="icon" onClick={() => removerPeca(p.id)} title="Excluir" className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
-                        <Trash2 size={12} />
-                      </Button>
-                    </div>
-                  ))}
-                  {(clienteAberto.pecas_procuradas || []).length === 0 && <p className="text-xs text-text-faint">Nenhum pedido em aberto.</p>}
-                </div>
-                <div className="space-y-2">
-                  <input
-                    value={novaPeca.descricao}
-                    onChange={(e) => setNovaPeca((p) => ({ ...p, descricao: e.target.value }))}
-                    placeholder="O que o cliente está procurando?"
-                    className={cn(inputClass, 'text-xs py-2')}
-                  />
-                  <div className="grid grid-cols-2 gap-2">
-                    <select value={novaPeca.categoria_id || ''} onChange={(e) => setNovaPeca((p) => ({ ...p, categoria_id: e.target.value || null }))} className={cn(inputClass, 'text-xs py-2')}>
-                      <option value="">Categoria (opcional)</option>
-                      {opcoesCategoria.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                    <select value={novaPeca.modelo_moto_id || ''} onChange={(e) => setNovaPeca((p) => ({ ...p, modelo_moto_id: e.target.value || null }))} className={cn(inputClass, 'text-xs py-2')}>
-                      <option value="">Modelo (opcional)</option>
-                      {opcoesModelo.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <Button
-                    variant="outline"
-                    onClick={enviarPeca}
-                    disabled={enviandoPeca || !novaPeca.descricao.trim()}
-                    className="w-full h-9 rounded-control bg-surface-inset border-border-default text-text-secondary text-xs font-medium"
-                  >
-                    {enviandoPeca ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />} Registrar pedido
-                  </Button>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
-                  <StickyNote size={12} /> Anotações de atendimento
-                </p>
-                <div className="flex gap-2 mb-3">
-                  <input
-                    value={novaNota}
-                    onChange={(e) => setNovaNota(e.target.value)}
-                    onKeyDown={(e) => e.key === 'Enter' && enviarNota()}
-                    className={inputClass}
-                    placeholder="Registrar uma anotação..."
-                  />
-                  <Button size="icon" onClick={enviarNota} disabled={enviandoNota || !novaNota.trim()} className="shrink-0 size-10 rounded-control">
-                    {enviandoNota ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-                  </Button>
-                </div>
-                {carregandoFicha ? (
-                  <div className="py-4 flex items-center justify-center text-text-faint">
-                    <Loader2 size={16} className="animate-spin" />
-                  </div>
-                ) : clienteAberto.notas && clienteAberto.notas.length > 0 ? (
-                  <div className="space-y-2 max-h-48 overflow-y-auto">
-                    {clienteAberto.notas.map((nota: ClienteNota) => (
-                      <div key={nota.id} className="bg-surface-card border border-border-subtle rounded-control p-3 flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="text-sm text-text-secondary">{nota.texto}</p>
-                          <p className="text-[11px] text-text-faint mt-1">
-                            {nota.autor?.nome_exibicao || 'Equipe'} · {new Date(nota.criado_em).toLocaleString('pt-BR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' })}
-                          </p>
-                        </div>
-                        <Button variant="ghost" size="icon" onClick={() => excluirNota(nota.id)} className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
-                          <Trash2 size={12} />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-xs text-text-faint">Nenhuma anotação registrada ainda.</p>
-                )}
-              </div>
-
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-text-muted mb-2 flex items-center gap-1.5">
-                  <Receipt size={12} /> Comprovantes de PIX
-                </p>
-                {carregandoFicha ? (
-                  <div className="py-4 flex items-center justify-center text-text-faint">
-                    <Loader2 size={16} className="animate-spin" />
-                  </div>
-                ) : (clienteAberto.comprovantes_pix || []).length === 0 ? (
-                  <p className="text-xs text-text-faint">Nenhum comprovante anexado ainda.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {clienteAberto.comprovantes_pix!.map((c) => (
-                      <div key={c.id}>
-                        <ComprovanteListItem
-                          comprovante={c}
-                          legenda={c.venda?.nome_item}
-                          podeExcluir={podeExcluirComprovante && !!c.venda_id}
-                          onExcluir={(comp) => removerComprovante(comp.id, comp.venda_id)}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-        )}
-      </Modal>
+      {clienteAberto && (() => {
+        const hist = historicoPorCliente.get(clienteAberto.id) || null;
+        const segmentoRaw = hist ? calcularSegmento(hist, clienteAberto.criado_em) : null;
+        const segmento = segmentoRaw ? segmentoParaExibicao(segmentoRaw, clienteAberto.id) : null;
+        const tarefasDoCliente = tarefas.filter((t) => t.cliente_id === clienteAberto.id);
+        return (
+          <ClienteDetalheModal
+            aberto
+            onFechar={() => setClienteAberto(null)}
+            onEditar={() => {
+              const cliente = clienteAberto;
+              setClienteAberto(null);
+              abrirEditar(cliente);
+            }}
+            onAlternarAtivo={() => alternarAtivo(clienteAberto)}
+            onAlternarBanido={() => clienteAberto.banido ? alternarBanido(clienteAberto) : setConfirmarBanir(clienteAberto)}
+            cliente={clienteAberto}
+            historico={hist}
+            segmentoLabel={segmento ? SEGMENTO_LABELS[segmento] : undefined}
+            segmentoTom={segmento ? SEGMENTO_TONS[segmento] : 'neutral'}
+            badges={badgesPorCliente.get(clienteAberto.id) || []}
+            tarefas={tarefasDoCliente}
+            onExportarCsv={hist && hist.vendas.length > 0 ? () => baixarCsv(`historico-${clienteAberto.nome.replace(/\s+/g, '-').toLowerCase()}.csv`, gerarCsvHistoricoCliente(clienteAberto, hist)) : undefined}
+            onEnviarNota={async (texto) => {
+              const result = await clientesApi.adicionarNota(clienteAberto.id, texto);
+              if (!result.success) throw new Error(result.error);
+              setClienteAberto((prev) => (prev ? { ...prev, notas: [result.data, ...(prev.notas || [])] } : prev));
+            }}
+            onExcluirNota={excluirNota}
+            onEnviarPeca={async (desc, catId, motoId) => {
+              const result = await clientesApi.criarPecaProcurada(clienteAberto.id, { descricao: desc, categoria_id: catId, modelo_moto_id: motoId });
+              if (!result.success) throw new Error(result.error);
+              setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: [result.data, ...(prev.pecas_procuradas || [])] } : prev));
+              setPecasProcuradas((prev) => [{ id: result.data.id, cliente_id: clienteAberto.id, status: result.data.status, modelo_moto_id: result.data.modelo_moto_id, modelo_moto: result.data.modelo_moto }, ...prev]);
+            }}
+            onAtualizarStatusPeca={atualizarStatusPeca}
+            onRemoverPeca={removerPeca}
+            onRemoverComprovante={removerComprovante}
+            carregandoFicha={carregandoFicha}
+            podeExcluirComprovante={podeExcluirComprovante}
+            opcoesCategoria={opcoesCategoria}
+            opcoesModelo={opcoesModelo}
+            formatTelefoneBR={formatTelefoneBR}
+            formatDocumentoBR={formatDocumentoBR}
+            linkWhatsapp={linkWhatsapp}
+          />
+        );
+      })()}
 
       <Modal
         aberto={!!confirmarBanir}

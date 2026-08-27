@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { motion } from 'motion/react';
 import { HandCoins, Clock, Loader2, Check, History, Undo2, Receipt, AlertTriangle, FileText, MessageCircle, Timer, Upload, X, Send } from 'lucide-react';
 import { cn } from '../../utils';
 import { usePermissao } from '../../hooks/usePermissao';
@@ -468,7 +469,15 @@ function PainelCobranca({ item, cobranca, onAtualizar }: { item: ItemPendencia; 
   );
 }
 
-function CardPendencia({ item, cobranca, onAtualizarCobranca }: { item: ItemPendencia; cobranca?: Cobranca; onAtualizarCobranca: () => void }) {
+const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
+
+function statusDePendencia(diasEmAberto: number) {
+  if (diasEmAberto >= 30) return { texto: `Atrasado (${diasEmAberto}d)`, tom: 'danger' as const };
+  if (diasEmAberto >= 15) return { texto: `Vence em breve (${diasEmAberto}d)`, tom: 'warning' as const };
+  return { texto: `Em dia (${diasEmAberto}d)`, tom: 'positive' as const };
+}
+
+export function CardPendencia({ item, cobranca, onAtualizarCobranca }: { item: ItemPendencia; cobranca?: Cobranca; onAtualizarCobranca: () => void }) {
   const { fiadoRecebimentos, caixaPendenciaRecebimentos, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const { pode } = usePermissao();
@@ -558,28 +567,51 @@ function CardPendencia({ item, cobranca, onAtualizarCobranca }: { item: ItemPend
 
   const recebimentoObj = historico.find((r) => r.id === recebimentoParaReverter);
 
+  const status = statusDePendencia(item.diasEmAberto);
+
   return (
-    <div className="bg-surface-card border border-border-subtle rounded-card p-4 space-y-3">
-      <div className="flex items-center justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 min-w-0">
-            <p className="text-sm font-semibold text-text-primary truncate">{item.descricao}</p>
-          </div>
-          <p className="text-xs text-text-faint mt-0.5">
-            {item.clienteNome && <span className="text-text-secondary">{item.clienteNome} · </span>}
-            {new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR')}
-            {' · '}
-            <StatusBadge
-              texto={`${item.diasEmAberto}d`}
-              tom={item.diasEmAberto >= 30 ? 'danger' : item.diasEmAberto >= 15 ? 'warning' : 'neutral'}
-            />
-          </p>
+    <motion.div
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={spring}
+      className="bg-surface-card border border-border-subtle rounded-card p-4 space-y-3"
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div className="shrink-0">
+          <p data-pendencia-valor className="text-lg font-bold text-text-primary tabular-nums">{formatCurrency(item.saldo)}</p>
+          <p className="text-[10px] text-text-faint uppercase tracking-wide mt-0.5">Em aberto</p>
         </div>
-        <div className="text-right shrink-0">
-          <p className="text-base font-bold text-text-primary tabular-nums">{formatCurrency(item.saldo)}</p>
-          <p className="text-[10px] text-text-faint uppercase tracking-wide">Em aberto</p>
+        <div className="min-w-0 text-right">
+          <p className="text-sm text-text-secondary truncate">{item.descricao}</p>
+          <p className="text-xs text-text-faint mt-0.5">
+            {item.clienteNome && <span data-pendencia-cliente className="text-text-muted">{item.clienteNome} · </span>}
+            {new Date(`${item.data}T00:00:00`).toLocaleDateString('pt-BR')}
+          </p>
+          <span data-pendencia-status={status.tom} className="inline-block mt-1">
+            <StatusBadge texto={status.texto} tom={status.tom} />
+          </span>
         </div>
       </div>
+
+      {item.clienteTelefone && (
+        <div className="flex">
+          <motion.button
+            type="button"
+            whileHover={{ scale: 1.02 }}
+            whileTap={{ scale: 0.95 }}
+            transition={spring}
+            onClick={() => {
+              const nome = item.clienteNome || 'Cliente';
+              const msg = `Olá ${nome}! Passando para lembrar do valor pendente de ${formatCurrency(item.saldo)} referente a "${item.descricao}". Qualquer dúvida estou à disposição.`;
+              const url = linkWhatsapp(item.clienteTelefone, msg);
+              if (url) window.open(url, '_blank');
+            }}
+            className="h-8 px-3 rounded-control text-xs font-medium gap-1.5 border border-positive/30 text-positive hover:bg-positive-bg inline-flex items-center"
+          >
+            <MessageCircle size={13} /> Cobrar via WhatsApp
+          </motion.button>
+        </div>
+      )}
 
       <HistoricoRecebimentos
         historico={historico}
@@ -638,7 +670,7 @@ function CardPendencia({ item, cobranca, onAtualizarCobranca }: { item: ItemPend
       </div>
 
       <PainelCobranca item={item} cobranca={cobranca} onAtualizar={onAtualizarCobranca} />
-    </div>
+    </motion.div>
   );
 }
 

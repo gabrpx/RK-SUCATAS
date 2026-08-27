@@ -18,6 +18,28 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.7',
+    data: '2026-08-27',
+    titulo: 'Modal de clientes redesenhado e pendências com status semântico',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto:
+          'Modal de detalhes do cliente extraído em componente próprio com animações spring, stat cards com hierarquia valor > label, e badge de segmentação com shimmer sutil.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Formulário de cliente com campo CEP: máscara automática, validação em tempo real e autopreenchimento de cidade/UF via ViaCEP.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Pendências: badges de status agora usam tokens semânticos corretos (danger para atrasado, warning para vencimento próximo, positive para em dia), valor R$ mais proeminente, e botão "Cobrar via WhatsApp" visível direto no card.',
+      },
+    ],
+  },
+  {
     versao: '1.3.6',
     data: '2026-08-27',
     titulo: 'Correção de vendas, cidade do cliente e melhorias gerais',

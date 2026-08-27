@@ -79,7 +79,20 @@ export function ClienteProfileCard({
 
         <div className="flex shrink-0 items-center gap-2.5">
           {banido && <StatusBadge texto="Banido" tom="danger" />}
-          {segmentoLabel && <StatusBadge texto={segmentoLabel} tom={segmentoTom} />}
+          {segmentoLabel && (
+            <motion.span
+              animate={{ opacity: [0.85, 1, 0.85] }}
+              transition={{ duration: 2.5, repeat: Infinity, ease: 'easeInOut' }}
+              className="relative overflow-hidden rounded-badge"
+            >
+              <StatusBadge texto={segmentoLabel} tom={segmentoTom} />
+              <motion.span
+                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent pointer-events-none"
+                animate={{ x: ['-100%', '200%'] }}
+                transition={{ duration: 3, repeat: Infinity, ease: 'linear', repeatDelay: 2 }}
+              />
+            </motion.span>
+          )}
           <motion.span
             animate={{ rotate: aberto ? 0 : 180 }}
             transition={spring}
