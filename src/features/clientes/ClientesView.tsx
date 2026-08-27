@@ -258,6 +258,7 @@ export function ClientesView({
       tags: cliente.tags,
       observacoes: cliente.observacoes || '',
       cidade: cliente.cidade || '',
+      cep: '',
     });
     setTagsTexto(tagsParaTexto(cliente.tags));
     setMotosBuscaForm([]);
