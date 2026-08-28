@@ -80,12 +80,26 @@
   --shadow-elevated-md: 0 6px 16px -4px rgba(0, 0, 0, 0.55);
   --shadow-elevated-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.65);
 
+  /* Elevation — 4 níveis explícitos + glow do CTA único */
+  --elevation-1: 0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.04);
+  --elevation-2: 0 4px 12px -2px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+  --elevation-3: 0 12px 32px -8px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.06);
+  --elevation-4: 0 24px 60px -16px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.08);
+  --elevation-glow-accent: 0 0 40px -8px rgba(242,117,28,.45);
+
   --duration-instant: 100ms;
   --duration-fast: 150ms;
   --duration-base: 220ms;
   --duration-slow: 400ms;
   --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
   --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Motion — presets pra vitrine (Login, PatchNotes, Dashboard) */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-bounce-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-hero: 700ms;
+  --duration-showcase: 1200ms;
 
   /* Gradientes - sempre com propósito (profundidade/ênfase), nunca decorativo.
      -page: atmosfera do app inteiro (não só Login) - um glow laranja bem
@@ -106,6 +120,9 @@
   --radius-control: 8px;
   --radius-badge: 5px;
   --radius-sheet: 11px;
+  --radius-pill: 999px;
+  --radius-modal: 20px;
+  --radius-sheet-mobile: 24px 24px 0 0;
 
   /* shadcn/ui — mapeamento pros vars que os componentes esperam. Sempre
      apontando pra um token que já existe acima, nunca uma cor nova.
@@ -123,6 +140,17 @@
   --destructive: var(--danger);
   --border: var(--border-subtle);
   --ring: var(--accent);
+
+  /* Foco acessível */
+  --focus-ring-color: var(--accent);
+  --focus-ring-offset: var(--surface-page);
+
+  /* Z-index escala — mata o z-[9999] espalhado */
+  --z-nav: 40;
+  --z-dropdown: 50;
+  --z-modal: 60;
+  --z-toast: 70;
+  --z-tooltip: 80;
 }
 
 /*
@@ -174,17 +202,30 @@
   --radius-control: var(--radius-control);
   --radius-badge: var(--radius-badge);
   --radius-sheet: var(--radius-sheet);
+  --radius-pill: var(--radius-pill);
+  --radius-modal: var(--radius-modal);
 
   --shadow-sm: var(--shadow-elevated-sm);
   --shadow-md: var(--shadow-elevated-md);
   --shadow-lg: var(--shadow-elevated-lg);
 
+  --shadow-elevation-1: var(--elevation-1);
+  --shadow-elevation-2: var(--elevation-2);
+  --shadow-elevation-3: var(--elevation-3);
+  --shadow-elevation-4: var(--elevation-4);
+  --shadow-glow-accent: var(--elevation-glow-accent);
+
   --duration-instant: var(--duration-instant);
   --duration-fast: var(--duration-fast);
   --duration-base: var(--duration-base);
   --duration-slow: var(--duration-slow);
+  --duration-hero: var(--duration-hero);
+  --duration-showcase: var(--duration-showcase);
   --ease-standard: var(--ease-standard);
   --ease-soft: var(--ease-soft);
+  --ease-out-expo: var(--ease-out-expo);
+  --ease-in-out-quart: var(--ease-in-out-quart);
+  --ease-bounce-soft: var(--ease-bounce-soft);
 
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
