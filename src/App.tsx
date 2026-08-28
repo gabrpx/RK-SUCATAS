@@ -62,6 +62,7 @@ import { ComprovantesPixVenda } from './features/comprovantes/ComprovantesPixVen
 import { VendaClienteResumo } from './features/vendas/VendaClienteResumo';
 import type { Tab } from './constants/navigation';
 import { usePermissao } from './hooks/usePermissao';
+import { FloatingNotaButton } from './components/DeclaracaoVenda';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
@@ -663,6 +664,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
+          <FloatingNotaButton />
           <GlobalSearch onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />
         </div>
       )}
