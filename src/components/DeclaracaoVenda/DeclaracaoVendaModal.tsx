@@ -52,7 +52,6 @@ function freshForm(): NotaData {
     fone: '',
     documento: '',
     rg: '',
-    dataNascimento: '',
     veiculo: '',
     valor: '',
   };
@@ -275,26 +274,16 @@ export function DeclaracaoVendaModal({ open, onOpenChange }: Props) {
                               />
                             </Field>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            <Field label="Data de Nascimento">
-                              <input
-                                type="date"
-                                value={form.dataNascimento}
-                                onChange={(e) => set('dataNascimento', e.target.value)}
-                                className={inputCls()}
-                              />
-                            </Field>
-                            <Field label="Telefone">
-                              <input
-                                type="tel"
-                                inputMode="numeric"
-                                value={form.fone}
-                                onChange={(e) => set('fone', formatTelefoneBR(e.target.value))}
-                                placeholder="(00) 00000-0000"
-                                className={inputCls()}
-                              />
-                            </Field>
-                          </div>
+                          <Field label="Telefone">
+                            <input
+                              type="tel"
+                              inputMode="numeric"
+                              value={form.fone}
+                              onChange={(e) => set('fone', formatTelefoneBR(e.target.value))}
+                              placeholder="(00) 00000-0000"
+                              className={inputCls()}
+                            />
+                          </Field>
                         </motion.div>
 
                         {/* Endereço */}

@@ -9,7 +9,6 @@ interface NotaData {
   fone: string;
   documento: string;
   rg: string;
-  dataNascimento: string;
   veiculo: string;
   valor: string;
 }
@@ -23,7 +22,6 @@ function formatDateBR(iso: string): string {
 
 export function NotaTemplate({ data }: { data: NotaData }) {
   const dataBR = formatDateBR(data.data);
-  const nascimentoBR = formatDateBR(data.dataNascimento);
   const cidadeLimpa = data.cidade.replace(/\s*-\s*\w{2}$/, '').trim() || data.cidade;
 
   return createPortal(
@@ -62,8 +60,27 @@ export function NotaTemplate({ data }: { data: NotaData }) {
           boxSizing: 'border-box',
         }}
       >
+        {/* Watermark */}
+        <div style={{
+          position: 'absolute',
+          top: '50%',
+          left: '50%',
+          transform: 'translate(-50%, -50%)',
+          width: '420px',
+          height: '420px',
+          opacity: 0.06,
+          pointerEvents: 'none',
+          zIndex: 0,
+        }}>
+          <img
+            src="/icon-512.png"
+            alt=""
+            style={{ width: '100%', height: '100%', objectFit: 'contain' }}
+          />
+        </div>
+
         {/* Header */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
           <div>
             <h1 style={{ fontSize: '22px', fontWeight: 'bold', fontStyle: 'italic', margin: '0 0 4px 0', borderBottom: '2px solid #000', paddingBottom: '4px', display: 'inline-block' }}>
               DECLARAÇÃO DE VENDA
@@ -81,7 +98,7 @@ export function NotaTemplate({ data }: { data: NotaData }) {
         </div>
 
         {/* Vendedor + Data boxes */}
-        <div style={{ display: 'flex', gap: '0', marginTop: '16px' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: '0', marginTop: '16px' }}>
           <div style={{ flex: 1, border: '1px solid #000', padding: '10px 12px' }}>
             <p style={{ margin: '0 0 2px', fontSize: '11px' }}>
               Vendedor: <strong>RYAN CESAR MEDEIROS CONSERVA</strong>
@@ -101,7 +118,7 @@ export function NotaTemplate({ data }: { data: NotaData }) {
         </div>
 
         {/* Buyer info */}
-        <div style={{ border: '1px solid #000', borderTop: 'none' }}>
+        <div style={{ position: 'relative', zIndex: 1, border: '1px solid #000', borderTop: 'none' }}>
           <div style={{ padding: '7px 12px', borderBottom: '1px solid #000', fontSize: '11px' }}>
             Comprador: <strong>{data.comprador}</strong>
           </div>
@@ -120,20 +137,17 @@ export function NotaTemplate({ data }: { data: NotaData }) {
             </div>
           </div>
           <div style={{ display: 'flex', fontSize: '11px' }}>
-            <div style={{ flex: 2, padding: '7px 12px', borderRight: '1px solid #000' }}>
+            <div style={{ flex: 1, padding: '7px 12px', borderRight: '1px solid #000' }}>
               CPF/CNPJ: {data.documento}
             </div>
-            <div style={{ flex: 1, padding: '7px 8px', borderRight: '1px solid #000' }}>
-              RG: {data.rg}
-            </div>
             <div style={{ flex: 1, padding: '7px 8px' }}>
-              Data de nascimento: {nascimentoBR}
+              RG: {data.rg}
             </div>
           </div>
         </div>
 
         {/* Vehicle + Value + Observation */}
-        <div style={{ display: 'flex', gap: '0', marginTop: '14px' }}>
+        <div style={{ position: 'relative', zIndex: 1, display: 'flex', gap: '0', marginTop: '14px' }}>
           {/* Vehicle area */}
           <div style={{ flex: 1, border: '1px solid #000', padding: '14px 16px', minHeight: '180px' }}>
             <p style={{ margin: '0 0 6px', fontSize: '18px', fontWeight: 'bold', textTransform: 'uppercase' }}>
@@ -174,7 +188,7 @@ export function NotaTemplate({ data }: { data: NotaData }) {
         </div>
 
         {/* Legal text */}
-        <div style={{ marginTop: '14px', fontSize: '10.5px', lineHeight: '1.5', textAlign: 'justify' }}>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: '14px', fontSize: '10.5px', lineHeight: '1.5', textAlign: 'justify' }}>
           <p style={{ margin: '0 0 8px' }}>
             Com o pagamento efetuado e com a emissão dessa declaração de venda, o (a) comprador confirma para todos os fins e efeitos que tem
             conhecimento das normas publicadas e sabe que está comprando um veículo círculo motor na condição de sucata servindo único e
@@ -192,7 +206,7 @@ export function NotaTemplate({ data }: { data: NotaData }) {
         </div>
 
         {/* Signature */}
-        <div style={{ marginTop: '22px', fontSize: '11px' }}>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: '22px', fontSize: '11px' }}>
           <div style={{ display: 'flex', alignItems: 'baseline', gap: '4px', marginBottom: '10px' }}>
             <span>ASSINATURA DO COMPRADOR:</span>
             <span style={{ flex: 1, borderBottom: '1px solid #000', minHeight: '1px' }} />
@@ -204,7 +218,7 @@ export function NotaTemplate({ data }: { data: NotaData }) {
         </div>
 
         {/* City / date line */}
-        <div style={{ marginTop: '24px', textAlign: 'center', fontSize: '11px' }}>
+        <div style={{ position: 'relative', zIndex: 1, marginTop: '24px', textAlign: 'center', fontSize: '11px' }}>
           <span>{cidadeLimpa}</span>
           <span style={{ borderBottom: '1px solid #000', display: 'inline-block', width: '40px', margin: '0 4px' }} />
           <span>de</span>
