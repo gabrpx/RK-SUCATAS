@@ -31,13 +31,17 @@ import {
   Package,
   ArrowUpToLine,
   ArrowDownToLine,
+  MessageCircle,
 } from 'lucide-react';
+import { motion, AnimatePresence } from 'motion/react';
 import { BarChart, Bar, LineChart, Line, XAxis, ResponsiveContainer, Tooltip } from 'recharts';
 import { cn, parseLocalDate } from '../../utils';
 import { MetricCard } from '../../components/ui/MetricCard';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatCurrency, ChartTooltip, LinhaAtividade } from './DashboardView';
+import { linkWhatsapp } from '../../utils/whatsapp';
+import { SPRING_MICRO } from '../../components/ui/motion';
 import { rankingTopClientes, clientesSumidos } from '../clientes/metricas';
 import { resumoFiadoPorCliente } from '../fiado/metricas';
 import type { Estoque } from '../estoque/types';
@@ -130,6 +134,7 @@ export interface VisaoDonoProps {
 
 export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoRecebimentos, caixaPendencias, tarefas, onTabChange, onNavigateCliente, noTopo, onAlternarPosicao, resumoFiado, resumoFiadoTotal, resumoPendenciasManuaisTotal }: VisaoDonoProps) {
   const [expandido, setExpandido] = useState(true);
+  const [pendenciaExpandida, setPendenciaExpandida] = useState<string | null>(null);
 
   const periodo = useMemo(() => {
     const hoje = new Date();
@@ -196,7 +201,49 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
     const pendenciasTotalGeral = fiadoTotalGeral + (pendenciasManuaisTotal || resumoPendenciasManuaisTotal || 0);
     const pendenciasQtdGeral = fiadoCompleto.length + pendenciasManuaisAberto.length;
 
-    return { ticketAtual, ticketAnterior, clientesNovos, topClientesCompleto, sumidosCompleto, fiadoCompleto, fiadoTotalGeral, pendenciasTotalGeral, pendenciasQtdGeral };
+    const agora = new Date();
+    const pendenciasUnificadas: Array<{
+      chave: string;
+      clienteNome: string | null;
+      descricao: string;
+      diasEmAberto: number;
+      valor: number;
+      clienteId: string | null;
+      telefone: string | null;
+      dataTexto: string;
+    }> = [];
+
+    for (const f of fiadoCompleto) {
+      const clienteObj = f.clienteId ? clientes.find((c) => c.id === f.clienteId) : null;
+      pendenciasUnificadas.push({
+        chave: `fiado-${f.clienteId ?? f.clienteNome}`,
+        clienteNome: f.clienteNome,
+        descricao: `${f.vendas.length} venda${f.vendas.length === 1 ? '' : 's'} fiado`,
+        diasEmAberto: f.diasEmAbertoMax,
+        valor: f.totalEmAberto,
+        clienteId: f.clienteId ?? null,
+        telefone: clienteObj?.telefone ?? null,
+        dataTexto: f.vendas.length > 0 ? new Date(`${f.vendas[0].venda.data}T00:00:00`).toLocaleDateString('pt-BR') : '',
+      });
+    }
+
+    for (const p of pendenciasManuaisAberto) {
+      const dias = Math.max(0, Math.floor((agora.getTime() - new Date(`${p.data}T00:00:00`).getTime()) / 86400000));
+      pendenciasUnificadas.push({
+        chave: `manual-${p.id}`,
+        clienteNome: p.cliente?.nome ?? null,
+        descricao: p.descricao,
+        diasEmAberto: dias,
+        valor: Number(p.valor_total),
+        clienteId: p.cliente_id,
+        telefone: p.cliente?.telefone ?? null,
+        dataTexto: new Date(`${p.data}T00:00:00`).toLocaleDateString('pt-BR'),
+      });
+    }
+
+    pendenciasUnificadas.sort((a, b) => b.diasEmAberto - a.diasEmAberto);
+
+    return { ticketAtual, ticketAnterior, clientesNovos, topClientesCompleto, sumidosCompleto, fiadoCompleto, fiadoTotalGeral, pendenciasTotalGeral, pendenciasQtdGeral, pendenciasUnificadas };
   }, [vendas, clientes, orcamentos, fiadoRecebimentos, caixaPendencias, periodo, faturamento.totalAtual, faturamento.totalAnterior, faturamento.vendasMesAtual, resumoFiado, resumoFiadoTotal, resumoPendenciasManuaisTotal]);
 
   const variacaoTicket = compararComMesPassado(desempenho.ticketAtual, desempenho.ticketAnterior);
@@ -397,23 +444,93 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
 
               <div className="bg-surface-inset rounded-control overflow-hidden">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-text-faint px-5 pt-4 pb-2">Pendências em aberto — quem deve e há quanto tempo</p>
-                {desempenho.fiadoCompleto.length === 0 ? (
-                  <EmptyState icone={HandCoins} mensagem="Nenhum fiado em aberto no momento." />
+                {desempenho.pendenciasUnificadas.length === 0 ? (
+                  <EmptyState icone={HandCoins} mensagem="Nenhuma pendência em aberto no momento." />
                 ) : (
                   <div className="divide-y divide-border-subtle">
-                    {desempenho.fiadoCompleto.slice(0, 10).map((r) => (
-                      <div key={r.clienteId ?? r.clienteNome}>
-                        <LinhaAtividade
-                          icone={HandCoins}
-                          tom="warning"
-                          titulo={r.clienteNome}
-                          legenda={`${r.diasEmAbertoMax} dia${r.diasEmAbertoMax === 1 ? '' : 's'} em aberto`}
-                          data=""
-                          valor={r.totalEmAberto}
-                          onClick={r.clienteId ? () => onNavigateCliente?.(r.clienteId!) : undefined}
-                        />
-                      </div>
-                    ))}
+                    {desempenho.pendenciasUnificadas.slice(0, 10).map((r) => {
+                      const aberto = pendenciaExpandida === r.chave;
+                      const titulo = r.clienteNome || r.descricao;
+                      const subtitulo = r.clienteNome ? r.descricao : null;
+                      return (
+                        <div key={r.chave}>
+                          <div
+                            onClick={() => setPendenciaExpandida(aberto ? null : r.chave)}
+                            className="flex items-center gap-3 px-5 py-3 transition-colors duration-fast cursor-pointer hover:bg-surface-raised"
+                          >
+                            <div className="size-8 rounded-control flex items-center justify-center shrink-0 bg-warning-bg text-warning">
+                              <HandCoins size={15} strokeWidth={1.75} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-medium text-text-primary truncate">{titulo}</p>
+                              <div className="flex items-center gap-2 mt-0.5">
+                                {subtitulo && <span className="text-2xs text-text-faint truncate max-w-[140px]">{subtitulo}</span>}
+                                <StatusBadge texto={`${r.diasEmAberto} dia${r.diasEmAberto === 1 ? '' : 's'}`} tom="neutral" />
+                              </div>
+                            </div>
+                            <span className="text-sm font-medium shrink-0 tabular-nums text-warning">{formatCurrency(r.valor)}</span>
+                            <ChevronDown size={14} className={cn('text-text-faint transition-transform duration-200 shrink-0', aberto && 'rotate-180')} />
+                          </div>
+                          <AnimatePresence initial={false}>
+                            {aberto && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: 'auto', opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                transition={SPRING_MICRO}
+                                className="overflow-hidden"
+                              >
+                                <div className="px-5 pb-3 pt-1 space-y-2.5">
+                                  <div className="text-xs text-text-secondary space-y-0.5">
+                                    {r.clienteNome && <p className="text-text-primary font-medium">{r.clienteNome} — {r.descricao}</p>}
+                                    {!r.clienteNome && <p>{r.descricao}</p>}
+                                    {r.dataTexto && <p className="text-text-faint">Desde {r.dataTexto}</p>}
+                                  </div>
+                                  <div className="flex flex-wrap gap-2">
+                                    {r.telefone && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          const msg = `Olá ${r.clienteNome || 'Cliente'}! Passando para lembrar do valor pendente de ${formatCurrency(r.valor)}. Qualquer dúvida estou à disposição.`;
+                                          const url = linkWhatsapp(r.telefone, msg);
+                                          if (url) window.open(url, '_blank');
+                                        }}
+                                        className="h-8 px-3 rounded-control text-xs font-medium gap-1.5 border border-positive/30 text-positive hover:bg-positive-bg inline-flex items-center"
+                                      >
+                                        <MessageCircle size={13} /> WhatsApp
+                                      </button>
+                                    )}
+                                    {r.clienteId && (
+                                      <button
+                                        type="button"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          onNavigateCliente?.(r.clienteId!);
+                                        }}
+                                        className="h-8 px-3 rounded-control text-xs font-medium gap-1.5 border border-border-subtle text-text-secondary hover:bg-surface-raised inline-flex items-center"
+                                      >
+                                        <Users size={13} /> Ver cliente
+                                      </button>
+                                    )}
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        onTabChange('caixa');
+                                      }}
+                                      className="h-8 px-3 rounded-control text-xs font-medium gap-1.5 border border-border-subtle text-text-secondary hover:bg-surface-raised inline-flex items-center"
+                                    >
+                                      <Receipt size={13} /> Ver no Caixa
+                                    </button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </div>
