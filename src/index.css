@@ -78,6 +78,18 @@ input[type=number] {
   100% { transform: translateX(100%); }
 }
 
+/* Shimmer animation for Skeleton atoms */
+@keyframes shimmer-gradient {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--surface-raised) 0%, var(--surface-overlay) 50%, var(--surface-raised) 100%);
+  background-size: 200% 100%;
+  animation: shimmer-gradient 1.6s var(--ease-in-out-quart) infinite;
+}
+
 .no-scrollbar::-webkit-scrollbar {
   display: none;
 }
