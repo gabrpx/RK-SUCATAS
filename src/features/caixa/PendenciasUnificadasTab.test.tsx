@@ -15,6 +15,10 @@ vi.mock('motion/react', () => ({
     },
   }),
   AnimatePresence: ({ children }: any) => <>{children}</>,
+  // StatusBadge agora usa o primitivo RollingText do animate-ui, que chama
+  // useInView internamente (via useIsInView) — sem isso o mock incompleto de
+  // motion/react derruba qualquer teste que renderize um StatusBadge.
+  useInView: () => false,
 }));
 
 vi.mock('../../context/DataContext', () => ({

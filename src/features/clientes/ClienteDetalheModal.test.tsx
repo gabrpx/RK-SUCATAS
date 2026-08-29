@@ -16,6 +16,10 @@ vi.mock('motion/react', () => ({
     },
   }),
   AnimatePresence: ({ children }: any) => <>{children}</>,
+  // StatusBadge agora usa o primitivo RollingText do animate-ui, que chama
+  // useInView internamente (via useIsInView) — sem isso o mock incompleto de
+  // motion/react derruba qualquer teste que renderize um StatusBadge.
+  useInView: () => false,
 }));
 
 const baseProps = {
@@ -85,7 +89,12 @@ describe('ClienteDetalheModal', () => {
 
     const badge = document.querySelector('[data-segmento-badge]');
     expect(badge).not.toBeNull();
-    expect(badge!.textContent).toBe('Campeão');
+    // StatusBadge agora renderiza o texto via RollingText (animate-ui), que
+    // duplica cada caractere em spans aria-hidden (efeito de flip) e só
+    // repete o texto exato, sem duplicação, num <span class="sr-only"> pro
+    // leitor de tela — por isso o textContent bruto não é mais igual ao
+    // label 1:1; `toContain` continua verificando que o texto certo está lá.
+    expect(badge!.textContent).toContain('Campeão');
   });
 
   it('botões de ação presentes (Editar, WhatsApp, Desativar)', () => {

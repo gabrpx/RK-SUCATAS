@@ -1,6 +1,7 @@
 // StatusBadge: pílula pequena pra estados curtos (canal ML/FB, categoria,
 // prazo de entrega, etc). Não é clicável — é só rótulo visual.
 import { cn } from '../../utils';
+import { RollingText } from '@/src/components/animate-ui/primitives/texts/rolling';
 
 export type StatusTone = 'accent' | 'positive' | 'neutral' | 'negative' | 'warning' | 'danger';
 
@@ -34,7 +35,10 @@ export function StatusBadge({ texto, tom = 'accent', ativo = true }: StatusBadge
         ativo ? TONE_CLASSES[tom] : TONE_CLASSES.neutral
       )}
     >
-      {texto}
+      {/* `key={texto}` força remontagem quando o label muda — o primitivo só
+          anima a transição rotate-in no mount/entrada, então trocar a key é o
+          jeito de fazer o rolling tocar de novo a cada mudança de texto. */}
+      <RollingText key={texto} text={texto} />
     </span>
   );
 }
