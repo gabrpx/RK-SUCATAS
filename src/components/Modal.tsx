@@ -1,7 +1,9 @@
 import React from 'react';
 import { Dialog as DialogPrimitive, VisuallyHidden } from 'radix-ui';
 import { X } from 'lucide-react';
+import { motion } from 'motion/react';
 import { cn } from '../utils';
+import { SPRING_SHEET } from './ui/motion';
 
 interface ModalProps {
   isOpen: boolean;
@@ -15,39 +17,35 @@ interface ModalProps {
   footer?: React.ReactNode;
 }
 
+const MotionContent = motion(DialogPrimitive.Content);
+
 export const Modal: React.FC<ModalProps> = ({
-  isOpen,
-  onClose,
-  title,
-  children,
-  maxWidth = 'max-w-2xl',
-  icon,
-  iconBgColor = 'bg-surface-raised/50',
-  iconColor = 'text-text-muted',
-  footer
+  isOpen, onClose, title, children, maxWidth = 'max-w-2xl',
+  icon, iconBgColor = 'bg-surface-raised/50', iconColor = 'text-text-muted', footer,
 }) => {
   return (
-    <DialogPrimitive.Root open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <DialogPrimitive.Root open={isOpen} onOpenChange={(o) => { if (!o) onClose(); }}>
       <DialogPrimitive.Portal>
-        {/* Backdrop */}
-        <DialogPrimitive.Overlay className="fixed inset-0 z-[9999] bg-overlay-scrim backdrop-blur-sm animate-in fade-in duration-200" />
-
-        {/* Modal Content */}
-        <DialogPrimitive.Content className={cn(
-          "fixed z-[9999] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] rounded-3xl border shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200 flex flex-col outline-none",
-          maxWidth,
-          "bg-surface-card border-border-default text-text-primary"
-        )}>
-          {/* Header */}
-          <div className={cn(
-            "p-6 border-b flex items-center justify-between shrink-0",
-            "border-border-default/50"
-          )}>
+        <DialogPrimitive.Overlay
+          className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm animate-in fade-in duration-200"
+          style={{ zIndex: 'var(--z-modal)' as unknown as number }}
+        />
+        <MotionContent
+          initial={{ opacity: 0, scale: 0.94, y: 8 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 8 }}
+          transition={SPRING_SHEET}
+          className={cn(
+            'fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[calc(100%-2rem)] rounded-modal border shadow-elevation-4 overflow-hidden flex flex-col outline-none',
+            maxWidth,
+            'bg-surface-card border-border-default text-text-primary'
+          )}
+          style={{ zIndex: 'var(--z-modal)' as unknown as number }}
+        >
+          <div className="p-6 border-b border-border-default/50 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-3">
               {icon && (
-                <div className={cn("p-2 rounded-xl", iconBgColor, iconColor)}>
-                  {icon}
-                </div>
+                <div className={cn('p-2 rounded-xl', iconBgColor, iconColor)}>{icon}</div>
               )}
               {title ? (
                 <DialogPrimitive.Title asChild>
@@ -60,34 +58,21 @@ export const Modal: React.FC<ModalProps> = ({
               )}
             </div>
             <DialogPrimitive.Close
-              className={cn(
-                "p-2 rounded-xl transition-colors",
-                "hover:bg-surface-raised text-text-muted"
-              )}
+              className="p-2 rounded-xl transition-colors hover:bg-surface-raised text-text-muted"
             >
               <X size={20} />
             </DialogPrimitive.Close>
           </div>
-
           <VisuallyHidden.Root asChild>
             <DialogPrimitive.Description>Conteúdo do diálogo</DialogPrimitive.Description>
           </VisuallyHidden.Root>
-
-          {/* Body */}
-          <div className="p-6 overflow-y-auto max-h-[calc(100vh-12rem)]">
-            {children}
-          </div>
-
-          {/* Footer */}
+          <div className="p-6 overflow-y-auto max-h-[calc(100vh-12rem)]">{children}</div>
           {footer && (
-            <div className={cn(
-              "p-6 border-t flex items-center justify-end gap-3 shrink-0",
-              "border-border-default/50 bg-surface-inset/20"
-            )}>
+            <div className="p-6 border-t border-border-default/50 bg-surface-inset/20 flex items-center justify-end gap-3 shrink-0">
               {footer}
             </div>
           )}
-        </DialogPrimitive.Content>
+        </MotionContent>
       </DialogPrimitive.Portal>
     </DialogPrimitive.Root>
   );
