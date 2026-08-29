@@ -41,7 +41,8 @@ export function Modal({ aberto, onFechar, titulo, subtitulo, icone: Icone, taman
     <DialogPrimitive.Root open={aberto} onOpenChange={(open) => { if (!open) onFechar(); }}>
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay
-          className="fixed inset-0 z-[3000] bg-overlay-scrim backdrop-blur-sm flex items-end md:items-center justify-center md:p-4"
+          className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm flex items-end md:items-center justify-center md:p-4"
+          style={{ zIndex: 'var(--z-modal)' as unknown as number }}
           onClick={onFechar}
         >
           <DialogPrimitive.Content asChild onClick={(e) => e.stopPropagation()}>
@@ -51,8 +52,8 @@ export function Modal({ aberto, onFechar, titulo, subtitulo, icone: Icone, taman
               exit={{ y: 24, opacity: 0, scale: 0.99 }}
               transition={{ type: 'spring', damping: 30, stiffness: 340 }}
               className={cn(
-                'relative w-full flex flex-col overflow-hidden bg-surface-page text-text-primary border border-border-subtle shadow-2xl outline-none',
-                'max-h-[92vh] md:max-h-[85vh] rounded-t-card md:rounded-card',
+                'relative w-full flex flex-col overflow-hidden bg-surface-page text-text-primary border border-border-subtle shadow-elevation-4 outline-none',
+                'max-h-[92vh] md:max-h-[85vh] rounded-t-modal md:rounded-modal',
                 SIZE_CLASSES[tamanho]
               )}
             >
