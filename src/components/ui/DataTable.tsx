@@ -1,6 +1,7 @@
 // DataTable: tabela genérica orientada a `colunas`, no estilo já usado nas
 // telas de Estoque/Vendas, mas padronizada com os tokens do design system.
 import type React from 'react';
+import { useRef } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '../../utils';
 
@@ -45,6 +46,22 @@ export interface DataTableProps<T> {
   paginaAtual: number;
   totalPaginas: number;
   onMudarPagina: (pagina: number) => void;
+
+  /**
+   * Opt-in: fixa o `<thead>` no topo do container de scroll (`sticky top-0`).
+   * Útil pra tabelas longas onde o cabeçalho precisa ficar visível durante o
+   * scroll vertical. Desligado por padrão pra não mudar o comportamento de
+   * quem já usa o componente.
+   */
+  stickyHeader?: boolean;
+
+  /**
+   * Opt-in: adiciona uma alça de redimensionamento na borda direita de cada
+   * `<th>`, permitindo o usuário ajustar a largura da coluna arrastando o
+   * mouse. Implementação simples (mousedown/mousemove/mouseup globais, sem
+   * persistência) — desligado por padrão.
+   */
+  resizableColumns?: boolean;
 }
 
 export function DataTable<T>({
@@ -58,26 +75,61 @@ export function DataTable<T>({
   paginaAtual,
   totalPaginas,
   onMudarPagina,
+  stickyHeader = false,
+  resizableColumns = false,
 }: DataTableProps<T>) {
   const alignClass = (align: DataTableColumn<T>['align']) =>
     align === 'right' ? 'text-right' : align === 'center' ? 'text-center' : 'text-left';
+
+  // Column resize: guarda o <th> sendo arrastado e o pageX inicial num ref
+  // (não precisa de state/re-render — só mexe em style.width diretamente no
+  // DOM enquanto o mouse move).
+  const resizeState = useRef<{ th: HTMLTableCellElement; startX: number; startWidth: number } | null>(null);
+
+  const startResize = (e: React.MouseEvent, th: HTMLTableCellElement | null) => {
+    if (!th) return;
+    e.preventDefault();
+    resizeState.current = { th, startX: e.pageX, startWidth: th.offsetWidth };
+
+    const onMouseMove = (ev: MouseEvent) => {
+      const state = resizeState.current;
+      if (!state) return;
+      const novaLargura = Math.max(40, state.startWidth + (ev.pageX - state.startX));
+      state.th.style.width = `${novaLargura}px`;
+    };
+
+    const onMouseUp = () => {
+      resizeState.current = null;
+      window.removeEventListener('mousemove', onMouseMove);
+      window.removeEventListener('mouseup', onMouseUp);
+    };
+
+    window.addEventListener('mousemove', onMouseMove);
+    window.addEventListener('mouseup', onMouseUp);
+  };
 
   return (
     <div className="bg-surface-card border border-border-subtle rounded-card overflow-hidden">
       <div className={cn('overflow-x-auto', renderMobileCard && 'hidden md:block')}>
         <table className="w-full text-sm">
-          <thead>
+          <thead className={cn(stickyHeader && 'sticky top-0 bg-surface-card z-10')}>
             <tr className="border-b border-border-default">
               {colunas.map((coluna) => (
                 <th
                   key={coluna.key}
                   style={{ width: coluna.width }}
                   className={cn(
-                    'px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted',
+                    'relative px-3 py-2.5 text-[10px] font-semibold uppercase tracking-wide text-text-muted',
                     alignClass(coluna.align)
                   )}
                 >
                   {coluna.header}
+                  {resizableColumns && (
+                    <span
+                      className="absolute right-0 top-0 bottom-0 w-1 cursor-col-resize select-none hover:bg-accent/40"
+                      onMouseDown={(e) => startResize(e, e.currentTarget.parentElement as HTMLTableCellElement)}
+                    />
+                  )}
                 </th>
               ))}
             </tr>
@@ -97,11 +149,11 @@ export function DataTable<T>({
                     key={getRowKey(item)}
                     onClick={onRowClick ? () => onRowClick(item) : undefined}
                     className={cn(
-                      'border-b border-border-subtle last:border-b-0',
+                      'border-b border-border-subtle last:border-b-0 hover:bg-surface-raised transition-colors duration-150',
                       // Borda de 2px só aparece quando a linha está em alerta; do
                       // contrário fica transparente pra não desalinhar o padding
                       emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent',
-                      onRowClick && 'cursor-pointer hover:bg-surface-raised'
+                      onRowClick && 'cursor-pointer'
                     )}
                   >
                     {colunas.map((coluna) => (
