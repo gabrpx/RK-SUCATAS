@@ -52,6 +52,7 @@ import { TarefasView } from './features/tarefas/TarefasView';
 import { PatchNotesView } from './features/patchnotes/PatchNotesView';
 import { NotificacoesView } from './features/notificacoes/NotificacoesView';
 import { Toaster } from './components/ui/toast';
+import { ConfirmProvider } from './components/ui/ConfirmProvider';
 import { SincronizacaoMlProvider } from './features/mercadolivre/SincronizacaoMlContext';
 import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
 import { UnidadesEstoque } from './features/estoque/UnidadesEstoque';
@@ -167,18 +168,25 @@ export default function App() {
   }
 
   return (
-    <DataProvider>
-      {/* SincronizacaoMlProvider por fora do AppContent pelo mesmo motivo do
-          Toaster logo abaixo: precisa sobreviver à troca de aba, senão o
-          toast "Sincronizar agora" (disparado de Vendas/Orçamentos) para de
-          funcionar assim que a pessoa sai daquela tela antes de clicar. */}
-      <SincronizacaoMlProvider>
-        <AppContent onLogout={handleLogout} />
-      </SincronizacaoMlProvider>
-      {/* Fora do AppContent pra sobreviver à troca de aba e continuar
-          aparecendo mesmo na tela de login. */}
-      <Toaster />
-    </DataProvider>
+    // ConfirmProvider no nível mais externo do app autenticado: qualquer
+    // feature (Estoque, Vendas, Caixa, etc.) precisa poder chamar useConfirm()
+    // pra substituir window.confirm, então tem que envolver DataProvider
+    // inteiro, não só AppContent — senão qualquer provider ficaria fora do
+    // alcance do diálogo.
+    <ConfirmProvider>
+      <DataProvider>
+        {/* SincronizacaoMlProvider por fora do AppContent pelo mesmo motivo do
+            Toaster logo abaixo: precisa sobreviver à troca de aba, senão o
+            toast "Sincronizar agora" (disparado de Vendas/Orçamentos) para de
+            funcionar assim que a pessoa sai daquela tela antes de clicar. */}
+        <SincronizacaoMlProvider>
+          <AppContent onLogout={handleLogout} />
+        </SincronizacaoMlProvider>
+        {/* Fora do AppContent pra sobreviver à troca de aba e continuar
+            aparecendo mesmo na tela de login. */}
+        <Toaster />
+      </DataProvider>
+    </ConfirmProvider>
   );
 }
 
