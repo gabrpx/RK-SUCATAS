@@ -4,7 +4,47 @@
 // Fica atrás de um wrapper (em vez de usar sonner direto nas telas) por dois
 // motivos: as cores vêm do theme.css em vez de virem prontas da biblioteca, e
 // trocar de biblioteca depois mexe num arquivo só.
+import { Suspense, lazy, type ReactNode } from 'react';
+import { CheckCircle2 } from 'lucide-react';
 import { Toaster as SonnerToaster, toast as sonnerToast } from 'sonner';
+
+// Sparkles é ~1.7MB (@tsparticles) — carregado só quando alguém realmente
+// passa withSparkles: true. Import estático aqui inflaria o bundle de toda
+// tela que dispara um toast de sucesso comum, então fica atrás de
+// React.lazy() e só entra na rede no primeiro toast que pedir o efeito.
+const SparklesCoreLazy = lazy(() =>
+  import('@/src/components/animate-ui/primitives/effects/sparkles').then((mod) => ({ default: mod.SparklesCore }))
+);
+
+function IconComSparkles({ icon }: { icon: ReactNode }) {
+  return (
+    <span className="relative inline-flex size-4 items-center justify-center">
+      <span className="pointer-events-none absolute -inset-1.5 overflow-hidden rounded-full">
+        <SparklesCoreLazy
+          background="transparent"
+          minSize={0.4}
+          maxSize={1}
+          particleDensity={60}
+          particleColor="var(--color-positive)"
+          className="h-full w-full"
+        />
+      </span>
+      <span className="relative z-10">{icon}</span>
+    </span>
+  );
+}
+
+// Fallback do Suspense é o ícone puro (sem partículas) — enquanto o chunk
+// de sparkles ainda não chegou, ou pra quem não pediu o efeito.
+function iconeSucesso(withSparkles?: boolean) {
+  if (!withSparkles) return undefined; // deixa o sonner usar o ícone padrão dele
+  const iconeBase = <CheckCircle2 size={16} />;
+  return (
+    <Suspense fallback={iconeBase}>
+      <IconComSparkles icon={iconeBase} />
+    </Suspense>
+  );
+}
 
 export function Toaster() {
   return (
@@ -50,6 +90,12 @@ interface OpcoesToast {
   /** Botão à direita — use pra dar saída ao aviso, nunca só informar */
   acao?: { label: string; onClick: () => void };
   duracao?: number;
+  /**
+   * Opt-in: envolve o ícone de sucesso num efeito de partículas (Sparkles).
+   * Carregado sob demanda (React.lazy) — só usar em momentos que merecem
+   * destaque (ex: fechar uma venda), não em todo sucesso do dia a dia.
+   */
+  withSparkles?: boolean;
 }
 
 function montar({ descricao, acao, duracao }: OpcoesToast = {}) {
@@ -61,7 +107,8 @@ function montar({ descricao, acao, duracao }: OpcoesToast = {}) {
 }
 
 export const aviso = {
-  sucesso: (mensagem: string, opcoes?: OpcoesToast) => sonnerToast.success(mensagem, montar(opcoes)),
+  sucesso: (mensagem: string, opcoes?: OpcoesToast) =>
+    sonnerToast.success(mensagem, { ...montar(opcoes), icon: iconeSucesso(opcoes?.withSparkles) }),
   erro: (mensagem: string, opcoes?: OpcoesToast) => sonnerToast.error(mensagem, montar(opcoes)),
   atencao: (mensagem: string, opcoes?: OpcoesToast) => sonnerToast.warning(mensagem, montar(opcoes)),
   info: (mensagem: string, opcoes?: OpcoesToast) => sonnerToast.info(mensagem, montar(opcoes)),
