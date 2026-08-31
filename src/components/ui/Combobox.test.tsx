@@ -52,4 +52,22 @@ describe('<Combobox>', () => {
     const items = screen.getAllByRole('option');
     expect(items.length).toBeLessThan(opts.length);
   });
+
+  it('aria-labelledby combina id do label + id do valor quando label passado', () => {
+    render(<Combobox label="Cidade" options={opts.slice(0, 5)} value="v2" onChange={() => {}} />);
+    const btn = screen.getByRole('button');
+    const aria = btn.getAttribute('aria-labelledby');
+    expect(aria).toBeTruthy();
+    const parts = aria!.split(' ');
+    expect(parts).toHaveLength(2);
+    parts.forEach((id) => {
+      expect(document.getElementById(id)).not.toBeNull();
+    });
+  });
+
+  it('aria-labelledby ausente quando label não passado', () => {
+    render(<Combobox options={opts.slice(0, 3)} value="" onChange={() => {}} />);
+    const btn = screen.getByRole('button');
+    expect(btn.getAttribute('aria-labelledby')).toBeNull();
+  });
 });
