@@ -129,4 +129,27 @@ describe('ClienteFormModal', () => {
     const cancelarBtn = screen.getByRole('button', { name: /cancelar/i });
     expect(cancelarBtn.className).not.toMatch(/bg-accent/);
   });
+
+  it('telefone armazena só dígitos e exibe formatado', () => {
+    const onFormChange = vi.fn();
+    render(
+      <ClienteFormModal
+        {...baseProps}
+        form={{ ...baseProps.form, telefone: '83999999999' }}
+        onFormChange={onFormChange}
+      />
+    );
+    const input = screen.getByLabelText('Telefone') as HTMLInputElement;
+    expect(input.value).toBe('(83) 9 9999-9999');
+  });
+
+  it('documento inválido exibe erro inline via DocInput', () => {
+    render(
+      <ClienteFormModal
+        {...baseProps}
+        form={{ ...baseProps.form, documento: '11111111111' }}
+      />
+    );
+    expect(screen.getByText('CPF inválido')).toBeTruthy();
+  });
 });
