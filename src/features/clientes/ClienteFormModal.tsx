@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { Loader2, Plus, X } from 'lucide-react';
 import { cn } from '../../utils';
@@ -8,7 +8,8 @@ import { Input } from '@/src/components/ui/Input';
 import { Textarea } from '@/src/components/ui/Textarea';
 import { PhoneInput } from '@/src/components/ui/PhoneInput';
 import { DocInput } from '@/src/components/ui/DocInput';
-import { formatCep, validarCep, buscarCep } from './cep';
+import { CepInput } from '@/src/components/ui/CepInput';
+import { StateCitySelect } from '@/src/components/ui/StateCitySelect';
 import type { ClienteOrigem, PreferenciaContato } from './types';
 
 const ORIGEM_LABELS: Record<ClienteOrigem, string> = {
@@ -140,35 +141,10 @@ export function ClienteFormModal({
   tagsTexto,
   onTagsTextoChange,
 }: ClienteFormModalProps) {
-  const cepLookupRef = useRef<string | null>(null);
   const [docErro, setDocErro] = useState<string | null>(null);
 
   const update = (patch: Partial<ClienteFormData>) =>
     onFormChange({ ...form, ...patch });
-
-  const handleCepChange = (raw: string) => {
-    const formatted = formatCep(raw);
-    update({ cep: formatted });
-  };
-
-  useEffect(() => {
-    if (!validarCep(form.cep)) return;
-    if (cepLookupRef.current === form.cep) return;
-    cepLookupRef.current = form.cep;
-
-    buscarCep(form.cep).then((result) => {
-      if (result) {
-        onFormChange({ ...form, cidade: `${result.cidade} - ${result.uf}` });
-      }
-    });
-  }, [form.cep]);
-
-  const cepLen = form.cep.replace(/\D/g, '').length;
-  const cepValid = validarCep(form.cep);
-  const cepTouched = cepLen > 0;
-  const cepStatus: 'positive' | 'negative' | 'idle' = cepTouched
-    ? cepValid ? 'positive' : 'negative'
-    : 'idle';
 
   return (
     <Modal
@@ -226,34 +202,18 @@ export function ClienteFormModal({
           />
         </div>
 
-        <div className="grid grid-cols-2 gap-3">
-          <FloatingField label="CEP">
-            <input
-              value={form.cep}
-              onChange={(e) => handleCepChange(e.target.value)}
-              inputMode="numeric"
-              maxLength={9}
-              data-cep-status={cepStatus}
-              style={
-                cepStatus === 'positive'
-                  ? { boxShadow: '0 0 0 2px var(--positive)', borderColor: 'var(--positive)' }
-                  : cepStatus === 'negative'
-                    ? { boxShadow: '0 0 0 2px var(--negative)', borderColor: 'var(--negative)' }
-                    : undefined
-              }
-              className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-              placeholder="00000-000"
-            />
-          </FloatingField>
-          <FloatingField label="Cidade / UF">
-            <input
-              value={form.cidade}
-              onChange={(e) => update({ cidade: e.target.value })}
-              className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-              placeholder="Preenchido pelo CEP"
-            />
-          </FloatingField>
-        </div>
+        <CepInput
+          label="CEP"
+          value={form.cep}
+          onChange={(digits) => update({ cep: digits })}
+          onAutoFill={({ estado, cidade }) => update({ estado, cidade })}
+          placeholder="00000-000"
+        />
+
+        <StateCitySelect
+          value={{ estado: form.estado, cidade: form.cidade }}
+          onChange={({ estado, cidade }) => update({ estado, cidade })}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <FloatingField label="Aniversário">

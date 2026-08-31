@@ -3,19 +3,6 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react';
 import { ClienteFormModal } from './ClienteFormModal';
 
-vi.mock('./cep', () => ({
-  formatCep: (v: string) => {
-    const d = v.replace(/\D/g, '').slice(0, 8);
-    if (d.length <= 5) return d;
-    return `${d.slice(0, 5)}-${d.slice(5)}`;
-  },
-  validarCep: (c: string) => c.replace(/\D/g, '').length === 8,
-  buscarCep: vi.fn(),
-}));
-
-import { buscarCep } from './cep';
-const buscarCepMock = vi.mocked(buscarCep);
-
 const baseProps = {
   aberto: true,
   onFechar: vi.fn(),
@@ -54,68 +41,43 @@ describe('ClienteFormModal', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    buscarCepMock.mockResolvedValue(null);
   });
 
-  const getCepInput = () => {
-    const all = document.querySelectorAll<HTMLInputElement>('[data-cep-status]');
-    return all[all.length - 1];
-  };
-
-  it('formata CEP em tempo real ao digitar', async () => {
+  it('CEP formata a exibição mas armazena só dígitos', () => {
     const onFormChange = vi.fn();
     render(<ClienteFormModal {...baseProps} onFormChange={onFormChange} />);
 
-    fireEvent.change(getCepInput(), { target: { value: '01001000' } });
+    const input = screen.getByLabelText('CEP') as HTMLInputElement;
+    fireEvent.change(input, { target: { value: '01001000' } });
 
     expect(onFormChange).toHaveBeenCalledWith(
-      expect.objectContaining({ cep: '01001-000' })
+      expect.objectContaining({ cep: '01001000' })
     );
   });
 
-  it('mostra indicador positivo para CEP válido', async () => {
-    buscarCepMock.mockResolvedValue({ cidade: 'São Paulo', uf: 'SP' });
-
+  it('CEP exibe formatado a partir dos dígitos armazenados', () => {
     render(
       <ClienteFormModal
         {...baseProps}
-        form={{ ...baseProps.form, cep: '01001-000' }}
+        form={{ ...baseProps.form, cep: '01001000' }}
       />
     );
 
-    expect(getCepInput().getAttribute('data-cep-status')).toBe('positive');
+    const input = screen.getByLabelText('CEP') as HTMLInputElement;
+    expect(input.value).toBe('01001-000');
   });
 
-  it('mostra indicador negativo para CEP inválido parcial', () => {
-    render(
-      <ClienteFormModal
-        {...baseProps}
-        form={{ ...baseProps.form, cep: '123' }}
-      />
-    );
-
-    expect(getCepInput().getAttribute('data-cep-status')).toBe('negative');
-  });
-
-  it('preenche cidade quando CEP é válido via ViaCEP', async () => {
-    buscarCepMock.mockResolvedValue({ cidade: 'São Paulo', uf: 'SP' });
-    const onFormChange = vi.fn();
-
-    render(
-      <ClienteFormModal
-        {...baseProps}
-        form={{ ...baseProps.form, cep: '01001-000' }}
-        onFormChange={onFormChange}
-      />
-    );
-
-    await waitFor(() => {
-      expect(buscarCepMock).toHaveBeenCalledWith('01001-000');
+  it('CEP com 8 dígitos dispara onFormChange com estado + cidade estruturados', async () => {
+    global.fetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ uf: 'PB', localidade: 'Juazeirinho', bairro: 'Centro', logradouro: 'Rua A' }),
     });
-
+    const onFormChange = vi.fn();
+    const { rerender } = render(<ClienteFormModal aberto {...baseProps} onFormChange={onFormChange} />);
+    rerender(<ClienteFormModal aberto {...baseProps} form={{ ...baseProps.form, cep: '58500000' }} onFormChange={onFormChange} />);
     await waitFor(() => {
       expect(onFormChange).toHaveBeenCalledWith(
-        expect.objectContaining({ cidade: 'São Paulo - SP' })
+        expect.objectContaining({ estado: 'PB', cidade: 'Juazeirinho' })
       );
     });
   });
