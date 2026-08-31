@@ -18,6 +18,38 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.9',
+    data: '2026-08-31',
+    titulo: 'Clientes com campos inteligentes: validação, autopreenchimento e acessibilidade',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Estado e Cidade separados no cadastro de clientes: o sistema agora detecta automaticamente o estado pelo CEP ou deixa você escolher, com a cidade preenchida logo em seguida — fim de "Juazeirinho-PB" misturado num único campo.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Telefone recebe máscara automática ao digitar: 97987654321 vira (97) 98765-4321 — fica mais legível e padronizado na ficha e na lista de clientes.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'CPF e CNPJ agora são validados de verdade: o sistema diferencia CPF de CNPJ pela quantidade de dígitos, valida o dígito verificador, e mostra um aviso se algo não bater — não deixa salvar um documento inválido.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'CEP preenche o endereço automaticamente: você digita o CEP, o sistema busca via ViaCEP e traz rua, bairro, cidade e estado prontos — tudo editável se precisar corrigir.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Dropdowns de estado, cidade e categorias agora funcionam totalmente com leitores de tela: acessibilidade melhorada pra usuários que dependem de software de acessibilidade visual.',
+      },
+    ],
+  },
+  {
     versao: '1.3.8',
     data: '2026-08-29',
     titulo: 'Fundação de UI expandida: átomos, Modal renovado e componentes de atalho',
