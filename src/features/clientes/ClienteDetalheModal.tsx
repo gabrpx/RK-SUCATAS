@@ -231,6 +231,7 @@ export function ClienteDetalheModal({
           origem={null}
           contatoPreferido={null}
           cidade={cliente.cidade}
+          estado={cliente.estado}
           tags={cliente.tags}
           motosBusca={badges}
           segmentoLabel={segmentoLabel}

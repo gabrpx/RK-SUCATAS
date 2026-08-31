@@ -8,6 +8,7 @@ import { useState, type ReactNode } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import { ChevronUp, Phone, IdCard, Cake, Compass, MessageCircle, Bike, Tag, MapPin } from 'lucide-react';
 import { StatusBadge, type StatusTone } from '../../components/ui/StatusBadge';
+import { formatarCidade } from '@/src/components/ui/formatarCidade';
 
 interface ClienteProfileCardProps {
   nome: string;
@@ -17,6 +18,7 @@ interface ClienteProfileCardProps {
   origem?: string | null;
   contatoPreferido?: string | null;
   cidade?: string | null;
+  estado?: string | null;
   tags?: string[];
   /** Motos que o cliente busca peças (derivado das peças procuradas) — vira badge. */
   motosBusca?: { modeloMotoId: string; nome: string; tom: StatusTone }[];
@@ -46,6 +48,7 @@ export function ClienteProfileCard({
   origem,
   contatoPreferido,
   cidade,
+  estado,
   tags = [],
   motosBusca = [],
   segmentoLabel,
@@ -129,7 +132,7 @@ export function ClienteProfileCard({
                 <span className="text-sm font-medium text-text-primary">{contatoPreferido || '—'}</span>
               </DataRow>
               <DataRow icon={<MapPin size={15} />} label="Cidade">
-                <span className="text-sm font-medium text-text-primary">{cidade || '—'}</span>
+                <span className="text-sm font-medium text-text-primary">{formatarCidade({estado: estado ?? null, cidade: cidade ?? null}) || '—'}</span>
               </DataRow>
               <DataRow icon={<Bike size={15} />} label="Busca peças de">
                 {motosBusca.length > 0 ? (
