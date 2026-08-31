@@ -7,6 +7,7 @@ import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, Trash2, UserX, Pa
 import { cn } from '../../utils';
 import { usePermissao } from '../../hooks/usePermissao';
 import { formatTelefoneBR, formatDocumentoBR, onlyDigits } from '../../utils/formatters';
+import { formatarCidade } from '@/src/components/ui/formatarCidade';
 import { linkWhatsapp } from '../../utils/whatsapp';
 import { useData } from '../../context/DataContext';
 import { aviso } from '../../components/ui/toast';
@@ -470,7 +471,7 @@ export function ClientesView({
       ),
     },
     { key: 'telefone', header: 'Telefone', render: (c) => (c.telefone ? formatTelefoneBR(c.telefone) : '—') },
-    { key: 'cidade', header: 'Cidade', render: (c) => c.cidade || '—' },
+    { key: 'cidade', header: 'Cidade', render: (c) => formatarCidade({estado: c.estado, cidade: c.cidade}) || '—' },
     {
       key: 'segmento',
       header: 'Segmento',
@@ -528,7 +529,7 @@ export function ClientesView({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="text-sm font-medium text-text-primary truncate">{c.nome}</p>
-            <p className="text-xs text-text-faint">{c.telefone ? formatTelefoneBR(c.telefone) : '—'}{c.cidade ? ` · ${c.cidade}` : ''}</p>
+            <p className="text-xs text-text-faint">{c.telefone ? formatTelefoneBR(c.telefone) : '—'}{(() => { const s = formatarCidade({estado: c.estado, cidade: c.cidade}); return s ? ` · ${s}` : ''; })()}</p>
           </div>
           <div className="flex items-center gap-1 shrink-0" onClick={(e) => e.stopPropagation()}>
             {linkWhatsapp(c.telefone) && (
