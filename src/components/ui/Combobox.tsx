@@ -41,7 +41,7 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
   const current = options.find((o) => o.value === value);
 
   return (
-    <div className="flex flex-col gap-1.5" ref={ref}>
+    <div className="relative flex flex-col gap-1.5" ref={ref}>
       {label && <label id={uid} className="text-xs font-medium text-text-secondary">{label}</label>}
       <button
         type="button"

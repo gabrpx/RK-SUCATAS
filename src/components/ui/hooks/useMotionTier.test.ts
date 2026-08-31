@@ -38,4 +38,11 @@ describe('useMotionTier', () => {
     const { result } = renderHook(() => useMotionTier());
     expect(result.current).toBe('showcase');
   });
+
+  it('retorna "standard" quando deviceMemory está undefined', () => {
+    mockMatchMedia(false);
+    Object.defineProperty(navigator, 'deviceMemory', { value: undefined, configurable: true });
+    const { result } = renderHook(() => useMotionTier());
+    expect(result.current).toBe('standard');
+  });
 });

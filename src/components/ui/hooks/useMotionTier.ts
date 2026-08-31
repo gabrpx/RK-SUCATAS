@@ -7,6 +7,7 @@ function compute(): MotionTier {
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return 'reduced';
   const mem = (navigator as Navigator & { deviceMemory?: number }).deviceMemory;
   if (mem !== undefined && mem < 4) return 'low';
+  if (mem === undefined) return 'standard'; // sem deviceMemory API (Firefox/Safari) → meio-termo seguro
   return 'showcase';
 }
 

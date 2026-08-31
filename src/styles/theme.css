@@ -145,12 +145,15 @@
   --focus-ring-color: var(--accent);
   --focus-ring-offset: var(--surface-page);
 
-  /* Z-index escala — mata o z-[9999] espalhado */
-  --z-nav: 40;
-  --z-dropdown: 50;
-  --z-modal: 60;
-  --z-toast: 70;
-  --z-tooltip: 80;
+  /* Z-index escala — mata o z-[9999] espalhado.
+     Valores escolhidos pra dominar o z hardcoded pré-existente no app
+     (header sticky z-[100], dropdowns/popovers z-[150-200], image-zoom
+     z-[3000], VisualizadorFotos z-[4000]) — ver whole-branch review C1. */
+  --z-nav: 100;
+  --z-dropdown: 500;
+  --z-modal: 3000;
+  --z-toast: 4000;
+  --z-tooltip: 5000;
 }
 
 /*
