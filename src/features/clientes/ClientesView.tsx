@@ -75,6 +75,7 @@ const EMPTY_FORM: ClienteFormData = {
   tags: [],
   observacoes: '',
   cidade: '',
+  estado: '',
   cep: '',
 };
 
@@ -258,6 +259,7 @@ export function ClientesView({
       tags: cliente.tags,
       observacoes: cliente.observacoes || '',
       cidade: cliente.cidade || '',
+      estado: cliente.estado || '',
       cep: '',
     });
     setTagsTexto(tagsParaTexto(cliente.tags));
@@ -291,6 +293,7 @@ export function ClientesView({
       tags: textoParaTags(tagsTexto),
       observacoes: form.observacoes?.trim() || null,
       cidade: form.cidade?.trim() || null,
+      estado: form.estado?.trim() || null,
     };
     try {
       const result = editando ? await clientesApi.atualizar(editando.id, payload) : await clientesApi.criar(payload);

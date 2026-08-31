@@ -31,6 +31,7 @@ const baseProps = {
     tags: [] as string[],
     observacoes: '',
     cidade: '',
+    estado: '',
     cep: '',
   },
   onFormChange: vi.fn(),

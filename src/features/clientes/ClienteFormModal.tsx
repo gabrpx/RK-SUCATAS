@@ -32,6 +32,7 @@ export interface ClienteFormData {
   tags: string[];
   observacoes: string;
   cidade: string;
+  estado: string;
   cep: string;
 }
 
