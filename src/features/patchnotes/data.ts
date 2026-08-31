@@ -18,6 +18,48 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.8',
+    data: '2026-08-29',
+    titulo: 'Fundação de UI expandida: átomos, Modal renovado e componentes de atalho',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Novo kit de átomos de UI: Input, Select, Combobox, DatePicker, PhoneInput, DocInput, CurrencyInput — todos com máscara, validação em tempo real e sugestões contextuais, prontos pra usar em qualquer tela.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Modal ganhou animação em spring (sai do nada e cai com balanço natural), cantos mais suaves (rounded-card), e hierarquia de profundidade padronizada com backdrop blur sutil.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Botão principal ganhou variantes de destaque: accent-cta com ripple e magnetic effect (segue o cursor), positive (verde, pra ações que completam), e soft (baixo contraste, pra secundárias) — plus tamanho touch-friendly no celular (h-11 sm:h-9).',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Base pronta pra Estado + Cidade separados: adeus "Juazeirinho-PB" digitado à mão — CEP agora preenche os dois campos via ViaCEP, validação e tudo. Chega nas próximas telas de Clientes e Endereço.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Confirm global unificado: em vez de window.confirm do navegador (feio e sem contexto), agora o sistema usa um modal consistente com a marca, acessível a partir de qualquer lugar e com botões semânticos (Cancelar / Confirmar).',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Toast agora tem opção sparkles em sucesso: animação de confete que só carrega quando usada, sem pesar o app. Abre espaço pra outros toasts interativos depois.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'CommandPalette (Cmd+K / Ctrl+K) + Kbd atom: atalhos globais agora aparecem formatados com o visual das teclas do seu aparelho — Mac mostra ⌘, Windows mostra Ctrl, e a paleta reúne todas as ações por contexto.',
+      },
+    ],
+  },
+  {
     versao: '1.3.7',
     data: '2026-08-27',
     titulo: 'Modal de clientes redesenhado e pendências com status semântico',

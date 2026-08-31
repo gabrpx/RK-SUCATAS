@@ -9,6 +9,7 @@ import type { LucideIcon } from 'lucide-react';
 import { ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '../../utils';
 import { AnimatedNumber } from './animated-number';
+import { CountingNumber } from '@/src/components/animate-ui/primitives/texts/counting-number';
 
 export type MetricTone = 'positive' | 'neutral' | 'negative';
 
@@ -74,7 +75,17 @@ export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto
       <div className="flex flex-wrap items-center gap-2.5 mt-3">
         <span className="text-2xl sm:text-3xl font-semibold text-text-primary leading-none tabular-nums tracking-tight">
           {typeof valor === 'number' ? (
-            <AnimatedNumber value={valor} format={formatarValor} inView />
+            formatarValor ? (
+              // O primitivo `CountingNumber` do animate-ui não aceita uma
+              // função de formatação por quadro (só decimalPlaces/
+              // decimalSeparator) — não dá pra produzir "R$ 93.805,00" ou
+              // "12%" com ele. Pra valor formatado (moeda, %, etc., que é a
+              // maioria dos usos reais deste componente) mantém-se o
+              // AnimatedNumber autoral, que já resolve isso.
+              <AnimatedNumber value={valor} format={formatarValor} inView />
+            ) : (
+              <CountingNumber number={valor} inView />
+            )
           ) : (
             valor
           )}
