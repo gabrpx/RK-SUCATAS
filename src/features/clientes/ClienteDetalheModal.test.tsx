@@ -39,6 +39,7 @@ const baseProps = {
     tags: [],
     observacoes: '',
     cidade: 'São Paulo',
+    estado: null,
     criado_em: '2024-01-01',
     atualizado_em: '2024-01-01',
     ativo: true,
