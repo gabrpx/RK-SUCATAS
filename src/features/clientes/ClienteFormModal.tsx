@@ -4,6 +4,8 @@ import { Loader2, Plus, X } from 'lucide-react';
 import { cn } from '../../utils';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { Input } from '@/src/components/ui/Input';
+import { Textarea } from '@/src/components/ui/Textarea';
 import { formatCep, validarCep, buscarCep } from './cep';
 import type { ClienteOrigem, PreferenciaContato } from './types';
 
@@ -191,14 +193,12 @@ export function ClienteFormModal({
       <div className="space-y-4">
         {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
 
-        <FloatingField label="Nome">
-          <input
-            value={form.nome}
-            onChange={(e) => update({ nome: e.target.value })}
-            className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-            placeholder="Nome do cliente"
-          />
-        </FloatingField>
+        <Input
+          label="Nome"
+          value={form.nome}
+          onChange={(e) => update({ nome: e.target.value })}
+          placeholder="Nome do cliente"
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <FloatingField label="Telefone">
@@ -352,14 +352,14 @@ export function ClienteFormModal({
           />
         </FloatingField>
 
-        <FloatingField label="Observações">
-          <textarea
-            value={form.observacoes}
-            onChange={(e) => update({ observacoes: e.target.value })}
-            className={cn(baseInput, 'min-h-20 resize-none focus:ring-2 focus:ring-accent/50')}
-            placeholder='Nota fixa, ex: "só liga depois das 18h"'
-          />
-        </FloatingField>
+        <Textarea
+          label="Observações"
+          value={form.observacoes}
+          onChange={(e) => update({ observacoes: e.target.value })}
+          autoResize
+          rows={3}
+          placeholder='Nota fixa, ex: "só liga depois das 18h"'
+        />
       </div>
     </Modal>
   );
