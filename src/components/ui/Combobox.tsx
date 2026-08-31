@@ -19,7 +19,8 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
   const [query, setQuery] = React.useState('');
   const [visible, setVisible] = React.useState(WINDOW);
   const ref = React.useRef<HTMLDivElement>(null);
-  const uid = React.useId();
+  const labelId = React.useId();
+  const valueId = React.useId();
 
   React.useEffect(() => {
     const outside = (e: MouseEvent) => {
@@ -42,19 +43,19 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
 
   return (
     <div className="relative flex flex-col gap-1.5" ref={ref}>
-      {label && <label id={uid} className="text-xs font-medium text-text-secondary">{label}</label>}
+      {label && <label id={labelId} className="text-xs font-medium text-text-secondary">{label}</label>}
       <button
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
-        aria-labelledby={label ? uid : undefined}
+        aria-labelledby={label ? `${labelId} ${valueId}` : undefined}
         onClick={() => setOpen((v) => !v)}
         className={cn(
           'flex items-center justify-between h-9 rounded-control border bg-surface-inset px-3 text-sm text-text-primary transition-colors',
           error ? 'border-danger' : open ? 'border-accent' : 'border-border-default'
         )}
       >
-        <span className={cn(!current && 'text-text-faint')}>{current?.label ?? placeholder ?? 'Selecione…'}</span>
+        <span id={valueId} className={cn(!current && 'text-text-faint')}>{current?.label ?? placeholder ?? 'Selecione…'}</span>
         <ChevronDown size={14} className="text-text-muted" />
       </button>
       <AnimatePresence>

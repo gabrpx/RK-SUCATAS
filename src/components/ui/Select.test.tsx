@@ -52,4 +52,23 @@ describe('<Select>', () => {
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(screen.queryByText('Alpha')).toBeNull();
   });
+
+  it('aria-labelledby combina id do label + id do valor quando label passado', () => {
+    render(<Select label="Estado" options={opts} value="b" onChange={() => {}} />);
+    const btn = screen.getByRole('button');
+    const aria = btn.getAttribute('aria-labelledby');
+    expect(aria).toBeTruthy();
+    const parts = aria!.split(' ');
+    expect(parts).toHaveLength(2);
+    // Ambos os ids devem existir no DOM
+    parts.forEach((id) => {
+      expect(document.getElementById(id)).not.toBeNull();
+    });
+  });
+
+  it('aria-labelledby ausente quando label não passado', () => {
+    render(<Select options={opts} value="a" onChange={() => {}} />);
+    const btn = screen.getByRole('button');
+    expect(btn.getAttribute('aria-labelledby')).toBeNull();
+  });
 });

@@ -1,10 +1,15 @@
-import { useEffect, useRef, type ReactNode } from 'react';
+import { useState, type ReactNode } from 'react';
 import { motion } from 'motion/react';
 import { Loader2, Plus, X } from 'lucide-react';
 import { cn } from '../../utils';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
-import { formatCep, validarCep, buscarCep } from './cep';
+import { Input } from '@/src/components/ui/Input';
+import { Textarea } from '@/src/components/ui/Textarea';
+import { PhoneInput } from '@/src/components/ui/PhoneInput';
+import { DocInput } from '@/src/components/ui/DocInput';
+import { CepInput } from '@/src/components/ui/CepInput';
+import { StateCitySelect } from '@/src/components/ui/StateCitySelect';
 import type { ClienteOrigem, PreferenciaContato } from './types';
 
 const ORIGEM_LABELS: Record<ClienteOrigem, string> = {
@@ -32,6 +37,7 @@ export interface ClienteFormData {
   tags: string[];
   observacoes: string;
   cidade: string;
+  estado: string;
   cep: string;
 }
 
@@ -135,34 +141,10 @@ export function ClienteFormModal({
   tagsTexto,
   onTagsTextoChange,
 }: ClienteFormModalProps) {
-  const cepLookupRef = useRef<string | null>(null);
+  const [docErro, setDocErro] = useState<string | null>(null);
 
   const update = (patch: Partial<ClienteFormData>) =>
     onFormChange({ ...form, ...patch });
-
-  const handleCepChange = (raw: string) => {
-    const formatted = formatCep(raw);
-    update({ cep: formatted });
-  };
-
-  useEffect(() => {
-    if (!validarCep(form.cep)) return;
-    if (cepLookupRef.current === form.cep) return;
-    cepLookupRef.current = form.cep;
-
-    buscarCep(form.cep).then((result) => {
-      if (result) {
-        onFormChange({ ...form, cidade: `${result.cidade} - ${result.uf}` });
-      }
-    });
-  }, [form.cep]);
-
-  const cepLen = form.cep.replace(/\D/g, '').length;
-  const cepValid = validarCep(form.cep);
-  const cepTouched = cepLen > 0;
-  const cepStatus: 'positive' | 'negative' | 'idle' = cepTouched
-    ? cepValid ? 'positive' : 'negative'
-    : 'idle';
 
   return (
     <Modal
@@ -190,66 +172,48 @@ export function ClienteFormModal({
       <div className="space-y-4">
         {erroForm && <p className="text-sm text-danger">{erroForm}</p>}
 
-        <FloatingField label="Nome">
-          <input
-            value={form.nome}
-            onChange={(e) => update({ nome: e.target.value })}
-            className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-            placeholder="Nome do cliente"
+        <Input
+          label="Nome"
+          value={form.nome}
+          onChange={(e) => update({ nome: e.target.value })}
+          placeholder="Nome do cliente"
+        />
+
+        <div className="grid grid-cols-2 gap-3">
+          <PhoneInput
+            label="Telefone"
+            value={form.telefone}
+            onChange={(digits) => update({ telefone: digits })}
+            placeholder="(00) 00000-0000"
           />
-        </FloatingField>
-
-        <div className="grid grid-cols-2 gap-3">
-          <FloatingField label="Telefone">
-            <input
-              value={form.telefone}
-              onChange={(e) => update({ telefone: e.target.value })}
-              inputMode="numeric"
-              maxLength={15}
-              className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-              placeholder="(00) 00000-0000"
-            />
-          </FloatingField>
-          <FloatingField label="CPF/CNPJ">
-            <input
-              value={form.documento}
-              onChange={(e) => update({ documento: e.target.value })}
-              inputMode="numeric"
-              maxLength={18}
-              className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-              placeholder="Opcional"
-            />
-          </FloatingField>
-        </div>
-
-        <div className="grid grid-cols-2 gap-3">
-          <FloatingField label="CEP">
-            <input
-              value={form.cep}
-              onChange={(e) => handleCepChange(e.target.value)}
-              inputMode="numeric"
-              maxLength={9}
-              data-cep-status={cepStatus}
-              style={
-                cepStatus === 'positive'
-                  ? { boxShadow: '0 0 0 2px var(--positive)', borderColor: 'var(--positive)' }
-                  : cepStatus === 'negative'
-                    ? { boxShadow: '0 0 0 2px var(--negative)', borderColor: 'var(--negative)' }
-                    : undefined
+          <DocInput
+            label="CPF/CNPJ"
+            value={form.documento}
+            onChange={(digits) => update({ documento: digits })}
+            onValidityChange={(valid, kind) => {
+              if (form.documento.length >= 11 && !valid) {
+                setDocErro(kind === 'cpf' ? 'CPF inválido' : 'CNPJ inválido');
+              } else {
+                setDocErro(null);
               }
-              className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-              placeholder="00000-000"
-            />
-          </FloatingField>
-          <FloatingField label="Cidade / UF">
-            <input
-              value={form.cidade}
-              onChange={(e) => update({ cidade: e.target.value })}
-              className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-              placeholder="Preenchido pelo CEP"
-            />
-          </FloatingField>
+            }}
+            error={docErro ?? undefined}
+            placeholder="Opcional"
+          />
         </div>
+
+        <CepInput
+          label="CEP"
+          value={form.cep}
+          onChange={(digits) => update({ cep: digits })}
+          onAutoFill={({ estado, cidade }) => update({ estado, cidade })}
+          placeholder="00000-000"
+        />
+
+        <StateCitySelect
+          value={{ estado: form.estado, cidade: form.cidade }}
+          onChange={({ estado, cidade }) => update({ estado, cidade })}
+        />
 
         <div className="grid grid-cols-2 gap-3">
           <FloatingField label="Aniversário">
@@ -351,14 +315,14 @@ export function ClienteFormModal({
           />
         </FloatingField>
 
-        <FloatingField label="Observações">
-          <textarea
-            value={form.observacoes}
-            onChange={(e) => update({ observacoes: e.target.value })}
-            className={cn(baseInput, 'min-h-20 resize-none focus:ring-2 focus:ring-accent/50')}
-            placeholder='Nota fixa, ex: "só liga depois das 18h"'
-          />
-        </FloatingField>
+        <Textarea
+          label="Observações"
+          value={form.observacoes}
+          onChange={(e) => update({ observacoes: e.target.value })}
+          autoResize
+          rows={3}
+          placeholder='Nota fixa, ex: "só liga depois das 18h"'
+        />
       </div>
     </Modal>
   );
