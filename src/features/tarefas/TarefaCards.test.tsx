@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, fireEvent } from '@testing-library/react';
 import { TarefaCards } from './TarefaCards';
-import type { Tarefa } from './types';
+import type { Tarefa, TarefaItem } from './types';
 
 // Mock tarefa base
 const mockTarefa: Tarefa = {
@@ -92,5 +92,84 @@ describe('TarefaCards - Responsible Person Badge', () => {
     // The responsible person name should NOT be visible
     const text = container.textContent;
     expect(text).not.toContain('João Silva');
+  });
+});
+
+// Item do checklist marcado por alguém (Tarefa 2 — "Tarefa para Todos"): cada
+// linha criada pro "todos" é independente, então cada uma tem seu próprio
+// concluido_por/concluido_por_usuario — a UI precisa mostrar quem concluiu
+// cada item, não só que ele foi concluído.
+function itemChecklist(overrides: Partial<TarefaItem> = {}): TarefaItem {
+  return {
+    id: 'item-1',
+    texto: 'Ligar pro cliente',
+    concluido: false,
+    ordem: 0,
+    concluido_em: null,
+    concluido_por: null,
+    concluido_por_usuario: null,
+    ...overrides,
+  };
+}
+
+const mockTarefaComChecklist: Tarefa = {
+  id: 'tarefa-checklist-1',
+  titulo: 'Tarefa com checklist',
+  descricao: null,
+  prazo: null,
+  atribuido_para: 'user-1',
+  criado_por: 'user-2',
+  status: 'pendente',
+  prioridade: 'media',
+  tipo: 'geral',
+  cliente_id: null,
+  concluida_em: null,
+  criado_em: '2026-01-01T00:00:00Z',
+  atualizado_em: '2026-01-01T00:00:00Z',
+  atribuido: { id: 'user-1', nome_exibicao: 'João Silva' },
+  criador: { id: 'user-2', nome_exibicao: 'Admin User' },
+  cliente: null,
+  itens: [],
+};
+
+// Abre o painel de detalhes clicando no título do card (mesmo clique que o
+// usuário faria) — o checklist só é renderizado dentro do painel expandido.
+function abrirPainel(container: HTMLElement, titulo: string) {
+  const titulos = Array.from(container.querySelectorAll('h2, p')).filter((el) => el.textContent === titulo);
+  fireEvent.click(titulos[0]);
+}
+
+describe('ItemChecklistArrastavel — linha "Concluído por"', () => {
+  it('mostra "Concluído por X" quando o item concluído tem concluido_por_usuario', () => {
+    const tarefa: Tarefa = {
+      ...mockTarefaComChecklist,
+      itens: [itemChecklist({ id: 'i1', concluido: true, concluido_em: '2026-01-01T10:00:00Z', concluido_por: 'user-9', concluido_por_usuario: { id: 'user-9', nome_exibicao: 'Eduardo' } })],
+    };
+    const { container } = render(<TarefaCards tarefas={[tarefa]} />);
+    abrirPainel(container, 'Tarefa com checklist');
+
+    expect(container.textContent).toContain('Concluído por Eduardo');
+  });
+
+  it('não mostra a linha "Concluído por" quando o item não está concluído', () => {
+    const tarefa: Tarefa = {
+      ...mockTarefaComChecklist,
+      itens: [itemChecklist({ id: 'i1', concluido: false })],
+    };
+    const { container } = render(<TarefaCards tarefas={[tarefa]} />);
+    abrirPainel(container, 'Tarefa com checklist');
+
+    expect(container.textContent).not.toContain('Concluído por');
+  });
+
+  it('não mostra a linha "Concluído por" quando o item está concluído mas sem concluido_por_usuario (dado antigo)', () => {
+    const tarefa: Tarefa = {
+      ...mockTarefaComChecklist,
+      itens: [itemChecklist({ id: 'i1', concluido: true, concluido_em: '2026-01-01T10:00:00Z', concluido_por: 'user-9', concluido_por_usuario: null })],
+    };
+    const { container } = render(<TarefaCards tarefas={[tarefa]} />);
+    abrirPainel(container, 'Tarefa com checklist');
+
+    expect(container.textContent).not.toContain('Concluído por');
   });
 });

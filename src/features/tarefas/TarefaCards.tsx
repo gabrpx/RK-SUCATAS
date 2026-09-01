@@ -134,7 +134,18 @@ function ItemChecklistArrastavel({
         )}>
           {item.concluido && <Check size={13} />}
         </span>
-        <span className={cn('text-text-primary', item.concluido && 'line-through opacity-60')}>{item.texto}</span>
+        <span className="min-w-0">
+          <span className={cn('block text-text-primary', item.concluido && 'line-through opacity-60')}>{item.texto}</span>
+          {/* formatarMomentoRelativo já devolve "abs · rel atrás" (ex: "31/12
+              às 21:00 · 2h atrás") — sem prefixo "há" próprio, então junta com
+              "·" em vez de "há" pra não duplicar a ideia de tempo relativo. */}
+          {item.concluido && item.concluido_por_usuario && (
+            <span className="block text-xs text-text-faint">
+              Concluído por {item.concluido_por_usuario.nome_exibicao}
+              {formatarMomentoRelativo(item.concluido_em) && ` · ${formatarMomentoRelativo(item.concluido_em)}`}
+            </span>
+          )}
+        </span>
       </button>
     </li>
   );

@@ -10,8 +10,11 @@ import { temPermissao, ehAdmin } from '../../../middleware/auth.js';
 import { pode } from '../../constants/permissoes.js';
 import { notificarUsuario } from '../../services/pushNotificationService.js';
 
-const SELECT_COM_JOINS =
-  '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone), itens:tarefa_itens(id, texto, concluido, ordem, concluido_em, concluido_por)';
+// O nested select de `itens` também embute quem concluiu cada item
+// (tarefa_itens.concluido_por -> usuarios, FK criada na migration_046) — sem
+// isso o frontend não tem como mostrar "Concluído por Fulano" no checklist.
+export const SELECT_COM_JOINS =
+  '*, atribuido:usuarios!atribuido_para(id, nome_exibicao), criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone), itens:tarefa_itens(id, texto, concluido, ordem, concluido_em, concluido_por, concluido_por_usuario:usuarios!concluido_por(id, nome_exibicao))';
 
 const CAMPOS_EDITAVEIS = ['titulo', 'descricao', 'prazo', 'atribuido_para', 'cliente_id', 'prioridade', 'tipo'] as const;
 
@@ -19,6 +22,15 @@ const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo qu
 
 const PRIORIDADES_VALIDAS = ['baixa', 'media', 'alta'] as const;
 const TIPOS_VALIDOS = ['geral', 'visita'] as const;
+
+// Sentinel de atribuido_para pra "todos os responsáveis elegíveis" (Tarefa
+// para Todos) — NÃO é um id de usuário real. Ver Approach no plano: cada
+// elegível ganha sua PRÓPRIA linha em `tarefas` (com sua própria cópia do
+// checklist), em vez de uma linha compartilhada com um flag — assim o
+// controle de quem pode marcar/ver cada uma continua sendo exatamente o
+// mesmo `atribuido_para === req.usuario!.id` de sempre, sem nenhuma
+// autorização nova.
+export const TODOS_SENTINEL = 'todos';
 
 // Filtra itens de checklist válidos preservando a ordem do array. Exportado
 // pra teste. Aceita { texto } e opcionalmente { id } (usado no diff do PATCH).
@@ -69,6 +81,16 @@ export function responsavelValido(responsavel: { roles: string[]; permissoes: an
   const admin = Array.isArray(responsavel.roles) && responsavel.roles.includes('admin');
   const ehGerente = pode(responsavel.permissoes, admin, 'tarefas.criar');
   return ehExecutorDeCampo(responsavel) || ehGerente;
+}
+
+// Mesmo critério de elegibilidade do endpoint GET /api/usuarios/responsaveis-
+// tarefa (server.ts) — executor de campo OU gerente/admin — mas SEM a
+// cláusula "ou sou eu mesmo" de lá: aquela existe pra um admin conseguir se
+// autoatribuir mesmo sem ser nominalmente executor; "todos" é todo mundo
+// REALMENTE elegível, não "+quem estiver criando" (ver Approach no plano).
+export function elegivelParaTodos(usuario: { roles: string[]; permissoes: any }): boolean {
+  const admin = Array.isArray(usuario.roles) && usuario.roles.includes('admin');
+  return ehExecutorDeCampo(usuario) || pode(usuario.permissoes, admin, 'tarefas.criar');
 }
 
 export function tarefasRouter(supabase: SupabaseClient) {
@@ -135,6 +157,60 @@ export function tarefasRouter(supabase: SupabaseClient) {
       const tipo = req.body?.tipo || 'geral';
       if (!TIPOS_VALIDOS.includes(tipo)) {
         return res.status(400).json({ success: false, error: 'Tipo de tarefa inválido' });
+      }
+
+      // "Todos": cria uma linha independente por responsável elegível, cada
+      // uma com sua própria cópia do checklist (a conclusão é por pessoa).
+      // Pula por completo o lookup/validação de um único responsável abaixo —
+      // ver TODOS_SENTINEL e elegivelParaTodos.
+      if (atribuido_para === TODOS_SENTINEL) {
+        const { data: usuarios, error: erroUsuarios } = await supabase
+          .from('usuarios')
+          .select('id, nome_exibicao, roles, permissoes')
+          .eq('ativo', true)
+          .order('nome_exibicao');
+        if (erroUsuarios) throw erroUsuarios;
+        const elegiveis = (usuarios ?? []).filter(elegivelParaTodos);
+        if (elegiveis.length === 0) {
+          return res.status(400).json({ success: false, error: 'Nenhum responsável elegível para receber a tarefa' });
+        }
+
+        let primeira: any = null;
+        for (const usuario of elegiveis) {
+          const payloadUsuario = {
+            titulo: titulo || null,
+            descricao: req.body?.descricao ? String(req.body.descricao).trim() : null,
+            prazo: req.body?.prazo || null,
+            atribuido_para: usuario.id,
+            criado_por: req.usuario!.id,
+            cliente_id: req.body?.cliente_id || null,
+            prioridade,
+            tipo,
+          };
+
+          const { data: criada, error: erroCriada } = await supabase.from('tarefas').insert(payloadUsuario).select(SELECT_COM_JOINS).single();
+          if (erroCriada) throw erroCriada;
+
+          if (itens.length > 0) {
+            const linhas = itens.map((it, i) => ({ tarefa_id: criada.id, texto: it.texto, ordem: i }));
+            const { error: erroItens } = await supabase.from('tarefa_itens').insert(linhas);
+            if (erroItens) throw erroItens;
+          }
+
+          const { data: completa, error: erroCompleta } = await supabase.from('tarefas').select(SELECT_COM_JOINS).eq('id', criada.id).single();
+          if (erroCompleta) throw erroCompleta;
+
+          if (usuario.id !== req.usuario!.id) {
+            const corpo = titulo || itens[0]?.texto || 'Nova tarefa';
+            notificarUsuario(supabase, usuario.id, { titulo: 'Nova tarefa', corpo, url: '/tarefas' }).catch((e) =>
+              console.error('Erro ao notificar nova tarefa:', e)
+            );
+          }
+
+          if (!primeira) primeira = comItensOrdenados(completa ?? criada);
+        }
+
+        return res.json({ success: true, data: primeira });
       }
 
       const { data: responsavel, error: erroResponsavel } = await supabase.from('usuarios').select('id, roles, permissoes, ativo').eq('id', atribuido_para).maybeSingle();

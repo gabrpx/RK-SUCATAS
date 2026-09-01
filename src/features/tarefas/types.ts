@@ -16,6 +16,7 @@ export interface TarefaItem {
   ordem: number;
   concluido_em: string | null;
   concluido_por: string | null;
+  concluido_por_usuario: UsuarioResumo | null;
 }
 
 export interface TarefaItemInput {

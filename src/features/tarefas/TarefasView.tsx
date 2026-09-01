@@ -584,6 +584,10 @@ function VisaoCriador({
                   {r.nome_exibicao}
                 </option>
               ))}
+              {/* "Todos" só faz sentido na criação — editar uma tarefa já
+                  existente pra "todos" viraria N linhas de uma edição só,
+                  o que não é o que o backend faz (ver task-2-brief.md). */}
+              {!editando && <option value="todos">Todos</option>}
             </select>
           </div>
           <div>

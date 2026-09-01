@@ -32,7 +32,7 @@ describe('formatarMomentoRelativo', () => {
 });
 
 const item = (concluido: boolean): TarefaItem => ({
-  id: crypto.randomUUID(), texto: 'x', concluido, ordem: 0, concluido_em: null, concluido_por: null,
+  id: crypto.randomUUID(), texto: 'x', concluido, ordem: 0, concluido_em: null, concluido_por: null, concluido_por_usuario: null,
 });
 
 describe('progressoChecklist', () => {
@@ -45,7 +45,7 @@ describe('progressoChecklist', () => {
 });
 
 describe('moverItem', () => {
-  const itemComId = (id: string): TarefaItem => ({ id, texto: id, concluido: false, ordem: 0, concluido_em: null, concluido_por: null });
+  const itemComId = (id: string): TarefaItem => ({ id, texto: id, concluido: false, ordem: 0, concluido_em: null, concluido_por: null, concluido_por_usuario: null });
   const lista = [itemComId('a'), itemComId('b'), itemComId('c'), itemComId('d')];
 
   it('move um item pra baixo, preservando os outros na mesma ordem relativa', () => {
@@ -104,7 +104,7 @@ describe('elegiveisParaConcluirEmLote', () => {
     expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual([]);
   });
   it('ignora tarefa com checklist (conclui sozinha ao marcar os itens)', () => {
-    const tarefas = [tarefa({ id: '1', itens: [{ id: 'i1', texto: 'x', concluido: false, ordem: 0, concluido_em: null, concluido_por: null }] })];
+    const tarefas = [tarefa({ id: '1', itens: [{ id: 'i1', texto: 'x', concluido: false, ordem: 0, concluido_em: null, concluido_por: null, concluido_por_usuario: null }] })];
     expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual([]);
   });
   it('ignora tarefa não selecionada', () => {
