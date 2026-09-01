@@ -176,7 +176,7 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
                   </div>
                   <div className="min-w-0">
                     <div className="flex items-center gap-2 min-w-0">
-                      <p className={cn('font-bold text-sm truncate min-w-0', 'text-text-primary')}>
+                      <p className={cn('font-bold text-sm break-words line-clamp-2 min-w-0', 'text-text-primary')}>
                         {venda.quantidade > 1 ? `${venda.quantidade}x ` : ''}
                         {venda.nome_item}
                       </p>
@@ -449,7 +449,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                     className={cn('w-full text-left px-4 py-3 flex items-center justify-between gap-3 text-sm transition-colors', 'hover:bg-surface-raised')}
                   >
                     <div className="min-w-0">
-                      <p className="font-bold truncate">{item.nome}</p>
+                      <p className="font-bold break-words line-clamp-2">{item.nome}</p>
                       <p className="text-xs text-text-muted">
                         {item.codigo} · {item.quantidade} em estoque
                       </p>

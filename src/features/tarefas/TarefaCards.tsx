@@ -462,7 +462,7 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                     <div className="flex items-center gap-1.5">
                       {tarefa.tipo === 'visita' && <MapPin size={13} className="text-accent shrink-0" />}
                       {!tarefa.titulo && tarefa.itens.length > 0 && <ListChecks size={13} className="text-accent shrink-0" />}
-                      <p className={cn('text-sm font-medium text-text-primary truncate', concluida && 'line-through opacity-60')}>
+                      <p className={cn('text-sm font-medium text-text-primary break-words line-clamp-2 min-w-0', concluida && 'line-through opacity-60')}>
                         {tarefa.titulo || tarefa.itens[0]?.texto || 'Tarefa'}
                       </p>
                     </div>

@@ -184,3 +184,30 @@ describe('ItemChecklistArrastavel — linha "Concluído por"', () => {
     expect(container.textContent).not.toContain('Concluído por');
   });
 });
+
+// Task 5 (Texto Truncado): título do card colapsado agora quebra em até 2
+// linhas em vez de cortar com "..." — cobre tanto a troca de classe quanto
+// a preservação do risco/opacidade de tarefa concluída, que já existia.
+describe('TarefaCards — título do card colapsado', () => {
+  it('título quebra em até 2 linhas (sem truncate) e mantém line-through/opacity-60 quando concluída', () => {
+    const tarefaConcluida: Tarefa = { ...mockTarefa, id: 'concluida-1', titulo: 'Tarefa Finalizada', status: 'concluida' };
+    const { container } = render(<TarefaCards tarefas={[tarefaConcluida]} />);
+
+    const titulo = Array.from(container.querySelectorAll('p')).find((el) => el.textContent === 'Tarefa Finalizada');
+    expect(titulo).toBeTruthy();
+    expect(titulo!.className).toContain('line-clamp-2');
+    expect(titulo!.className).not.toContain('truncate');
+    expect(titulo!.className).toContain('line-through');
+    expect(titulo!.className).toContain('opacity-60');
+  });
+
+  it('título pendente não recebe line-through/opacity-60, mas ainda quebra em até 2 linhas', () => {
+    const { container } = render(<TarefaCards tarefas={[mockTarefa]} />);
+
+    const titulo = Array.from(container.querySelectorAll('p')).find((el) => el.textContent === 'Test Task');
+    expect(titulo).toBeTruthy();
+    expect(titulo!.className).toContain('line-clamp-2');
+    expect(titulo!.className).not.toContain('truncate');
+    expect(titulo!.className).not.toContain('line-through');
+  });
+});

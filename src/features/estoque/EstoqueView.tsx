@@ -566,7 +566,7 @@ export function EstoqueView({
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
-                  <p className={cn('text-[12.5px] font-medium truncate max-w-[240px]', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
+                  <p className={cn('text-[12.5px] font-medium break-words line-clamp-2 min-w-0', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
                   <CondicaoNotaBadge nota={item.condicao_nota} />
                   {/* Contagem de fichas é informativa (nem toda ficha é avaria) —
                       o aviso de avaria fica separado, no badge seguinte. */}
@@ -836,7 +836,7 @@ export function EstoqueView({
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
-            <p className={cn('text-sm font-medium truncate', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
+            <p className={cn('text-sm font-medium break-words line-clamp-2 min-w-0', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
             <CondicaoNotaBadge nota={item.condicao_nota} />
             {contarFichas(item) > 0 && (
               <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>

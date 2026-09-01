@@ -363,6 +363,11 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     expect(nomePeca).toBeTruthy();
     expect(nomePeca.className).toContain('text-text-faint');
     expect(nomePeca.className).toContain('line-through');
+    // Nome longo agora quebra em até 2 linhas em vez de truncar com "..." —
+    // ver Task 5 (Texto Truncado).
+    expect(nomePeca.className).toContain('line-clamp-2');
+    expect(nomePeca.className).not.toContain('truncate');
+    expect(nomePeca.className).not.toContain('max-w-[240px]');
   });
 
   it('indicador de fora de estoque: quantidade > 0 exibe o nome com estilo normal (texto primário)', () => {
@@ -375,6 +380,30 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     expect(nomePeca).toBeTruthy();
     expect(nomePeca.className).toContain('text-text-primary');
     expect(nomePeca.className).not.toContain('line-through');
+    // Nome longo agora quebra em até 2 linhas em vez de truncar com "..." —
+    // ver Task 5 (Texto Truncado).
+    expect(nomePeca.className).toContain('line-clamp-2');
+    expect(nomePeca.className).not.toContain('truncate');
+    expect(nomePeca.className).not.toContain('max-w-[240px]');
+  });
+
+  // O card empilhado do fallback mobile (renderMobileCard, sempre no DOM,
+  // só escondido por `md:hidden` abaixo de `md`) tem seu próprio <p> com o
+  // nome da peça, separado do <p> da tabela desktop acima — Task 5 (Texto
+  // Truncado) trocou truncate/max-w por quebra em até 2 linhas nos dois.
+  it('card mobile: nome da peça quebra em até 2 linhas em vez de truncar', () => {
+    const item = criarItem({ id: 'a', nome: 'Peça Card Mobile' });
+    mockEstado.estoque = [item];
+
+    render(<EstoqueView onSelectItem={() => {}} />);
+
+    const ocorrencias = screen.getAllByText('Peça Card Mobile');
+    // getAllByText retorna na ordem do DOM: tabela desktop (hidden md:block)
+    // vem antes do card mobile (md:hidden) no JSX.
+    expect(ocorrencias).toHaveLength(2);
+    const nomeNoCardMobile = ocorrencias[1];
+    expect(nomeNoCardMobile.className).toContain('line-clamp-2');
+    expect(nomeNoCardMobile.className).not.toContain('truncate');
   });
 
   it('ação de editar registrada via onRegisterActions abre o modal preenchido com os dados da peça', () => {
