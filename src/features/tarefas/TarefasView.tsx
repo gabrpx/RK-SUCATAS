@@ -463,6 +463,7 @@ function VisaoCriador({
           onContatoSalvo={refetch}
           podeMarcarItens={() => true}
           podeReordenar={podeEditar}
+          mostrarResponsavel
           selecao={modoSelecao ? { ativos: selecionadas, alternar: alternarSelecao } : undefined}
         />
       )}

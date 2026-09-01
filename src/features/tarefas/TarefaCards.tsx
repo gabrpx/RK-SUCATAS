@@ -82,6 +82,9 @@ interface TarefaCardsProps {
   // cada card ganha um checkbox no canto superior esquerdo (renderMenu já
   // ocupa o direito) que só alterna a seleção, sem abrir o painel de detalhes.
   selecao?: { ativos: Set<string>; alternar: (id: string) => void };
+  // Se true, mostra uma badge com o nome do responsável no card recolhido
+  // (apenas quando atribuido não é null). Visão do criador/admin.
+  mostrarResponsavel?: boolean;
 }
 
 // Uma linha do checklist arrastável. Só fica "pegável" (listeners do
@@ -137,7 +140,7 @@ function ItemChecklistArrastavel({
   );
 }
 
-export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo, podeMarcarItens, podeReordenar, selecao }: TarefaCardsProps) {
+export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo, podeMarcarItens, podeReordenar, selecao, mostrarResponsavel }: TarefaCardsProps) {
   const [ativa, setAtiva] = useState<Tarefa | null>(null);
   const id = useId();
   const painelRef = useRef<HTMLDivElement>(null);
@@ -465,6 +468,7 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
               <motion.div layoutId={`tarefa-badges-${tarefa.id}-${id}`} className="mt-3 flex items-center gap-2 flex-wrap">
                 <StatusDaTarefa tarefa={tarefa} />
                 {tarefa.prioridade !== 'media' && <StatusBadge texto={PRIORIDADE_LABELS[tarefa.prioridade]} tom={PRIORIDADE_TONS[tarefa.prioridade]} />}
+                {mostrarResponsavel && tarefa.atribuido && <StatusBadge texto={tarefa.atribuido.nome_exibicao} tom="neutral" />}
               </motion.div>
 
               {tarefa.prazo && (
