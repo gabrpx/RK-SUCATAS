@@ -353,6 +353,30 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     expect(onSelectItem).toHaveBeenCalledWith(item);
   });
 
+  it('indicador de fora de estoque: quantidade 0 exibe o nome com estilo esmaecido e riscado', () => {
+    const item = criarItem({ id: 'a', nome: 'Peça Fora de Estoque', quantidade: 0 });
+    mockEstado.estoque = [item];
+
+    render(<EstoqueView onSelectItem={() => {}} />);
+
+    const nomePeca = tabela().getByText('Peça Fora de Estoque');
+    expect(nomePeca).toBeTruthy();
+    expect(nomePeca.className).toContain('text-text-faint');
+    expect(nomePeca.className).toContain('line-through');
+  });
+
+  it('indicador de fora de estoque: quantidade > 0 exibe o nome com estilo normal (texto primário)', () => {
+    const item = criarItem({ id: 'a', nome: 'Peça Em Estoque', quantidade: 5 });
+    mockEstado.estoque = [item];
+
+    render(<EstoqueView onSelectItem={() => {}} />);
+
+    const nomePeca = tabela().getByText('Peça Em Estoque');
+    expect(nomePeca).toBeTruthy();
+    expect(nomePeca.className).toContain('text-text-primary');
+    expect(nomePeca.className).not.toContain('line-through');
+  });
+
   it('ação de editar registrada via onRegisterActions abre o modal preenchido com os dados da peça', () => {
     const item = criarItem({ id: 'a', nome: 'Peça Editável', valor: 250 });
     mockEstado.estoque = [item];
