@@ -23,3 +23,7 @@ android/app/*.keystore
 
 # Worktrees isolados criados durante implementação (superpowers:using-git-worktrees).
 .worktrees/
+
+# Artefatos de execução do superpowers:subagent-driven-development (ledger,
+# briefs, review packages) — scratch por plano, não é histórico do projeto.
+.superpowers/
