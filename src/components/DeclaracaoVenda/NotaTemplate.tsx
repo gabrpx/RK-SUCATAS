@@ -40,7 +40,7 @@ export function NotaTemplate({ data }: { data: NotaData }) {
           }
           @page {
             size: A4;
-            margin: 10mm 14mm;
+            margin: 0; /* Browser print header/footer suppression depends on print-dialog "Headers and footers" checkbox, not CSS alone */
           }
         }
       `}</style>
@@ -56,7 +56,7 @@ export function NotaTemplate({ data }: { data: NotaData }) {
           fontFamily: 'Arial, Helvetica, sans-serif',
           fontSize: '11px',
           lineHeight: '1.4',
-          padding: '20px 28px',
+          padding: '58px 81px',
           boxSizing: 'border-box',
         }}
       >
@@ -66,8 +66,8 @@ export function NotaTemplate({ data }: { data: NotaData }) {
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          width: '420px',
-          height: '420px',
+          width: '1260px',
+          height: '1260px',
           opacity: 0.06,
           pointerEvents: 'none',
           zIndex: 0,
