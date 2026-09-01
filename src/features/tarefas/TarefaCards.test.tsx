@@ -140,7 +140,7 @@ function abrirPainel(container: HTMLElement, titulo: string) {
 }
 
 describe('ItemChecklistArrastavel — linha "Concluído por"', () => {
-  it('mostra "Concluído por X" quando o item concluído tem concluido_por_usuario', () => {
+  it('mostra "Concluído por X há Y" (tempo curto e relativo, sem data absoluta) quando o item concluído tem concluido_por_usuario', () => {
     const tarefa: Tarefa = {
       ...mockTarefaComChecklist,
       itens: [itemChecklist({ id: 'i1', concluido: true, concluido_em: '2026-01-01T10:00:00Z', concluido_por: 'user-9', concluido_por_usuario: { id: 'user-9', nome_exibicao: 'Eduardo' } })],
@@ -148,7 +148,18 @@ describe('ItemChecklistArrastavel — linha "Concluído por"', () => {
     const { container } = render(<TarefaCards tarefas={[tarefa]} />);
     abrirPainel(container, 'Tarefa com checklist');
 
-    expect(container.textContent).toContain('Concluído por Eduardo');
+    // Escopado à <li> do item (não ao container inteiro): o painel também
+    // mostra "Designada em: ..." com formatarMomentoRelativo (data absoluta +
+    // "às"), que é uma linha DIFERENTE e continua correta como está — só a
+    // linha do item concluído precisa ser "há X" curto e sem data absoluta.
+    const linhaDoItem = Array.from(container.querySelectorAll('li')).find((li) => li.textContent?.includes('Ligar pro cliente'));
+    expect(linhaDoItem).toBeTruthy();
+    // formatarTempoRelativoCurto — "há Xmin"/"há Xh"/"ontem"/"há Xd"/"agora",
+    // nunca a data absoluta (sem "às", sem "/") — bate com o exemplo do spec
+    // ("Concluído por Eduardo há 2 horas") em vez do formato "abs · rel atrás"
+    // de formatarMomentoRelativo.
+    expect(linhaDoItem!.textContent).toMatch(/Concluído por Eduardo (agora|ontem|há \d+(min|h|d))/);
+    expect(linhaDoItem!.textContent).not.toContain('às');
   });
 
   it('não mostra a linha "Concluído por" quando o item não está concluído', () => {

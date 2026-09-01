@@ -20,6 +20,7 @@ import { linkWhatsapp } from '../../utils/whatsapp';
 import { clientesApi } from '../clientes/api';
 import { tarefasApi } from './api';
 import { formatarPrazo, estaVencida, formatarMomentoRelativo, progressoChecklist, moverItem, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
+import { formatarTempoRelativoCurto } from '../../utils/tempoRelativo';
 import type { Tarefa, TarefaItem } from './types';
 
 function BadgeProgresso({ feitos, total }: { feitos: number; total: number }) {
@@ -136,13 +137,14 @@ function ItemChecklistArrastavel({
         </span>
         <span className="min-w-0">
           <span className={cn('block text-text-primary', item.concluido && 'line-through opacity-60')}>{item.texto}</span>
-          {/* formatarMomentoRelativo já devolve "abs · rel atrás" (ex: "31/12
-              às 21:00 · 2h atrás") — sem prefixo "há" próprio, então junta com
-              "·" em vez de "há" pra não duplicar a ideia de tempo relativo. */}
+          {/* formatarTempoRelativoCurto já devolve "há Xmin"/"há Xh"/"ontem"/
+              "há Xd" self-contained (sem data absoluta) — bate com o exemplo
+              do spec ("Concluído por Eduardo há 2 horas") melhor que
+              formatarMomentoRelativo, que traz data+hora junto. */}
           {item.concluido && item.concluido_por_usuario && (
             <span className="block text-xs text-text-faint">
               Concluído por {item.concluido_por_usuario.nome_exibicao}
-              {formatarMomentoRelativo(item.concluido_em) && ` · ${formatarMomentoRelativo(item.concluido_em)}`}
+              {formatarTempoRelativoCurto(item.concluido_em) && ` ${formatarTempoRelativoCurto(item.concluido_em)}`}
             </span>
           )}
         </span>
