@@ -73,20 +73,30 @@ alterada (criar peça, editar, registrar unidade), o backend garante
 que existam exatamente `quantidade` linhas em `estoque_unidades` para
 aquele `estoque_id`:
 
-- Se faltar unidade, cria uma "em branco" (sem avaria/apelido/preço
-  próprio) preenchida com foto e preço herdados da peça-mãe **apenas
-  no backfill de migração** (ver abaixo) — a partir desta entrega,
-  todo cadastro de unidade *novo* pelo formulário exige foto e preço
-  próprios (ver "Registrar unidade").
+- Dois mecanismos distintos, que não se confundem:
+  1. **Sincronização automática** (dispara toda vez que `quantidade`
+     é definida ou alterada, criar ou editar peça, e no backfill da
+     migração): só cria/remove linhas **em branco**
+     (`valor: null`, `fotos: []`, `condicao_nota: null`,
+     `avaria: false`, `apelido: null`) — sem preencher nada. Uma
+     unidade em branco exibe foto/preço/nota da peça-mãe pela mesma
+     lógica de herança que já existe hoje (`valorDaUnidade`,
+     `condicaoNotaDaUnidade`) — não precisa (nem faz sentido) copiar
+     dado nenhum pra ela.
+  2. **Formulário manual "Registrar unidade"** (ver seção de fluxos):
+     é o único lugar que exige foto e preço próprios — usado quando o
+     usuário quer diferenciar aquela unidade de verdade (apelido,
+     avaria, preço ou nota própria).
+- Se faltar unidade em branco pra bater `quantidade`, o backend cria
+  as que faltam.
 - Se `quantidade` diminuir, o backend não apaga unidade que já tenha
   `vendida_em` preenchido ou dado próprio (apelido/avaria/preço/nota)
   — o usuário precisa excluir manualmente a unidade específica antes.
-  Reduzir `quantidade` só apaga unidades "em branco" automaticamente,
+  Reduzir `quantidade` só apaga unidades em branco automaticamente,
   das mais recentes para as mais antigas, até bater o número.
 - Migration: `supabase/migration_057_estoque_unidades_explicitas.sql`,
-  incluindo o backfill que cria as unidades faltantes para todo o
-  estoque já cadastrado em produção (cópia de foto/preço da
-  peça-mãe como valor inicial, editável depois).
+  incluindo o backfill que cria as unidades em branco faltantes para
+  todo o estoque já cadastrado em produção.
 
 Esta é a mudança de maior risco do projeto — o backfill roda sobre
 dados de produção e precisa ser testado num dump antes de aplicar.
@@ -339,9 +349,10 @@ arquivos `*.test.ts(x)` ao lado do código-fonte):
 - Toda unidade física vira card individual no modal, mesmo sem
   diferença em relação às demais (sem "resumo agregado" de unidades
   idênticas).
-- Foto e preço são obrigatórios ao registrar unidade nova pelo
-  formulário; unidades criadas pelo backfill de migração herdam
-  foto/preço da peça-mãe como valor inicial editável.
+- Foto e preço são obrigatórios só no formulário manual "Registrar
+  unidade"; unidades em branco (sincronização automática, incluindo o
+  backfill de migração) nascem com `valor`/`fotos`/`condicao_nota`
+  nulos e exibem os da peça-mãe por herança — nada pra preencher.
 - "Registrar unidade" permite tanto adicionar a um grupo existente
   quanto criar um grupo novo, no mesmo fluxo.
 - Escopo desta entrega é só o módulo Estoque; a camada de dados é
