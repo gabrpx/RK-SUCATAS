@@ -141,23 +141,56 @@ a camada de dados.
 ## Componentes animate-ui usados
 
 Confirmado no catálogo de <https://animate-ui.com/docs/components>:
-o projeto hoje só tem a variante nativa "Animate UI" instalada
-(`src/components/animate-ui/**`, sem dependência de Radix — só de
-`motion`), usada para o componente `Tabs`. Accordion, Dropdown Menu,
-Popover e Dialog só existem nas variantes Radix UI / Base UI /
-Headless UI do catálogo. Decisão: instalar a variante **Radix UI**
-(`@radix-ui/react-*` como dependência nova) para ter esses
-componentes prontos e animados.
+Accordion, Dropdown Menu, Popover e Dialog existem na variante **Radix
+UI** do catálogo. Checagem no projeto (não presumir — verificar antes
+de decidir se precisa instalar): o pacote unificado `radix-ui`
+(`^1.6.7`) **já é dependência do projeto** — não precisa instalar
+nada novo. O projeto já tem inclusive versões próprias, animadas com
+Motion sobre Radix, de três desses quatro componentes:
+[`Modal.tsx`](../../../src/components/ui/Modal.tsx) (Dialog + Motion
+spring), [`dropdown-menu.tsx`](../../../src/components/ui/dropdown-menu.tsx)
+(DropdownMenu + Motion spring) e
+[`popover.tsx`](../../../src/components/ui/popover.tsx) (Popover
+custom + Motion, já usado em `EstoqueFiltrosPopover`). O
+[`Accordion.tsx`](../../../src/components/ui/Accordion.tsx) existente
+é Radix mas anima só com classe CSS (`animate-in`/`fade-in`, sem
+Motion) e tem API rígida (lista fixa de itens) que não serve para
+grupos com conteúdo dinâmico.
+
+**Decisão do usuário**: construir os 4 componentes (Dialog, Accordion,
+Dropdown Menu, Popover) como cópias novas e dedicadas do catálogo
+animate-ui.com, em vez de reaproveitar `Modal.tsx`/`dropdown-menu.tsx`/
+`popover.tsx` — mesmo isso duplicando funcionalidade equivalente.
+**Débito técnico registrado, fora do escopo desta entrega**: depois
+que a feature estiver no ar, avaliar consolidar `Modal.tsx`,
+`dropdown-menu.tsx` e `popover.tsx` com os novos componentes
+animate-ui (mesma receita Radix + Motion, dois lugares fazendo a
+mesma coisa).
+
+Arquivos novos, seguindo a convenção de pastas já usada por
+`src/components/animate-ui/{primitives,components}/animate/tabs.tsx`
+(primitive = lógica/comportamento; component = estilizado com os
+tokens do projeto, pronto pra usar):
+
+- `src/components/animate-ui/primitives/radix/dialog.tsx` +
+  `src/components/animate-ui/components/radix/dialog.tsx`
+- `src/components/animate-ui/primitives/radix/accordion.tsx` +
+  `src/components/animate-ui/components/radix/accordion.tsx`
+- `src/components/animate-ui/primitives/radix/dropdown-menu.tsx` +
+  `src/components/animate-ui/components/radix/dropdown-menu.tsx`
+- `src/components/animate-ui/primitives/radix/popover.tsx` +
+  `src/components/animate-ui/components/radix/popover.tsx`
 
 Uso nesta entrega:
 
 - **Tabs** (nativo, já instalado) — abas Unidades / Histórico /
   Relacionadas.
-- **Dialog** (Radix) — o modal de família em si, e o modal empilhado
-  de "Registrar unidade".
-- **Accordion** (Radix) — grupos colapsáveis por modelo/ano.
-- **Dropdown Menu** (Radix) — menu kebab em cada card de unidade.
-- **Popover** (Radix) — filtros (Modelo / status / avaria) e o
+- **Dialog** (Radix, novo) — o modal de família em si, e o modal
+  empilhado de "Registrar unidade".
+- **Accordion** (Radix, novo) — grupos colapsáveis por modelo/ano.
+- **Dropdown Menu** (Radix, novo) — menu kebab em cada card de
+  unidade.
+- **Popover** (Radix, novo) — filtros (Modelo / status / avaria) e o
   seletor de grupo destino em "Mover para outro modelo/ano".
 - **Tooltip** (nativo, já instalado) — onde fizer sentido explicar um
   ícone/badge.
@@ -288,8 +321,9 @@ arquivos `*.test.ts(x)` ao lado do código-fonte):
 2. Helpers de agregação compartilhados (faixa de preço, contagem,
    ordenação por ano).
 3. Tabela de Estoque: linha de família + busca/filtro estendidos.
-4. Instalar variante Radix do animate-ui e montar o modal de família
-   (Dialog/Accordion/Dropdown/Popover) com a aba Unidades completa e
+4. Construir os 4 componentes animate-ui Radix dedicados
+   (Dialog/Accordion/Dropdown Menu/Popover) e montar o modal de
+   família com eles, com a aba Unidades completa e
    Histórico/Relacionadas como placeholder desabilitado.
 5. Fluxos: Registrar unidade, Venda rápida, Selecionar
    (excluir/mover em lote), Editar peça/Excluir família.
