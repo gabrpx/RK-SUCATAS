@@ -411,6 +411,24 @@ async function sincronizarCompatibilidades(supabase: SupabaseClient, estoqueId: 
   return null;
 }
 
+// Mantém estoque_unidades com exatamente `quantidade` linhas (ver
+// migration_057) — chamada toda vez que a rota grava quantidade. Mesma
+// degradação graciosa das demais funções anexar*/sincronizar*: enquanto a
+// migração não rodou, a função RPC não existe e isso só avisa no log.
+async function sincronizarUnidades(supabase: SupabaseClient, estoqueId: string, quantidade: number): Promise<string | null> {
+  const { error } = await supabase.rpc('sincronizar_unidades_estoque', {
+    p_estoque_id: estoqueId,
+    p_quantidade_alvo: quantidade,
+  });
+  if (!error) return null;
+
+  if (error.code === '42883' || error.code === 'PGRST202' || error.code === 'PGRST205') {
+    console.warn('⚠️ Função sincronizar_unidades_estoque ausente — rode supabase/migration_057_estoque_unidades_explicitas.sql pra habilitar unidades sempre explícitas.');
+    return null;
+  }
+  return error.message;
+}
+
 const CAMPOS_EDITAVEIS = [
   'nome',
   'categoria_id',
@@ -519,6 +537,9 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const { data, error } = await supabase.from('estoque').insert([payload]).select(SELECT_COM_JOINS).single();
       if (error) throw error;
 
+      const erroSync = await sincronizarUnidades(supabase, data.id, data.quantidade);
+      if (erroSync) return res.status(400).json({ success: false, error: erroSync });
+
       const erroCompat = await sincronizarCompatibilidades(supabase, data.id, req.body?.modelo_moto_compativel_ids);
       if (erroCompat) return res.status(400).json({ success: false, error: erroCompat });
 
@@ -560,6 +581,11 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
       const { data, error } = await supabase.from('estoque').update(payload).eq('id', req.params.id).select(SELECT_COM_JOINS).single();
       if (error) throw error;
+
+      if (payload.quantidade !== undefined) {
+        const erroSync = await sincronizarUnidades(supabase, req.params.id, data.quantidade);
+        if (erroSync) return res.status(400).json({ success: false, error: erroSync });
+      }
 
       const erroCompat = await sincronizarCompatibilidades(supabase, req.params.id, req.body?.modelo_moto_compativel_ids);
       if (erroCompat) return res.status(400).json({ success: false, error: erroCompat });
@@ -1087,6 +1113,9 @@ export function estoqueRouter(supabase: SupabaseClient) {
         const novaQuantidade = Math.max(0, Number(item.quantidade) + delta);
         const { error: updateError } = await supabase.from('estoque').update({ quantidade: novaQuantidade }).eq('id', item.id);
         if (updateError) throw updateError;
+
+        const erroSync = await sincronizarUnidades(supabase, item.id, novaQuantidade);
+        if (erroSync) return res.status(400).json({ success: false, error: `Peça ${item.id}: ${erroSync}` });
       }
 
       res.json({ success: true });
