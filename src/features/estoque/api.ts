@@ -6,6 +6,8 @@ import type {
   EstoqueInput,
   EstoqueUnidade,
   EstoqueUnidadeInput,
+  EstoqueFamilia,
+  EstoqueFamiliaInput,
   EstoqueAnuncioMl,
   EstoqueAnuncioMlInput,
   ConfiguracaoAnuncioMlInput,
@@ -77,6 +79,16 @@ export const estoqueApi = {
     api.get(`/api/estoque/${estoqueId}/anuncios-shopee/${linkId}/estatisticas`) as Promise<ApiResult<EstatisticasAnuncioShopee | null>>,
   republicarAnuncioShopee: (estoqueId: string, linkId: string) =>
     api.post(`/api/estoque/${estoqueId}/anuncios-shopee/${linkId}/republicar`) as Promise<ApiResult<unknown>>,
+};
+
+// Famílias de peça (migration_056) — CRUD simples, sem aninhamento (não
+// existem fora de /api/estoque-familias, diferente de unidades/anúncios).
+export const estoqueFamiliasApi = {
+  listar: () => api.get('/api/estoque-familias') as Promise<ApiResult<EstoqueFamilia[]>>,
+  criar: (payload: EstoqueFamiliaInput) => api.post('/api/estoque-familias', payload) as Promise<ApiResult<EstoqueFamilia>>,
+  atualizar: (id: string, payload: Partial<EstoqueFamiliaInput>) =>
+    api.patch(`/api/estoque-familias/${id}`, payload) as Promise<ApiResult<EstoqueFamilia>>,
+  excluir: (id: string) => api.delete(`/api/estoque-familias/${id}`) as Promise<ApiResult<null>>,
 };
 
 // Upload de imagem é multipart — não passa pelo helper `api` (que força
