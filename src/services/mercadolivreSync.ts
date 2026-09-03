@@ -363,6 +363,46 @@ async function buscarCustosEnvioPorPedidos(token: string, pedidos: PedidoML[]): 
   return mapa;
 }
 
+// Busca informação complementar de nome por PEDIDO.
+// Problema: /orders/search retorna buyer com apenas { id, nickname } — sem
+// first_name/last_name — por política de privacidade do ML (confirmado via API
+// real em 03/09/2026 pro pedido 2000018236472830). /orders/{id} retorna o
+// buyer completo. Esta função busca o pedido completo quando first_name está
+// ausente, e também o receiverName do envio como fallback secundário.
+async function buscarInfoComplementarPorPedidos(
+  token: string,
+  pedidos: PedidoML[]
+): Promise<Map<string, { receiverName: string | null; buyerCompleto: PedidoML['buyer'] | null }>> {
+  const mapa = new Map<string, { receiverName: string | null; buyerCompleto: PedidoML['buyer'] | null }>();
+  for (const pedido of pedidos) {
+    let receiverName: string | null = null;
+    const shippingId = pedido.shipping?.id;
+    if (shippingId != null) {
+      try {
+        const envio = await buscarEnvio(token, String(shippingId));
+        receiverName = envio.receiverName;
+      } catch {
+        receiverName = null;
+      }
+    }
+
+    // /orders/search devolve buyer só com nickname (sem first_name/last_name).
+    // Busca o pedido completo pra ter o nome real do comprador.
+    let buyerCompleto: PedidoML['buyer'] | null = null;
+    if (!pedido.buyer?.first_name && !pedido.buyer?.last_name) {
+      try {
+        const pedidoCompleto = await buscarPedido(token, String(pedido.id));
+        buyerCompleto = pedidoCompleto?.buyer ?? null;
+      } catch {
+        buyerCompleto = null;
+      }
+    }
+
+    mapa.set(String(pedido.id), { receiverName, buyerCompleto });
+  }
+  return mapa;
+}
+
 async function buscarVendasJaImportadas(supabase: SupabaseClient, mlOrderIds: string[]): Promise<Set<string>> {
   if (mlOrderIds.length === 0) return new Set();
   const { data, error } = await supabase.from('vendas').select('ml_order_id, ml_item_id').in('ml_order_id', mlOrderIds);
@@ -380,9 +420,10 @@ export async function buscarPreviewPedidos(supabase: SupabaseClient, token: stri
   const [pedidos, mapaEstoque] = await Promise.all([buscarPedidosRecentes(token, mlUserId, desde), construirMapaEstoquePorMlb(supabase)]);
   if (pedidos.length === 0) return [];
 
-  const [jaImportados, custosEnvioPorPedido] = await Promise.all([
+  const [jaImportados, custosEnvioPorPedido, infoComplementar] = await Promise.all([
     buscarVendasJaImportadas(supabase, pedidos.map((p) => String(p.id))),
     buscarCustosEnvioPorPedidos(token, pedidos),
+    buscarInfoComplementarPorPedidos(token, pedidos),
   ]);
 
   return pedidos.map((pedido) => {
@@ -391,11 +432,16 @@ export async function buscarPreviewPedidos(supabase: SupabaseClient, token: stri
     // confirmar o custo desse envio — diferença que calcularValorRecebido
     // depende pra não inventar zero.
     const custoEnvioTotal = custosEnvioPorPedido.has(String(pedido.id)) ? custosEnvioPorPedido.get(String(pedido.id))! : 0;
+    const info = infoComplementar.get(String(pedido.id));
+    const receiverName = info?.receiverName ?? null;
+    // Prefere o buyer do pedido completo (/orders/{id}) que tem first_name/last_name,
+    // em vez do buyer truncado da busca (/orders/search) que só tem nickname.
+    const buyerParaResolver = info?.buyerCompleto ?? pedido.buyer;
 
     return {
       mlOrderId: String(pedido.id),
       dataCriacao: pedido.date_created,
-      comprador: resolverNomeComprador(pedido.buyer),
+      comprador: resolverNomeComprador(buyerParaResolver, receiverName),
       compradorMlId: pedido.buyer?.id ?? null,
       shippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
       itens: pedido.order_items.map((linha): ItemPedidoPreview => {
@@ -440,6 +486,10 @@ export interface ImportarPedidoParams {
   // preview, ItemPedidoPreview.custoEnvio) — mesma regra do mlSaleFee: nunca
   // toca vendas.valor_unitario/valor_total, só o lançamento de Caixa.
   mlCustoEnvio?: number | null;
+  // Nome do destinatário do envio — usado quando buyer.first_name/last_name
+  // vêm vazios. Confirmado via API real: receiver_address.receiver_name tem o
+  // nome real do comprador quando buyer fields estão vazios.
+  clienteNomeAlternativo?: string | null;
 }
 
 // Retorna null (não erro) quando o item já tinha sido importado antes — o
@@ -1035,7 +1085,15 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
       // resposta confiável da API vira null, e calcularValorRecebido trata
       // como "não sei" (a venda ainda é importada, só cai pro valor cheio
       // até a correção manual/retroativa — mesma política do sale_fee).
-      const custoEnvioTotal = pedido.shipping?.id ? await buscarCustoEnvioVendedor(conexao.accessToken, String(pedido.shipping.id)) : 0;
+      let receiverName: string | null = null;
+      let custoEnvioTotal: number | null = 0;
+      if (pedido.shipping?.id) {
+        const shippingId = String(pedido.shipping.id);
+        [custoEnvioTotal, receiverName] = await Promise.all([
+          buscarCustoEnvioVendedor(conexao.accessToken, shippingId),
+          buscarEnvio(conexao.accessToken, shippingId).then((e) => e.receiverName).catch(() => null),
+        ]);
+      }
 
       // No ML `order_items` é por VARIAÇÃO: duas fichas do mesmo anúncio no
       // mesmo pedido chegam como duas entradas com `item.id` idêntico. A
@@ -1069,7 +1127,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
             quantidade: itemPedido.quantity,
             valorUnitario: itemPedido.unit_price,
             formaPagamentoId,
-            clienteNome: resolverNomeComprador(pedido.buyer),
+            clienteNome: resolverNomeComprador(pedido.buyer, receiverName),
             data: pedido.date_created ?? null,
             mlOrderId: orderId,
             mlItemId: itemPedido.item.id,
@@ -1077,6 +1135,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
             unidadeId: itemPedido.item.variation_id != null ? unidadesPorVariacao.get(String(itemPedido.item.variation_id)) ?? null : null,
             mlSaleFee: itemPedido.sale_fee ?? null,
             mlCustoEnvio: custoEnvioTotal == null ? null : alocarCustoEnvio(pedido, custoEnvioTotal, itemPedido.item.id),
+            clienteNomeAlternativo: receiverName,
           });
           if (venda) {
             resultado.importados++;

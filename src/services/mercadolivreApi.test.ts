@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('axios', () => ({ default: { get: vi.fn() } }));
 
 import axios from 'axios';
-import { buscarPedido, buscarCustoEnvioVendedor, calcularValorRecebido, alocarCustoEnvio, resolverNomeComprador } from './mercadolivreApi.js';
+import { buscarPedido, buscarCustoEnvioVendedor, buscarEnvio, calcularValorRecebido, alocarCustoEnvio, resolverNomeComprador } from './mercadolivreApi.js';
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -29,6 +29,40 @@ describe('buscarPedido', () => {
     vi.mocked(axios.get).mockRejectedValue({ response: { status: 401 } });
 
     await expect(buscarPedido('token-fake', '123')).rejects.toMatchObject({ response: { status: 401 } });
+  });
+});
+
+describe('buscarEnvio — receiverName', () => {
+  it('extrai receiver_name do formato legado (receiver_address.receiver_name)', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      data: { id: 42, status: 'delivered', substatus: null, tracking_number: 'BR123', receiver_address: { receiver_name: 'Cauê Garcia', contact: {} } },
+    });
+    const envio = await buscarEnvio('token-fake', '42');
+    expect(envio.receiverName).toBe('Cauê Garcia');
+  });
+
+  it('extrai nome do formato novo (receiver_address.contact.fname + lname) quando receiver_name está vazio', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      data: { id: 42, status: 'delivered', substatus: null, tracking_number: 'BR123', receiver_address: { receiver_name: '', contact: { fname: 'Cauê', lname: 'Garcia' } } },
+    });
+    const envio = await buscarEnvio('token-fake', '42');
+    expect(envio.receiverName).toBe('Cauê Garcia');
+  });
+
+  it('prefere receiver_name quando ambos existem', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      data: { id: 42, status: 'delivered', substatus: null, tracking_number: null, receiver_address: { receiver_name: 'Nome Antigo', contact: { fname: 'Nome', lname: 'Novo' } } },
+    });
+    const envio = await buscarEnvio('token-fake', '42');
+    expect(envio.receiverName).toBe('Nome Antigo');
+  });
+
+  it('devolve null quando nenhum campo de nome existe', async () => {
+    vi.mocked(axios.get).mockResolvedValue({
+      data: { id: 42, status: 'pending', substatus: null, tracking_number: null, receiver_address: {} },
+    });
+    const envio = await buscarEnvio('token-fake', '42');
+    expect(envio.receiverName).toBeNull();
   });
 });
 
@@ -128,6 +162,24 @@ describe('resolverNomeComprador', () => {
   it('retorna nome apenas com last_name quando first_name está ausente', () => {
     const buyer = { first_name: undefined, last_name: 'Garcia', nickname: 'GACA1676424', id: 123 };
     expect(resolverNomeComprador(buyer)).toBe('Garcia');
+  });
+
+  it('usa nome do destinatário quando buyer não tem nome real mas receiverName tem (cenário ML real)', () => {
+    // Confirmado via API real (pedido 2000018236472830, verificado em 03/09/2026):
+    // buyer.first_name e buyer.last_name vêm vazios; receiver_address.receiver_name
+    // tem o nome real do comprador. Esse teste simula esse cenário.
+    const buyer = { first_name: undefined, last_name: undefined, nickname: 'GACA1676424', id: 123 };
+    expect(resolverNomeComprador(buyer, 'Cauê Garcia')).toBe('Cauê Garcia');
+  });
+
+  it('prioriza nome do buyer sobre receiverName quando ambos estão presentes', () => {
+    const buyer = { first_name: 'João', last_name: 'Silva', nickname: 'JOAO123', id: 456 };
+    expect(resolverNomeComprador(buyer, 'Outro Nome')).toBe('João Silva');
+  });
+
+  it('cai para nickname quando receiverName é vazio/undefined', () => {
+    const buyer = { first_name: undefined, last_name: undefined, nickname: 'GACA1676424', id: 123 };
+    expect(resolverNomeComprador(buyer, undefined)).toBe('GACA1676424');
   });
 
   it('cai para nickname quando não há primeiro nem último nome', () => {

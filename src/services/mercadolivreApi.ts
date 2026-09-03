@@ -293,6 +293,13 @@ export interface EnvioML {
   substatus: string | null;
   trackingNumber: string | null;
   cost: number | null;
+  // Nome do destinatário — usado quando buyer.first_name/last_name vêm vazios.
+  // A API tenta duas posições (formato legado e formato novo x-format-new:true):
+  //   1. receiver_address.receiver_name  (formato legado / alguns pedidos)
+  //   2. receiver_address.contact.fname + lname (formato novo — pedido 2000018236472830,
+  //      verificado em 03/09/2026: receiver_name vinha vazio, mas contact.fname/"lname"
+  //      tinham o nome real do comprador)
+  receiverName: string | null;
 }
 
 export async function buscarEnvio(token: string, shippingId: string): Promise<EnvioML> {
@@ -301,12 +308,21 @@ export async function buscarEnvio(token: string, shippingId: string): Promise<En
   const { data } = await axios.get(`${ML_API_URL}/shipments/${shippingId}`, {
     headers: { Authorization: `Bearer ${token}`, 'x-format-new': 'true' },
   });
+  // receiver_name é um campo de topo; no formato novo o nome fica em
+  // receiver_address.contact.fname / lname. Tenta as duas posições pra cobrir
+  // respostas com e sem x-format-new.
+  const ra = data.receiver_address;
+  const contactFname = ra?.contact?.fname?.trim() ?? '';
+  const contactLname = ra?.contact?.lname?.trim() ?? '';
+  const contactFullName = [contactFname, contactLname].filter(Boolean).join(' ') || null;
+  const receiverName = ra?.receiver_name?.trim() || contactFullName || null;
   return {
     id: data.id,
     status: data.status,
     substatus: data.substatus ?? null,
     trackingNumber: data.tracking_number ?? null,
     cost: data.shipping_option?.cost ?? data.declared_value ?? null,
+    receiverName,
   };
 }
 
@@ -525,14 +541,19 @@ export async function criarUsuarioTesteML(token: string): Promise<{ id: number; 
   return data;
 }
 
-export function resolverNomeComprador(buyer: { first_name?: string; last_name?: string; nickname?: string; id?: number } | null | undefined): string | null {
+export function resolverNomeComprador(
+  buyer: { first_name?: string; last_name?: string; nickname?: string; id?: number } | null | undefined,
+  receiverName?: string | null
+): string | null {
   if (!buyer) return null;
 
   const primeiroNome = buyer.first_name?.trim();
   const sobrenome = buyer.last_name?.trim();
   const nomesDisponiveis = [primeiroNome, sobrenome].filter(Boolean);
 
+  // Prioridade: nome completo do buyer > nome do destinatário do envio > nickname
   if (nomesDisponiveis.length > 0) return nomesDisponiveis.join(' ');
+  if (receiverName?.trim()) return receiverName.trim();
   if (buyer.nickname?.trim()) return buyer.nickname.trim();
 
   return null;
