@@ -21,6 +21,7 @@ import { categoriasRouter } from './src/server/routes/categorias.js';
 import { modelosMotoRouter } from './src/server/routes/modelosMoto.js';
 import { formasPagamentoRouter } from './src/server/routes/formasPagamento.js';
 import { estoqueRouter } from './src/server/routes/estoque.js';
+import { estoqueFamiliasRouter } from './src/server/routes/estoqueFamilias.js';
 import { promocoesRouter } from './src/server/routes/promocoes.js';
 import { vendasRouter } from './src/server/routes/vendas.js';
 import { orcamentosRouter } from './src/server/routes/orcamentos.js';
@@ -323,6 +324,7 @@ async function startServer() {
   app.use('/api/modelos-moto', modelosMotoRouter(supabase));
   app.use('/api/formas-pagamento', formasPagamentoRouter(supabase));
   app.use('/api/estoque', estoqueRouter(supabase));
+  app.use('/api/estoque-familias', estoqueFamiliasRouter(supabase));
   app.use('/api/promocoes', promocoesRouter(supabase));
   app.use('/api/vendas', vendasRouter(supabase));
   app.use('/api/orcamentos', orcamentosRouter(supabase));
