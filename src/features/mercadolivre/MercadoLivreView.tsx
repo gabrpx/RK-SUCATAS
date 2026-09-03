@@ -579,6 +579,7 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
           ml_item_id: item.mlItemId,
           ml_shipping_id: pedido.shippingId,
           ml_sale_fee: item.taxaMl,
+          ml_custo_envio: item.custoEnvio,
         });
       }
     }
@@ -660,7 +661,7 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
             type="button"
             onClick={corrigirTaxa}
             disabled={corrigindoTaxa}
-            title="Recalcula a taxa do ML nas vendas já importadas e corrige o valor lançado no Caixa (não mexe no preço da peça)"
+            title="Recalcula a comissão e o custo de envio do ML nas vendas já importadas e corrige o valor lançado no Caixa (não mexe no preço da peça)"
             className="h-11 sm:h-9 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center justify-center gap-1.5 disabled:opacity-50"
           >
             {corrigindoTaxa ? <Loader2 size={14} className="animate-spin" /> : <Percent size={14} />}
@@ -752,8 +753,13 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
                             <p className="text-sm text-text-primary truncate">{item.estoqueNomeSugerido ?? item.titulo}</p>
                             <p className="text-xs text-text-faint">
                               {item.quantidade}x · {formatCurrency(item.valorUnitario)}
-                              {item.taxaMl != null && (
-                                <> · líquido no Caixa: {formatCurrency(item.quantidade * item.valorUnitario - item.taxaMl)} (taxa ML {formatCurrency(item.taxaMl)})</>
+                              {item.taxaMl != null && item.custoEnvio != null && (
+                                <>
+                                  {' '}
+                                  · líquido no Caixa: {formatCurrency(item.quantidade * item.valorUnitario - item.taxaMl - item.custoEnvio)} (taxa ML{' '}
+                                  {formatCurrency(item.taxaMl)}
+                                  {item.custoEnvio > 0 ? ` + frete ${formatCurrency(item.custoEnvio)}` : ''})
+                                </>
                               )}
                             </p>
                           </div>

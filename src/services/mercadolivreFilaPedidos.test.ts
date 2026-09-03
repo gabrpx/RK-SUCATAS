@@ -12,14 +12,23 @@ vi.mock('./mercadolivreApi.js', () => ({
   atualizarItemML: vi.fn(),
   extrairMlbId: vi.fn((url: string) => url?.match(/MLB\d+/)?.[0] ?? null),
   buscarEnvio: vi.fn(),
+  buscarCustoEnvioVendedor: vi.fn(),
   responderPergunta: vi.fn(),
   // Puras — mesma lógica da real (ver mercadolivreApi.ts), reimplementadas
   // aqui só pra não precisar mockar toda a resposta da API por teste.
   encontrarItemPedido: (pedido: any, mlItemId: string) => pedido.order_items.find((linha: any) => linha.item.id === mlItemId) ?? null,
-  calcularValorRecebido: (valorTotal: number, saleFee: number | null | undefined) => (saleFee == null ? null : valorTotal - saleFee),
+  calcularValorRecebido: (valorTotal: number, saleFee: number | null | undefined, custoEnvio: number | null | undefined) =>
+    saleFee == null || custoEnvio == null ? null : valorTotal - saleFee - custoEnvio,
+  alocarCustoEnvio: (pedido: any, custoEnvioTotal: number, mlItemId: string) => {
+    const linha = pedido.order_items.find((l: any) => l.item.id === mlItemId);
+    if (!linha) return 0;
+    const totalPedido = pedido.order_items.reduce((s: number, i: any) => s + i.quantity * i.unit_price, 0);
+    if (totalPedido <= 0) return 0;
+    return Math.round(custoEnvioTotal * ((linha.quantity * linha.unit_price) / totalPedido) * 100) / 100;
+  },
 }));
 
-import { obterConexaoAtual, buscarPedido } from './mercadolivreApi.js';
+import { obterConexaoAtual, buscarPedido, buscarCustoEnvioVendedor } from './mercadolivreApi.js';
 import { notificarUsuarios } from './pushNotificationService.js';
 import { processarPedidosPendentes } from './mercadolivreSync.js';
 
@@ -130,6 +139,9 @@ const pedidoPago = {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.mocked(obterConexaoAtual).mockResolvedValue({ accessToken: 'token-fake', mlUserId: '42' } as any);
+  // Default: sem custo de envio recuperável nos testes que não testam frete
+  // (pedidoPago tem shipping.id, então o código sempre chama esta função).
+  vi.mocked(buscarCustoEnvioVendedor).mockResolvedValue(0);
 });
 
 describe('processarPedidosPendentes', () => {
@@ -478,6 +490,32 @@ describe('processarPedidosPendentes', () => {
     expect(resultado.semMatch).toEqual([{ mlOrderId: '555', titulo: 'Retrovisor Esquerdo' }]);
     // A linha fecha mesmo com item sem match: o aviso é o que resolve o resto.
     expect(supabase.atualizacoes[0].processado_em).toBeTruthy();
+  });
+
+  it('desconta o custo de envio do valor lançado no Caixa, além da comissão', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue({ ...pedidoPago, order_items: [{ item: { id: 'MLB111' }, quantity: 1, unit_price: 750, sale_fee: 127.5 }] } as any);
+    vi.mocked(buscarCustoEnvioVendedor).mockResolvedValue(24.45);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    expect(buscarCustoEnvioVendedor).toHaveBeenCalledWith('token-fake', '777');
+    expect(supabase.vendasRegistradas[0].p_valor_recebido).toBeCloseTo(598.05);
+  });
+
+  it('pedido sem envio (retirada em loja) não chama a API de custo de frete', async () => {
+    vi.mocked(buscarPedido).mockResolvedValue({ ...pedidoPago, shipping: { id: null } } as any);
+    const supabase = criarSupabaseFake({
+      pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
+      estoquePorMlb: { MLB111: { id: 'peca-1', nome: 'Lanterna Traseira' } },
+    });
+
+    await processarPedidosPendentes(supabase);
+
+    expect(buscarCustoEnvioVendedor).not.toHaveBeenCalled();
   });
 
   it('ciclo sem novidade não dispara push nenhum', async () => {

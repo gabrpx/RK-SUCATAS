@@ -17,7 +17,10 @@ import {
   obterMargemSincronizacao,
   encontrarItemPedido,
   calcularValorRecebido,
+  buscarCustoEnvioVendedor,
+  alocarCustoEnvio,
   type AtualizacaoItemML,
+  type PedidoML,
 } from './mercadolivreApi.js';
 import { anexarPromocoes } from '../features/promocoes/calculo.js';
 import { tokenizar, similaridade, CORTE_POSSIVEL } from '../features/estoque/detectarDuplicata.js';
@@ -328,6 +331,12 @@ export interface ItemPedidoPreview {
   // pro import (ver ImportarPedidoParams.mlSaleFee) pra lançar o valor
   // líquido no Caixa sem precisar buscar o pedido de novo.
   taxaMl: number | null;
+  // Custo do frete (Mercado Envios) pago pelo VENDEDOR, já rateado pra esta
+  // linha quando o pedido tem 2+ itens no mesmo envio (ver alocarCustoEnvio
+  // em mercadolivreApi.ts). 0 quando o pedido não tem envio (retirada em
+  // loja) — nesse caso é um zero CONHECIDO, não "não sei". null só quando a
+  // API de custos do envio não devolveu resposta confiável.
+  custoEnvio: number | null;
 }
 
 export interface PedidoPreview {
@@ -336,6 +345,21 @@ export interface PedidoPreview {
   comprador: string | null;
   shippingId: string | null;
   itens: ItemPedidoPreview[];
+}
+
+// Um custo de envio por PEDIDO (não por item — vários itens podem viajar no
+// mesmo pacote), buscado sequencialmente (mesmo estilo pragmático do resto
+// do arquivo) só pros pedidos que de fato têm shipping.id. null no mapa
+// significa "a API não devolveu custo confiável pra este envio" — quem
+// chama repassa esse null adiante, nunca vira 0 por conta própria.
+async function buscarCustosEnvioPorPedidos(token: string, pedidos: PedidoML[]): Promise<Map<string, number | null>> {
+  const mapa = new Map<string, number | null>();
+  for (const pedido of pedidos) {
+    const shippingId = pedido.shipping?.id;
+    if (shippingId == null) continue;
+    mapa.set(String(pedido.id), await buscarCustoEnvioVendedor(token, String(shippingId)));
+  }
+  return mapa;
 }
 
 async function buscarVendasJaImportadas(supabase: SupabaseClient, mlOrderIds: string[]): Promise<Set<string>> {
@@ -355,29 +379,41 @@ export async function buscarPreviewPedidos(supabase: SupabaseClient, token: stri
   const [pedidos, mapaEstoque] = await Promise.all([buscarPedidosRecentes(token, mlUserId, desde), construirMapaEstoquePorMlb(supabase)]);
   if (pedidos.length === 0) return [];
 
-  const jaImportados = await buscarVendasJaImportadas(supabase, pedidos.map((p) => String(p.id)));
+  const [jaImportados, custosEnvioPorPedido] = await Promise.all([
+    buscarVendasJaImportadas(supabase, pedidos.map((p) => String(p.id))),
+    buscarCustosEnvioPorPedidos(token, pedidos),
+  ]);
 
-  return pedidos.map((pedido) => ({
-    mlOrderId: String(pedido.id),
-    dataCriacao: pedido.date_created,
-    comprador: pedido.buyer?.nickname ?? null,
-    compradorMlId: pedido.buyer?.id ?? null,
-    shippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
-    itens: pedido.order_items.map((linha): ItemPedidoPreview => {
-      const chave = `${pedido.id}::${linha.item.id}`;
-      const match = mapaEstoque.get(linha.item.id);
-      return {
-        mlItemId: linha.item.id,
-        titulo: linha.item.title,
-        quantidade: linha.quantity,
-        valorUnitario: linha.unit_price,
-        status: jaImportados.has(chave) ? 'ja_importado' : match ? 'encontrado' : 'nao_encontrado',
-        estoqueIdSugerido: match?.id ?? null,
-        estoqueNomeSugerido: match?.nome ?? null,
-        taxaMl: linha.sale_fee ?? null,
-      };
-    }),
-  }));
+  return pedidos.map((pedido) => {
+    // Ausente no mapa (pedido sem shipping.id) = retirada em loja, custo
+    // conhecido e igual a zero. Presente e null = a API não conseguiu
+    // confirmar o custo desse envio — diferença que calcularValorRecebido
+    // depende pra não inventar zero.
+    const custoEnvioTotal = custosEnvioPorPedido.has(String(pedido.id)) ? custosEnvioPorPedido.get(String(pedido.id))! : 0;
+
+    return {
+      mlOrderId: String(pedido.id),
+      dataCriacao: pedido.date_created,
+      comprador: pedido.buyer?.nickname ?? null,
+      compradorMlId: pedido.buyer?.id ?? null,
+      shippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
+      itens: pedido.order_items.map((linha): ItemPedidoPreview => {
+        const chave = `${pedido.id}::${linha.item.id}`;
+        const match = mapaEstoque.get(linha.item.id);
+        return {
+          mlItemId: linha.item.id,
+          titulo: linha.item.title,
+          quantidade: linha.quantity,
+          valorUnitario: linha.unit_price,
+          status: jaImportados.has(chave) ? 'ja_importado' : match ? 'encontrado' : 'nao_encontrado',
+          estoqueIdSugerido: match?.id ?? null,
+          estoqueNomeSugerido: match?.nome ?? null,
+          taxaMl: linha.sale_fee ?? null,
+          custoEnvio: custoEnvioTotal == null ? null : alocarCustoEnvio(pedido, custoEnvioTotal, linha.item.id),
+        };
+      }),
+    };
+  });
 }
 
 export interface ImportarPedidoParams {
@@ -399,6 +435,10 @@ export interface ImportarPedidoParams {
   // NUNCA usam isso (continuam = preço cheio da peça); só o lançamento de
   // Caixa desconta a taxa, via p_valor_recebido de registrar_venda.
   mlSaleFee?: number | null;
+  // Custo do frete pago pelo vendedor pra esta linha, já rateado (vinda do
+  // preview, ItemPedidoPreview.custoEnvio) — mesma regra do mlSaleFee: nunca
+  // toca vendas.valor_unitario/valor_total, só o lançamento de Caixa.
+  mlCustoEnvio?: number | null;
 }
 
 // Retorna null (não erro) quando o item já tinha sido importado antes — o
@@ -418,7 +458,7 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
   }
   if (existente) return null;
 
-  const valorRecebido = calcularValorRecebido(params.quantidade * params.valorUnitario, params.mlSaleFee);
+  const valorRecebido = calcularValorRecebido(params.quantidade * params.valorUnitario, params.mlSaleFee, params.mlCustoEnvio);
 
   const { data: venda, error } = await supabase.rpc('registrar_venda', {
     p_estoque_id: params.estoqueId,
@@ -524,9 +564,14 @@ export async function corrigirTaxaVendasMlImportadas(supabase: SupabaseClient, t
         continue;
       }
       const linha = encontrarItemPedido(pedido, venda.ml_item_id);
-      const valorRecebido = calcularValorRecebido(Number(venda.valor_total), linha?.sale_fee);
+      // Ausência de shipping (retirada em loja) = custo conhecido zero;
+      // presença sem custo recuperável (API não devolveu) fica null e
+      // calcularValorRecebido trata como "não sei", igual à taxa ausente.
+      const custoEnvioTotal = pedido.shipping?.id ? await buscarCustoEnvioVendedor(token, String(pedido.shipping.id)) : 0;
+      const custoEnvioAlocado = custoEnvioTotal == null ? null : alocarCustoEnvio(pedido, custoEnvioTotal, venda.ml_item_id);
+      const valorRecebido = calcularValorRecebido(Number(venda.valor_total), linha?.sale_fee, custoEnvioAlocado);
       if (valorRecebido == null) {
-        resultado.falhas.push({ mlOrderId: venda.ml_order_id, mlItemId: venda.ml_item_id, error: 'A API do Mercado Livre não devolveu a taxa deste item' });
+        resultado.falhas.push({ mlOrderId: venda.ml_order_id, mlItemId: venda.ml_item_id, error: 'A API do Mercado Livre não devolveu a taxa ou o custo de envio deste item' });
         continue;
       }
       if (Math.abs(Number(caixaEntry.valor) - valorRecebido) < 0.005) {
@@ -983,6 +1028,14 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
         .filter((id: string | null): id is string => !!id);
       const unidadesPorVariacao = await resolverUnidadesPorVariacao(supabase, variationIds);
 
+      // Um custo de envio por PEDIDO (não por item — ver alocarCustoEnvio),
+      // buscado 1x aqui e rateado abaixo pra cada item. Ausência de
+      // shipping.id (retirada em loja) é custo conhecido zero; presença sem
+      // resposta confiável da API vira null, e calcularValorRecebido trata
+      // como "não sei" (a venda ainda é importada, só cai pro valor cheio
+      // até a correção manual/retroativa — mesma política do sale_fee).
+      const custoEnvioTotal = pedido.shipping?.id ? await buscarCustoEnvioVendedor(conexao.accessToken, String(pedido.shipping.id)) : 0;
+
       // No ML `order_items` é por VARIAÇÃO: duas fichas do mesmo anúncio no
       // mesmo pedido chegam como duas entradas com `item.id` idêntico. A
       // dedupe da venda é (ml_order_id, ml_item_id), sem variação, então a
@@ -1022,6 +1075,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
             mlShippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
             unidadeId: itemPedido.item.variation_id != null ? unidadesPorVariacao.get(String(itemPedido.item.variation_id)) ?? null : null,
             mlSaleFee: itemPedido.sale_fee ?? null,
+            mlCustoEnvio: custoEnvioTotal == null ? null : alocarCustoEnvio(pedido, custoEnvioTotal, itemPedido.item.id),
           });
           if (venda) {
             resultado.importados++;

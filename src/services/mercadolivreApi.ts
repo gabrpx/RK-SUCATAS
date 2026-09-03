@@ -231,13 +231,60 @@ export function encontrarItemPedido(pedido: PedidoML, mlItemId: string): ItemPed
 }
 
 // Valor líquido a lançar no Caixa = valor total da venda (peça cheia) menos a
-// comissão do ML. Retorna null quando a taxa não é conhecida (sale_fee
-// ausente na resposta da API) — quem chama decide o fallback (import novo
-// cai pra null em registrar_venda, que usa o valor cheio; a correção
-// retroativa reporta como falha e pula a linha).
-export function calcularValorRecebido(valorTotal: number, saleFee: number | null | undefined): number | null {
-  if (saleFee == null) return null;
-  return valorTotal - saleFee;
+// comissão do ML menos o custo do frete pago pelo vendedor (rateado por item
+// via alocarCustoEnvio, quando o pedido tem envio). Retorna null quando
+// QUALQUER uma das duas taxas não é conhecida — nem sale_fee ausente nem
+// custo de envio ausente podem ser tratados como zero por adivinhação (zero
+// é um valor real e frequente pra ambos, então "não sei" precisa ficar
+// visivelmente diferente de "sei que é zero"). Quem chama decide o fallback
+// (import novo cai pra null em registrar_venda, que usa o valor cheio; a
+// correção retroativa reporta como falha e pula a linha).
+export function calcularValorRecebido(valorTotal: number, saleFee: number | null | undefined, custoEnvio: number | null | undefined): number | null {
+  if (saleFee == null || custoEnvio == null) return null;
+  return valorTotal - saleFee - custoEnvio;
+}
+
+// Quanto de valorTotal (soma de quantity*unit_price de todos os order_items)
+// pertence ao item mlItemId — usado pra ratear o custo do frete (que é por
+// ENVIO/pedido, não por item) entre as linhas de um pedido com 2+ itens no
+// mesmo pacote. Pedido de item só devolve o custo inteiro; item ausente do
+// pedido (não deveria acontecer, defensivo) devolve 0 em vez de dividir por
+// zero.
+export function alocarCustoEnvio(pedido: PedidoML, custoEnvioTotal: number, mlItemId: string): number {
+  const linha = encontrarItemPedido(pedido, mlItemId);
+  if (!linha) return 0;
+
+  const totalPedido = pedido.order_items.reduce((soma, i) => soma + i.quantity * i.unit_price, 0);
+  if (totalPedido <= 0) return 0;
+
+  const fracao = (linha.quantity * linha.unit_price) / totalPedido;
+  return Math.round(custoEnvioTotal * fracao * 100) / 100;
+}
+
+// Quanto o VENDEDOR paga pelo frete deste envio (R$) — GET
+// /shipments/{id}/costs, campo senders[].cost. Confirmado via API real
+// (pedido 2000018236472830, verificado em 03/09/2026): o pedido tinha
+// payments[].shipping_cost = 0 (mesmo tipo de campo não-confiável que já
+// tinha enganado marketplace_fee) e shipping_option ausente em GET
+// /shipments/{id}; só este recurso dedicado devolve o valor que de fato sai
+// do bolso do vendedor (no exemplo real: receiver.cost 48,99 pro comprador,
+// senders[0].cost 24,45 pro vendedor, cada um com seu próprio desconto
+// "mandatory" já aplicado — não dá pra derivar um a partir do outro).
+// Soma todos os senders (normalmente só 1). Retorna null quando a API não
+// devolve nenhum sender ou quando o recurso não existe (404) — mesmo
+// contrato de "não sei" que calcularValorRecebido espera.
+export async function buscarCustoEnvioVendedor(token: string, shippingId: string): Promise<number | null> {
+  try {
+    const { data } = await axios.get(`${ML_API_URL}/shipments/${shippingId}/costs`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const senders: any[] = data?.senders;
+    if (!Array.isArray(senders) || senders.length === 0) return null;
+    return senders.reduce((soma, s) => soma + (Number(s.cost) || 0), 0);
+  } catch (err: any) {
+    if (err?.response?.status === 404) return null;
+    throw err;
+  }
 }
 
 export interface EnvioML {

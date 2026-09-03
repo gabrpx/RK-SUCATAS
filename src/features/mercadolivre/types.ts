@@ -16,6 +16,11 @@ export interface ItemPedidoPreview {
   // mostrar o valor líquido no preview e repassar na importação; nunca muda
   // o preço da peça (vendas.valor_unitario/valor_total).
   taxaMl: number | null;
+  // Custo do frete (Mercado Envios) pago pelo VENDEDOR, já rateado pra esta
+  // linha quando o pedido tem 2+ itens no mesmo envio. 0 = pedido sem envio
+  // (retirada em loja), valor conhecido. null = API não devolveu custo
+  // confiável pra este envio — mesmo tratamento de "não sei" que taxaMl.
+  custoEnvio: number | null;
 }
 
 export interface PedidoPreview {
@@ -46,6 +51,7 @@ export interface ImportarPedidoItemInput {
   ml_item_id: string;
   ml_shipping_id: string | null;
   ml_sale_fee: number | null;
+  ml_custo_envio: number | null;
 }
 
 export interface ImportarPedidosResultado {
