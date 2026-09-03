@@ -277,7 +277,7 @@ export interface Estoque {
   // Família de peça (migration_056) — quando preenchido, esta ficha faz
   // parte de um agrupamento maior mostrado como 1 linha só na tabela de
   // Estoque. null = peça avulsa, comportamento idêntico ao que já existia.
-  familia_id: string | null;
+  familia_id?: string | null;
   // Populado pelo backend via join em estoque_familias (anexarFamilias).
   // Ausente em payloads antigos em cache — sempre tratar como opcional.
   familia?: EstoqueFamilia | null;
