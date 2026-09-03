@@ -102,6 +102,30 @@ async function anexarCompatibilidades(supabase: SupabaseClient, itens: any[]): P
   return itens.map((item) => ({ ...item, modelos_compativeis: porEstoque.get(item.id) ?? [] }));
 }
 
+// Família de peça (migration_056) — mesma degradação graciosa de
+// anexarCompatibilidades: enquanto a migração não rodar em produção, a
+// tabela não existe e o estoque continua funcionando normalmente, cada
+// peça simplesmente sem família.
+async function anexarFamilias(supabase: SupabaseClient, itens: any[]): Promise<any[]> {
+  if (itens.length === 0) return itens;
+
+  const { data, error } = await supabase.from('estoque_familias').select('*');
+
+  if (error) {
+    if (error.code === '42P01' || error.code === 'PGRST205') {
+      console.warn('⚠️ Tabela estoque_familias ausente — rode supabase/migration_056_estoque_familias.sql pra habilitar famílias de peça.');
+    } else {
+      console.error('Erro ao buscar famílias de estoque:', error);
+    }
+    return itens.map((item) => ({ ...item, familia: null }));
+  }
+
+  const porId = new Map<string, any>();
+  for (const familia of data ?? []) porId.set(familia.id, familia);
+
+  return itens.map((item) => ({ ...item, familia: item.familia_id ? porId.get(item.familia_id) ?? null : null }));
+}
+
 // Peça procurada (migration_033): quando uma peça nova cadastrada no estoque
 // bate com um pedido em aberto (categoria e/ou modelo de moto do pedido, os
 // que estiverem preenchidos — campo vazio no pedido não filtra por isso),
@@ -402,9 +426,10 @@ const CAMPOS_EDITAVEIS = [
   'ativo',
   'componentes',
   'anuncio_fb_url',
+  'familia_id',
 ] as const;
 
-function montarPayload(body: any) {
+export function montarPayload(body: any) {
   const payload: Record<string, any> = {};
   for (const campo of CAMPOS_EDITAVEIS) {
     if (body[campo] !== undefined) payload[campo] = body[campo];
@@ -424,6 +449,9 @@ function montarPayload(body: any) {
     const lista = Array.isArray(payload.componentes) ? payload.componentes.map((c: any) => String(c).trim()).filter(Boolean) : [];
     payload.componentes = lista.length > 0 ? lista : null;
   }
+  // null explícito desvincula a peça da família (ver rodapé "Excluir" da
+  // spec — desvincular em vez de apagar quando há venda no histórico).
+  if (payload.familia_id !== undefined) payload.familia_id = payload.familia_id || null;
   return payload;
 }
 
@@ -450,7 +478,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (error) throw error;
       const comUnidades = await anexarUnidades(supabase, data);
       const comCompatibilidades = await anexarCompatibilidades(supabase, comUnidades);
-      const comAnunciosMl = await anexarAnunciosMl(supabase, comCompatibilidades);
+      const comFamilias = await anexarFamilias(supabase, comCompatibilidades);
+      const comAnunciosMl = await anexarAnunciosMl(supabase, comFamilias);
       const comAnunciosShopee = await anexarAnunciosShopee(supabase, comAnunciosMl);
       res.json({ success: true, data: await anexarPromocoes(supabase, comAnunciosShopee) });
     } catch (error: any) {
@@ -465,7 +494,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (error) throw error;
       const [comUnidades] = await anexarUnidades(supabase, [data]);
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
-      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
+      const [comFamilias] = await anexarFamilias(supabase, [comCompatibilidades]);
+      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comFamilias]);
       const [comAnunciosShopee] = await anexarAnunciosShopee(supabase, [comAnunciosMl]);
       const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosShopee]);
       res.json({ success: true, data: comPromocao });
@@ -495,7 +525,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (req.usuario) casarComPecasProcuradas(supabase, data, req.usuario.id).catch((e) => console.error('Erro no match de peça procurada:', e));
 
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [{ ...data, unidades: [] }]);
-      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
+      const [comFamilias] = await anexarFamilias(supabase, [comCompatibilidades]);
+      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comFamilias]);
       const [comAnunciosShopee] = await anexarAnunciosShopee(supabase, [comAnunciosMl]);
       const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosShopee]);
       res.json({ success: true, data: comPromocao });
@@ -541,7 +572,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       // de avaria some da lista até o próximo refresh.
       const [comUnidades] = await anexarUnidades(supabase, [data]);
       const [comCompatibilidades] = await anexarCompatibilidades(supabase, [comUnidades]);
-      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comCompatibilidades]);
+      const [comFamilias] = await anexarFamilias(supabase, [comCompatibilidades]);
+      const [comAnunciosMl] = await anexarAnunciosMl(supabase, [comFamilias]);
       const [comAnunciosShopee] = await anexarAnunciosShopee(supabase, [comAnunciosMl]);
       const [comPromocao] = await anexarPromocoes(supabase, [comAnunciosShopee]);
       res.json({ success: true, data: comPromocao });
