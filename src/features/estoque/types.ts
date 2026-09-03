@@ -42,6 +42,22 @@ export interface EstoqueUnidade {
 
 export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
 
+// Família de peça (migration_056) — agrupa N fichas (Estoque) sob um nome
+// comum ("Tanque de Combustível CG 125"), cada ficha mantendo seu próprio
+// modelo_moto_id. Opcional: peça sem família (familia_id null) continua se
+// comportando exatamente como antes.
+export interface EstoqueFamilia {
+  id: string;
+  nome: string;
+  categoria_id: string | null;
+  descricao: string | null;
+  imagem_url: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export type EstoqueFamiliaInput = Pick<EstoqueFamilia, 'nome' | 'categoria_id' | 'descricao' | 'imagem_url'>;
+
 // Snapshot de visitas/perguntas/vendas/saúde de um anúncio publicado pelo
 // sistema — ver supabase/migration_043_mercadolivre_publicacao.sql. Escrito
 // em background pelo scheduler (Fase 7) e lido junto com o link, pro modal
@@ -258,6 +274,13 @@ export interface Estoque {
   // pelo backend via join em estoque_modelos_compativeis (migration_019).
   // Ausente em payloads antigos em cache — sempre tratar como opcional.
   modelos_compativeis?: ModeloMoto[];
+  // Família de peça (migration_056) — quando preenchido, esta ficha faz
+  // parte de um agrupamento maior mostrado como 1 linha só na tabela de
+  // Estoque. null = peça avulsa, comportamento idêntico ao que já existia.
+  familia_id?: string | null;
+  // Populado pelo backend via join em estoque_familias (anexarFamilias).
+  // Ausente em payloads antigos em cache — sempre tratar como opcional.
+  familia?: EstoqueFamilia | null;
   condicao: CondicaoPeca;
   // Estado físico da peça (1 = ruim, 10 = perfeita) — independente de
   // `condicao` acima, que é sobre origem (original/paralela), não estado.
@@ -323,6 +346,7 @@ export type EstoqueInput = Pick<
   | 'ativo'
   | 'componentes'
   | 'anuncio_fb_url'
+  | 'familia_id'
 > & {
   // Ids dos modelos secundários — não é campo direto de `Estoque` (que expõe
   // os objetos já resolvidos em `modelos_compativeis`), é derivado na leitura
