@@ -26,6 +26,15 @@ vi.mock('./mercadolivreApi.js', () => ({
     if (totalPedido <= 0) return 0;
     return Math.round(custoEnvioTotal * ((linha.quantity * linha.unit_price) / totalPedido) * 100) / 100;
   },
+  resolverNomeComprador: (buyer: any) => {
+    if (!buyer) return null;
+    const primeiroNome = buyer.first_name?.trim();
+    const sobrenome = buyer.last_name?.trim();
+    const nomesDisponiveis = [primeiroNome, sobrenome].filter(Boolean);
+    if (nomesDisponiveis.length > 0) return nomesDisponiveis.join(' ');
+    if (buyer.nickname?.trim()) return buyer.nickname.trim();
+    return null;
+  },
 }));
 
 import { obterConexaoAtual, buscarPedido, buscarCustoEnvioVendedor } from './mercadolivreApi.js';

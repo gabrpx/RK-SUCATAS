@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('axios', () => ({ default: { get: vi.fn() } }));
 
 import axios from 'axios';
-import { buscarPedido, buscarCustoEnvioVendedor, calcularValorRecebido, alocarCustoEnvio } from './mercadolivreApi.js';
+import { buscarPedido, buscarCustoEnvioVendedor, calcularValorRecebido, alocarCustoEnvio, resolverNomeComprador } from './mercadolivreApi.js';
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -111,5 +111,50 @@ describe('alocarCustoEnvio', () => {
 
   it('item que não está no pedido não recebe rateio', () => {
     expect(alocarCustoEnvio(pedidoDoisItens, 20, 'MLB999')).toBe(0);
+  });
+});
+
+describe('resolverNomeComprador', () => {
+  it('retorna nome completo quando first_name e last_name estão presentes', () => {
+    const buyer = { first_name: 'Cauê', last_name: 'Garcia', nickname: 'GACA1676424', id: 123 };
+    expect(resolverNomeComprador(buyer)).toBe('Cauê Garcia');
+  });
+
+  it('retorna nome apenas com first_name quando last_name está ausente', () => {
+    const buyer = { first_name: 'Cauê', last_name: undefined, nickname: 'GACA1676424', id: 123 };
+    expect(resolverNomeComprador(buyer)).toBe('Cauê');
+  });
+
+  it('retorna nome apenas com last_name quando first_name está ausente', () => {
+    const buyer = { first_name: undefined, last_name: 'Garcia', nickname: 'GACA1676424', id: 123 };
+    expect(resolverNomeComprador(buyer)).toBe('Garcia');
+  });
+
+  it('cai para nickname quando não há primeiro nem último nome', () => {
+    const buyer = { first_name: undefined, last_name: undefined, nickname: 'GACA1676424', id: 123 };
+    expect(resolverNomeComprador(buyer)).toBe('GACA1676424');
+  });
+
+  it('retorna null quando não há nenhum dado de nome', () => {
+    const buyer = { first_name: undefined, last_name: undefined, nickname: undefined, id: 123 };
+    expect(resolverNomeComprador(buyer)).toBeNull();
+  });
+
+  it('trata como undefined strings vazias', () => {
+    const buyer = { first_name: '', last_name: '', nickname: '', id: 123 };
+    expect(resolverNomeComprador(buyer)).toBeNull();
+  });
+
+  it('ignora espaços em branco extras', () => {
+    const buyer = { first_name: ' Cauê ', last_name: ' Garcia ', nickname: 'GACA1676424', id: 123 };
+    expect(resolverNomeComprador(buyer)).toBe('Cauê Garcia');
+  });
+
+  it('retorna null quando buyer é undefined', () => {
+    expect(resolverNomeComprador(undefined)).toBeNull();
+  });
+
+  it('retorna null quando buyer é null', () => {
+    expect(resolverNomeComprador(null)).toBeNull();
   });
 });

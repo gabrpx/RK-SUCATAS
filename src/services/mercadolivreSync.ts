@@ -19,6 +19,7 @@ import {
   calcularValorRecebido,
   buscarCustoEnvioVendedor,
   alocarCustoEnvio,
+  resolverNomeComprador,
   type AtualizacaoItemML,
   type PedidoML,
 } from './mercadolivreApi.js';
@@ -394,7 +395,7 @@ export async function buscarPreviewPedidos(supabase: SupabaseClient, token: stri
     return {
       mlOrderId: String(pedido.id),
       dataCriacao: pedido.date_created,
-      comprador: pedido.buyer?.nickname ?? null,
+      comprador: resolverNomeComprador(pedido.buyer),
       compradorMlId: pedido.buyer?.id ?? null,
       shippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
       itens: pedido.order_items.map((linha): ItemPedidoPreview => {
@@ -1068,7 +1069,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
             quantidade: itemPedido.quantity,
             valorUnitario: itemPedido.unit_price,
             formaPagamentoId,
-            clienteNome: pedido.buyer?.nickname ?? null,
+            clienteNome: resolverNomeComprador(pedido.buyer),
             data: pedido.date_created ?? null,
             mlOrderId: orderId,
             mlItemId: itemPedido.item.id,

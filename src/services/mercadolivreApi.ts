@@ -189,7 +189,7 @@ export interface PedidoML {
   id: number;
   date_created: string;
   status: string;
-  buyer?: { nickname?: string; id?: number };
+  buyer?: { first_name?: string; last_name?: string; nickname?: string; id?: number };
   order_items: ItemPedidoML[];
   shipping?: { id: number | null };
 }
@@ -523,4 +523,17 @@ export async function buscarCategoriasRaizML(token: string): Promise<{ id: strin
 export async function criarUsuarioTesteML(token: string): Promise<{ id: number; nickname: string; password: string; site_id: string }> {
   const { data } = await axios.post(`${ML_API_URL}/users/test_user`, { site_id: SITE_ID }, { headers: { Authorization: `Bearer ${token}` } });
   return data;
+}
+
+export function resolverNomeComprador(buyer: { first_name?: string; last_name?: string; nickname?: string; id?: number } | null | undefined): string | null {
+  if (!buyer) return null;
+
+  const primeiroNome = buyer.first_name?.trim();
+  const sobrenome = buyer.last_name?.trim();
+  const nomesDisponiveis = [primeiroNome, sobrenome].filter(Boolean);
+
+  if (nomesDisponiveis.length > 0) return nomesDisponiveis.join(' ');
+  if (buyer.nickname?.trim()) return buyer.nickname.trim();
+
+  return null;
 }
