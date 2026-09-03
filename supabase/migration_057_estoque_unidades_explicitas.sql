@@ -31,6 +31,21 @@
 -- Chamada pelo backend (src/server/routes/estoque.ts) toda vez que
 -- POST/PUT/PATCH /api/estoque ou /api/estoque/bulk-update-quantidade grava
 -- quantidade — nunca chamada direto pelo frontend.
+--
+-- AVISO — impacto no "Registrar unidade": depois que o backfill deste
+-- arquivo rodar, toda peça passa a ter exatamente `quantidade` linhas em
+-- estoque_unidades (todas em branco). A rota POST /api/estoque/:id/unidades
+-- ("Registrar unidade", em src/server/routes/estoque.ts) tem uma guarda
+-- pré-existente que rejeita criar unidade nova sempre que
+-- count(fichas) >= item.quantidade — premissa que valia antes desta
+-- migração (só existiam fichas pra unidade diferenciada), mas que agora é
+-- sempre verdadeira pra toda peça, então essa rota vai devolver 400
+-- incondicionalmente, pra sempre, até um plano futuro ("Plano C") redesenhar
+-- "Registrar unidade" pra diferenciar uma linha em branco já existente via
+-- PATCH em vez de inserir linha nova. Essa é uma consequência conhecida e
+-- aceita — não rode o backfill deste arquivo em produção antes desse
+-- redesenho, a menos que você aceite "Registrar unidade" ficar temporariamente
+-- inutilizável.
 -- =============================================================================
 
 create or replace function sincronizar_unidades_estoque(p_estoque_id uuid, p_quantidade_alvo int)
@@ -41,7 +56,7 @@ declare
   v_sobrando int;
   v_em_branco_disponivel int;
 begin
-  select count(*) into v_atual from estoque_unidades where estoque_id = p_estoque_id;
+  select count(*) into v_atual from estoque_unidades where estoque_id = p_estoque_id and vendida_em is null;
 
   if v_atual < p_quantidade_alvo then
     v_faltando := p_quantidade_alvo - v_atual;

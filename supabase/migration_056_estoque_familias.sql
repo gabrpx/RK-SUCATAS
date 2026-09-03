@@ -38,7 +38,7 @@ alter table estoque_familias enable row level security;
 -- Sem policy nenhuma pra anon/authenticated de propósito — só o backend
 -- (service_role) mexe nessa tabela, igual todo o resto do schema.
 
-alter table estoque add column if not exists familia_id uuid references estoque_familias(id);
+alter table estoque add column if not exists familia_id uuid references estoque_familias(id) on delete set null;
 create index if not exists idx_estoque_familia on estoque(familia_id);
 
 NOTIFY pgrst, 'reload schema';
