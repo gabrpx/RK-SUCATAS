@@ -177,6 +177,12 @@ export interface ItemPedidoML {
   item: { id: string; title: string; variation_id?: number | null };
   quantity: number;
   unit_price: number;
+  // Comissão do Mercado Livre pra ESTA linha do pedido (já em R$, não %, e já
+  // total pra linha — não por unidade). Confirmado inspecionando um pedido
+  // real: vem tanto em /orders/search quanto em /orders/{id}; o candidato
+  // alternativo `payments[].marketplace_fee` veio 0 no mesmo pedido, então
+  // não é confiável.
+  sale_fee?: number;
 }
 
 export interface PedidoML {
@@ -216,6 +222,22 @@ export async function buscarPedido(token: string, orderId: string): Promise<Pedi
     if (err?.response?.status === 404) return null;
     throw err;
   }
+}
+
+// Acha a linha de um item específico dentro de um pedido — usado tanto pelo
+// import novo quanto pela correção retroativa de taxa (mercadolivreSync.ts).
+export function encontrarItemPedido(pedido: PedidoML, mlItemId: string): ItemPedidoML | null {
+  return pedido.order_items.find((linha) => linha.item.id === mlItemId) ?? null;
+}
+
+// Valor líquido a lançar no Caixa = valor total da venda (peça cheia) menos a
+// comissão do ML. Retorna null quando a taxa não é conhecida (sale_fee
+// ausente na resposta da API) — quem chama decide o fallback (import novo
+// cai pra null em registrar_venda, que usa o valor cheio; a correção
+// retroativa reporta como falha e pula a linha).
+export function calcularValorRecebido(valorTotal: number, saleFee: number | null | undefined): number | null {
+  if (saleFee == null) return null;
+  return valorTotal - saleFee;
 }
 
 export interface EnvioML {

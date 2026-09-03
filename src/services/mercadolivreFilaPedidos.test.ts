@@ -13,6 +13,10 @@ vi.mock('./mercadolivreApi.js', () => ({
   extrairMlbId: vi.fn((url: string) => url?.match(/MLB\d+/)?.[0] ?? null),
   buscarEnvio: vi.fn(),
   responderPergunta: vi.fn(),
+  // Puras — mesma lógica da real (ver mercadolivreApi.ts), reimplementadas
+  // aqui só pra não precisar mockar toda a resposta da API por teste.
+  encontrarItemPedido: (pedido: any, mlItemId: string) => pedido.order_items.find((linha: any) => linha.item.id === mlItemId) ?? null,
+  calcularValorRecebido: (valorTotal: number, saleFee: number | null | undefined) => (saleFee == null ? null : valorTotal - saleFee),
 }));
 
 import { obterConexaoAtual, buscarPedido } from './mercadolivreApi.js';

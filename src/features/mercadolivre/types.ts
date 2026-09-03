@@ -12,6 +12,10 @@ export interface ItemPedidoPreview {
   status: StatusItemPedido;
   estoqueIdSugerido: string | null;
   estoqueNomeSugerido: string | null;
+  // Comissão do ML pra esta linha (R$), quando a API devolveu — usada só pra
+  // mostrar o valor líquido no preview e repassar na importação; nunca muda
+  // o preço da peça (vendas.valor_unitario/valor_total).
+  taxaMl: number | null;
 }
 
 export interface PedidoPreview {
@@ -41,9 +45,18 @@ export interface ImportarPedidoItemInput {
   ml_order_id: string;
   ml_item_id: string;
   ml_shipping_id: string | null;
+  ml_sale_fee: number | null;
 }
 
 export interface ImportarPedidosResultado {
+  sucesso: number;
+  pulados: number;
+  falhas: { mlOrderId: string; mlItemId: string; error: string }[];
+}
+
+// Correção retroativa da taxa ML em vendas já importadas (mesmo formato de
+// ImportarPedidosResultado) — ver POST /api/mercadolivre/pedidos/corrigir-taxa.
+export interface CorrigirTaxaResultado {
   sucesso: number;
   pulados: number;
   falhas: { mlOrderId: string; mlItemId: string; error: string }[];

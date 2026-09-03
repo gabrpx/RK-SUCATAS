@@ -1,7 +1,10 @@
 // Aba Caixa: livro de entradas e saídas. Entradas geradas por uma venda
 // (venda_id preenchido) são somente leitura aqui — pra reverter, cancela a
 // venda na aba Vendas. Lançamentos manuais (despesas, retiradas, etc.) são
-// criados/editados/excluídos direto por aqui.
+// criados/editados/excluídos direto por aqui. Exceção: o VALOR de um
+// lançamento vindo de uma venda do Mercado Livre pode ser editado na mão —
+// é a saída pra quando a correção automática de taxa (tela do Mercado Livre)
+// não consegue recuperar a comissão de um pedido antigo/inacessível na API.
 import { useEffect, useMemo, useState } from 'react';
 import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
 import type { Column, ColumnDef, SortingState } from '@tanstack/react-table';
@@ -19,6 +22,7 @@ import {
   Eye,
   EyeOff,
   ChevronDown,
+  Pencil,
 } from 'lucide-react';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
@@ -71,14 +75,20 @@ function SortableHead({ column, label, align }: { column: Column<CaixaEntry, unk
 }
 
 export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: boolean; setPendingFiado?: (v: boolean) => void }) {
-  const { caixa, setCaixa, showSensitiveInfo, setShowSensitiveInfo } = useData();
+  const { caixa, setCaixa, vendas, showSensitiveInfo, setShowSensitiveInfo } = useData();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | CaixaTipo>('todos');
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<CaixaEntry | null>(null);
+  const [entryToEdit, setEntryToEdit] = useState<CaixaEntry | null>(null);
   const [aba, setAba] = useState<'lancamentos' | 'pendencias'>('lancamentos');
+
+  // Ids de venda do canal Mercado Livre — só o VALOR de um lançamento ligado
+  // a uma dessas fica editável aqui (ver comentário de cabeçalho do arquivo).
+  const vendaIdsMercadoLivre = useMemo(() => new Set(vendas.filter((v) => v.canal === 'mercado_livre').map((v) => v.id)), [vendas]);
+  const podeEditarValor = (entry: CaixaEntry) => !!entry.venda_id && vendaIdsMercadoLivre.has(entry.venda_id);
 
   useEffect(() => {
     if (!pendingFiado) return;
@@ -166,20 +176,33 @@ export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: bo
         enableSorting: false,
         cell: ({ row }) => {
           const entry = row.original;
-          return !entry.venda_id ? (
+          if (!entry.venda_id) {
+            return (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setEntryToDelete(entry)}
+                className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
+              >
+                <Trash2 size={14} />
+              </Button>
+            );
+          }
+          return podeEditarValor(entry) ? (
             <Button
               variant="ghost"
               size="icon"
-              onClick={() => setEntryToDelete(entry)}
-              className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
+              onClick={() => setEntryToEdit(entry)}
+              title="Corrigir valor recebido (venda do Mercado Livre)"
+              className="size-8 rounded-lg text-text-muted hover:text-accent hover:bg-accent-soft-bg"
             >
-              <Trash2 size={14} />
+              <Pencil size={14} />
             </Button>
           ) : null;
         },
       },
     ],
-    []
+    [vendaIdsMercadoLivre]
   );
 
   const table = useReactTable<CaixaEntry>({
@@ -403,6 +426,17 @@ export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: bo
                           <Trash2 size={14} />
                         </Button>
                       )}
+                      {podeEditarValor(entry) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEntryToEdit(entry)}
+                          title="Corrigir valor recebido (venda do Mercado Livre)"
+                          className="size-8 rounded-lg text-text-muted hover:text-accent hover:bg-accent-soft-bg"
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                      )}
                     </div>
                   </div>
                 );
@@ -436,7 +470,75 @@ export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: bo
       >
         {entryToDelete && <p className="text-sm text-text-muted">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>}
       </Modal>
+
+      <EditarValorModal entry={entryToEdit} onClose={() => setEntryToEdit(null)} />
     </div>
+  );
+}
+
+// Corrige o VALOR de um lançamento de venda do Mercado Livre — a saída
+// manual pra quando a correção automática (tela do Mercado Livre) não
+// conseguiu recuperar a taxa de um pedido antigo/inacessível na API.
+function EditarValorModal({ entry, onClose }: { entry: CaixaEntry | null; onClose: () => void }) {
+  const { setCaixa } = useData();
+  const [valor, setValor] = useState('');
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (entry) setValor(String(entry.valor));
+  }, [entry]);
+
+  const handleSalvar = async () => {
+    if (!entry || !valor || Number(valor) <= 0) return;
+    setSalvando(true);
+    try {
+      const result = await caixaApi.atualizar(entry.id, { valor: Number(valor) });
+      if (result.success) {
+        setCaixa((prev) => prev.map((e) => (e.id === entry.id ? result.data : e)));
+        onClose();
+      } else {
+        aviso.falha(result.error, 'Erro ao corrigir valor');
+      }
+    } catch (err) {
+      aviso.falha(err, 'Erro ao corrigir valor');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <Modal
+      aberto={!!entry}
+      onFechar={onClose}
+      titulo="Corrigir valor recebido"
+      icone={Pencil}
+      tamanho="sm"
+      rodape={
+        <Button onClick={handleSalvar} disabled={salvando || !valor || Number(valor) <= 0} className="h-auto w-full py-3 rounded-2xl font-bold text-sm">
+          {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+        </Button>
+      }
+    >
+      {entry && (
+        <div className="space-y-4">
+          <p className="text-sm text-text-muted">
+            "{entry.descricao}" veio de uma venda do Mercado Livre. Ajuste aqui só quando a correção automática da taxa não conseguiu recuperar o valor certo
+            — o preço da peça em Vendas não muda.
+          </p>
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block text-text-muted">Valor recebido (R$)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              className="w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary"
+            />
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 

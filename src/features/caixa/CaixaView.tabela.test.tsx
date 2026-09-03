@@ -20,6 +20,7 @@ const mockEstado = vi.hoisted(() => ({
 vi.mock('./api', () => ({
   caixaApi: {
     lancar: vi.fn(),
+    atualizar: vi.fn(),
     excluir: vi.fn(() => Promise.resolve({ success: true })),
   },
   caixaPendenciasApi: {
@@ -30,7 +31,10 @@ vi.mock('./api', () => ({
 vi.mock('../../context/DataContext', () => ({
   useData: () => {
     const [caixa, setCaixa] = React.useState<CaixaEntry[]>(mockEstado.caixa);
-    return { caixa, setCaixa, showSensitiveInfo: true, setShowSensitiveInfo: vi.fn() };
+    // Sem vendas do Mercado Livre nestes testes — o botão de corrigir valor
+    // (ligado a vendas.canal === 'mercado_livre') não é o que está sob teste
+    // aqui, ver CaixaView.editarValorMl.test.tsx.
+    return { caixa, setCaixa, vendas: [], showSensitiveInfo: true, setShowSensitiveInfo: vi.fn() };
   },
 }));
 

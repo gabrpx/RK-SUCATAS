@@ -14,6 +14,7 @@ import {
   aplicarSincronizacao,
   buscarPreviewPedidos,
   importarPedidosEmLote,
+  corrigirTaxaVendasMlImportadas,
   buscarEnvioDoPedido,
   buscarPerguntasComRascunho,
   listarAnunciosOrfaos,
@@ -259,6 +260,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
         mlOrderId: String(i.ml_order_id),
         mlItemId: String(i.ml_item_id),
         mlShippingId: i.ml_shipping_id ? String(i.ml_shipping_id) : null,
+        mlSaleFee: i.ml_sale_fee != null ? Number(i.ml_sale_fee) : null,
       }));
 
       const resultado = await importarPedidosEmLote(supabase, itens);
@@ -266,6 +268,23 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
     } catch (error: any) {
       console.error('Erro ao importar pedidos do Mercado Livre:', error);
       res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  // Correção retroativa: vendas ML já importadas com o valor CHEIO no Caixa
+  // (antes deste fix) passam a ter o valor líquido (menos a taxa do ML),
+  // recalculada consultando a API do Mercado Livre pedido a pedido. Só
+  // dispara por clique humano na tela do Mercado Livre — nunca automático.
+  router.post('/pedidos/corrigir-taxa', exigirPermissao('mercadolivre.importar_pedidos'), async (_req, res) => {
+    try {
+      const conexao = await obterConexaoAtual(supabase);
+      if (!conexao) return res.status(409).json({ success: false, error: 'Conta do Mercado Livre ainda não conectada' });
+
+      const resultado = await corrigirTaxaVendasMlImportadas(supabase, conexao.accessToken);
+      res.json({ success: true, data: resultado });
+    } catch (error: any) {
+      console.error('Erro ao corrigir taxa de vendas importadas do Mercado Livre:', error.response?.data || error.message);
+      res.status(500).json({ success: false, error: mensagemErro(error) });
     }
   });
 

@@ -5,6 +5,7 @@ import type {
   PedidoPreview,
   ImportarPedidoItemInput,
   ImportarPedidosResultado,
+  CorrigirTaxaResultado,
   PreviewSincronizacao,
   AplicarSincronizacaoResultado,
   PerguntaPreview,
@@ -90,6 +91,9 @@ export const mercadolivreApi = {
   // Feature 2 — preview e importação de pedidos como venda.
   buscarPedidosNovos: (dias = 30) => api.get(`/api/mercadolivre/pedidos/novos?dias=${dias}`) as Promise<ApiResult<PedidoPreview[]>>,
   importarPedidos: (itens: ImportarPedidoItemInput[]) => api.post('/api/mercadolivre/pedidos/importar', { itens }) as Promise<ApiResult<ImportarPedidosResultado>>,
+  // Correção retroativa da taxa ML nas vendas já importadas — recalcula via
+  // API do ML e ajusta só o Caixa (vendas nunca mudam).
+  corrigirTaxaImportadas: () => api.post('/api/mercadolivre/pedidos/corrigir-taxa') as Promise<ApiResult<CorrigirTaxaResultado>>,
 
   // Feature 10 — envio (Mercado Envios) de um pedido já importado.
   buscarEnvioPedido: (mlOrderId: string) => api.get(`/api/mercadolivre/pedidos/${mlOrderId}/envio`) as Promise<ApiResult<EnvioML | null>>,

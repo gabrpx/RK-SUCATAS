@@ -15,6 +15,8 @@ import {
   buscarEnvio,
   obterConexaoAtual,
   obterMargemSincronizacao,
+  encontrarItemPedido,
+  calcularValorRecebido,
   type AtualizacaoItemML,
 } from './mercadolivreApi.js';
 import { anexarPromocoes } from '../features/promocoes/calculo.js';
@@ -322,6 +324,10 @@ export interface ItemPedidoPreview {
   status: StatusItemPedido;
   estoqueIdSugerido: string | null;
   estoqueNomeSugerido: string | null;
+  // Comissão do ML pra esta linha (R$), quando a API devolveu — repassada
+  // pro import (ver ImportarPedidoParams.mlSaleFee) pra lançar o valor
+  // líquido no Caixa sem precisar buscar o pedido de novo.
+  taxaMl: number | null;
 }
 
 export interface PedidoPreview {
@@ -368,6 +374,7 @@ export async function buscarPreviewPedidos(supabase: SupabaseClient, token: stri
         status: jaImportados.has(chave) ? 'ja_importado' : match ? 'encontrado' : 'nao_encontrado',
         estoqueIdSugerido: match?.id ?? null,
         estoqueNomeSugerido: match?.nome ?? null,
+        taxaMl: linha.sale_fee ?? null,
       };
     }),
   }));
@@ -387,6 +394,11 @@ export interface ImportarPedidoParams {
   // Ficha específica (estoque_unidades) quando o pedido é de uma VARIAÇÃO —
   // sem isso a venda sai da peça-mãe e ninguém sabe qual unidade saiu.
   unidadeId?: string | null;
+  // Comissão do ML pra esta linha (vinda do preview, ItemPedidoPreview.taxaMl)
+  // — null quando a API não devolveu taxa. vendas.valor_unitario/valor_total
+  // NUNCA usam isso (continuam = preço cheio da peça); só o lançamento de
+  // Caixa desconta a taxa, via p_valor_recebido de registrar_venda.
+  mlSaleFee?: number | null;
 }
 
 // Retorna null (não erro) quando o item já tinha sido importado antes — o
@@ -406,6 +418,8 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
   }
   if (existente) return null;
 
+  const valorRecebido = calcularValorRecebido(params.quantidade * params.valorUnitario, params.mlSaleFee);
+
   const { data: venda, error } = await supabase.rpc('registrar_venda', {
     p_estoque_id: params.estoqueId,
     p_quantidade: params.quantidade,
@@ -419,6 +433,7 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
     p_unidade_id: params.unidadeId || null,
     p_componente: null,
     p_nome_item: null,
+    p_valor_recebido: valorRecebido,
   });
   if (error) throw error;
 
@@ -456,6 +471,74 @@ export async function importarPedidosEmLote(supabase: SupabaseClient, itens: Imp
       else resultado.pulados++;
     } catch (err: any) {
       resultado.falhas.push({ mlOrderId: item.mlOrderId, mlItemId: item.mlItemId, error: err.message });
+    }
+  }
+
+  return resultado;
+}
+
+// ============================================================================
+// Correção retroativa da taxa ML — vendas importadas antes deste fix
+// lançaram o valor CHEIO da peça no Caixa. Recalcula a taxa via API do ML
+// (mesma lógica de importarPedidoComoVenda) e corrige só o lançamento de
+// Caixa; vendas.valor_unitario/valor_total nunca mudam. Disparada manualmente
+// pela tela do Mercado Livre — nunca em background.
+// ============================================================================
+
+export interface CorrigirTaxaResultado {
+  sucesso: number;
+  pulados: number;
+  falhas: { mlOrderId: string; mlItemId: string; error: string }[];
+}
+
+export async function corrigirTaxaVendasMlImportadas(supabase: SupabaseClient, token: string): Promise<CorrigirTaxaResultado> {
+  const resultado: CorrigirTaxaResultado = { sucesso: 0, pulados: 0, falhas: [] };
+
+  const { data: vendasMl, error } = await supabase
+    .from('vendas')
+    .select('id, valor_total, ml_order_id, ml_item_id')
+    .eq('canal', 'mercado_livre');
+  if (error) throw error;
+  if (!vendasMl || vendasMl.length === 0) return resultado;
+
+  const { data: caixaRows, error: erroCaixa } = await supabase
+    .from('caixa')
+    .select('id, valor, venda_id')
+    .in('venda_id', vendasMl.map((v: any) => v.id));
+  if (erroCaixa) throw erroCaixa;
+  const caixaPorVenda = new Map((caixaRows ?? []).map((c: any) => [c.venda_id, c]));
+
+  for (const venda of vendasMl as any[]) {
+    // Sem lançamento em Caixa: venda fiada (natureza da forma de pagamento),
+    // não há valor bruto pra corrigir aqui.
+    const caixaEntry = caixaPorVenda.get(venda.id);
+    if (!caixaEntry) {
+      resultado.pulados++;
+      continue;
+    }
+
+    try {
+      const pedido = await buscarPedido(token, venda.ml_order_id);
+      if (!pedido) {
+        resultado.falhas.push({ mlOrderId: venda.ml_order_id, mlItemId: venda.ml_item_id, error: 'Pedido não encontrado ou inacessível na API do Mercado Livre' });
+        continue;
+      }
+      const linha = encontrarItemPedido(pedido, venda.ml_item_id);
+      const valorRecebido = calcularValorRecebido(Number(venda.valor_total), linha?.sale_fee);
+      if (valorRecebido == null) {
+        resultado.falhas.push({ mlOrderId: venda.ml_order_id, mlItemId: venda.ml_item_id, error: 'A API do Mercado Livre não devolveu a taxa deste item' });
+        continue;
+      }
+      if (Math.abs(Number(caixaEntry.valor) - valorRecebido) < 0.005) {
+        resultado.pulados++; // já está com o valor líquido correto
+        continue;
+      }
+
+      const { error: erroUpdate } = await supabase.from('caixa').update({ valor: valorRecebido }).eq('id', caixaEntry.id);
+      if (erroUpdate) throw erroUpdate;
+      resultado.sucesso++;
+    } catch (err: any) {
+      resultado.falhas.push({ mlOrderId: venda.ml_order_id, mlItemId: venda.ml_item_id, error: err.message });
     }
   }
 
@@ -938,6 +1021,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
             mlItemId: itemPedido.item.id,
             mlShippingId: pedido.shipping?.id ? String(pedido.shipping.id) : null,
             unidadeId: itemPedido.item.variation_id != null ? unidadesPorVariacao.get(String(itemPedido.item.variation_id)) ?? null : null,
+            mlSaleFee: itemPedido.sale_fee ?? null,
           });
           if (venda) {
             resultado.importados++;

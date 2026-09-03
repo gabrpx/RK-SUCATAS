@@ -25,6 +25,7 @@ import {
   Search,
   Copy,
   History,
+  Percent,
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../../utils';
@@ -511,6 +512,7 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
   const { refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const [buscando, setBuscando] = useState(false);
+  const [corrigindoTaxa, setCorrigindoTaxa] = useState(false);
   const [aberto, setAberto] = useState(false);
   const [pedidos, setPedidos] = useState<PedidoPreview[]>([]);
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -576,6 +578,7 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
           ml_order_id: pedido.mlOrderId,
           ml_item_id: item.mlItemId,
           ml_shipping_id: pedido.shippingId,
+          ml_sale_fee: item.taxaMl,
         });
       }
     }
@@ -609,11 +612,38 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
     }
   };
 
+  const corrigirTaxa = async () => {
+    setCorrigindoTaxa(true);
+    try {
+      const resultado = await mercadolivreApi.corrigirTaxaImportadas();
+      if (resultado.success && resultado.data) {
+        const { sucesso, pulados, falhas } = resultado.data;
+        if (falhas.length > 0) {
+          aviso.atencao(`${sucesso} lançamento(s) corrigido(s), ${falhas.length} não deu(ram) pra corrigir`, {
+            descricao: falhas
+              .slice(0, 2)
+              .map((f) => f.error)
+              .join(' · '),
+          });
+        } else {
+          aviso.sucesso(`${sucesso} lançamento(s) corrigido(s)${pulados > 0 ? `, ${pulados} já estava(m) certo(s)` : ''}`);
+        }
+        if (sucesso > 0) await refreshData();
+      } else {
+        aviso.falha(resultado.error, 'Não deu pra corrigir a taxa das vendas importadas');
+      }
+    } catch (err) {
+      aviso.falha(err, 'Não deu pra corrigir a taxa das vendas importadas');
+    } finally {
+      setCorrigindoTaxa(false);
+    }
+  };
+
   const totalItensEncontrados = pedidos.reduce((acc, p) => acc + p.itens.filter((i) => i.status === 'encontrado').length, 0);
 
   return (
     <div className="rounded-card border border-border-subtle bg-surface-card p-5">
-      <div className="flex items-center justify-between gap-3">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="size-9 rounded-control bg-accent-soft-bg text-accent-soft-fg flex items-center justify-center shrink-0">
             <PackageSearch size={18} />
@@ -625,15 +655,27 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
             </p>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={buscarPedidos}
-          disabled={buscando}
-          className="shrink-0 h-9 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center gap-1.5 disabled:opacity-50"
-        >
-          {buscando ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
-          Buscar pedidos novos
-        </button>
+        <div className="flex flex-col sm:flex-row gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={corrigirTaxa}
+            disabled={corrigindoTaxa}
+            title="Recalcula a taxa do ML nas vendas já importadas e corrige o valor lançado no Caixa (não mexe no preço da peça)"
+            className="h-11 sm:h-9 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {corrigindoTaxa ? <Loader2 size={14} className="animate-spin" /> : <Percent size={14} />}
+            Corrigir taxa das importadas
+          </button>
+          <button
+            type="button"
+            onClick={buscarPedidos}
+            disabled={buscando}
+            className="h-11 sm:h-9 px-3 rounded-control border border-border-default text-xs font-medium text-text-secondary hover:bg-surface-raised flex items-center justify-center gap-1.5 disabled:opacity-50"
+          >
+            {buscando ? <Loader2 size={14} className="animate-spin" /> : <Search size={14} />}
+            Buscar pedidos novos
+          </button>
+        </div>
       </div>
 
       <Modal
@@ -710,6 +752,9 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
                             <p className="text-sm text-text-primary truncate">{item.estoqueNomeSugerido ?? item.titulo}</p>
                             <p className="text-xs text-text-faint">
                               {item.quantidade}x · {formatCurrency(item.valorUnitario)}
+                              {item.taxaMl != null && (
+                                <> · líquido no Caixa: {formatCurrency(item.quantidade * item.valorUnitario - item.taxaMl)} (taxa ML {formatCurrency(item.taxaMl)})</>
+                              )}
                             </p>
                           </div>
                           <StatusBadge

@@ -18,6 +18,28 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.10',
+    data: '2026-09-03',
+    titulo: 'Caixa passa a lançar o valor líquido das vendas do Mercado Livre',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Vendas importadas do Mercado Livre lançavam o valor CHEIO da peça no Caixa, ignorando a taxa cobrada pelo ML — agora entra o valor líquido de verdade. O preço da peça em Vendas não muda, pra não distorcer margem e relatórios.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Botão "Corrigir taxa das importadas" na tela do Mercado Livre recalcula a taxa de vendas já importadas antes desse fix e ajusta o valor lançado no Caixa automaticamente.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Quando a taxa de um pedido antigo não dá pra recuperar na API do Mercado Livre, o valor do lançamento de Caixa daquela venda agora pode ser corrigido na mão, direto na tela de Caixa.',
+      },
+    ],
+  },
+  {
     versao: '1.3.9',
     data: '2026-08-31',
     titulo: 'Clientes com campos inteligentes: validação, autopreenchimento e acessibilidade',
