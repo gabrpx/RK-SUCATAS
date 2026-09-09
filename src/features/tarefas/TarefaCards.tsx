@@ -17,9 +17,10 @@ import { SPRING_SHEET } from '../../components/ui/motion';
 import { aviso } from '../../components/ui/toast';
 import { formatTelefoneBR, onlyDigits } from '../../utils/formatters';
 import { linkWhatsapp } from '../../utils/whatsapp';
+import { ImageZoom } from '../../components/ui/image-zoom';
 import { clientesApi } from '../clientes/api';
 import { tarefasApi } from './api';
-import { formatarPrazo, estaVencida, formatarMomentoRelativo, progressoChecklist, moverItem, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
+import { formatarPrazo, estaVencida, formatarMomentoRelativo, progressoChecklist, progressoParticipantes, moverItem, PRIORIDADE_LABELS, PRIORIDADE_TONS } from './tarefaUtils';
 import { formatarTempoRelativoCurto } from '../../utils/tempoRelativo';
 import type { Tarefa, TarefaItem } from './types';
 
@@ -42,6 +43,11 @@ function useClickOutside(ref: RefObject<HTMLElement | null>, handler: () => void
   useEffect(() => {
     const listener = (e: MouseEvent | TouchEvent) => {
       if (!ref.current || ref.current.contains(e.target as Node)) return;
+      // Clique/toque num overlay de imagem (ImageZoom) renderizado via
+      // portal — DOM-wise ele fica FORA de painelRef, mas fechá-lo não deve
+      // fechar o painel de detalhes por trás (ver data-photo-overlay em
+      // image-zoom.tsx e o mesmo bug corrigido no Modal na Fase 6).
+      if ((e.target as HTMLElement)?.closest?.('[data-photo-overlay]')) return;
       handler();
     };
     document.addEventListener('mousedown', listener);
@@ -86,6 +92,18 @@ interface TarefaCardsProps {
   // Se true, mostra uma badge com o nome do responsável no card recolhido
   // (apenas quando atribuido não é null). Visão do criador/admin.
   mostrarResponsavel?: boolean;
+  // Id do usuário logado — usado pra Fase 2 (borda animada de "não lida" nas
+  // tarefas em grupo) e pra saber, sem precisar de outra prop, se ele é um
+  // dos participantes. Sem essa prop, nenhuma tarefa ganha a borda (e o
+  // marcar-lida não é chamado) — retrocompatível com quem ainda não passa.
+  meuId?: string | null;
+}
+
+// Tarefa multi-participante (Fase 1) ainda não lida por `meuId` — a borda
+// animada (Fase 2) só se aplica quando isso é true.
+function naoLidaPorMim(tarefa: Tarefa, meuId?: string | null): boolean {
+  if (!meuId) return false;
+  return (tarefa.participantes ?? []).some((p) => p.usuario_id === meuId && !p.lida);
 }
 
 // Uma linha do checklist arrastável. Só fica "pegável" (listeners do
@@ -153,10 +171,21 @@ function ItemChecklistArrastavel({
   );
 }
 
-export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo, podeMarcarItens, podeReordenar, selecao, mostrarResponsavel }: TarefaCardsProps) {
+export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu, onContatoSalvo, podeMarcarItens, podeReordenar, selecao, mostrarResponsavel, meuId }: TarefaCardsProps) {
   const [ativa, setAtiva] = useState<Tarefa | null>(null);
   const id = useId();
   const painelRef = useRef<HTMLDivElement>(null);
+
+  // Abre o painel de detalhes e, se a tarefa ainda não foi lida por mim
+  // (Fase 2), marca como lida — otimista (some a borda na hora) + fire-and-
+  // forget pro backend, mesmo padrão de outras ações desta tela.
+  const abrirDetalhes = (tarefa: Tarefa) => {
+    setAtiva(tarefa);
+    if (naoLidaPorMim(tarefa, meuId)) {
+      tarefasApi.marcarLida(tarefa.id).catch((e) => console.error('Erro ao marcar tarefa como lida:', e));
+      onContatoSalvo?.(); // reaproveita o refetch da lista pra a borda sumir também lá
+    }
+  };
 
   // Estado do "Adicionar número" inline (item 7) — só uma tarefa aberta por vez.
   const [editandoNumero, setEditandoNumero] = useState(false);
@@ -304,6 +333,16 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
 
                 {ativa.descricao && <p className="text-sm text-text-secondary whitespace-pre-line">{ativa.descricao}</p>}
 
+                {(ativa.imagens?.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    {ativa.imagens!.map((img, i) => (
+                      <div key={img.id} className="size-20 rounded-control overflow-hidden border border-border-default">
+                        <ImageZoom src={img.url} alt={`Imagem ${i + 1} da tarefa`} triggerClassName="block w-full h-full" className="w-full h-full" referrerPolicy="no-referrer" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {ativa.itens.length > 0 && (() => {
                   const prog = progressoChecklist(ativa)!;
                   const podeMarcar = podeMarcarItens?.(ativa) ?? false;
@@ -329,6 +368,28 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                           </ul>
                         </SortableContext>
                       </DndContext>
+                    </div>
+                  );
+                })()}
+
+                {(ativa.participantes?.length ?? 0) > 0 && (() => {
+                  const prog = progressoParticipantes(ativa.participantes)!;
+                  return (
+                    <div className="space-y-3">
+                      <BadgeProgresso feitos={prog.feitos} total={prog.total} />
+                      <ul className="space-y-1.5">
+                        {ativa.participantes!.map((p) => (
+                          <li key={p.id} className="flex items-center gap-3 rounded-xl px-3 py-2 text-sm">
+                            <span className={cn(
+                              'flex size-5 shrink-0 items-center justify-center rounded-md border',
+                              p.concluido ? 'border-positive bg-positive text-white' : 'border-border-default',
+                            )}>
+                              {p.concluido && <Check size={13} />}
+                            </span>
+                            <span className="text-text-primary">{p.usuario?.nome_exibicao || 'Usuário'}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                   );
                 })()}
@@ -439,16 +500,18 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
         {tarefas.map((tarefa) => {
           const vencida = estaVencida(tarefa);
           const concluida = tarefa.status === 'concluida';
+          const naoLida = naoLidaPorMim(tarefa, meuId);
           return (
             <motion.div
               key={tarefa.id}
               layout
               layoutId={`tarefa-${tarefa.id}-${id}`}
-              onClick={() => (selecao ? selecao.alternar(tarefa.id) : setAtiva(tarefa))}
+              onClick={() => (selecao ? selecao.alternar(tarefa.id) : abrirDetalhes(tarefa))}
               transition={SPRING_SHEET}
               className={cn(
                 'cursor-pointer rounded-card border bg-surface-card p-4 transition-colors hover:border-border-default',
-                selecao?.ativos.has(tarefa.id) ? 'border-accent/50 bg-accent-soft-bg/20' : vencida ? 'border-danger/30' : 'border-border-subtle'
+                selecao?.ativos.has(tarefa.id) ? 'border-accent/50 bg-accent-soft-bg/20' : vencida ? 'border-danger/30' : 'border-border-subtle',
+                naoLida && 'tarefa-nao-lida'
               )}
             >
               <div className="flex items-start justify-between gap-2">
@@ -506,6 +569,12 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                       {tarefa.itens.length > 4 && <li className="text-xs text-text-faint pl-5">+{tarefa.itens.length - 4} item(ns)</li>}
                     </ul>
                   )}
+                </div>
+              )}
+
+              {progressoParticipantes(tarefa.participantes) && (
+                <div className="mt-3">
+                  <BadgeProgresso feitos={progressoParticipantes(tarefa.participantes)!.feitos} total={progressoParticipantes(tarefa.participantes)!.total} />
                 </div>
               )}
 

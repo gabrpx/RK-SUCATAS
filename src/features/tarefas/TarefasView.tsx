@@ -4,7 +4,7 @@
 // mesmo corte vale no backend (src/server/routes/tarefas.ts). As duas visões
 // usam a grade de cards expansíveis (TarefaCards); muda o conjunto de ações.
 import { useEffect, useMemo, useState } from 'react';
-import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Loader2, MapPin, MoreHorizontal, ListChecks, X } from 'lucide-react';
+import { ClipboardList, Plus, Pencil, Trash2, CheckCircle2, RotateCcw, Loader2, MapPin, MoreHorizontal, ListChecks, X, Check, Square, CheckSquare, ThumbsUp } from 'lucide-react';
 import { cn } from '../../utils';
 import { aviso } from '../../components/ui/toast';
 import { EmptyState } from '../../components/ui/EmptyState';
@@ -15,9 +15,11 @@ import { SeletorCliente } from '../clientes/SeletorCliente';
 import { LembretesView } from '../lembretes/LembretesView';
 import { TarefaCards } from './TarefaCards';
 import { useTarefas } from './useTarefas';
-import { tarefasApi } from './api';
+import { tarefasApi, uploadImagemTarefa } from './api';
+import { EstoqueUploadFotos } from '../estoque/EstoqueUploadFotos';
+import { comprimirImagem, formatarBytes } from '../../utils/comprimirImagem';
 import { usePermissao } from '../../hooks/usePermissao';
-import { PRIORIDADE_LABELS, paraDatetimeLocal, elegiveisParaConcluirEmLote, ordenarTarefas } from './tarefaUtils';
+import { PRIORIDADE_LABELS, paraDatetimeLocal, elegiveisParaConcluirEmLote, ordenarTarefas, souParticipante, aguardandoAprovacao } from './tarefaUtils';
 import type { Tarefa, TarefaInput, TarefaPrioridade, UsuarioResumo } from './types';
 
 const EMPTY_FORM: TarefaInput = { titulo: '', descricao: '', prazo: '', atribuido_para: '', cliente_id: null, prioridade: 'media', tipo: 'geral', itens: [] };
@@ -53,7 +55,7 @@ export function TarefasView() {
       {aba === 'lembretes' ? (
         <LembretesView />
       ) : ehResponsavel ? (
-        <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} refetch={refetch} />
+        <VisaoResponsavel tarefas={tarefas} setTarefas={setTarefas} loading={loading} error={error} refetch={refetch} meuId={meuId} />
       ) : (
         <VisaoCriador tarefas={tarefas} loading={loading} error={error} refetch={refetch} isAdmin={isAdmin} meuId={meuId} />
       )}
@@ -70,12 +72,14 @@ function VisaoResponsavel({
   loading,
   error,
   refetch,
+  meuId,
 }: {
   tarefas: Tarefa[];
   setTarefas: (fn: (prev: Tarefa[]) => Tarefa[]) => void;
   loading: boolean;
   error: string | null;
   refetch: () => void;
+  meuId: string | null;
 }) {
   const [concluindo, setConcluindo] = useState<string | null>(null);
 
@@ -92,11 +96,45 @@ function VisaoResponsavel({
     }
   };
 
+  const alternarMinhaParticipacao = async (tarefa: Tarefa) => {
+    setConcluindo(tarefa.id);
+    try {
+      const result = await tarefasApi.alternarMinhaParticipacao(tarefa.id);
+      if (!result.success) throw new Error(result.error);
+      setTarefas((prev) => prev.map((t) => (t.id === tarefa.id ? result.data : t)));
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao atualizar sua participação');
+    } finally {
+      setConcluindo(null);
+    }
+  };
+
   // Estilo outline (não accent-preenchido de propósito): a lista pode ter
   // várias tarefas pendentes ao mesmo tempo, e o design system permite no
   // máximo um botão de acento preenchido por tela — aqui o verde (positive) já
   // carrega o significado de "concluir".
   const botaoConcluir = (tarefa: Tarefa) => {
+    // Tarefa multi-participante (Fase 1): a conclusão é por pessoa, não da
+    // tarefa inteira — cada um marca só a própria parte, independente do
+    // checklist (que aqui é só informativo/compartilhado).
+    if ((tarefa.participantes?.length ?? 0) > 0) {
+      const minhaParticipacao = tarefa.participantes!.find((p) => p.usuario_id === meuId);
+      if (!minhaParticipacao) return null;
+      return (
+        <Button
+          variant="outline"
+          onClick={() => alternarMinhaParticipacao(tarefa)}
+          disabled={concluindo === tarefa.id}
+          className={cn(
+            'h-11 sm:h-9 px-4 rounded-control text-[11px] font-semibold uppercase tracking-wider',
+            minhaParticipacao.concluido ? 'border-positive/30 bg-positive-bg text-positive hover:text-positive' : 'border-border-default text-text-secondary hover:text-text-primary'
+          )}
+        >
+          {minhaParticipacao.concluido ? <Check size={14} /> : <CheckCircle2 size={14} />}
+          {concluindo === tarefa.id ? 'Salvando...' : minhaParticipacao.concluido ? 'Sua parte concluída' : 'Marcar minha parte'}
+        </Button>
+      );
+    }
     // Quando há checklist, a conclusão é dirigida pelos itens (marcar todos
     // conclui sozinho) — o botão manual some pra não competir com isso.
     if (tarefa.itens.length > 0 || tarefa.status === 'concluida') return null;
@@ -134,6 +172,7 @@ function VisaoResponsavel({
           renderAcoes={(t) => botaoConcluir(t)}
           onContatoSalvo={refetch}
           podeMarcarItens={() => true}
+          meuId={meuId}
         />
       )}
     </div>
@@ -170,6 +209,45 @@ function VisaoCriador({
   const [erroForm, setErroForm] = useState<string | null>(null);
   const [excluindo, setExcluindo] = useState<Tarefa | null>(null);
   const [alterandoStatus, setAlterandoStatus] = useState<string | null>(null);
+  // Checkboxes de participantes (Fase 1) — só usado na CRIAÇÃO (editando uma
+  // tarefa já existente continua no <select> de responsável único de sempre;
+  // editar a lista de participantes de uma tarefa em grupo não faz parte
+  // desta entrega).
+  const [participantesForm, setParticipantesForm] = useState<Set<string>>(new Set());
+  const [finalizando, setFinalizando] = useState<string | null>(null);
+  // Imagens anexadas (Fase 3) — disponível na criação E na edição, ao
+  // contrário dos checkboxes de participantes.
+  const [imagensForm, setImagensForm] = useState<string[]>([]);
+  const [enviandoImagem, setEnviandoImagem] = useState(false);
+  const [resumoCompressaoImagem, setResumoCompressaoImagem] = useState<string | null>(null);
+
+  const handleUploadImagemTarefa = async (files: FileList | File[]) => {
+    setEnviandoImagem(true);
+    setResumoCompressaoImagem(null);
+    try {
+      const novas: string[] = [];
+      let bytesAntesTotal = 0;
+      let bytesDepoisTotal = 0;
+      let algumaComprimida = false;
+      for (const file of Array.from(files)) {
+        const { arquivo, comprimido, bytesAntes, bytesDepois } = await comprimirImagem(file);
+        const result = await uploadImagemTarefa(arquivo);
+        if (!result.success || !result.url) throw new Error(result.error || 'Falha no upload');
+        novas.push(result.url);
+        if (comprimido) {
+          algumaComprimida = true;
+          bytesAntesTotal += bytesAntes;
+          bytesDepoisTotal += bytesDepois;
+        }
+      }
+      setImagensForm((prev) => [...prev, ...novas]);
+      if (algumaComprimida) setResumoCompressaoImagem(`Fotos otimizadas: ${formatarBytes(bytesAntesTotal)} → ${formatarBytes(bytesDepoisTotal)}`);
+    } catch (err) {
+      aviso.falha(err, 'Erro ao enviar imagem');
+    } finally {
+      setEnviandoImagem(false);
+    }
+  };
 
   useEffect(() => {
     tarefasApi.listarResponsaveisPossiveis().then((r) => {
@@ -181,9 +259,84 @@ function VisaoCriador({
 
   const podeEditar = (tarefa: Tarefa) => isAdmin || tarefa.criado_por === meuId;
 
+  const alternarParticipanteForm = (id: string) => {
+    setParticipantesForm((prev) => {
+      const novo = new Set(prev);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+  };
+
+  const finalizar = async (tarefa: Tarefa, fechar?: () => void) => {
+    setFinalizando(tarefa.id);
+    try {
+      const result = await tarefasApi.finalizar(tarefa.id);
+      if (!result.success) throw new Error(result.error);
+      refetch();
+      fechar?.();
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao finalizar tarefa');
+    } finally {
+      setFinalizando(null);
+    }
+  };
+
+  // Um gerente/admin que também está entre os participantes (ex: se
+  // autoatribuiu numa tarefa em grupo) precisa marcar a própria parte igual
+  // qualquer executor — a visão de criador não pula essa ação, só ACRESCENTA
+  // o botão Finalizar (que só quem criou/admin vê).
+  const [participandoId, setParticipandoId] = useState<string | null>(null);
+  const alternarMinhaParticipacao = async (tarefa: Tarefa) => {
+    setParticipandoId(tarefa.id);
+    try {
+      const result = await tarefasApi.alternarMinhaParticipacao(tarefa.id);
+      if (!result.success) throw new Error(result.error);
+      refetch();
+    } catch (err: any) {
+      aviso.falha(err, 'Erro ao atualizar sua participação');
+    } finally {
+      setParticipandoId(null);
+    }
+  };
+
+  const renderAcoesTarefa = (tarefa: Tarefa, fechar: () => void) => {
+    const minhaParticipacao = tarefa.participantes?.find((p) => p.usuario_id === meuId);
+    return (
+      <>
+        {minhaParticipacao && (
+          <Button
+            variant="outline"
+            onClick={() => alternarMinhaParticipacao(tarefa)}
+            disabled={participandoId === tarefa.id}
+            className={cn(
+              'h-11 sm:h-9 px-4 rounded-control text-[11px] font-semibold uppercase tracking-wider',
+              minhaParticipacao.concluido ? 'border-positive/30 bg-positive-bg text-positive hover:text-positive' : 'border-border-default text-text-secondary hover:text-text-primary'
+            )}
+          >
+            {minhaParticipacao.concluido ? <Check size={14} /> : <CheckCircle2 size={14} />}
+            {minhaParticipacao.concluido ? 'Sua parte concluída' : 'Marcar minha parte'}
+          </Button>
+        )}
+        {aguardandoAprovacao(tarefa) && podeEditar(tarefa) && (
+          <Button
+            onClick={() => finalizar(tarefa, fechar)}
+            disabled={finalizando === tarefa.id}
+            className="h-11 sm:h-9 px-4 rounded-control text-[11px] font-semibold uppercase tracking-wider"
+          >
+            <ThumbsUp size={14} /> {finalizando === tarefa.id ? 'Finalizando...' : 'Finalizar tarefa'}
+          </Button>
+        )}
+      </>
+    );
+  };
+
   const abrirCriar = () => {
     setEditando(null);
     setForm({ ...EMPTY_FORM, atribuido_para: responsaveis[0]?.id || '' });
+    setParticipantesForm(new Set());
+    setImagensForm([]);
+    setResumoCompressaoImagem(null);
     setClienteNomeTexto('');
     setErroForm(null);
     setIsFormOpen(true);
@@ -201,6 +354,8 @@ function VisaoCriador({
       tipo: tarefa.tipo,
       itens: tarefa.itens.map((i) => ({ id: i.id, texto: i.texto })),
     });
+    setImagensForm((tarefa.imagens ?? []).map((i) => i.url));
+    setResumoCompressaoImagem(null);
     setClienteNomeTexto(tarefa.cliente?.nome || '');
     setErroForm(null);
     setIsFormOpen(true);
@@ -209,7 +364,11 @@ function VisaoCriador({
   const salvar = async () => {
     const temItem = (form.itens ?? []).some((i) => i.texto.trim());
     if (!form.titulo.trim() && !temItem) return setErroForm('Informe um título ou pelo menos um item');
-    if (!form.atribuido_para) return setErroForm('Escolha um responsável');
+    if (editando) {
+      if (!form.atribuido_para) return setErroForm('Escolha um responsável');
+    } else if (participantesForm.size === 0) {
+      return setErroForm('Escolha ao menos um responsável');
+    }
 
     setSalvando(true);
     setErroForm(null);
@@ -218,10 +377,12 @@ function VisaoCriador({
       descricao: form.descricao?.trim() || null,
       prazo: form.prazo ? new Date(form.prazo).toISOString() : null,
       atribuido_para: form.atribuido_para,
+      ...(editando ? {} : { participantes_ids: Array.from(participantesForm) }),
       cliente_id: form.cliente_id || null,
       prioridade: form.prioridade || 'media',
       tipo: form.tipo || 'geral',
       itens: (form.itens ?? []).map((i) => ({ ...(i.id ? { id: i.id } : {}), texto: i.texto.trim() })).filter((i) => i.texto),
+      imagens: imagensForm,
     };
     try {
       const result = editando ? await tarefasApi.atualizar(editando.id, payload) : await tarefasApi.criar(payload);
@@ -460,10 +621,12 @@ function VisaoCriador({
         <TarefaCards
           tarefas={ordenarTarefas(filtradas)}
           renderMenu={menuTarefa}
+          renderAcoes={renderAcoesTarefa}
           onContatoSalvo={refetch}
           podeMarcarItens={() => true}
           podeReordenar={podeEditar}
           mostrarResponsavel
+          meuId={meuId}
           selecao={modoSelecao ? { ativos: selecionadas, alternar: alternarSelecao } : undefined}
         />
       )}
@@ -523,6 +686,16 @@ function VisaoCriador({
             />
           </div>
           <div>
+            <label className={labelClass}>Imagens (opcional)</label>
+            <EstoqueUploadFotos
+              imagens={imagensForm}
+              onRemoverImagem={(url) => setImagensForm((prev) => prev.filter((u) => u !== url))}
+              onArquivosSelecionados={handleUploadImagemTarefa}
+              enviando={enviandoImagem}
+              resumoCompressao={resumoCompressaoImagem}
+            />
+          </div>
+          <div>
             <label className={labelClass}>Checklist (opcional)</label>
             <div className="space-y-2">
               {(form.itens ?? []).map((item, idx) => (
@@ -576,20 +749,54 @@ function VisaoCriador({
               </select>
             </div>
           </div>
-          <div>
-            <label className={labelClass}>Responsável</label>
-            <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
-              {responsaveis.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.nome_exibicao}
-                </option>
-              ))}
-              {/* "Todos" só faz sentido na criação — editar uma tarefa já
-                  existente pra "todos" viraria N linhas de uma edição só,
-                  o que não é o que o backend faz (ver task-2-brief.md). */}
-              {!editando && <option value="todos">Todos</option>}
-            </select>
-          </div>
+          {editando ? (
+            <div>
+              <label className={labelClass}>Responsável</label>
+              <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
+                {responsaveis.map((r) => (
+                  <option key={r.id} value={r.id}>
+                    {r.nome_exibicao}
+                  </option>
+                ))}
+              </select>
+            </div>
+          ) : (
+            <div>
+              <label className={labelClass}>Responsável(is)</label>
+              <div className="space-y-1 rounded-control border border-border-default bg-surface-inset p-2 max-h-52 overflow-y-auto">
+                <button
+                  type="button"
+                  onClick={() =>
+                    setParticipantesForm((prev) => (prev.size === responsaveis.length ? new Set() : new Set(responsaveis.map((r) => r.id))))
+                  }
+                  className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-sm font-semibold text-text-secondary hover:bg-surface-raised"
+                >
+                  {participantesForm.size === responsaveis.length && responsaveis.length > 0 ? (
+                    <CheckSquare size={17} className="text-accent shrink-0" />
+                  ) : (
+                    <Square size={17} className="text-text-faint shrink-0" />
+                  )}
+                  Selecionar todos
+                </button>
+                <div className="h-px bg-border-subtle mx-1" />
+                {responsaveis.map((r) => (
+                  <button
+                    key={r.id}
+                    type="button"
+                    onClick={() => alternarParticipanteForm(r.id)}
+                    className="flex w-full items-center gap-2.5 rounded-control px-2.5 py-2 text-sm text-text-primary hover:bg-surface-raised"
+                  >
+                    {participantesForm.has(r.id) ? (
+                      <CheckSquare size={17} className="text-accent shrink-0" />
+                    ) : (
+                      <Square size={17} className="text-text-faint shrink-0" />
+                    )}
+                    {r.nome_exibicao}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div>
             <label className={labelClass}>Cliente (opcional)</label>
             <SeletorCliente

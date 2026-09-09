@@ -43,9 +43,33 @@ export function Modal({ aberto, onFechar, titulo, subtitulo, icone: Icone, taman
         <DialogPrimitive.Overlay
           className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm flex items-end md:items-center justify-center md:p-4"
           style={{ zIndex: 'var(--z-modal)' as unknown as number }}
-          onClick={onFechar}
+          // Só fecha quando o clique é NO PRÓPRIO overlay (o fundo), nunca num
+          // filho — o Content por baixo já tem seu próprio stopPropagation,
+          // isso aqui é defesa extra caso algo mais um dia renderize direto
+          // dentro do Overlay sem passar por ele.
+          onClick={(e) => {
+            if (e.target === e.currentTarget) onFechar();
+          }}
         >
-          <DialogPrimitive.Content asChild onClick={(e) => e.stopPropagation()}>
+          <DialogPrimitive.Content
+            asChild
+            onClick={(e) => e.stopPropagation()}
+            // ImageZoom/VisualizadorFotos abertos POR CIMA deste modal
+            // renderizam via portal em outro lugar do DOM (fora deste
+            // Content) — sem essa exceção, o DismissableLayer do Radix trata
+            // qualquer clique/toque neles como "fora" do modal e fecha ele
+            // por trás junto, mesmo com o overlay da imagem tendo seu
+            // próprio stopPropagation (que só afeta a árvore React, não o
+            // listener nativo do Radix). Ver data-photo-overlay nos dois.
+            onPointerDownOutside={(e) => {
+              const alvoReal = ((e as any).detail?.originalEvent?.target ?? e.target) as HTMLElement | null;
+              if (alvoReal?.closest?.('[data-photo-overlay]')) e.preventDefault();
+            }}
+            onInteractOutside={(e) => {
+              const alvoReal = ((e as any).detail?.originalEvent?.target ?? e.target) as HTMLElement | null;
+              if (alvoReal?.closest?.('[data-photo-overlay]')) e.preventDefault();
+            }}
+          >
             <motion.div
               initial={{ y: 24, opacity: 0, scale: 0.99 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { formatarMomentoRelativo, progressoChecklist, moverItem, elegiveisParaConcluirEmLote, ordenarTarefas } from './tarefaUtils';
-import type { Tarefa, TarefaItem } from './types';
+import { formatarMomentoRelativo, progressoChecklist, moverItem, elegiveisParaConcluirEmLote, ordenarTarefas, progressoParticipantes, aguardandoAprovacao, souParticipante } from './tarefaUtils';
+import type { Tarefa, TarefaItem, TarefaParticipante } from './types';
 
 const AGORA = new Date('2026-08-24T18:00:00').getTime();
 const isoAtras = (ms: number) => new Date(AGORA - ms).toISOString();
@@ -110,5 +110,50 @@ describe('elegiveisParaConcluirEmLote', () => {
   it('ignora tarefa não selecionada', () => {
     const tarefas = [tarefa({ id: '1' }), tarefa({ id: '2' })];
     expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual(['1']);
+  });
+  it('ignora tarefa com participantes (conclui via finalizar, não em lote)', () => {
+    const tarefas = [tarefa({ id: '1', participantes: [{ id: 'p1', usuario_id: 'u1', concluido: false, concluido_em: null, lida: false, usuario: null }] })];
+    expect(elegiveisParaConcluirEmLote(tarefas, new Set(['1']))).toEqual([]);
+  });
+});
+
+function participante(over: Partial<TarefaParticipante> = {}): TarefaParticipante {
+  return { id: over.id ?? 'p1', usuario_id: over.usuario_id ?? 'u1', concluido: over.concluido ?? false, concluido_em: over.concluido_em ?? null, lida: over.lida ?? false, usuario: over.usuario ?? null };
+}
+
+describe('progressoParticipantes', () => {
+  it('retorna null sem participantes (ou undefined — tarefa do modelo antigo)', () => {
+    expect(progressoParticipantes(undefined)).toBeNull();
+    expect(progressoParticipantes([])).toBeNull();
+  });
+  it('conta quantos concluíram', () => {
+    expect(progressoParticipantes([participante({ concluido: true }), participante({ concluido: false })])).toEqual({ feitos: 1, total: 2 });
+  });
+});
+
+describe('aguardandoAprovacao', () => {
+  it('false sem participantes', () => {
+    expect(aguardandoAprovacao({ status: 'pendente', participantes: [] })).toBe(false);
+  });
+  it('false com algum participante pendente', () => {
+    expect(aguardandoAprovacao({ status: 'pendente', participantes: [participante({ concluido: true }), participante({ concluido: false })] })).toBe(false);
+  });
+  it('true quando todos concluíram e ainda está pendente', () => {
+    expect(aguardandoAprovacao({ status: 'pendente', participantes: [participante({ concluido: true })] })).toBe(true);
+  });
+  it('false quando já foi finalizada', () => {
+    expect(aguardandoAprovacao({ status: 'concluida', participantes: [participante({ concluido: true })] })).toBe(false);
+  });
+});
+
+describe('souParticipante', () => {
+  it('true quando sou o atribuido_para (tarefa antiga)', () => {
+    expect(souParticipante({ atribuido_para: 'u1' }, 'u1')).toBe(true);
+  });
+  it('true quando estou na lista de participantes', () => {
+    expect(souParticipante({ atribuido_para: 'outro', participantes: [participante({ usuario_id: 'u1' })] }, 'u1')).toBe(true);
+  });
+  it('false quando não sou nenhum dos dois', () => {
+    expect(souParticipante({ atribuido_para: 'outro', participantes: [participante({ usuario_id: 'u2' })] }, 'u1')).toBe(false);
   });
 });

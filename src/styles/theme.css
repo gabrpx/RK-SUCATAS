@@ -250,3 +250,29 @@
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
 }
+
+/* Borda animada de "tarefa nova não lida" (Tarefas > TarefaCards, Fase 2).
+   Só box-shadow (sem filter/blur/transform) — leve o bastante pra ficar
+   ligada indefinidamente numa grade inteira de cards sem custar render, e
+   sem o corte visual que um `border` animado teria por cima do border real
+   do card (border já carrega o tom de "atrasada"/seleção). */
+@keyframes tarefa-pulso-nao-lida {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+.tarefa-nao-lida {
+  animation: tarefa-pulso-nao-lida 2s ease-in-out infinite;
+  will-change: box-shadow;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarefa-nao-lida {
+    animation: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}

@@ -25,12 +25,35 @@ export function VisualizadorFotos({ fotos, indice, onTrocar, onFechar, legenda =
   }, [indice, fotos.length, onTrocar, onFechar]);
 
   return (
-    <div className="fixed inset-0 z-[4000] bg-overlay-scrim-strong flex items-center justify-center" onClick={onFechar} role="presentation">
+    <div
+      // pointer-events-auto: o Radix Dialog põe pointer-events:none no
+      // <body> inteiro enquanto aberto (só a própria Content reativa
+      // localmente) — sem isso, esse overlay (outro portal direto em
+      // document.body) herda o none e o toque passa reto pro Overlay do
+      // Modal atrás dele, fechando ELE em vez desta foto (Fase 6, achado
+      // com elementsFromPoint no navegador — ver mesmo comentário em
+      // image-zoom.tsx).
+      className="fixed inset-0 z-[4000] bg-overlay-scrim-strong flex items-center justify-center pointer-events-auto"
+      onClick={(e) => {
+        e.stopPropagation();
+        onFechar();
+      }}
+      onTouchEnd={(e) => e.stopPropagation()}
+      role="presentation"
+      // Marca esse overlay pra quem escuta clique/toque "fora" de um
+      // painel/modal ancestral não tratar isso como "fora dele", mesmo o
+      // overlay ficando visualmente por cima.
+      data-photo-overlay=""
+    >
       <button
         type="button"
-        onClick={onFechar}
+        onClick={(e) => {
+          e.stopPropagation();
+          onFechar();
+        }}
+        onTouchEnd={(e) => e.stopPropagation()}
         aria-label="Fechar"
-        className="absolute top-4 right-4 size-10 rounded-full bg-overlay-control-bg text-white flex items-center justify-center hover:bg-white/20"
+        className="absolute top-4 right-4 size-12 rounded-full bg-overlay-control-bg text-white flex items-center justify-center hover:bg-white/20"
       >
         <X size={20} />
       </button>

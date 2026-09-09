@@ -18,6 +18,31 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.3.11',
+    data: '2026-09-09',
+    titulo: 'Tarefas em grupo, imagens anexadas e correções nos visualizadores de foto',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Tarefas agora podem ter vários responsáveis ao mesmo tempo: marque quantos quiser na criação (ou "Selecionar todos") e acompanhe uma barra de progresso mostrando quantos já concluíram a própria parte. Quando todos concluem, quem criou recebe um aviso e finaliza a tarefa com um botão.',
+      },
+      {
+        tipo: 'feature',
+        texto: 'Dá pra anexar imagens numa tarefa (na criação ou depois, editando), e ver a galeria de fotos ao abrir os detalhes.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Tarefa em grupo ainda não vista por você ganha uma borda animada, que some assim que você abre os detalhes dela.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'O botão de fechar (X) ao ampliar uma foto não respondia bem ao toque no celular — a área clicável ficou maior. Fechar a foto ampliada, quando aberta por cima de outra janela (ex: editar uma peça no Estoque), agora volta pra essa janela em vez de fechar tudo.',
+      },
+    ],
+  },
+  {
     versao: '1.3.10',
     data: '2026-09-03',
     titulo: 'Caixa passa a lançar o valor líquido das vendas do Mercado Livre',

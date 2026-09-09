@@ -84,14 +84,32 @@ export function ImageZoom({ src, alt, className, triggerClassName, referrerPolic
                   e.stopPropagation();
                   setAberto(false);
                 }}
+                onTouchEnd={(e) => e.stopPropagation()}
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 transition={transition}
-                className="fixed inset-0 z-[3000] flex items-center justify-center bg-overlay-scrim-strong p-4"
+                // Fase 6 — causa raiz real (achada com elementsFromPoint no
+                // navegador, não só lendo o código): o Radix Dialog põe
+                // `pointer-events: none` no <body> inteiro enquanto está
+                // aberto (só a própria Content dele reativa localmente) pra
+                // reforçar que só o modal recebe clique. Esse overlay, sendo
+                // outro portal direto em document.body (irmão do Dialog, não
+                // filho), HERDA esse none e vira invisível pra clique — o
+                // toque "passa reto" e cai no Overlay do Modal por trás,
+                // fechando ELE em vez do zoom. `pointer-events-auto`
+                // reativa explicitamente. z-[3500] (> --z-modal: 3000, ver
+                // theme.css) garante ficar por cima visualmente também.
+                className="fixed inset-0 z-[3500] flex items-center justify-center bg-overlay-scrim-strong p-4 pointer-events-auto"
                 role="dialog"
                 aria-modal="true"
                 aria-label={alt}
+                // Marca esse overlay pra quem escuta clique/toque "fora" de um
+                // painel ancestral (TarefaCards' useClickOutside, ou o
+                // onPointerDownOutside do Modal — Fase 6) saber que o clique
+                // aqui dentro NÃO é "fora" do painel/modal por trás, mesmo
+                // renderizando via portal em outro lugar do DOM.
+                data-photo-overlay=""
               >
                 <motion.img
                   layoutId={layoutId}
@@ -107,8 +125,9 @@ export function ImageZoom({ src, alt, className, triggerClassName, referrerPolic
                     e.stopPropagation();
                     setAberto(false);
                   }}
+                  onTouchEnd={(e) => e.stopPropagation()}
                   aria-label="Fechar"
-                  className="absolute right-4 top-4 flex size-11 items-center justify-center rounded-control border border-border-default bg-surface-card text-text-secondary hover:text-text-primary"
+                  className="absolute right-4 top-4 flex size-12 items-center justify-center rounded-control border border-border-default bg-surface-card text-text-secondary hover:text-text-primary"
                 >
                   <X size={18} />
                 </button>
