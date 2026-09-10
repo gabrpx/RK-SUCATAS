@@ -662,9 +662,9 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   function montarPayloadUnidade(body: any) {
     const payload: Record<string, any> = {};
-    // body.apelido/avaria_descricao === null (herança/campo limpo) precisa
+    // body.nome/avaria_descricao === null (herança/campo limpo) precisa
     // virar null no banco, não a string "null" — String(null) === 'null'.
-    if (body?.apelido !== undefined) payload.apelido = body.apelido === null ? null : String(body.apelido).trim() || null;
+    if (body?.nome !== undefined) payload.nome = body.nome === null ? null : String(body.nome).trim() || null;
     if (body?.avaria !== undefined) payload.avaria = Boolean(body.avaria);
     if (body?.avaria_descricao !== undefined) {
       payload.avaria_descricao = body.avaria_descricao === null ? null : String(body.avaria_descricao).trim() || null;
@@ -691,7 +691,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // coluna condicao_nota só existe depois que a migration_024 rodar.
   // Diferente de anexarUnidades/anexarCompatibilidades (tabela inteira
   // ausente, detectado só na leitura), aqui o risco é a ESCRITA falhar por
-  // causa de UM campo — e não é razoável deixar apelido/avaria/fotos/valor
+  // causa de UM campo — e não é razoável deixar nome/avaria/fotos/valor
   // pararem de salvar por isso. Tenta com o campo; se a coluna não existir
   // ainda, tenta de novo sem ele e avisa no log — mesmo espírito de "a aba
   // não pode quebrar por migration pendente", agora pra escrita.
@@ -814,6 +814,32 @@ export function estoqueRouter(supabase: SupabaseClient) {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Erro ao excluir unidade:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/:id/unidades/:unidadeId/mover', EDITAR, async (req, res) => {
+    try {
+      const { ficha_destino_id } = req.body;
+      if (!ficha_destino_id) return res.status(400).json({ success: false, error: 'ficha_destino_id obrigatório' });
+
+      const { error } = await supabase.rpc('mover_unidade_estoque', {
+        p_unidade_id: req.params.unidadeId,
+        p_ficha_destino_id: ficha_destino_id,
+      });
+
+      if (error) {
+        if (error.code === '42883' || error.code === 'PGRST202' || error.code === 'PGRST205') {
+          console.warn('⚠️ Função mover_unidade_estoque ausente — rode supabase/migration_060_mover_unidade_estoque.sql.');
+          return res.status(503).json({ success: false, error: 'Função de movimentação não disponível. Rode a migration_060.' });
+        }
+        if (error.code === 'P0001') return res.status(400).json({ success: false, error: error.message });
+        throw error;
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao mover unidade:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

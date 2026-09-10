@@ -149,7 +149,7 @@ interface ItemParaPublicarShopee {
 
 interface UnidadeParaPublicarShopee {
   id: string;
-  apelido: string | null;
+  nome: string | null;
   valor: number | null;
 }
 
@@ -209,10 +209,10 @@ export function montarPayloadPublicacaoShopee(
   }
 
   // A Shopee representa a variação como um único "tier" nomeado, com uma
-  // opção de texto livre por ficha (o apelido da ficha, ex: "Sem bico") — não
+  // opção de texto livre por ficha (o nome da ficha, ex: "Sem bico") — não
   // existe atributo estruturado equivalente a COLOR/SIZE pro caso de uma
   // sucata, então o tier nasce sempre com o nome genérico "Unidade".
-  const opcoes = variacoesValidas.map((v, indice) => unidadesPorId.get(v.unidadeId)!.apelido?.trim() || `Unidade ${indice + 1}`);
+  const opcoes = variacoesValidas.map((v, indice) => unidadesPorId.get(v.unidadeId)!.nome?.trim() || `Unidade ${indice + 1}`);
 
   return {
     usaVariacoes: true,
@@ -289,9 +289,9 @@ export async function publicarAnuncioShopee(supabase: SupabaseClient, accessToke
   let unidades: UnidadeParaPublicarShopee[] = [];
   let fotosDasUnidades: string[] = [];
   if (unidadeIds.length > 0) {
-    const { data, error } = await supabase.from('estoque_unidades').select('id, apelido, valor, fotos').in('id', unidadeIds);
+    const { data, error } = await supabase.from('estoque_unidades').select('id, nome, valor, fotos').in('id', unidadeIds);
     if (error) throw error;
-    unidades = (data ?? []).map((u: any) => ({ id: u.id, apelido: u.apelido ?? null, valor: u.valor != null ? Number(u.valor) : null }));
+    unidades = (data ?? []).map((u: any) => ({ id: u.id, nome: u.nome ?? null, valor: u.valor != null ? Number(u.valor) : null }));
     fotosDasUnidades = (data ?? []).flatMap((u: any) => u.fotos ?? []);
   }
 

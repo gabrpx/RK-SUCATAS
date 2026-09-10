@@ -17,8 +17,8 @@ export type NotaCadastro = 'com_nota' | 'sem_nota';
 export interface EstoqueUnidade {
   id: string;
   estoque_id: string;
-  /** Como a loja chama essa unidade: "A amassada", "Sem bico injetor" */
-  apelido: string | null;
+  /** Nome próprio desta unidade: "A amassada", "Sem bico injetor" */
+  nome: string | null;
   avaria: boolean;
   avaria_descricao: string | null;
   /** Fotos desta unidade — separadas de estoque.imagens, que mostra a peça boa */
@@ -40,7 +40,7 @@ export interface EstoqueUnidade {
   atualizado_em: string;
 }
 
-export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
+export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'nome' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
 
 // Família de peça (migration_056) — agrupa N fichas (Estoque) sob um nome
 // comum ("Tanque de Combustível CG 125"), cada ficha mantendo seu próprio
