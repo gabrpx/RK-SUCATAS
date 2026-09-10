@@ -17,7 +17,7 @@ vi.mock('./RegistrarUnidadeDialog', () => ({
 
 function mockUnidade(overrides: Partial<EstoqueUnidade> = {}): EstoqueUnidade {
   return {
-    id: 'u1', estoque_id: 'e1', apelido: null, avaria: false, avaria_descricao: null,
+    id: 'u1', estoque_id: 'e1', nome: null, avaria: false, avaria_descricao: null,
     fotos: [], valor: null, condicao_nota: null, vendida_em: null,
     criado_em: '2026-01-01T00:00:00Z', atualizado_em: '2026-01-01T00:00:00Z',
     ...overrides,

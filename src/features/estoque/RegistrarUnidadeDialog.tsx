@@ -1,7 +1,7 @@
 // Dialog empilhado sobre EstoqueFamiliaModal para registrar ou editar uma
 // unidade física. Fluxo de 2 passos:
 //   1. Escolher o grupo modelo/ano (fichas existentes da família) ou "Novo"
-//   2. Preencher foto(s), preço, condição, apelido, avaria
+//   2. Preencher foto(s), preço, condição, nome, avaria
 // Modo criação: localiza unidade em branco via GET /:id/unidades → PATCH nela.
 // Modo edição: unidadeParaEditar presente, salta passo 1 e PATCH direto.
 import { useState, useCallback } from 'react';
@@ -22,7 +22,7 @@ import { DialogContent, DialogCloseButton } from '../../components/animate-ui/co
 // Unidade "em branco" = criada automaticamente por sincronizar_unidades_estoque,
 // ainda sem dados próprios. É essa que diferenciamos via PATCH ao registrar.
 function isUnidadeEmBranco(u: {
-  apelido: string | null;
+  nome: string | null;
   avaria: boolean;
   avaria_descricao: string | null;
   fotos: string[];
@@ -31,7 +31,7 @@ function isUnidadeEmBranco(u: {
   vendida_em?: string | null;
 }): boolean {
   return (
-    u.apelido === null &&
+    u.nome === null &&
     !u.avaria &&
     u.avaria_descricao === null &&
     u.fotos.length === 0 &&
@@ -51,7 +51,7 @@ interface FormPasso2 {
   fotos: string[];
   preco: string;
   condicaoNota: string;
-  apelido: string;
+  nome: string;
   avaria: boolean;
   avariaDescricao: string;
 }
@@ -60,7 +60,7 @@ const FORM_INICIAL: FormPasso2 = {
   fotos: [],
   preco: '',
   condicaoNota: '',
-  apelido: '',
+  nome: '',
   avaria: false,
   avariaDescricao: '',
 };
@@ -70,7 +70,7 @@ function formDeEdicao(u: EstoqueUnidade): FormPasso2 {
     fotos: u.fotos,
     preco: u.valor !== null ? String(u.valor) : '',
     condicaoNota: u.condicao_nota !== null ? String(u.condicao_nota) : '',
-    apelido: u.apelido ?? '',
+    nome: u.nome ?? '',
     avaria: u.avaria,
     avariaDescricao: u.avaria_descricao ?? '',
   };
@@ -170,7 +170,7 @@ export function RegistrarUnidadeDialog({ linha, open, onClose, onRefresh, unidad
         fotos: form.fotos,
         valor: preco,
         condicao_nota: form.condicaoNota ? parseInt(form.condicaoNota) : null,
-        apelido: form.apelido.trim() || null,
+        nome: form.nome.trim() || null,
         avaria: form.avaria,
         avaria_descricao: form.avaria && form.avariaDescricao.trim() ? form.avariaDescricao.trim() : null,
       };
@@ -420,8 +420,8 @@ export function RegistrarUnidadeDialog({ linha, open, onClose, onRefresh, unidad
               <input
                 type="text"
                 placeholder="ex: A amassada, Com trinca..."
-                value={form.apelido}
-                onChange={(e) => setForm((f) => ({ ...f, apelido: e.target.value }))}
+                value={form.nome}
+                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
                 className="w-full px-3 py-2 text-sm rounded-control border border-border-default bg-surface-inset text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-accent/50"
               />
             </div>

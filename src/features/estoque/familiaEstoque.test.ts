@@ -16,7 +16,7 @@ function mockUnidade(overrides: Partial<EstoqueUnidade> = {}): EstoqueUnidade {
   return {
     id: 'u1',
     estoque_id: 'e1',
-    apelido: null,
+    nome: null,
     avaria: false,
     avaria_descricao: null,
     fotos: [],

@@ -70,7 +70,7 @@ function mockItem(overrides: Partial<Estoque> = {}): Estoque {
 
 function mockUnidade(overrides: Partial<EstoqueUnidade> = {}): EstoqueUnidade {
   return {
-    id: 'u1', estoque_id: 'e1', apelido: 'Boa', avaria: false, avaria_descricao: null,
+    id: 'u1', estoque_id: 'e1', nome: 'Boa', avaria: false, avaria_descricao: null,
     fotos: ['https://example.com/foto.jpg'], valor: 250, condicao_nota: 8, vendida_em: null,
     criado_em: '2026-01-01T00:00:00Z', atualizado_em: '2026-01-01T00:00:00Z',
     ...overrides,
@@ -117,9 +117,9 @@ describe('RegistrarUnidadeDialog', () => {
     expect(screen.getByText('Passo 1 — Modelo/ano')).toBeTruthy();
   });
 
-  it('edit mode: opens directly at step 2 with pre-filled apelido', () => {
+  it('edit mode: opens directly at step 2 with pre-filled nome', () => {
     const item = mockItem();
-    const unidade = mockUnidade({ apelido: 'Com trinca', valor: 250, condicao_nota: 8 });
+    const unidade = mockUnidade({ nome: 'Com trinca', valor: 250, condicao_nota: 8 });
     const linha: EstoqueLinha = { tipo: 'familia', id: 'familia-f1', familia, itens: [item] };
     render(<RegistrarUnidadeDialog linha={linha} open onClose={vi.fn()} onRefresh={vi.fn()} unidadeParaEditar={unidade} />);
     expect(screen.getByText('Passo 2 — Dados da unidade')).toBeTruthy();

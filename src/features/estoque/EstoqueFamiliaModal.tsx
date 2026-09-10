@@ -105,7 +105,7 @@ function UnidadeCard({
   const preco = valorDaUnidade(unidade, item.valor);
   const nota = condicaoNotaDaUnidade(unidade, item.condicao_nota);
   const vendida = !!unidade.vendida_em;
-  const apelido = unidade.apelido ?? 'Padrão';
+  const nome = unidade.nome ?? 'Padrão';
   const tempo = formatarTempoRelativoCurto(unidade.criado_em);
 
   return (
@@ -131,7 +131,7 @@ function UnidadeCard({
         {foto ? (
           <ImageZoom
             src={foto}
-            alt={apelido}
+            alt={nome}
             className="w-full h-full object-cover"
             triggerClassName="block w-full h-full"
             referrerPolicy="no-referrer"
@@ -146,7 +146,7 @@ function UnidadeCard({
         <div className="flex items-start justify-between gap-1">
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-sm font-medium text-text-primary">{apelido}</span>
+              <span className="text-sm font-medium text-text-primary">{nome}</span>
               <CondicaoNotaBadge nota={nota} />
               {isMelhorEstado && !vendida && (
                 <StatusBadge tom="positive" texto="Melhor estado" />
@@ -239,7 +239,7 @@ function GrupoModelo({
 
   const term = busca.toLowerCase();
   const unidadesFiltradas = todasUnidades.filter(({ unidade, item }) => {
-    if (term && !(unidade.apelido?.toLowerCase().includes(term) || item.codigo?.toLowerCase().includes(term))) return false;
+    if (term && !(unidade.nome?.toLowerCase().includes(term) || item.codigo?.toLowerCase().includes(term))) return false;
     if (statusFiltro === 'disponivel' && unidade.vendida_em) return false;
     if (statusFiltro === 'vendida' && !unidade.vendida_em) return false;
     if (avaFiltro === 'com' && !unidade.avaria) return false;
@@ -378,7 +378,7 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
   }, []);
 
   const handleExcluirUnidade = useCallback(async (u: EstoqueUnidade, item: Estoque) => {
-    if (!confirm(`Excluir unidade "${u.apelido ?? 'Padrão'}"? Esta ação não pode ser desfeita.`)) return;
+    if (!confirm(`Excluir unidade "${u.nome ?? 'Padrão'}"? Esta ação não pode ser desfeita.`)) return;
     const result = await estoqueApi.excluirUnidade(item.id, u.id);
     if (!result.success) {
       aviso.erro('Erro ao excluir unidade', { descricao: result.error });

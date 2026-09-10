@@ -599,7 +599,7 @@ export function EstoqueView({
                   <p className={cn('text-[12.5px] font-medium break-words line-clamp-2 min-w-0', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
                   <CondicaoNotaBadge nota={item.condicao_nota} />
                   {contarFichas(item) > 0 && (
-                    <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>
+                    <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, nome ou preço diferente)`}>
                       <StatusBadge tom="neutral" texto={`${contarFichas(item)} ${contarFichas(item) === 1 ? 'ficha' : 'fichas'}`} />
                     </span>
                   )}
@@ -870,7 +870,7 @@ export function EstoqueView({
             <p className={cn('text-sm font-medium break-words line-clamp-2 min-w-0', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
             <CondicaoNotaBadge nota={item.condicao_nota} />
             {contarFichas(item) > 0 && (
-              <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>
+              <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, nome ou preço diferente)`}>
                 <StatusBadge tom="neutral" texto={`${contarFichas(item)} ${contarFichas(item) === 1 ? 'ficha' : 'fichas'}`} />
               </span>
             )}

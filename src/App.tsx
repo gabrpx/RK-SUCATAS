@@ -464,7 +464,7 @@ function DetailModal({
 
           {/* Unidades físicas desta peça: mesma peça, uma linha só no
               estoque, mas cada unidade diferente (nota própria, avaria,
-              apelido ou preço) ganha ficha e foto. */}
+              nome ou preço) ganha ficha e foto. */}
           {estoque && <UnidadesEstoque item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
         </div>
       </Modal>

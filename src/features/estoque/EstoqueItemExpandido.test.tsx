@@ -42,13 +42,13 @@ describe('EstoqueItemExpandido', () => {
     expect(screen.getByText('Elétrica › CDI')).toBeTruthy();
   });
 
-  it('lista avarias das unidades marcadas, com apelido e descrição', () => {
+  it('lista avarias das unidades marcadas, com nome e descrição', () => {
     const item = criarItem({
       id: 'a',
       nome: 'TBI',
       unidades: [
-        { id: 'u1', estoque_id: 'a', apelido: 'A amassada', avaria: true, avaria_descricao: 'Bico torto', fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
-        { id: 'u2', estoque_id: 'a', apelido: null, avaria: false, avaria_descricao: null, fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
+        { id: 'u1', estoque_id: 'a', nome: 'A amassada', avaria: true, avaria_descricao: 'Bico torto', fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
+        { id: 'u2', estoque_id: 'a', nome: null, avaria: false, avaria_descricao: null, fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
       ],
     });
     render(<EstoqueItemExpandido item={item} categorias={[]} />);

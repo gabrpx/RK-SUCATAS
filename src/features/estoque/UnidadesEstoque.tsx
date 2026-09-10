@@ -5,7 +5,7 @@
 // caso, preço menor.
 //
 // Só existe ficha pra unidade que tem algo diferente. Peça com 5 unidades e
-// 2 fichadas (avaria, nota própria, apelido ou preço) tem 2 fichas; as
+// 2 fichadas (avaria, nota própria, nome ou preço) tem 2 fichas; as
 // outras três não precisam de registro nenhum.
 import { useEffect, useState } from 'react';
 import { AlertTriangle, ListChecks, Plus, Pencil, Trash2, Camera, Upload, X, Loader2 } from 'lucide-react';
@@ -21,7 +21,7 @@ import type { Estoque, EstoqueUnidade, EstoqueUnidadeInput } from './types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
-const FORM_VAZIO: EstoqueUnidadeInput = { apelido: '', condicao_nota: null, avaria: false, avaria_descricao: '', fotos: [], valor: null };
+const FORM_VAZIO: EstoqueUnidadeInput = { nome: '', condicao_nota: null, avaria: false, avaria_descricao: '', fotos: [], valor: null };
 
 interface UnidadesEstoqueProps {
   item: Estoque;
@@ -59,7 +59,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
 
   const abrirEdicao = (unidade: EstoqueUnidade) => {
     setForm({
-      apelido: unidade.apelido ?? '',
+      nome: unidade.nome ?? '',
       condicao_nota: unidade.condicao_nota ?? null,
       avaria: unidade.avaria,
       avaria_descricao: unidade.avaria_descricao ?? '',
@@ -94,7 +94,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
     setErro(null);
     const payload: EstoqueUnidadeInput = {
       ...form,
-      apelido: form.apelido?.trim() || null,
+      nome: form.nome?.trim() || null,
       // Descrição de defeito só faz sentido se a unidade está marcada com
       // avaria — evita deixar texto órfão numa ficha marcada como sem avaria.
       avaria_descricao: form.avaria ? form.avaria_descricao?.trim() || null : null,
@@ -177,7 +177,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
         <p className="text-xs text-text-faint">
           {readOnly
             ? 'Nenhuma unidade registrada — todas iguais, sem observação própria.'
-            : 'Nenhuma unidade registrada. Use "Registrar unidade" quando uma unidade for diferente das outras — nota de condição própria, avaria, apelido ou preço.'}
+            : 'Nenhuma unidade registrada. Use "Registrar unidade" quando uma unidade for diferente das outras — nota de condição própria, avaria, nome ou preço.'}
         </p>
       ) : (
         <ul className="space-y-3">
@@ -203,7 +203,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="text-sm font-medium text-text-primary">{unidade.apelido || `Unidade ${indice + 1}`}</span>
+                      <span className="text-sm font-medium text-text-primary">{unidade.nome || `Unidade ${indice + 1}`}</span>
                       {unidade.vendida_em && (
                         <span className="inline-flex items-center rounded-badge bg-surface-raised px-2 py-0.5 text-[11px] font-medium leading-none text-text-muted">
                           Vendida em {new Date(unidade.vendida_em).toLocaleDateString('pt-BR')}
@@ -290,8 +290,8 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
             <div>
               <label className={labelClass}>Como chamar essa unidade</label>
               <input
-                value={form.apelido ?? ''}
-                onChange={(e) => setForm((f) => ({ ...f, apelido: e.target.value }))}
+                value={form.nome ?? ''}
+                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
                 placeholder="Ex: A amassada, Sem bico injetor"
                 className={inputClass}
               />
@@ -430,7 +430,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
           }
         >
           <p className="text-sm text-text-secondary">
-            A ficha de <span className="text-text-primary font-medium">{excluindo.apelido || 'unidade sem apelido'}</span> e suas fotos serão apagadas. A
+            A ficha de <span className="text-text-primary font-medium">{excluindo.nome || 'unidade sem nome'}</span> e suas fotos serão apagadas. A
             quantidade em estoque não muda — se essa unidade foi vendida, registre a venda normalmente.
           </p>
         </Modal>
