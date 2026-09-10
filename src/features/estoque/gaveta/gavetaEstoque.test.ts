@@ -46,7 +46,9 @@ describe('faixaPrecoVariante', () => {
   });
 
   it('ignora unidades vendidas', () => {
-    const item = peca({ valor: 100, quantidade: 2, unidades: [un({ id: 'u1', valor: 80, vendida_em: '2026-01-01' }), un({ id: 'u2', valor: 120 })] });
+    // quantidade já exclui unidades vendidas (decrementado em registrar_venda);
+    // veja familiaEstoque.ts linhas 63, 74-76 que prova isso.
+    const item = peca({ valor: 100, quantidade: 1, unidades: [un({ id: 'u1', valor: 80, vendida_em: '2026-01-01' }), un({ id: 'u2', valor: 120 })] });
     expect(faixaPrecoVariante(item)).toEqual({ min: 120, max: 120 });
   });
 });

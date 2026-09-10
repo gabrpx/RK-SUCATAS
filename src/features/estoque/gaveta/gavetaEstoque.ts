@@ -31,10 +31,9 @@ export function agruparPorGaveta(itens: Estoque[], gavetas: Gaveta[]): LinhaGave
 // quando a unidade não tem valor próprio; peças sem ficha usam estoque.valor.
 function precosDisponiveis(item: Estoque): number[] {
   const precos: number[] = [];
-  const todasUnidades = item.unidades ?? [];
-  const disponiveis = todasUnidades.filter((u) => !u.vendida_em);
+  const disponiveis = (item.unidades ?? []).filter((u) => !u.vendida_em);
   for (const u of disponiveis) precos.push(valorDaUnidade(u, item.valor));
-  const semFicha = Math.max(0, (Number(item.quantidade) || 0) - todasUnidades.length);
+  const semFicha = Math.max(0, (Number(item.quantidade) || 0) - disponiveis.length);
   for (let i = 0; i < semFicha; i++) precos.push(Number(item.valor) || 0);
   return precos;
 }
