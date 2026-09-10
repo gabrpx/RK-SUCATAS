@@ -28,6 +28,7 @@ import {
   Pencil,
   Network,
   Send,
+  Merge,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
@@ -78,6 +79,9 @@ import { MotoOrgChart } from '../motos/MotoOrgChart';
 import { sumWithDescendants } from '../../utils/tree';
 import type { TreeDropdownNode } from '../../components/TreeDropdown';
 import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
+import { agruparLinhasTabela, filtrarLinhaTexto, emEstoqueFamilia, faixaPrecoFamilia, type EstoqueLinha } from './familiaEstoque';
+import { EstoqueFamiliaModal } from './EstoqueFamiliaModal';
+import { EstoqueFundirFamiliasModal } from './EstoqueFundirFamiliasModal';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -221,6 +225,8 @@ export function EstoqueView({
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
+  const [familiaModalLinha, setFamiliaModalLinha] = useState<EstoqueLinha | null>(null);
+  const [fundirModalAberto, setFundirModalAberto] = useState(false);
   const [formData, setFormData] = useState<EstoqueInput>(EMPTY_FORM);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingImagem, setIsUploadingImagem] = useState(false);
@@ -492,19 +498,10 @@ export function EstoqueView({
     return detectarDuplicatas(formData.nome, items, { ignorarId: editingItem?.id ?? null, categoriaId: formData.categoria_id });
   }, [isModalOpen, formData.nome, formData.categoria_id, items, editingItem]);
 
-  const filtered = useMemo(() => {
-    const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
+  // Filtros não-textuais aplicados primeiro, antes de agrupar — categoria,
+  // modelo, estoque baixo, sem preço, avaria, sem foto, sem link ML.
+  const filteredNonSearch = useMemo(() => {
     let result = items.filter((item) => {
-      const matchesSearch =
-        terms.length === 0 ||
-        terms.every(
-          (t) =>
-            item.nome.toLowerCase().includes(t) ||
-            item.codigo?.toLowerCase().includes(t) ||
-            item.categoria?.nome?.toLowerCase().includes(t) ||
-            item.modelo_moto?.nome?.toLowerCase().includes(t) ||
-            item.modelos_compativeis?.some((m) => m.nome.toLowerCase().includes(t))
-        );
       const matchesCategoria =
         categoriaFiltro === 'Todas' || (!!item.categoria_id && getDescendantIds(categoriaFiltro, categorias).includes(item.categoria_id));
       const matchesModelo =
@@ -516,41 +513,78 @@ export function EstoqueView({
       const matchesAvaria = !soComAvaria || temAvaria(item);
       const matchesSemFoto = !soSemFoto || (item.imagens?.length ?? 0) === 0;
       const matchesSemLinkMl = !soSemLinkMl || (item.links_ml?.length ?? 0) === 0;
-      return (
-        matchesSearch && matchesCategoria && matchesModelo && matchesEstoqueBaixo && matchesSemPreco && matchesAvaria && matchesSemFoto && matchesSemLinkMl
-      );
+      return matchesCategoria && matchesModelo && matchesEstoqueBaixo && matchesSemPreco && matchesAvaria && matchesSemFoto && matchesSemLinkMl;
     });
-
-    // Ordem padrão (sem coluna clicada): mais recente primeiro. A ordenação
-    // por coluna em si (Peça/Valor/Qtd) fica a cargo do TanStack Table
-    // (`sorting` state), que só entra em ação quando o usuário clica um
-    // cabeçalho — com `sorting` vazio ele preserva esta ordem-base.
     result = [...result].sort((a, b) => new Date(b.criado_em).getTime() - new Date(a.criado_em).getTime());
     return result;
-  }, [items, debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, soSemLinkMl, categorias, modelos]);
+  }, [items, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, soSemLinkMl, categorias, modelos]);
+
+  // `filtered` preserva a lista plana de Estoque[] para CSV, sugestões de
+  // busca e métricas do header — sem agrupar por família.
+  const filtered = useMemo(() => {
+    const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
+    if (terms.length === 0) return filteredNonSearch;
+    return filteredNonSearch.filter((item) =>
+      terms.every(
+        (t) =>
+          item.nome.toLowerCase().includes(t) ||
+          item.codigo?.toLowerCase().includes(t) ||
+          item.categoria?.nome?.toLowerCase().includes(t) ||
+          item.modelo_moto?.nome?.toLowerCase().includes(t) ||
+          item.modelos_compativeis?.some((m) => m.nome.toLowerCase().includes(t))
+      )
+    );
+  }, [filteredNonSearch, debouncedSearch]);
+
+  // Linhas da tabela agrupadas por família. A busca textual filtra pela linha
+  // inteira — buscar "Titan 99" acha a família mesmo que só uma ficha-filha
+  // contenha esse texto (ver filtrarLinhaTexto em familiaEstoque.ts).
+  const filteredLinhas = useMemo(() => {
+    const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
+    const linhas = agruparLinhasTabela(filteredNonSearch);
+    if (terms.length === 0) return linhas;
+    return linhas.filter((linha) => filtrarLinhaTexto(linha, terms));
+  }, [filteredNonSearch, debouncedSearch]);
 
   useEffect(
     () => setPagination((p) => ({ ...p, pageIndex: 0 })),
     [debouncedSearch, categoriaFiltro, modeloFiltro, soEstoqueBaixo, soSemPreco, soComAvaria, soSemFoto, soSemLinkMl, sorting]
   );
 
-  const columns = useMemo<ColumnDef<Estoque>[]>(
+  const columns = useMemo<ColumnDef<EstoqueLinha>[]>(
     () => [
       {
         id: 'peca',
-        accessorFn: (item) => item.nome,
+        accessorFn: (linha) => linha.tipo === 'familia' ? linha.familia.nome : linha.item.nome,
         header: ({ column }) => <SortableHead column={column} label="Peça" />,
         cell: ({ row }) => {
-          const item = row.original;
+          const linha = row.original;
+          if (linha.tipo === 'familia') {
+            const { familia, itens } = linha;
+            const qtdTotal = itens.reduce((s, i) => s + (Number(i.quantidade) || 0), 0);
+            const foto = itens.flatMap((i) => i.imagens).filter(Boolean)[0];
+            return (
+              <div className="flex items-center gap-2.5">
+                <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
+                  {foto ? <img src={foto} alt={familia.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Package size={16} className="text-text-faint" />}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <p className={cn('text-[12.5px] font-medium break-words line-clamp-2 min-w-0', qtdTotal === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{familia.nome}</p>
+                    <StatusBadge tom="neutral" texto={`${itens.length} ${itens.length === 1 ? 'peça' : 'peças'}`} />
+                  </div>
+                  <p className="text-[11px] text-text-faint truncate">{itens[0]?.categoria?.nome || '-'}</p>
+                </div>
+              </div>
+            );
+          }
+          const item = linha.item;
           const aberto = expandidos.has(item.id);
           return (
             <div className="flex items-center gap-2.5">
               <button
                 type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  toggleExpandido(item.id);
-                }}
+                onClick={(e) => { e.stopPropagation(); toggleExpandido(item.id); }}
                 aria-label={aberto ? 'Recolher detalhes' : 'Ver mais detalhes'}
                 aria-expanded={aberto}
                 className="shrink-0 p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised"
@@ -558,41 +592,25 @@ export function EstoqueView({
                 <ChevronDown size={13} className={cn('transition-transform', aberto ? 'rotate-0' : '-rotate-90')} />
               </button>
               <div className="size-9 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
-                {item.imagens[0] ? (
-                  <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-                ) : (
-                  <Package size={16} className="text-text-faint" />
-                )}
+                {item.imagens[0] ? <img src={item.imagens[0]} alt={item.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" /> : <Package size={16} className="text-text-faint" />}
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <p className={cn('text-[12.5px] font-medium break-words line-clamp-2 min-w-0', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
                   <CondicaoNotaBadge nota={item.condicao_nota} />
-                  {/* Contagem de fichas é informativa (nem toda ficha é avaria) —
-                      o aviso de avaria fica separado, no badge seguinte. */}
                   {contarFichas(item) > 0 && (
                     <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, apelido ou preço diferente)`}>
                       <StatusBadge tom="neutral" texto={`${contarFichas(item)} ${contarFichas(item) === 1 ? 'ficha' : 'fichas'}`} />
                     </span>
                   )}
-                  {/* Unidade avariada não vira linha separada — o aviso vive aqui,
-                      e o detalhe mostra qual unidade é. */}
                   {temAvaria(item) && (
-                    <span
-                      title={`${contarAvarias(item)} unidade(s) com avaria`}
-                      className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
-                    >
+                    <span title={`${contarAvarias(item)} unidade(s) com avaria`} className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning">
                       <AlertTriangle size={9} />
                       {contarAvarias(item)}
                     </span>
                   )}
-                  {/* Persistente — antes só existia um aviso pontual no momento da
-                      venda, sem jeito de saber disso navegando a lista. */}
                   {(item.unidades_incompletas?.length ?? 0) > 0 && (
-                    <span
-                      title={`Falta vender: ${item.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}`}
-                      className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning"
-                    >
+                    <span title={`Falta vender: ${item.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}`} className="shrink-0 inline-flex items-center gap-1 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[10px] font-medium leading-none text-warning">
                       {item.unidades_incompletas.length} incompleta{item.unidades_incompletas.length === 1 ? '' : 's'}
                     </span>
                   )}
@@ -600,9 +618,7 @@ export function EstoqueView({
                 {isEstoqueBaixo(item) ? (
                   <p className="text-[11px] text-warning font-medium">Último em estoque</p>
                 ) : (
-                  <p className="text-[11px] text-text-faint truncate">
-                    {item.codigo} · {item.categoria?.nome || '-'}
-                  </p>
+                  <p className="text-[11px] text-text-faint truncate">{item.codigo} · {item.categoria?.nome || '-'}</p>
                 )}
               </div>
             </div>
@@ -614,7 +630,16 @@ export function EstoqueView({
         header: 'Moto',
         enableSorting: false,
         cell: ({ row }) => {
-          const item = row.original;
+          const linha = row.original;
+          if (linha.tipo === 'familia') {
+            const modelosUnicos = new Set(linha.itens.map((i) => i.modelo_moto_id).filter(Boolean));
+            const texto =
+              modelosUnicos.size === 0 ? 'Universal'
+              : modelosUnicos.size === 1 ? (linha.itens[0]?.modelo_moto?.nome ?? 'Universal')
+              : `${modelosUnicos.size} modelos`;
+            return <StatusBadge tom="neutral" texto={texto} />;
+          }
+          const item = linha.item;
           return <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />;
         },
       },
@@ -623,7 +648,9 @@ export function EstoqueView({
         header: 'Anúncios',
         enableSorting: false,
         cell: ({ row }) => {
-          const item = row.original;
+          const linha = row.original;
+          if (linha.tipo === 'familia') return null;
+          const item = linha.item;
           return (
             <div className="flex items-center justify-center gap-1">
               <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
@@ -635,10 +662,22 @@ export function EstoqueView({
       },
       {
         id: 'valor',
-        accessorFn: (item) => item.valor,
+        accessorFn: (linha) => linha.tipo === 'familia' ? (faixaPrecoFamilia(linha.itens)?.min ?? 0) : linha.item.valor,
         header: ({ column }) => <SortableHead column={column} label="Valor" align="right" />,
         cell: ({ row }) => {
-          const item = row.original;
+          const linha = row.original;
+          if (linha.tipo === 'familia') {
+            const faixa = faixaPrecoFamilia(linha.itens);
+            if (!faixa) return null;
+            return (
+              <div className="flex flex-col items-end">
+                <span className="text-sm font-medium text-text-primary tabular-nums">
+                  {faixa.min === faixa.max ? formatCurrency(faixa.min) : `${formatCurrency(faixa.min)} – ${formatCurrency(faixa.max)}`}
+                </span>
+              </div>
+            );
+          }
+          const item = linha.item;
           return item.valor > 0 ? (
             <div className="flex flex-col items-end">
               {item.promocao_ativa ? (
@@ -650,8 +689,6 @@ export function EstoqueView({
               ) : (
                 <span className="text-sm font-medium text-text-primary tabular-nums">{formatCurrency(item.valor)}</span>
               )}
-              {/* Alguma unidade tem preço próprio: mostra o total real da linha,
-                  senão o valor daria a entender preço × quantidade. */}
               {(item.unidades ?? []).some((u) => u.valor !== null && u.valor !== undefined) && (
                 <span className="text-[10px] text-accent-soft-fg tabular-nums">total {formatCurrency(valorTotalItem(item))}</span>
               )}
@@ -659,14 +696,7 @@ export function EstoqueView({
           ) : readOnly ? (
             <span className="text-sm font-medium text-danger">{formatCurrency(item.valor)}</span>
           ) : (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                openEditModal(item);
-              }}
-              className="text-sm font-medium text-danger underline underline-offset-2 hover:opacity-80"
-            >
+            <button type="button" onClick={(e) => { e.stopPropagation(); openEditModal(item); }} className="text-sm font-medium text-danger underline underline-offset-2 hover:opacity-80">
               Definir
             </button>
           );
@@ -674,31 +704,32 @@ export function EstoqueView({
       },
       {
         id: 'quantidade',
-        accessorFn: (item) => item.quantidade,
+        accessorFn: (linha) => linha.tipo === 'familia' ? emEstoqueFamilia(linha.itens) : linha.item.quantidade,
         header: ({ column }) => <SortableHead column={column} label="Qtd" align="right" />,
         cell: ({ row }) => {
-          const item = row.original;
-          const tom = item.quantidade === 0 ? 'text-danger' : item.quantidade <= 2 ? 'text-warning' : 'text-positive';
-          const dot = item.quantidade === 0 ? 'bg-danger' : item.quantidade <= 2 ? 'bg-warning' : 'bg-positive';
+          const linha = row.original;
+          const qtd = linha.tipo === 'familia' ? emEstoqueFamilia(linha.itens) : linha.item.quantidade;
+          const tom = qtd === 0 ? 'text-danger' : qtd <= 2 ? 'text-warning' : 'text-positive';
+          const dot = qtd === 0 ? 'bg-danger' : qtd <= 2 ? 'bg-warning' : 'bg-positive';
           return (
             <span className={cn('inline-flex items-center gap-1.5 text-sm font-medium tabular-nums', tom)}>
               <span className={cn('size-1.5 rounded-full shrink-0', dot)} />
-              {item.quantidade}
+              {qtd}
             </span>
           );
         },
       },
     ],
-    [readOnly, abrirAnunciosMl, openEditModal, expandidos, toggleExpandido]
+    [readOnly, abrirAnunciosMl, abrirAnunciosShopee, openEditModal, expandidos, toggleExpandido]
   );
 
-  const table = useReactTable<Estoque>({
-    data: loading && items.length === 0 ? [] : filtered,
+  const table = useReactTable<EstoqueLinha>({
+    data: loading && items.length === 0 ? [] : filteredLinhas,
     columns,
     state: { sorting, pagination },
     onSortingChange: setSorting,
     onPaginationChange: setPagination,
-    getRowId: (item) => item.id,
+    getRowId: (linha) => linha.id,
     getCoreRowModel: getCoreRowModel(),
     getSortedRowModel: getSortedRowModel(),
     getPaginationRowModel: getPaginationRowModel(),
@@ -952,6 +983,13 @@ export function EstoqueView({
                 <FileSpreadsheet size={14} />
                 <span className="hidden lg:inline">Importar</span>
               </button>
+              <button
+                onClick={() => setFundirModalAberto(true)}
+                title="Sugestões de famílias a partir de peças similares"
+                className="h-11 md:h-10 px-3 rounded-control border border-border-default text-text-secondary text-[11px] font-medium flex items-center gap-1.5 hover:bg-surface-raised"
+              >
+                <Merge size={14} /> Fundir
+              </button>
               <button onClick={openCreateModal} className="h-11 md:h-10 px-5 rounded-control bg-accent text-white text-[11px] font-semibold uppercase tracking-wider shadow-sm flex items-center gap-2 hover:opacity-90">
                 <Plus size={16} /> Nova peça
               </button>
@@ -1128,13 +1166,15 @@ export function EstoqueView({
                         </TableRow>
                       ) : (
                         table.getRowModel().rows.map((row) => {
-                          const item = row.original;
-                          const emAlerta = isEstoqueBaixo(item);
-                          const aberto = expandidos.has(item.id);
+                          const linha = row.original;
+                          const emAlerta = linha.tipo === 'familia'
+                            ? emEstoqueFamilia(linha.itens) === 0
+                            : isEstoqueBaixo(linha.item);
+                          const aberto = linha.tipo === 'avulso' && expandidos.has(linha.item.id);
                           return (
                             <Fragment key={row.id}>
                               <TableRow
-                                onClick={() => onSelectItem(item)}
+                                onClick={() => setFamiliaModalLinha(linha)}
                                 className={cn(
                                   'border-b border-border-subtle last:border-b-0 cursor-pointer',
                                   emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent'
@@ -1146,13 +1186,9 @@ export function EstoqueView({
                                   </TableCell>
                                 ))}
                               </TableRow>
-                              {/* Painel expandido: precisa ser uma <TableRow> própria,
-                                  separada — um motion.div (raiz do Expandable) não pode
-                                  ficar entre duas <tr> dentro do <tbody> (HTML inválido).
-                                  Por isso aqui a altura é animada à mão, não via Expandable
-                                  (que o card mobile abaixo usa de verdade). */}
+                              {/* Painel expandido: só para fichas avulsas (famílias abrem o modal) */}
                               <AnimatePresence>
-                                {aberto && (
+                                {aberto && linha.tipo === 'avulso' && (
                                   <TableRow key={`${row.id}-expandido`} className="hover:bg-transparent border-b border-border-subtle">
                                     <TableCell colSpan={columns.length} className="p-0">
                                       <motion.div
@@ -1162,7 +1198,7 @@ export function EstoqueView({
                                         transition={transicaoExpansao}
                                         className="overflow-hidden"
                                       >
-                                        <EstoqueItemExpandido item={item} categorias={categorias} />
+                                        <EstoqueItemExpandido item={linha.item} categorias={categorias} />
                                       </motion.div>
                                     </TableCell>
                                   </TableRow>
@@ -1182,41 +1218,58 @@ export function EstoqueView({
                   ) : (
                     <div className="divide-y divide-border-subtle">
                       {table.getRowModel().rows.map((row) => {
-                        const item = row.original;
-                        const emAlerta = isEstoqueBaixo(item);
+                        const linha = row.original;
+                        const item = linha.tipo === 'avulso' ? linha.item : null;
+                        const emAlerta = linha.tipo === 'familia'
+                          ? emEstoqueFamilia(linha.itens) === 0
+                          : isEstoqueBaixo(linha.item);
                         return (
-                          // Card mobile é 1 <div> só (sem a restrição de <tr>/<tbody> da
-                          // tabela desktop acima), então aqui usamos o Expandable de
-                          // verdade (Cult UI) em vez de controlar a altura à mão.
                           <Expandable
                             key={row.id}
-                            expanded={expandidos.has(item.id)}
-                            onToggle={() => toggleExpandido(item.id)}
-                            onClick={() => onSelectItem(item)}
+                            expanded={item ? expandidos.has(item.id) : false}
+                            onToggle={item ? () => toggleExpandido(item.id) : undefined}
+                            onClick={() => setFamiliaModalLinha(linha)}
                             className={cn('border-l-2 px-3 py-3 cursor-pointer', emAlerta ? 'border-l-warning' : 'border-l-transparent')}
                           >
                             <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">{renderMobileCard(item)}</div>
-                              {/* ExpandableTrigger já seta seu próprio onClick (toggleExpand) no
-                                  mesmo <div> — um onClickCapture aqui pararia a propagação ANTES
-                                  desse onClick próprio disparar (mesmo nó, capture roda antes do
-                                  bubble). Por isso o stopPropagation mora num wrapper por fora:
-                                  toggleExpand dispara primeiro (o alvo real do clique), só depois,
-                                  ao borbulhar, o wrapper impede que chegue no onClick do card. */}
-                              <div className="shrink-0 -mr-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
-                                <ExpandableTrigger
-                                  aria-label={expandidos.has(item.id) ? 'Recolher detalhes' : 'Ver mais detalhes'}
-                                  className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised"
-                                >
-                                  <ChevronDown size={14} className={cn('transition-transform', expandidos.has(item.id) ? 'rotate-0' : '-rotate-90')} />
-                                </ExpandableTrigger>
-                              </div>
+                              <div className="flex-1 min-w-0">{item ? renderMobileCard(item) : linha.tipo === 'familia' ? (
+                                // Card de família mobile
+                                <div className="flex items-start gap-3">
+                                  <div className="size-11 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
+                                    {linha.itens.flatMap((i) => i.imagens)[0]
+                                      ? <img src={linha.itens.flatMap((i) => i.imagens)[0]} alt={linha.familia.nome} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                                      : <Package size={18} className="text-text-faint" />}
+                                  </div>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1.5">
+                                      <p className="text-sm font-medium break-words line-clamp-2 min-w-0 text-text-primary">{linha.familia.nome}</p>
+                                      <StatusBadge tom="neutral" texto={`${linha.itens.length} peças`} />
+                                    </div>
+                                    <p className="text-[11px] text-text-faint truncate mt-0.5">{linha.itens[0]?.categoria?.nome || '-'}</p>
+                                    <div className="mt-1.5">
+                                      <StatusBadge tom="neutral" texto={`${emEstoqueFamilia(linha.itens)} em estoque`} />
+                                    </div>
+                                  </div>
+                                </div>
+                              ) : null}</div>
+                              {item && (
+                                <div className="shrink-0 -mr-1 mt-0.5" onClick={(e) => e.stopPropagation()}>
+                                  <ExpandableTrigger
+                                    aria-label={expandidos.has(item.id) ? 'Recolher detalhes' : 'Ver mais detalhes'}
+                                    className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised"
+                                  >
+                                    <ChevronDown size={14} className={cn('transition-transform', expandidos.has(item.id) ? 'rotate-0' : '-rotate-90')} />
+                                  </ExpandableTrigger>
+                                </div>
+                              )}
                             </div>
+                            {item && (
                             <ExpandableContent keepMounted={false} preset="fade">
                               <div className="mt-3">
                                 <EstoqueItemExpandido item={item} categorias={categorias} />
                               </div>
                             </ExpandableContent>
+                            )}
                           </Expandable>
                         );
                       })}
@@ -1804,6 +1857,24 @@ export function EstoqueView({
           onFechar={() => setPublicarShopeeAberto(false)}
           item={editingItem}
           onPublicado={(links) => setEditingItem((prev) => (prev ? { ...prev, links_shopee: links } : prev))}
+        />
+      )}
+
+      {familiaModalLinha && (
+        <EstoqueFamiliaModal
+          linha={familiaModalLinha}
+          open={!!familiaModalLinha}
+          onClose={() => setFamiliaModalLinha(null)}
+          onRefresh={refreshData}
+        />
+      )}
+
+      {fundirModalAberto && (
+        <EstoqueFundirFamiliasModal
+          itensAvulsos={items.filter((i) => !i.familia_id && i.ativo)}
+          open={fundirModalAberto}
+          onClose={() => setFundirModalAberto(false)}
+          onRefresh={() => { setFundirModalAberto(false); refreshData(); }}
         />
       )}
     </div>

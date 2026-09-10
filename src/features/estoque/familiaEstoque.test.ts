@@ -7,8 +7,10 @@ import {
   variacoesFamilia,
   comAvariaFamilia,
   valorEmEstoqueFamilia,
+  agruparLinhasTabela,
+  filtrarLinhaTexto,
 } from './familiaEstoque';
-import type { Estoque, EstoqueUnidade } from './types';
+import type { Estoque, EstoqueFamilia, EstoqueUnidade } from './types';
 
 function mockUnidade(overrides: Partial<EstoqueUnidade> = {}): EstoqueUnidade {
   return {
@@ -168,5 +170,118 @@ describe('valorEmEstoqueFamilia', () => {
     const a = mockItem({ id: 'a', valor: 100, quantidade: 1, unidades: [] });
     const b = mockItem({ id: 'b', valor: 200, quantidade: 1, unidades: [] });
     expect(valorEmEstoqueFamilia([a, b])).toBe(300);
+  });
+});
+
+const mockFamilia = (overrides: Partial<EstoqueFamilia> = {}): EstoqueFamilia => ({
+  id: 'f1',
+  nome: 'Tanque de Combustível CG 150',
+  categoria_id: null,
+  descricao: null,
+  imagem_url: null,
+  criado_em: '2026-01-01T00:00:00Z',
+  atualizado_em: '2026-01-01T00:00:00Z',
+  ...overrides,
+});
+
+describe('agruparLinhasTabela', () => {
+  it('returns a familia line for items sharing familia_id', () => {
+    const f = mockFamilia();
+    const a = mockItem({ id: 'a', familia_id: 'f1', familia: f });
+    const b = mockItem({ id: 'b', familia_id: 'f1', familia: f });
+    const c = mockItem({ id: 'c', familia_id: 'f1', familia: f });
+    const linhas = agruparLinhasTabela([a, b, c]);
+    expect(linhas).toHaveLength(1);
+    const linha = linhas[0];
+    expect(linha.tipo).toBe('familia');
+    if (linha.tipo === 'familia') {
+      expect(linha.itens).toHaveLength(3);
+      expect(linha.familia.id).toBe('f1');
+    }
+  });
+
+  it('returns an avulso line for item without familia_id', () => {
+    const item = mockItem({ familia_id: null, familia: null });
+    const linhas = agruparLinhasTabela([item]);
+    expect(linhas).toHaveLength(1);
+    expect(linhas[0].tipo).toBe('avulso');
+    if (linhas[0].tipo === 'avulso') expect(linhas[0].item.id).toBe('e1');
+  });
+
+  it('mixes familia and avulso lines preserving input order', () => {
+    const f = mockFamilia();
+    const filho = mockItem({ id: 'filho', familia_id: 'f1', familia: f });
+    const avulso = mockItem({ id: 'avulso', familia_id: null, familia: null });
+    const linhas = agruparLinhasTabela([filho, avulso]);
+    expect(linhas).toHaveLength(2);
+    expect(linhas.map((l) => l.tipo)).toEqual(['familia', 'avulso']);
+  });
+
+  it('groups items with the same familia_id into one line', () => {
+    const f = mockFamilia();
+    const carburada = mockItem({ id: 'carb', familia_id: 'f1', familia: f,
+      modelo_moto_id: 'm1',
+      modelo_moto: { id: 'm1', nome: 'CG 150 Carburada', parent_id: null, ordem: 0, ano: '2004', criado_em: '' } as any });
+    const injetada = mockItem({ id: 'inj', familia_id: 'f1', familia: f,
+      modelo_moto_id: 'm2',
+      modelo_moto: { id: 'm2', nome: 'CG 150 Injetada', parent_id: null, ordem: 0, ano: '2013', criado_em: '' } as any });
+    const avulso = mockItem({ id: 'av', familia_id: null, familia: null, nome: 'Freio' });
+    const linhas = agruparLinhasTabela([carburada, injetada, avulso]);
+    expect(linhas).toHaveLength(2);
+    const familiaLinha = linhas[0];
+    expect(familiaLinha.tipo).toBe('familia');
+    if (familiaLinha.tipo === 'familia') expect(familiaLinha.itens).toHaveLength(2);
+  });
+
+  it('assigns stable ids for deduplication', () => {
+    const f = mockFamilia();
+    const a = mockItem({ id: 'a', familia_id: 'f1', familia: f });
+    const b = mockItem({ id: 'b', familia_id: 'f1', familia: f });
+    const linhas = agruparLinhasTabela([a, b]);
+    expect(linhas[0].id).toBe('familia-f1');
+  });
+});
+
+describe('filtrarLinhaTexto', () => {
+  it('matches avulso line by item name', () => {
+    const linha = { tipo: 'avulso' as const, id: 'a', item: mockItem({ nome: 'Tanque de Combustível' }) };
+    expect(filtrarLinhaTexto(linha, ['tanque'])).toBe(true);
+    expect(filtrarLinhaTexto(linha, ['freio'])).toBe(false);
+  });
+
+  it('returns true when terms is empty', () => {
+    const linha = { tipo: 'avulso' as const, id: 'a', item: mockItem() };
+    expect(filtrarLinhaTexto(linha, [])).toBe(true);
+  });
+
+  it('matches familia line when ANY child item matches', () => {
+    const f = mockFamilia();
+    const carb = mockItem({ id: 'c', familia_id: 'f1', familia: f,
+      nome: 'Tanque CG 150 Carburada',
+      modelo_moto: { id: 'm1', nome: 'CG 150 Carburada', parent_id: null, ordem: 0, ano: '2004', criado_em: '' } as any });
+    const titan = mockItem({ id: 't', familia_id: 'f1', familia: f,
+      nome: 'Tanque CG 150 Titan',
+      modelo_moto: { id: 'm2', nome: 'CG 150 Titan 99', parent_id: null, ordem: 0, ano: '1999', criado_em: '' } as any });
+    const linha = { tipo: 'familia' as const, id: 'familia-f1', familia: f, itens: [carb, titan] };
+    expect(filtrarLinhaTexto(linha, ['titan'])).toBe(true);
+    expect(filtrarLinhaTexto(linha, ['freio'])).toBe(false);
+  });
+
+  it('requires ALL terms to match (across any child)', () => {
+    const f = mockFamilia();
+    const item = mockItem({ id: 'x', familia_id: 'f1', familia: f,
+      nome: 'Tanque CG 150',
+      modelo_moto: { id: 'm1', nome: 'CG 150 Carburada', parent_id: null, ordem: 0, ano: '2004', criado_em: '' } as any });
+    const linha = { tipo: 'familia' as const, id: 'familia-f1', familia: f, itens: [item] };
+    expect(filtrarLinhaTexto(linha, ['tanque', 'cg'])).toBe(true);
+    expect(filtrarLinhaTexto(linha, ['tanque', 'freio'])).toBe(false);
+  });
+
+  it('matches by modelo_moto name in familia child', () => {
+    const f = mockFamilia({ nome: 'Tanque' });
+    const item = mockItem({ id: 'x', familia_id: 'f1', familia: f, nome: 'Tanque',
+      modelo_moto: { id: 'm1', nome: 'Titan 99', parent_id: null, ordem: 0, ano: '1999', criado_em: '' } as any });
+    const linha = { tipo: 'familia' as const, id: 'familia-f1', familia: f, itens: [item] };
+    expect(filtrarLinhaTexto(linha, ['titan'])).toBe(true);
   });
 });

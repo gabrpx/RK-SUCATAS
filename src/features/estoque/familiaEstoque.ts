@@ -89,3 +89,57 @@ export function comAvariaFamilia(itens: Estoque[]): number {
 export function valorEmEstoqueFamilia(itens: Estoque[]): number {
   return valorTotalEstoque(itens);
 }
+
+// Linha da tabela de Estoque: representa uma família (N fichas-filhas com o
+// mesmo familia_id) ou uma ficha avulsa (sem familia_id). O campo `id` é
+// estável e serve como chave de TanStack Table.
+export type EstoqueLinha =
+  | { tipo: 'familia'; id: string; familia: import('./types').EstoqueFamilia; itens: Estoque[] }
+  | { tipo: 'avulso'; id: string; item: Estoque };
+
+// Agrupa a lista plana de fichas em linhas da tabela — sem filtrar nem ordenar.
+// Fichas sem familia_id viram linhas avulsas; fichas com o mesmo familia_id
+// são compactadas em uma única linha-família (na primeira vez que o id aparece).
+export function agruparLinhasTabela(items: Estoque[]): EstoqueLinha[] {
+  const familias = new Map<string, EstoqueLinha & { tipo: 'familia' }>();
+  const linhas: EstoqueLinha[] = [];
+
+  for (const item of items) {
+    if (item.familia_id && item.familia) {
+      const existente = familias.get(item.familia_id);
+      if (existente) {
+        existente.itens.push(item);
+      } else {
+        const linha: EstoqueLinha & { tipo: 'familia' } = {
+          tipo: 'familia',
+          id: `familia-${item.familia_id}`,
+          familia: item.familia,
+          itens: [item],
+        };
+        familias.set(item.familia_id, linha);
+        linhas.push(linha);
+      }
+    } else {
+      linhas.push({ tipo: 'avulso', id: item.id, item });
+    }
+  }
+
+  return linhas;
+}
+
+// Filtra uma linha da tabela pelo texto de busca. Linha-família bate quando
+// QUALQUER ficha-filha contém todos os termos (nome/código/categoria/modelo).
+export function filtrarLinhaTexto(linha: EstoqueLinha, terms: string[]): boolean {
+  if (terms.length === 0) return true;
+  const itens = linha.tipo === 'familia' ? linha.itens : [linha.item];
+  return terms.every((t) =>
+    itens.some(
+      (item) =>
+        item.nome.toLowerCase().includes(t) ||
+        item.codigo?.toLowerCase().includes(t) ||
+        item.categoria?.nome?.toLowerCase().includes(t) ||
+        item.modelo_moto?.nome?.toLowerCase().includes(t) ||
+        item.modelos_compativeis?.some((m) => m.nome.toLowerCase().includes(t))
+    )
+  );
+}

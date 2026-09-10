@@ -564,6 +564,13 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     contentRef.current?.scrollTo(0, 0);
   }, [activeTab]);
 
+  // "Venda rápida" do modal de família navega aqui via evento customizado
+  useEffect(() => {
+    const handler = () => setActiveTab('vendas');
+    window.addEventListener('rk:ir-para-vendas', handler);
+    return () => window.removeEventListener('rk:ir-para-vendas', handler);
+  }, []);
+
   const itemActions = useMemo(() => {
     if (!selectedDetailItem) return { edit: undefined, delete: undefined };
 
