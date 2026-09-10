@@ -21,6 +21,8 @@ export interface EstoqueUnidade {
   nome: string | null;
   avaria: boolean;
   avaria_descricao: string | null;
+  /** Descrição geral própria da unidade (diferente de avaria_descricao, que é só sobre o defeito). */
+  descricao: string | null;
   /** Fotos desta unidade — separadas de estoque.imagens, que mostra a peça boa */
   fotos: string[];
   /** null = vale o preço normal da peça; preenchido = preço só desta unidade */
@@ -40,7 +42,7 @@ export interface EstoqueUnidade {
   atualizado_em: string;
 }
 
-export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'nome' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
+export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'nome' | 'avaria' | 'avaria_descricao' | 'descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
 
 // Família de peça (migration_056) — agrupa N fichas (Estoque) sob um nome
 // comum ("Tanque de Combustível CG 125"), cada ficha mantendo seu próprio

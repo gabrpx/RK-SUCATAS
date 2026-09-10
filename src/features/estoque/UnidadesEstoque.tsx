@@ -21,7 +21,7 @@ import type { Estoque, EstoqueUnidade, EstoqueUnidadeInput } from './types';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
-const FORM_VAZIO: EstoqueUnidadeInput = { nome: '', condicao_nota: null, avaria: false, avaria_descricao: '', fotos: [], valor: null };
+const FORM_VAZIO: EstoqueUnidadeInput = { nome: '', condicao_nota: null, avaria: false, avaria_descricao: '', descricao: '', fotos: [], valor: null };
 
 interface UnidadesEstoqueProps {
   item: Estoque;
@@ -63,6 +63,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
       condicao_nota: unidade.condicao_nota ?? null,
       avaria: unidade.avaria,
       avaria_descricao: unidade.avaria_descricao ?? '',
+      descricao: unidade.descricao ?? '',
       fotos: unidade.fotos ?? [],
       valor: unidade.valor,
     });
@@ -98,6 +99,7 @@ export function UnidadesEstoque({ item, readOnly = false, onAlterado }: Unidades
       // Descrição de defeito só faz sentido se a unidade está marcada com
       // avaria — evita deixar texto órfão numa ficha marcada como sem avaria.
       avaria_descricao: form.avaria ? form.avaria_descricao?.trim() || null : null,
+      descricao: form.descricao?.trim() || null,
     };
     try {
       if (editando === 'nova') {

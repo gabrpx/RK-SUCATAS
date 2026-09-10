@@ -47,8 +47,8 @@ describe('EstoqueItemExpandido', () => {
       id: 'a',
       nome: 'TBI',
       unidades: [
-        { id: 'u1', estoque_id: 'a', nome: 'A amassada', avaria: true, avaria_descricao: 'Bico torto', fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
-        { id: 'u2', estoque_id: 'a', nome: null, avaria: false, avaria_descricao: null, fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
+        { id: 'u1', estoque_id: 'a', nome: 'A amassada', avaria: true, avaria_descricao: 'Bico torto', descricao: null, fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
+        { id: 'u2', estoque_id: 'a', nome: null, avaria: false, avaria_descricao: null, descricao: null, fotos: [], valor: null, condicao_nota: null, criado_em: '', atualizado_em: '' },
       ],
     });
     render(<EstoqueItemExpandido item={item} categorias={[]} />);

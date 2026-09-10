@@ -669,6 +669,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
     if (body?.avaria_descricao !== undefined) {
       payload.avaria_descricao = body.avaria_descricao === null ? null : String(body.avaria_descricao).trim() || null;
     }
+    if (body?.descricao !== undefined) payload.descricao = body.descricao === null ? null : String(body.descricao).trim() || null;
     if (body?.fotos !== undefined) {
       payload.fotos = Array.isArray(body.fotos) ? body.fotos.map((f: any) => String(f)).filter(Boolean) : [];
     }
