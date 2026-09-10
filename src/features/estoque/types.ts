@@ -60,6 +60,20 @@ export interface EstoqueFamilia {
 
 export type EstoqueFamiliaInput = Pick<EstoqueFamilia, 'nome' | 'categoria_id' | 'descricao' | 'imagem_url'>;
 
+// Gaveta (migration_061) — agrupamento manual de peças semelhantes. Substitui
+// famílias. Peça sem gaveta (estoque.gaveta_id null) aparece em "itens não agrupados".
+export interface Gaveta {
+  id: string;
+  nome: string;
+  categoria_id: string | null;
+  categoria?: Categoria | null; // join opcional do backend
+  icone: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export type GavetaInput = Pick<Gaveta, 'nome' | 'categoria_id' | 'icone'>;
+
 // Snapshot de visitas/perguntas/vendas/saúde de um anúncio publicado pelo
 // sistema — ver supabase/migration_043_mercadolivre_publicacao.sql. Escrito
 // em background pelo scheduler (Fase 7) e lido junto com o link, pro modal
@@ -283,6 +297,9 @@ export interface Estoque {
   // Populado pelo backend via join em estoque_familias (anexarFamilias).
   // Ausente em payloads antigos em cache — sempre tratar como opcional.
   familia?: EstoqueFamilia | null;
+  // Gaveta (migration_061) — organização nova. null = item não agrupado.
+  gaveta_id?: string | null;
+  gaveta?: Gaveta | null; // join opcional do backend
   condicao: CondicaoPeca;
   // Estado físico da peça (1 = ruim, 10 = perfeita) — independente de
   // `condicao` acima, que é sobre origem (original/paralela), não estado.
