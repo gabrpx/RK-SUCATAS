@@ -37,7 +37,7 @@ const ANUNCIAR_SHOPEE = exigirPermissao('estoque.anunciar_shopee');
 // desnecessário — mas isso significa que coluna nova de `categorias` usada
 // pelo frontend precisa entrar aqui à mão. Ver estoque.test.ts.
 export const SELECT_COM_JOINS =
-  '*, categoria:categorias(id, nome, mercadolivre_categoria_id_padrao), modelo_moto:modelos_moto!estoque_modelo_moto_id_fkey(id, nome, ano)';
+  '*, categoria:categorias(id, nome, mercadolivre_categoria_id_padrao), modelo_moto:modelos_moto!estoque_modelo_moto_id_fkey(id, nome, ano), gaveta:gavetas(id, nome, icone)';
 
 // As fichas de unidade (migration_014) vêm numa consulta separada, e não como
 // join no select acima, de propósito: enquanto a migração não roda em
@@ -470,6 +470,7 @@ export function montarPayload(body: any) {
   // null explícito desvincula a peça da família (ver rodapé "Excluir" da
   // spec — desvincular em vez de apagar quando há venda no histórico).
   if (payload.familia_id !== undefined) payload.familia_id = payload.familia_id || null;
+  if (body?.gaveta_id !== undefined) payload.gaveta_id = body.gaveta_id || null;
   return payload;
 }
 

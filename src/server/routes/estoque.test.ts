@@ -25,6 +25,30 @@ describe('SELECT_COM_JOINS (família)', () => {
   });
 });
 
+describe('SELECT_COM_JOINS (gaveta)', () => {
+  it('traz o join da gaveta com id, nome e icone', () => {
+    expect(SELECT_COM_JOINS).toMatch(/gaveta:gavetas\([^)]*id[^)]*nome[^)]*icone[^)]*\)/);
+  });
+});
+
+describe('montarPayload (gaveta_id)', () => {
+  it('inclui gaveta_id no payload quando enviado (mover peça pra gaveta)', () => {
+    expect(montarPayload({ gaveta_id: 'g1' })).toEqual({ gaveta_id: 'g1' });
+  });
+
+  it('normaliza null explícito pra null (soltar a peça da gaveta)', () => {
+    expect(montarPayload({ gaveta_id: null })).toEqual({ gaveta_id: null });
+  });
+
+  it('normaliza string vazia pra null', () => {
+    expect(montarPayload({ gaveta_id: '' })).toEqual({ gaveta_id: null });
+  });
+
+  it('omite gaveta_id quando o campo não veio no body', () => {
+    expect(montarPayload({ nome: 'Tanque' })).not.toHaveProperty('gaveta_id');
+  });
+});
+
 describe('montarPayload (familia_id)', () => {
   it('mantém um uuid válido de familia_id', () => {
     expect(montarPayload({ familia_id: 'f1' })).toEqual({ familia_id: 'f1' });
