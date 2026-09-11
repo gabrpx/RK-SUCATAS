@@ -12,6 +12,7 @@ import { useAtualizarGaveta, useGavetas, useMoverPecaGaveta } from './hooks';
 import { statsGaveta } from './gavetaEstoque';
 import { VarianteCard } from './VarianteCard';
 import { AdicionarPecasGaveta } from './AdicionarPecasGaveta';
+import { EditarGavetaDialog } from './EditarGavetaDialog';
 import { GavetaDetailSkeleton } from './GavetaSkeletons';
 import { OfflineBar } from './EstadosGaveta';
 
@@ -31,6 +32,7 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
   const [editandoTitulo, setEditandoTitulo] = useState(false);
   const [tituloRascunho, setTituloRascunho] = useState('');
   const [adicionando, setAdicionando] = useState(false);
+  const [editandoGaveta, setEditandoGaveta] = useState(false);
 
   const itens = useMemo(
     () => estoque.filter((i) => i.ativo && i.gaveta_id === gavetaId),
@@ -130,7 +132,10 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
         </p>
       </div>
 
-      <div className="flex justify-end">
+      <div className="flex justify-between items-center gap-2">
+        <Button type="button" variant="ghost" size="sm" onClick={() => setEditandoGaveta(true)}>
+          <Pencil size={14} /> Editar gaveta
+        </Button>
         <Button type="button" variant="accent-cta" size="sm" onClick={() => setAdicionando(true)}>
           <Plus size={14} /> Adicionar peças
         </Button>
@@ -167,6 +172,21 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
           gavetaId={gaveta.id}
           gavetaNome={gaveta.nome}
           onFechar={() => setAdicionando(false)}
+        />
+      )}
+
+      {editandoGaveta && (
+        <EditarGavetaDialog
+          gaveta={gaveta}
+          qtdPecas={itens.length}
+          onFechar={() => setEditandoGaveta(false)}
+          onAtualizada={(atualizada) =>
+            setGavetas((prev) => prev.map((g) => (g.id === atualizada.id ? atualizada : g)))
+          }
+          onExcluida={() => {
+            setEditandoGaveta(false);
+            onVoltar?.();
+          }}
         />
       )}
     </div>

@@ -447,6 +447,16 @@ const CAMPOS_EDITAVEIS = [
   'familia_id',
 ] as const;
 
+// `novo` (migration_063) precisa ser booleano estrito — nada de "true"/1/"on"
+// coados como truthy. Retorna mensagem de erro se o corpo mandar outra coisa;
+// null/undefined são aceitos (campo simplesmente não muda). Chamado por
+// POST e pelo update compartilhado antes de montar o payload.
+export function validarNovo(body: any): string | null {
+  if (body?.novo === undefined || body?.novo === null) return null;
+  if (typeof body.novo !== 'boolean') return 'Campo "novo" deve ser booleano (true/false)';
+  return null;
+}
+
 export function montarPayload(body: any) {
   const payload: Record<string, any> = {};
   for (const campo of CAMPOS_EDITAVEIS) {
@@ -471,6 +481,10 @@ export function montarPayload(body: any) {
   // spec — desvincular em vez de apagar quando há venda no histórico).
   if (payload.familia_id !== undefined) payload.familia_id = payload.familia_id || null;
   if (body?.gaveta_id !== undefined) payload.gaveta_id = body.gaveta_id || null;
+  // `novo` (migration_063): coluna NOT NULL, então só entra no payload quando é
+  // booleano de verdade — validarNovo() já barrou não-booleanos com 400 antes
+  // daqui, e null/undefined significam "não mexer" (nunca gravar null).
+  if (typeof body?.novo === 'boolean') payload.novo = body.novo;
   return payload;
 }
 
@@ -530,6 +544,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (!['original', 'paralela'].includes(req.body?.condicao)) {
         return res.status(400).json({ success: false, error: 'Condição deve ser "original" ou "paralela"' });
       }
+      const erroNovo = validarNovo(req.body);
+      if (erroNovo) return res.status(400).json({ success: false, error: erroNovo });
 
       const payload: Record<string, any> = { ...montarPayload(req.body), nome };
       const erroNota = await validarNotaCadastro(supabase, payload.categoria_id ?? null, payload.nota_cadastro);
@@ -563,6 +579,8 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // usada pelas fotos de unidade, ver montarPayloadUnidade abaixo).
   const atualizarItem = async (req: any, res: any) => {
     try {
+      const erroNovo = validarNovo(req.body);
+      if (erroNovo) return res.status(400).json({ success: false, error: erroNovo });
       const payload = montarPayload(req.body);
       let imagensRemovidas: string[] = [];
 

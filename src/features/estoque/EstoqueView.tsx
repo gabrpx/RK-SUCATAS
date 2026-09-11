@@ -104,6 +104,7 @@ const EMPTY_FORM: EstoqueInput = {
   categoria_id: '',
   modelo_moto_id: '',
   condicao: 'original',
+  novo: false,
   condicao_nota: null,
   nota_cadastro: null,
   ano: '',
@@ -306,6 +307,7 @@ export function EstoqueView({
       categoria_id: item.categoria_id || '',
       modelo_moto_id: item.modelo_moto_id || '',
       condicao: item.condicao,
+      novo: item.novo ?? false,
       condicao_nota: item.condicao_nota,
       nota_cadastro: item.nota_cadastro,
       ano: item.ano || '',
@@ -1550,6 +1552,32 @@ export function EstoqueView({
                       )}
                     >
                       Paralela
+                    </button>
+                  </div>
+                </div>
+
+                <div>
+                  <label className={labelClass}>Estado de uso</label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, novo: false })}
+                      className={cn(
+                        'py-3 rounded-control font-semibold text-xs uppercase tracking-widest border transition-all',
+                        !formData.novo ? 'bg-surface-inset border-border-default text-text-primary' : 'border-border-default text-text-muted'
+                      )}
+                    >
+                      Usada
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFormData({ ...formData, novo: true })}
+                      className={cn(
+                        'py-3 rounded-control font-semibold text-xs uppercase tracking-widest border transition-all',
+                        formData.novo ? 'bg-accent-alt-bg border-accent-alt text-accent-alt' : 'border-border-default text-text-muted'
+                      )}
+                    >
+                      Nova
                     </button>
                   </div>
                 </div>

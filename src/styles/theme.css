@@ -62,6 +62,17 @@
   --danger: #f09595;
   --danger-bg: #501313;
 
+  /* Info — roxo. Significado fixo: peça PARALELA (não-original) no badge do
+     VarianteCard. Retoma o matiz roxo que era da marca antiga (#5b3df0),
+     agora livre de significado desde que o accent virou laranja. */
+  --info: #b3a4f5;
+  --info-bg: #241a4a;
+
+  /* Accent-alt — azul. Significado fixo: peça NOVA (não-usada) no badge do
+     VarianteCard. Azul distinto do laranja de marca e do roxo de "paralela". */
+  --accent-alt: #7fb2f0;
+  --accent-alt-bg: #0c2947;
+
   /* Overlays — fundo escurecido atrás de modais/lightbox e controles
      translúcidos sobre foto. Opacidade fixa faz parte do valor, não é
      aplicada via modificador Tailwind (/70 etc) no componente. Os controles
@@ -191,6 +202,12 @@
 
   --color-danger: var(--danger);
   --color-danger-bg: var(--danger-bg);
+
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
+  --color-accent-alt: var(--accent-alt);
+  --color-accent-alt-bg: var(--accent-alt-bg);
 
   --color-overlay-scrim: var(--overlay-scrim);
   --color-overlay-scrim-strong: var(--overlay-scrim-strong);

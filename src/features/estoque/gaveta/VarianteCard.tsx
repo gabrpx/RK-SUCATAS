@@ -3,18 +3,12 @@
 // canais de anúncio vinculados) + faixa de ano editável inline + faixa de
 // preço COMPUTADA (nunca fixa) + lista de UnidadeRow + "+ Unidade" inline.
 //
-// Badges: o mockup pede 5 cores semânticas (Original laranja / Paralela
-// roxo / Novo azul / ML amarelo / Shopee rosa), mas o design system do
-// projeto (src/styles/theme.css) só define accent/positive/warning/danger —
-// não existe token roxo/azul/rosa, e inventar hex é proibido pelo CLAUDE.md.
-// Mapeamento com os tokens que já existem: Original = accent (já é a cor de
-// condicao='original' em EstoqueView), ML = warning (mesmo tom já usado pra
-// avaria/alerta em EstoqueView/EstoqueFamiliaModal), Shopee = danger (a
-// própria descrição do mockup permite "rosa/danger"). Paralela vira um
-// contorno neutro (sem cor semântica) em vez de "roubar" positive/danger de
-// outro significado. Não existe campo "novo/usado" no tipo Estoque — o badge
-// "Novo" do mockup não tem dado real por trás, então foi omitido aqui (ver
-// task-11-report.md).
+// Badges (5 cores semânticas do mockup, todas com token próprio a partir da
+// Fase 2A): Original = accent (laranja, já é a cor de condicao='original' em
+// EstoqueView), Paralela = info (roxo — token retomado do antigo roxo de
+// marca, ver theme.css), Novo = accent-alt (azul), ML = warning (amarelo),
+// Shopee = danger (rosa). "Novo" agora tem dado real: estoque.novo
+// (migration_063), booleano manual — some quando false/ausente.
 import { useState } from 'react';
 import { Package, Pencil, Plus, X } from 'lucide-react';
 import { cn } from '../../../utils';
@@ -116,11 +110,16 @@ export function VarianteCard({ item }: VarianteCardProps) {
             <span
               className={cn(
                 'shrink-0 rounded-badge px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
-                item.condicao === 'original' ? 'bg-accent-soft-bg text-accent-soft-fg' : 'border border-border-default text-text-muted'
+                item.condicao === 'original' ? 'bg-accent-soft-bg text-accent-soft-fg' : 'bg-info-bg text-info'
               )}
             >
               {item.condicao === 'original' ? 'Original' : 'Paralela'}
             </span>
+            {item.novo === true && (
+              <span className="shrink-0 rounded-badge bg-accent-alt-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-alt">
+                Novo
+              </span>
+            )}
             {(item.links_ml?.length ?? 0) > 0 && (
               <span className="shrink-0 rounded-badge bg-warning-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-warning">
                 ML

@@ -301,6 +301,11 @@ export interface Estoque {
   gaveta_id?: string | null;
   gaveta?: Gaveta | null; // join opcional do backend
   condicao: CondicaoPeca;
+  // Peça nova (não-usada) — migration_063. Marcação manual pelo dono, alimenta
+  // o badge "Novo" do VarianteCard. Opcional pra tolerar payload antigo em
+  // cache / backend sem a coluna (degrada como false). Independente de
+  // `condicao` (origem: original/paralela) e de `condicao_nota` (estado 1-10).
+  novo?: boolean;
   // Estado físico da peça (1 = ruim, 10 = perfeita) — independente de
   // `condicao` acima, que é sobre origem (original/paralela), não estado.
   // null = não avaliada.
@@ -355,6 +360,7 @@ export type EstoqueInput = Pick<
   | 'categoria_id'
   | 'modelo_moto_id'
   | 'condicao'
+  | 'novo'
   | 'condicao_nota'
   | 'nota_cadastro'
   | 'ano'

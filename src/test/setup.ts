@@ -37,3 +37,23 @@ if (typeof globalThis.IntersectionObserver === 'undefined') {
   globalThis.IntersectionObserver =
     IntersectionObserverPolyfill as unknown as typeof IntersectionObserver;
 }
+
+// matchMedia: o efeito Magnetic do animate-ui (usado por Button/Dialog) checa
+// `window.matchMedia('(pointer:coarse)')` pra desligar no touch, e o jsdom não
+// implementa. Responde "não é touch" (matches:false). Guardado por `window`,
+// então é inócuo no environment node (onde window não existe). Antes cada
+// teste de componente com Button repetia esse mock inline (ver button.test.tsx).
+if (typeof window !== 'undefined' && typeof window.matchMedia !== 'function') {
+  window.matchMedia = ((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener() {},
+    removeListener() {},
+    addEventListener() {},
+    removeEventListener() {},
+    dispatchEvent() {
+      return false;
+    },
+  })) as unknown as typeof window.matchMedia;
+}

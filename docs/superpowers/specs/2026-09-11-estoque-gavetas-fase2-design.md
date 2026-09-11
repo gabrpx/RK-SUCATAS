@@ -5,6 +5,23 @@
 **Pré-requisitos de schema:** `migration_061_gavetas` já rodada em produção.
 **Continuação de:** [Fase 1](2026-09-10-estoque-gavetas-fase1-design.md)
 
+## Status de execução (2026-09-11) — Fase 2A implementada
+
+Entregue como **Fase 2A**: edição/exclusão de gaveta (Frente 1) + campo "Novo"
+e badges com cor própria (Frente 2). **Vendas por unidade e busca ficam
+pendentes** (não faziam parte desta fase). Ajustes vs. o desenho abaixo:
+
+- A migration do campo `novo` é **`063_estoque_novo`**, não 062 — as
+  numerações 060 e 061 têm colisão dupla em produção, documentada em
+  [migrations-colisao-060-061.md](../../migrations-colisao-060-061.md). As
+  históricas **não** foram renomeadas. SQL escrito mas **não executado**.
+- Tokens novos concretos: `--info`/`--info-bg` (roxo, retoma o antigo roxo de
+  marca) e `--accent-alt`/`--accent-alt-bg` (azul).
+- `GavetaDetail` já renomeava a gaveta inline; a Frente 1 somou o dialog de
+  edição (categoria/ícone + nome) e a exclusão com confirmação.
+- `novo` validado como **booleano estrito** no backend (`validarNovo`) e só
+  gravado quando é booleano de verdade (coluna NOT NULL).
+
 ## Objetivo
 
 Fechar duas lacunas deixadas na Fase 1, ambas de UI/dados sobre a fundação
