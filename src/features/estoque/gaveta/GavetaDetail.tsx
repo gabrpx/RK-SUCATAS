@@ -4,12 +4,14 @@
 // Task 13 — recebe o id da gaveta e a navegação de volta como props, sem
 // assumir router nenhum (mesmo padrão de GavetaList).
 import { useMemo, useState } from 'react';
-import { ChevronLeft, Pencil, X } from 'lucide-react';
+import { ChevronLeft, Pencil, Plus, X } from 'lucide-react';
 import { useData } from '../../../context/DataContext';
 import { cn } from '../../../utils';
-import { useAtualizarGaveta, useGavetas } from './hooks';
+import { Button } from '../../../components/ui/button';
+import { useAtualizarGaveta, useGavetas, useMoverPecaGaveta } from './hooks';
 import { statsGaveta } from './gavetaEstoque';
 import { VarianteCard } from './VarianteCard';
+import { AdicionarPecasGaveta } from './AdicionarPecasGaveta';
 import { GavetaDetailSkeleton } from './GavetaSkeletons';
 import { OfflineBar } from './EstadosGaveta';
 
@@ -22,11 +24,13 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
   const { estoque } = useData();
   const { gavetas, setGavetas, loading: carregandoGavetas } = useGavetas();
   const { atualizar, loading: salvandoTitulo } = useAtualizarGaveta();
+  const { mover: soltarPeca } = useMoverPecaGaveta();
 
   const gaveta = gavetas.find((g) => g.id === gavetaId) ?? null;
 
   const [editandoTitulo, setEditandoTitulo] = useState(false);
   const [tituloRascunho, setTituloRascunho] = useState('');
+  const [adicionando, setAdicionando] = useState(false);
 
   const itens = useMemo(
     () => estoque.filter((i) => i.ativo && i.gaveta_id === gavetaId),
@@ -126,16 +130,44 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
         </p>
       </div>
 
+      <div className="flex justify-end">
+        <Button type="button" variant="accent-cta" size="sm" onClick={() => setAdicionando(true)}>
+          <Plus size={14} /> Adicionar peças
+        </Button>
+      </div>
+
       {itens.length === 0 ? (
-        <p className="text-sm text-text-muted text-center py-10">Nenhuma peça nesta gaveta ainda.</p>
+        <div className="flex flex-col items-center gap-3 py-10">
+          <p className="text-sm text-text-muted text-center">Nenhuma peça nesta gaveta ainda.</p>
+          <Button type="button" variant="outline" size="sm" onClick={() => setAdicionando(true)}>
+            <Plus size={14} /> Adicionar peças
+          </Button>
+        </div>
       ) : (
         <div className="flex flex-col gap-3">
           {itens.map((item) => (
-            <div key={item.id}>
+            <div key={item.id} className="space-y-1">
               <VarianteCard item={item} />
+              <div className="flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => soltarPeca(item.id, null)}
+                  className="text-xs text-text-faint hover:text-danger px-2 py-1 min-h-11 sm:min-h-0"
+                >
+                  Soltar da gaveta
+                </button>
+              </div>
             </div>
           ))}
         </div>
+      )}
+
+      {adicionando && (
+        <AdicionarPecasGaveta
+          gavetaId={gaveta.id}
+          gavetaNome={gaveta.nome}
+          onFechar={() => setAdicionando(false)}
+        />
       )}
     </div>
   );

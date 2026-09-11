@@ -36,6 +36,10 @@ export const PATCH_NOTES: PatchNoteEntrada[] = [
         tipo: 'melhoria',
         texto: 'Itens ainda sem gaveta cadastrada aparecem em "Itens não agrupados", sem bloquear o uso da tela.',
       },
+      {
+        tipo: 'melhoria',
+        texto: 'Agora dá pra mover peças pra dentro de uma gaveta e soltá-las de volta, direto na tela de detalhe.',
+      },
     ],
   },
   {
