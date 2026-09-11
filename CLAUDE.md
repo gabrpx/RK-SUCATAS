@@ -1,5 +1,7 @@
 # RK Sucatas — Sistema de Gestao de Estoque
 
+> **Governanca:** [AGENTS.md](AGENTS.md) e a regra geral prevalente para qualquer agente. Contexto tecnico em [docs/AI_CONTEXT.md](docs/AI_CONTEXT.md); processo entre agentes e handoff em [docs/AI_WORKFLOW.md](docs/AI_WORKFLOW.md). Este arquivo cobre apenas produto/design e a operacao do Claude Code como executor; em conflito, vale o AGENTS.md.
+
 ## Documentacao de implementacao
 
 O plano completo de implementacao esta em [docs/IMPLEMENTATION.md](docs/IMPLEMENTATION.md).
@@ -42,3 +44,40 @@ Use animate-ui para componentes base (button, input, dialog, checkbox, skeleton,
 ## Mobile-first
 
 Design mobile-first 375px com layout desktop a partir de 768px (sidebar + content area).
+
+## Operacao do Claude Code
+
+Claude Code e o executor principal. As regras gerais (papeis, continuidade, alteracoes, banco, git, conclusao e relatorio) estao em [AGENTS.md](AGENTS.md) e nao se repetem aqui. Esta secao cobre so o especifico de implementacao/design.
+
+### Fluxo por tarefa
+
+1. Confirme objetivo, escopo, criterios de aceitacao e testes esperados.
+2. Rode `git status --short --branch`; leia AGENTS.md e docs/AI_CONTEXT.md.
+3. Investigue com `rg`: tipos, rotas, APIs, componentes, hooks e implementacoes semelhantes antes de criar algo novo.
+4. Para tarefas significativas, apresente plano curto.
+5. Implemente o escopo aprovado, valide, revise o diff e entregue o relatorio final do AGENTS.md.
+
+### Comandos
+
+```powershell
+npm run dev      # tsx server.ts (frontend + backend; backend nao recarrega sozinho, reinicie ao mudar rotas/services)
+npm run lint     # tsc --noEmit
+npm run build    # vite build + bundle do server
+npm test         # vitest run
+npm run cap-sync # build + cap sync android
+```
+
+### Mapa do projeto
+
+- UI por dominio: `src/features/<dominio>/`; UI compartilhada: `src/components/`.
+- Estado global: `src/context/DataContext.tsx`.
+- HTTP: `src/utils/api.ts`; API Express: `server.ts` e `src/server/routes/`.
+- Supabase: somente backend (`services/supabaseClient.ts`); SQL: `supabase/schema.sql` e `supabase/migration_*.sql`.
+
+### Regras especificas de implementacao
+
+- Mantenha UI responsiva e reutilize componentes, tokens e padroes existentes; nao crie linguagem visual nova sem escopo aprovado.
+- Use animate-ui para componentes base e os tokens do design system; nunca hex direto.
+- Nao coloque regras transacionais de estoque, vendas ou caixa na UI — a atomicidade pertence as RPCs Supabase (`registrar_venda`, `cancelar_venda`).
+- Antes de alterar `App.tsx`, `DataContext.tsx`, `server.ts`, autenticacao ou SQL, descreva impacto; mudancas criticas exigem revisao do Codex (ver AGENTS.md).
+- Toda implementacao termina com item novo em `src/features/patchnotes/data.ts`.
