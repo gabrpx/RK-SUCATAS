@@ -5,7 +5,7 @@
 // aparece dimmed com um badge tracejado "SEM GRUPO" no lugar do ícone normal.
 import { ChevronRight, Fuel, Lightbulb, Zap, Puzzle, Package } from 'lucide-react';
 import { cn } from '../../../utils';
-import { faixaPrecoGaveta, statsGaveta, faixaPrecoVariante } from './gavetaEstoque';
+import { statsGaveta, faixaPrecoVariante } from './gavetaEstoque';
 import type { Estoque, Gaveta } from '../types';
 
 const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);

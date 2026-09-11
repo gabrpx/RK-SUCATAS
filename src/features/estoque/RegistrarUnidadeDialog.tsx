@@ -414,9 +414,9 @@ export function RegistrarUnidadeDialog({ linha, open, onClose, onRefresh, unidad
               </select>
             </div>
 
-            {/* Apelido */}
+            {/* Nome */}
             <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Apelido (opcional)</label>
+              <label className="block text-xs font-medium text-text-secondary mb-1">Nome (opcional)</label>
               <input
                 type="text"
                 placeholder="ex: A amassada, Com trinca..."

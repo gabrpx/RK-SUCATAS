@@ -1,5 +1,5 @@
 // src/server/routes/gavetas.ts
-// CRUD de gavetas (migration_060) — nível topo da hierarquia
+// CRUD de gavetas (migration_061) — nível topo da hierarquia
 // Gaveta → Variante → Unidade. Excluir uma gaveta solta as peças
 // (estoque.gaveta_id = null), nunca apaga peça nenhuma.
 import { Router } from 'express';
@@ -54,8 +54,9 @@ export function gavetasRouter(supabase: SupabaseClient) {
       }
       if (req.body?.categoria_id !== undefined) payload.categoria_id = req.body.categoria_id || null;
       if (req.body?.icone !== undefined) payload.icone = req.body.icone ? String(req.body.icone) : null;
-      const { data, error } = await supabase.from('gavetas').update(payload).eq('id', req.params.id).select(SELECT_GAVETA).single();
+      const { data, error } = await supabase.from('gavetas').update(payload).eq('id', req.params.id).select(SELECT_GAVETA).maybeSingle();
       if (error) throw error;
+      if (!data) return res.status(404).json({ success: false, error: 'Gaveta não encontrada' });
       res.json({ success: true, data });
     } catch (e: any) {
       console.error('Erro ao atualizar gaveta:', e);
