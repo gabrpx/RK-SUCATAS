@@ -21,6 +21,8 @@ import { agruparPorGaveta, statsGaveta } from './gavetaEstoque';
 import { GavetaRow, GavetaRowNaoAgrupado } from './GavetaRow';
 import { StatsRow } from './StatsRow';
 import { FilterChips, type FilterChipOption } from './FilterChips';
+import { GavetaListSkeleton } from './GavetaSkeletons';
+import { AlertaDuplicataGaveta, EmptyGavetas, OfflineBar, encontrarGavetaSemelhante } from './EstadosGaveta';
 import type { Estoque, Gaveta } from '../types';
 
 interface GavetaListProps {
@@ -45,6 +47,9 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
   const [modalAberto, setModalAberto] = useState(false);
   const [nomeNovaGaveta, setNomeNovaGaveta] = useState('');
   const [categoriaNovaGaveta, setCategoriaNovaGaveta] = useState<string>('');
+  // Uma vez que o usuário escolhe "criar mesmo assim", não insiste no aviso
+  // pro mesmo nome — senão o clique preciso teria que ser repetido no submit.
+  const [ignorarDuplicata, setIgnorarDuplicata] = useState(false);
 
   // Peças ativas — mesma base usada pelo resto do módulo de estoque.
   const itensAtivos = useMemo(() => estoque.filter((i) => i.ativo), [estoque]);
@@ -95,11 +100,28 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
     setModalAberto(false);
     setNomeNovaGaveta('');
     setCategoriaNovaGaveta('');
+    setIgnorarDuplicata(false);
+  };
+
+  // Reusa a mesma lógica de similaridade (Jaccard/tokens) já usada pra
+  // detectar peça duplicada em src/features/estoque/detectarDuplicata.ts —
+  // ver EstadosGaveta.tsx > encontrarGavetaSemelhante.
+  const gavetaSemelhante = useMemo(
+    () => encontrarGavetaSemelhante(nomeNovaGaveta, gavetas),
+    [nomeNovaGaveta, gavetas]
+  );
+  const mostrarAlertaDuplicata = !!gavetaSemelhante && !ignorarDuplicata;
+
+  const vincularAGavetaExistente = () => {
+    if (!gavetaSemelhante) return;
+    fecharModal();
+    onAbrirGaveta?.(gavetaSemelhante);
   };
 
   const salvarNovaGaveta = async () => {
     const nome = nomeNovaGaveta.trim();
     if (!nome) return;
+    if (gavetaSemelhante && !ignorarDuplicata) return;
     try {
       await criar({ nome, categoria_id: categoriaNovaGaveta || null, icone: null });
       await recarregarGavetas();
@@ -112,71 +134,82 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
   const inputClass =
     'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
 
+  // Vazio de verdade: nem gaveta cadastrada, nem item legado sem gaveta —
+  // com filtro/busca em vigor isso vira "Nenhuma gaveta ou peça encontrada"
+  // (mensagem de filtro sem resultado), não o empty state de primeira vez.
+  const semNadaCadastrado = !carregandoGavetas && gavetas.length === 0 && (linhaNaoAgrupada?.itens.length ?? 0) === 0;
+
   return (
     <div className="flex flex-col gap-4 p-4 max-w-2xl mx-auto">
+      <OfflineBar />
+
       <div className="flex items-center justify-between gap-3">
         <h1 className="text-xl font-bold text-text-primary">Estoque</h1>
-        <Button variant="accent-cta" size="sm" onClick={() => setModalAberto(true)}>
-          <Plus size={16} /> Nova Gaveta
-        </Button>
+        {!semNadaCadastrado && (
+          <Button variant="accent-cta" size="sm" onClick={() => setModalAberto(true)}>
+            <Plus size={16} /> Nova Gaveta
+          </Button>
+        )}
       </div>
-
-      <div className="relative">
-        <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
-        <input
-          value={busca}
-          onChange={(e) => setBusca(e.target.value)}
-          placeholder="Buscar peça, modelo, código..."
-          className={cn(inputClass, 'h-11 pl-9')}
-        />
-      </div>
-
-      <StatsRow
-        gavetas={gavetas.length}
-        variantes={statsGerais.variantes}
-        unidades={statsGerais.unidadesDisponiveis}
-        valorTotal={statsGerais.valorTotal}
-      />
-
-      {opcoesCategoria.length > 0 && (
-        <FilterChips opcoes={opcoesCategoria} selecionado={categoriaFiltro} onSelecionar={setCategoriaFiltro} />
-      )}
-
-      {estoqueError && (
-        <p className="text-sm text-danger">Não foi possível carregar o estoque. Verifique sua conexão.</p>
-      )}
 
       {carregandoGavetas ? (
-        <div className="flex items-center justify-center py-10 text-text-muted">
-          <Loader2 size={20} className="animate-spin" />
-        </div>
+        <GavetaListSkeleton />
+      ) : semNadaCadastrado ? (
+        <EmptyGavetas onNova={() => setModalAberto(true)} />
       ) : (
-        <div className="flex flex-col">
-          {linhasFiltradas.length === 0 && itensNaoAgrupadosFiltrados.length === 0 ? (
-            <p className="text-sm text-text-muted text-center py-10">Nenhuma gaveta ou peça encontrada.</p>
-          ) : (
-            <>
-              {linhasFiltradas.map((linha) => (
-                <div key={linha.id}>
-                  <GavetaRow gaveta={linha.gaveta} itens={linha.itens} onClick={onAbrirGaveta} />
-                </div>
-              ))}
+        <>
+          <div className="relative">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" />
+            <input
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Buscar peça, modelo, código..."
+              className={cn(inputClass, 'h-11 pl-9')}
+            />
+          </div>
 
-              {itensNaoAgrupadosFiltrados.length > 0 && (
-                <div className="mt-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted px-3 mb-1">
-                    Itens não agrupados
-                  </p>
-                  {itensNaoAgrupadosFiltrados.map((item) => (
-                    <div key={item.id}>
-                      <GavetaRowNaoAgrupado item={item} onClick={onAbrirItemNaoAgrupado} />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
+          <StatsRow
+            gavetas={gavetas.length}
+            variantes={statsGerais.variantes}
+            unidades={statsGerais.unidadesDisponiveis}
+            valorTotal={statsGerais.valorTotal}
+          />
+
+          {opcoesCategoria.length > 0 && (
+            <FilterChips opcoes={opcoesCategoria} selecionado={categoriaFiltro} onSelecionar={setCategoriaFiltro} />
           )}
-        </div>
+
+          {estoqueError && (
+            <p className="text-sm text-danger">Não foi possível carregar o estoque. Verifique sua conexão.</p>
+          )}
+
+          <div className="flex flex-col">
+            {linhasFiltradas.length === 0 && itensNaoAgrupadosFiltrados.length === 0 ? (
+              <p className="text-sm text-text-muted text-center py-10">Nenhuma gaveta ou peça encontrada.</p>
+            ) : (
+              <>
+                {linhasFiltradas.map((linha) => (
+                  <div key={linha.id}>
+                    <GavetaRow gaveta={linha.gaveta} itens={linha.itens} onClick={onAbrirGaveta} />
+                  </div>
+                ))}
+
+                {itensNaoAgrupadosFiltrados.length > 0 && (
+                  <div className="mt-4">
+                    <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted px-3 mb-1">
+                      Itens não agrupados
+                    </p>
+                    {itensNaoAgrupadosFiltrados.map((item) => (
+                      <div key={item.id}>
+                        <GavetaRowNaoAgrupado item={item} onClick={onAbrirItemNaoAgrupado} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </>
       )}
 
       <Dialog open={modalAberto} onOpenChange={(aberto) => (aberto ? setModalAberto(true) : fecharModal())}>
@@ -196,10 +229,22 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
                 id="nova-gaveta-nome"
                 autoFocus
                 value={nomeNovaGaveta}
-                onChange={(e) => setNomeNovaGaveta(e.target.value)}
+                onChange={(e) => {
+                  setNomeNovaGaveta(e.target.value);
+                  setIgnorarDuplicata(false);
+                }}
                 placeholder="Ex: Tanque CG 125"
                 className={cn(inputClass, 'h-11')}
               />
+              {mostrarAlertaDuplicata && gavetaSemelhante && (
+                <div className="mt-2">
+                  <AlertaDuplicataGaveta
+                    nome={gavetaSemelhante.nome}
+                    onVincular={vincularAGavetaExistente}
+                    onCriarMesmoAssim={() => setIgnorarDuplicata(true)}
+                  />
+                </div>
+              )}
             </div>
             <div>
               <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted" htmlFor="nova-gaveta-categoria">
@@ -225,7 +270,7 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
             <Button type="button" variant="ghost" onClick={fecharModal} disabled={criando}>
               Cancelar
             </Button>
-            <Button type="button" variant="accent-cta" onClick={salvarNovaGaveta} disabled={!nomeNovaGaveta.trim() || criando}>
+            <Button type="button" variant="accent-cta" onClick={salvarNovaGaveta} disabled={!nomeNovaGaveta.trim() || criando || mostrarAlertaDuplicata}>
               {criando ? <Loader2 size={16} className="animate-spin" /> : 'Criar gaveta'}
             </Button>
           </DialogFooter>

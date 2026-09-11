@@ -4,12 +4,14 @@
 // Task 13 — recebe o id da gaveta e a navegação de volta como props, sem
 // assumir router nenhum (mesmo padrão de GavetaList).
 import { useMemo, useState } from 'react';
-import { ChevronLeft, Loader2, Pencil, X } from 'lucide-react';
+import { ChevronLeft, Pencil, X } from 'lucide-react';
 import { useData } from '../../../context/DataContext';
 import { cn } from '../../../utils';
 import { useAtualizarGaveta, useGavetas } from './hooks';
 import { statsGaveta } from './gavetaEstoque';
 import { VarianteCard } from './VarianteCard';
+import { GavetaDetailSkeleton } from './GavetaSkeletons';
+import { OfflineBar } from './EstadosGaveta';
 
 interface GavetaDetailProps {
   gavetaId: string;
@@ -56,8 +58,12 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
 
   if (carregandoGavetas && !gaveta) {
     return (
-      <div className="flex items-center justify-center py-16 text-text-muted">
-        <Loader2 size={20} className="animate-spin" />
+      <div className="flex flex-col gap-4 p-4 max-w-2xl mx-auto">
+        <OfflineBar />
+        <button type="button" onClick={onVoltar} className="flex items-center gap-1 text-sm font-semibold text-accent-soft-fg w-fit min-h-11 sm:min-h-9">
+          <ChevronLeft size={16} /> Estoque
+        </button>
+        <GavetaDetailSkeleton />
       </div>
     );
   }
@@ -65,6 +71,7 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
   if (!gaveta) {
     return (
       <div className="flex flex-col gap-4 p-4 max-w-2xl mx-auto">
+        <OfflineBar />
         <button type="button" onClick={onVoltar} className="flex items-center gap-1 text-sm font-semibold text-accent-soft-fg w-fit">
           <ChevronLeft size={16} /> Estoque
         </button>
@@ -81,6 +88,7 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
 
   return (
     <div className="flex flex-col gap-4 p-4 max-w-2xl mx-auto">
+      <OfflineBar />
       <button type="button" onClick={onVoltar} className="flex items-center gap-1 text-sm font-semibold text-accent-soft-fg w-fit min-h-11 sm:min-h-9">
         <ChevronLeft size={16} /> Estoque
       </button>
