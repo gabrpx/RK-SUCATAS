@@ -1,7 +1,8 @@
 # Handoff — Fase 2A: Estoque por Gavetas (edição/exclusão + campo "Novo")
 
 **Data:** 2026-09-11 · **Autor:** Claude (Opus) · **Destino:** Codex
-**Branch:** `main` (working tree — **sem commit/push/deploy**, conforme pedido)
+**Branch:** `handoff/estoque-gavetas-fase2a` (commitada em `7a5a074` e publicada;
+SQL da migration **não** executado)
 **Spec:** [docs/superpowers/specs/2026-09-11-estoque-gavetas-fase2-design.md](superpowers/specs/2026-09-11-estoque-gavetas-fase2-design.md)
 
 ## Escopo entregue (Fase 2A)
@@ -13,11 +14,13 @@
 
 ## Ação obrigatória antes de subir (você / dono)
 
-- **Rodar `supabase/migration_063_estoque_novo.sql` no Supabase** (SQL **não**
-  foi executado por mim). É um `alter table estoque add column novo boolean not
-  null default false`. Degrada com segurança: sem a coluna, o backend só não
-  devolve `novo` e o badge não aparece — nada quebra. Rode antes ou junto do
-  deploy do código.
+- **Rodar `supabase/migration_063_estoque_novo.sql` no Supabase ANTES de subir
+  o código** (SQL **não** foi executado por mim). É um `alter table estoque add
+  column novo boolean not null default false`. **Pré-requisito obrigatório, não
+  opcional:** só a leitura degrada bem (o GET apenas não devolve `novo`). A
+  escrita não — o form sempre envia `novo` e `montarPayload()` sempre o inclui
+  no INSERT/UPDATE, então **criar/editar peça falha** ("column novo does not
+  exist") enquanto a migration não rodar.
 - Numeração **063** de propósito (060/061 têm colisão dupla já em produção —
   ver [docs/migrations-colisao-060-061.md](migrations-colisao-060-061.md)).
   **Não renomear** as históricas.
@@ -86,7 +89,8 @@ npx vitest run <caminhos> --pool=forks --maxWorkers=1 --exclude "**/.claude/work
 ```
 
 Resultados obtidos:
-- Fase 2A (4 arquivos): **17/17 passam**.
+- Fase 2A (3 arquivos de teste): **13/13 passam** (5 em `estoque.novo.test.ts`,
+  4 em `VarianteCard.badges.test.tsx`, 4 em `EditarGavetaDialog.test.tsx`).
 - Regressão da área tocada (EstoqueView.tabela, estoque route, RegistrarUnidade):
   **39/39 passam**.
 
@@ -108,6 +112,7 @@ Resultados obtidos:
 
 - Frontend **não** acessa Supabase direto — tudo via rotas Express
   (`estoqueApi`, `gavetasApi`) e hooks.
-- Nada de SQL/commit/push/deploy executado.
+- Código commitado (`7a5a074`) e publicado na branch de handoff; **SQL e deploy
+  não executados**.
 - Regra "1 accent por superfície" respeitada no dialog novo.
 - Invariante preservada: excluir gaveta **solta** as peças, nunca apaga.
