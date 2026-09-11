@@ -366,6 +366,7 @@ export type EstoqueInput = Pick<
   | 'componentes'
   | 'anuncio_fb_url'
   | 'familia_id'
+  | 'gaveta_id'
 > & {
   // Ids dos modelos secundários — não é campo direto de `Estoque` (que expõe
   // os objetos já resolvidos em `modelos_compativeis`), é derivado na leitura

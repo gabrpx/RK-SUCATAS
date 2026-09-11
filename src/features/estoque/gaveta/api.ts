@@ -21,9 +21,6 @@ export const gavetasApi = {
     api.patch(`/api/gavetas/${id}`, payload) as Promise<ApiResult<Gaveta>>,
   excluir: (id: string) => api.delete(`/api/gavetas/${id}`) as Promise<ApiResult<null>>,
 
-  // gaveta_id ainda não faz parte de EstoqueInput (só foi adicionado ao
-  // backend em 76d5e24) — passa como override tipado em vez de alargar
-  // EstoqueInput, que é usado pelo form inteiro de cadastro de peça.
   moverPecaGaveta: (estoqueId: string, gavetaId: string | null) =>
-    estoqueApi.atualizarParcial(estoqueId, { gaveta_id: gavetaId } as any) as Promise<ApiResult<Estoque>>,
+    estoqueApi.atualizarParcial(estoqueId, { gaveta_id: gavetaId }) as Promise<ApiResult<Estoque>>,
 };
