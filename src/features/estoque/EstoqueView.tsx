@@ -29,6 +29,7 @@ import {
   Network,
   Send,
   Merge,
+  Box,
 } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
@@ -82,6 +83,8 @@ import type { CondicaoPeca, Estoque, EstoqueInput } from './types';
 import { agruparLinhasTabela, filtrarLinhaTexto, emEstoqueFamilia, faixaPrecoFamilia, type EstoqueLinha } from './familiaEstoque';
 import { EstoqueFamiliaModal } from './EstoqueFamiliaModal';
 import { EstoqueFundirFamiliasModal } from './EstoqueFundirFamiliasModal';
+import { GavetaList } from './gaveta/GavetaList';
+import { GavetaDetail } from './gaveta/GavetaDetail';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -199,8 +202,12 @@ export function EstoqueView({
   const transicaoExpansao = reduzirMovimento ? { duration: 0 } : SPRING_MICRO;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto' | 'organograma'>('lista');
+  const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto' | 'organograma' | 'gavetas'>('lista');
   const [orgChartDominio, setOrgChartDominio] = useState<'categorias' | 'motos'>('categorias');
+  // Fase 1 gavetas (Task 13): sub-navegação lista <-> detalhe fica local à
+  // aba, mesmo padrão sem-router usado pelo resto do módulo (GavetaList/
+  // GavetaDetail recebem callbacks de navegação, não assumem rota nenhuma).
+  const [gavetaSelecionadaId, setGavetaSelecionadaId] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const debouncedSearch = useDebounce(searchTerm, 300);
   const [categoriaFiltro, setCategoriaFiltro] = useState('Todas');
@@ -1041,8 +1048,15 @@ export function EstoqueView({
           das outras telas) — o wrapper padrão do animate-ui vem em text-sm/h-9,
           que no celular fica abaixo do alvo mínimo. */}
       <div className="flex flex-wrap items-center gap-2">
-        <Tabs value={visualizacao} onValueChange={(v) => setVisualizacao(v as typeof visualizacao)}>
+        <Tabs
+          value={visualizacao}
+          onValueChange={(v) => {
+            setVisualizacao(v as typeof visualizacao);
+            setGavetaSelecionadaId(null);
+          }}
+        >
           <TabsList className="h-11 sm:h-9 items-stretch border-border-default">
+            <TabsTrigger value="gavetas" className={TRIGGER_CLASS}><Box className="size-[13px]" /> Gavetas</TabsTrigger>
             <TabsTrigger value="lista" className={TRIGGER_CLASS}>Lista</TabsTrigger>
             <TabsTrigger value="por_moto" className={TRIGGER_CLASS}><Bike className="size-[13px]" /> Por moto</TabsTrigger>
             <TabsTrigger value="organograma" className={TRIGGER_CLASS}><Network className="size-[13px]" /> Organograma</TabsTrigger>
@@ -1059,7 +1073,16 @@ export function EstoqueView({
         )}
       </div>
 
-      {visualizacao === 'por_moto' ? (
+      {visualizacao === 'gavetas' ? (
+        gavetaSelecionadaId ? (
+          <GavetaDetail gavetaId={gavetaSelecionadaId} onVoltar={() => setGavetaSelecionadaId(null)} />
+        ) : (
+          <GavetaList
+            onAbrirGaveta={(gaveta) => setGavetaSelecionadaId(gaveta.id)}
+            onAbrirItemNaoAgrupado={onSelectItem}
+          />
+        )
+      ) : visualizacao === 'por_moto' ? (
         <EstoqueByMoto modelos={modelos} items={items} onSelecionarModelo={handleSelecionarModelo} />
       ) : visualizacao === 'organograma' ? (
         <div className="max-h-[34rem] overflow-y-auto pr-1">

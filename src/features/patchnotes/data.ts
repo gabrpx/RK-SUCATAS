@@ -18,6 +18,27 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.6.0',
+    data: '2026-09-11',
+    titulo: 'Estoque organizado por Gavetas',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Nova aba "Gavetas" no Estoque: cada gaveta física agrupa as variantes de peça guardadas nela, e cada variante mostra suas unidades individuais — hierarquia Gaveta → Variante → Unidade.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Preço agora pertence à unidade, não à variante — a variante exibe a faixa de preço (mín~máx) calculada a partir das unidades disponíveis.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Itens ainda sem gaveta cadastrada aparecem em "Itens não agrupados", sem bloquear o uso da tela.',
+      },
+    ],
+  },
+  {
     versao: '1.5.1',
     data: '2026-09-04',
     titulo: 'Estoque — fotos e edição de unidade no painel de família',
