@@ -91,7 +91,6 @@ const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style
 // Tipografia dos alternadores de visualização (Tabs animadas). Mantém a caixa
 // alta miúda que o alternador manual usava — o default do wrapper animate-ui é
 // text-sm/font-medium, que destoaria dos outros chips desta tela.
-const TRIGGER_CLASS = 'px-3 text-[11px] font-semibold uppercase tracking-wider';
 const SUB_TRIGGER_CLASS = 'px-2.5 text-[10.5px] font-semibold uppercase tracking-wider';
 
 const ITEMS_PER_PAGE = 25;
@@ -948,10 +947,42 @@ export function EstoqueView({
     );
   }
 
+  const opcoesVisualizacao = [
+    { id: 'gavetas' as const, label: 'Gavetas', Icon: Box },
+    { id: 'lista' as const, label: 'Lista', Icon: Package },
+    { id: 'por_moto' as const, label: 'Por moto', Icon: Bike },
+    { id: 'organograma' as const, label: 'Organograma', Icon: Network },
+  ];
+
+  const seletorVisualizacao = (
+    <div className="max-w-full overflow-x-auto scrollbar-none" aria-label="Visualização do estoque">
+      <Tabs
+        value={visualizacao}
+        onValueChange={(valor) => {
+          setVisualizacao(valor as typeof visualizacao);
+          setGavetaSelecionadaId(null);
+        }}
+      >
+        <TabsList variant="underline" className="min-w-max">
+          {opcoesVisualizacao.map(({ id, label, Icon }) => (
+            <TabsTrigger
+              key={id}
+              value={id}
+              className="h-10 rounded-none px-1 text-xs font-semibold data-[state=active]:text-text-primary"
+            >
+              <Icon size={14} /> {label}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
+    </div>
+  );
+
   return (
     <div className="space-y-4 pb-24 md:pb-6">
-      {/* Cabeçalho */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Gavetas possui uma superfície compacta própria; nas demais visões,
+          preservamos o cabeçalho operacional completo. */}
+      {visualizacao !== 'gavetas' && <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-medium text-text-primary">Estoque</h1>
           <p className="text-sm text-text-faint mt-0.5">
@@ -1005,11 +1036,11 @@ export function EstoqueView({
             </>
           )}
         </div>
-      </div>
+      </div>}
 
       {/* Conferência do dia — some quando nada foi cadastrado hoje, pra não
           ocupar espaço fora do dia de catalogação. */}
-      {resumoDoDia.itens > 0 && (
+      {visualizacao !== 'gavetas' && resumoDoDia.itens > 0 && (
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3 rounded-card border border-border-subtle bg-surface-card px-4 py-3">
           <div>
             <p className="text-[20px] font-medium text-text-primary leading-none tabular-nums">
@@ -1049,21 +1080,8 @@ export function EstoqueView({
           alta de 11px e alvo de toque alto no mobile (h-11 sm:h-9, mesmo padrão
           das outras telas) — o wrapper padrão do animate-ui vem em text-sm/h-9,
           que no celular fica abaixo do alvo mínimo. */}
-      <div className="flex flex-wrap items-center gap-2">
-        <Tabs
-          value={visualizacao}
-          onValueChange={(v) => {
-            setVisualizacao(v as typeof visualizacao);
-            setGavetaSelecionadaId(null);
-          }}
-        >
-          <TabsList className="h-11 sm:h-9 items-stretch border-border-default">
-            <TabsTrigger value="gavetas" className={TRIGGER_CLASS}><Box className="size-[13px]" /> Gavetas</TabsTrigger>
-            <TabsTrigger value="lista" className={TRIGGER_CLASS}>Lista</TabsTrigger>
-            <TabsTrigger value="por_moto" className={TRIGGER_CLASS}><Bike className="size-[13px]" /> Por moto</TabsTrigger>
-            <TabsTrigger value="organograma" className={TRIGGER_CLASS}><Network className="size-[13px]" /> Organograma</TabsTrigger>
-          </TabsList>
-        </Tabs>
+      {!(visualizacao === 'gavetas' && !gavetaSelecionadaId) && <div className="flex flex-wrap items-center gap-2">
+        <div className="min-w-0 flex-1">{seletorVisualizacao}</div>
 
         {visualizacao === 'organograma' && (
           <Tabs value={orgChartDominio} onValueChange={(v) => setOrgChartDominio(v as typeof orgChartDominio)}>
@@ -1073,7 +1091,7 @@ export function EstoqueView({
             </TabsList>
           </Tabs>
         )}
-      </div>
+      </div>}
 
       {visualizacao === 'gavetas' ? (
         gavetaSelecionadaId ? (
@@ -1082,6 +1100,11 @@ export function EstoqueView({
           <GavetaList
             onAbrirGaveta={(gaveta) => setGavetaSelecionadaId(gaveta.id)}
             onAbrirItemNaoAgrupado={onSelectItem}
+            resumoDoDia={resumoDoDia}
+            onVisualizacaoChange={(valor) => {
+              setVisualizacao(valor);
+              setGavetaSelecionadaId(null);
+            }}
           />
         )
       ) : visualizacao === 'por_moto' ? (

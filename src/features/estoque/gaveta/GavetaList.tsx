@@ -4,7 +4,7 @@
 // componente não assume nada sobre onde vive, e a navegação pro detalhe é um
 // prop (onAbrirGaveta/onAbrirItem) que a rota decide o que fazer.
 import { useMemo, useState } from 'react';
-import { Loader2, Plus, Search } from 'lucide-react';
+import { Loader2, Search } from 'lucide-react';
 import { useData } from '../../../context/DataContext';
 import { useCatalogos } from '../../../hooks/useCatalogos';
 import { Button } from '../../../components/ui/button';
@@ -24,19 +24,20 @@ import { FilterChips, type FilterChipOption } from './FilterChips';
 import { GavetaListSkeleton } from './GavetaSkeletons';
 import { AlertaDuplicataGaveta, EmptyGavetas, OfflineBar, encontrarGavetaSemelhante } from './EstadosGaveta';
 import type { Estoque, Gaveta } from '../types';
+import { correspondeBuscaEstoque, normalizarTextoBusca } from './buscaGavetas';
+import { EstoqueHeaderControle, type EstoqueViewId } from './EstoqueHeaderVariants';
 
 interface GavetaListProps {
   /** Navegação pro detalhe da gaveta (Task 13 decide a rota real). */
   onAbrirGaveta?: (gaveta: Gaveta) => void;
   /** Navegação pro item legado sem gaveta (Task 13 decide a rota real). */
   onAbrirItemNaoAgrupado?: (item: Estoque) => void;
+  /** Resumo do cadastro do dia, integrado ao único cabeçalho desta tela. */
+  resumoDoDia?: { itens: number; valorTotal: number; semValor: number };
+  onVisualizacaoChange?: (valor: EstoqueViewId) => void;
 }
 
-function normalizar(texto: string): string {
-  return (texto || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
-
-export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaListProps) {
+export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia, onVisualizacaoChange }: GavetaListProps) {
   const { estoque, estoqueError } = useData();
   const { categorias } = useCatalogos();
   const { gavetas, loading: carregandoGavetas, refetch: recarregarGavetas } = useGavetas();
@@ -73,15 +74,14 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
     return Array.from(vistas, ([id, nome]) => ({ id, nome }));
   }, [linhasGaveta]);
 
-  const buscaNormalizada = normalizar(busca.trim());
+  const buscaNormalizada = normalizarTextoBusca(busca);
+  const termosBusca = buscaNormalizada.split(/\s+/).filter(Boolean);
 
   const linhasFiltradas = useMemo(() => {
     return linhasGaveta.filter((linha) => {
       if (categoriaFiltro && linha.gaveta.categoria_id !== categoriaFiltro) return false;
-      if (buscaNormalizada && !normalizar(linha.gaveta.nome).includes(buscaNormalizada)) {
-        const algumItemBate = linha.itens.some(
-          (item) => normalizar(item.nome).includes(buscaNormalizada) || normalizar(item.codigo).includes(buscaNormalizada)
-        );
+      if (buscaNormalizada && !termosBusca.every((termo) => normalizarTextoBusca(linha.gaveta.nome).includes(termo))) {
+        const algumItemBate = linha.itens.some((item) => correspondeBuscaEstoque(item, busca));
         if (!algumItemBate) return false;
       }
       return true;
@@ -91,10 +91,8 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
   const itensNaoAgrupadosFiltrados = useMemo(() => {
     const itens = linhaNaoAgrupada?.itens ?? [];
     if (!buscaNormalizada) return itens;
-    return itens.filter(
-      (item) => normalizar(item.nome).includes(buscaNormalizada) || normalizar(item.codigo).includes(buscaNormalizada)
-    );
-  }, [linhaNaoAgrupada, buscaNormalizada]);
+    return itens.filter((item) => correspondeBuscaEstoque(item, busca));
+  }, [linhaNaoAgrupada, busca, buscaNormalizada]);
 
   const fecharModal = () => {
     setModalAberto(false);
@@ -140,22 +138,20 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
   const semNadaCadastrado = !carregandoGavetas && gavetas.length === 0 && (linhaNaoAgrupada?.itens.length ?? 0) === 0;
 
   return (
-    <div className="flex flex-col gap-4 p-4 max-w-2xl mx-auto">
+    <section aria-labelledby="gavetas-estoque-titulo" className="flex flex-col gap-3.5 w-full max-w-2xl mx-auto px-0 sm:px-4">
       <OfflineBar />
 
-      <div className="flex items-center justify-between gap-3">
-        <h1 className="text-xl font-bold text-text-primary">Estoque</h1>
-        {!semNadaCadastrado && (
-          <Button variant="accent-cta" size="sm" onClick={() => setModalAberto(true)}>
-            <Plus size={16} /> Nova Gaveta
-          </Button>
-        )}
-      </div>
+      <EstoqueHeaderControle
+        resumo={resumoDoDia}
+        visualizacao="gavetas"
+        onVisualizacaoChange={(valor) => onVisualizacaoChange?.(valor)}
+        onNovaGaveta={() => setModalAberto(true)}
+      />
 
       {carregandoGavetas ? (
         <GavetaListSkeleton />
       ) : semNadaCadastrado ? (
-        <EmptyGavetas onNova={() => setModalAberto(true)} />
+        <EmptyGavetas onNova={() => setModalAberto(true)} mostrarAcao={false} />
       ) : (
         <>
           <div className="relative">
@@ -183,7 +179,7 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
             <p className="text-sm text-danger">Não foi possível carregar o estoque. Verifique sua conexão.</p>
           )}
 
-          <div className="flex flex-col">
+          <div className="flex flex-col divide-y divide-border-subtle">
             {linhasFiltradas.length === 0 && itensNaoAgrupadosFiltrados.length === 0 ? (
               <p className="text-sm text-text-muted text-center py-10">Nenhuma gaveta ou peça encontrada.</p>
             ) : (
@@ -195,10 +191,11 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
                 ))}
 
                 {itensNaoAgrupadosFiltrados.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted px-3 mb-1">
-                      Itens não agrupados
-                    </p>
+                  <div className="mt-4 pt-3 border-t border-border-subtle">
+                    <div className="mb-1 flex items-center gap-3 px-3">
+                      <p className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Itens não agrupados</p>
+                      <span className="h-px flex-1 bg-border-subtle" aria-hidden="true" />
+                    </div>
                     {itensNaoAgrupadosFiltrados.map((item) => (
                       <div key={item.id}>
                         <GavetaRowNaoAgrupado item={item} onClick={onAbrirItemNaoAgrupado} />
@@ -276,6 +273,6 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado }: GavetaList
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 }

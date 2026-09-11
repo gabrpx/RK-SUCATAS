@@ -1,7 +1,7 @@
 // Modal de "Adicionar peças" à gaveta (Task 14, complementa T02): lista as
 // peças ativas ainda sem gaveta (estoque.gaveta_id == null), permite buscar e
-// selecionar várias, e move cada uma pra esta gaveta via useMoverPecaGaveta
-// (mesmo hook que UnidadeRow/VarianteCard usariam pra "soltar"). Reusa o
+// selecionar várias, e move a seleção com concorrência controlada e uma única
+// atualização final do estoque. Reusa o
 // Modal compartilhado (src/components/ui/Modal.tsx) em vez de um backdrop
 // próprio — mesmo padrão de outros modais do Estoque.
 import { useMemo, useState } from 'react';
@@ -11,14 +11,12 @@ import { Button } from '../../../components/ui/button';
 import { Checkbox } from '../../../components/ui/checkbox';
 import { cn } from '../../../utils';
 import { useData } from '../../../context/DataContext';
-import { useMoverPecaGaveta } from './hooks';
+import { aviso } from '../../../components/ui/toast';
+import { useMoverPecasGaveta } from './hooks';
+import { correspondeBuscaEstoque } from './buscaGavetas';
 import type { Estoque } from '../types';
 
 const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
-
-function normalizar(texto: string): string {
-  return (texto || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-}
 
 interface AdicionarPecasGavetaProps {
   gavetaId: string;
@@ -28,7 +26,7 @@ interface AdicionarPecasGavetaProps {
 
 export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: AdicionarPecasGavetaProps) {
   const { estoque } = useData();
-  const { mover, loading } = useMoverPecaGaveta();
+  const { moverEmLote, loading } = useMoverPecasGaveta();
 
   const [busca, setBusca] = useState('');
   const [selecionados, setSelecionados] = useState<Set<string>>(new Set());
@@ -38,16 +36,9 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
     [estoque]
   );
 
-  const buscaNormalizada = normalizar(busca.trim());
   const filtrados = useMemo(() => {
-    if (!buscaNormalizada) return disponiveis;
-    return disponiveis.filter(
-      (item) =>
-        normalizar(item.nome).includes(buscaNormalizada) ||
-        normalizar(item.codigo).includes(buscaNormalizada) ||
-        normalizar(item.categoria?.nome ?? '').includes(buscaNormalizada)
-    );
-  }, [disponiveis, buscaNormalizada]);
+    return disponiveis.filter((item) => correspondeBuscaEstoque(item, busca));
+  }, [disponiveis, busca]);
 
   const alternar = (id: string) => {
     setSelecionados((prev) => {
@@ -60,10 +51,19 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
 
   const confirmar = async () => {
     const ids = Array.from(selecionados);
-    for (const id of ids) {
-      await mover(id, gavetaId);
+    if (ids.length === 0) return;
+    const { sucesso, falhas } = await moverEmLote(ids, gavetaId);
+    if (falhas.length === 0) {
+      aviso.sucesso(`${sucesso.length} peça${sucesso.length === 1 ? '' : 's'} adicionada${sucesso.length === 1 ? '' : 's'} à gaveta.`);
+      onFechar();
+      return;
     }
-    onFechar();
+    const nomePorId = new Map(disponiveis.map((item) => [item.id, item.nome]));
+    const nomes = falhas.map(({ id }) => nomePorId.get(id) ?? id).join(', ');
+    aviso.erro(sucesso.length > 0
+      ? `${sucesso.length} adicionada${sucesso.length === 1 ? '' : 's'}; falha em: ${nomes}`
+      : `Nenhuma peça foi movida. Falha em: ${nomes}`);
+    setSelecionados(new Set(falhas.map(({ id }) => id)));
   };
 
   return (
@@ -90,7 +90,7 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
           <input
             value={busca}
             onChange={(e) => setBusca(e.target.value)}
-            placeholder="Buscar peça, código, categoria..."
+            placeholder="Buscar por palavras, código, modelo, categoria..."
             className={cn(
               'w-full h-11 border rounded-control py-2.5 pl-9 pr-4 text-sm outline-none transition-all',
               'focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint'

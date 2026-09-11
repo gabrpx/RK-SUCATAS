@@ -45,9 +45,9 @@ export function GavetaRow({ gaveta, itens, onClick }: GavetaRowProps) {
     <button
       type="button"
       onClick={() => onClick?.(gaveta)}
-      className="w-full flex items-center gap-3 py-3 px-3 rounded-card hover:bg-surface-raised transition-colors text-left min-h-11"
+      className="w-full flex items-center gap-2.5 sm:gap-3 py-3 px-1 sm:px-3 hover:bg-surface-raised transition-colors text-left min-h-16"
     >
-      <div className="flex-none size-11 rounded-control bg-surface-inset flex items-center justify-center text-text-secondary">
+      <div className="flex-none size-10 rounded-control border border-border-subtle bg-surface-inset flex items-center justify-center text-text-secondary">
         <Icone size={18} />
       </div>
       <div className="flex-1 min-w-0">
@@ -56,11 +56,11 @@ export function GavetaRow({ gaveta, itens, onClick }: GavetaRowProps) {
           {gaveta.categoria?.nome ?? 'Sem categoria'} · {stats.variantes} {stats.variantes === 1 ? 'variante' : 'variantes'}
         </p>
       </div>
-      <div className="flex-none text-right">
+      <div className="flex-none max-w-[42%] text-right">
         <FaixaPreco faixa={stats.faixa} />
         <p className="text-xs font-semibold text-accent-soft-fg">{stats.unidadesDisponiveis} un.</p>
       </div>
-      <ChevronRight size={18} className="flex-none text-text-faint" />
+      <ChevronRight size={15} className="flex-none text-text-faint" />
     </button>
   );
 }
@@ -81,9 +81,9 @@ export function GavetaRowNaoAgrupado({ item, onClick }: GavetaRowNaoAgrupadoProp
     <button
       type="button"
       onClick={() => onClick?.(item)}
-      className="w-full flex items-center gap-3 py-3 px-3 rounded-card hover:bg-surface-raised transition-colors text-left min-h-11 opacity-60"
+      className="w-full flex items-center gap-2.5 sm:gap-3 py-3 px-1 sm:px-3 hover:bg-surface-raised transition-colors text-left min-h-16 opacity-60"
     >
-      <div className="flex-none size-11 rounded-control border border-dashed border-border-default flex items-center justify-center">
+      <div className="flex-none size-10 rounded-control border border-dashed border-border-default flex items-center justify-center">
         <span className="text-[8px] font-bold uppercase tracking-wider text-text-faint leading-tight text-center">
           Sem
           <br />
@@ -94,11 +94,11 @@ export function GavetaRowNaoAgrupado({ item, onClick }: GavetaRowNaoAgrupadoProp
         <p className="font-bold text-text-secondary truncate">{item.nome}</p>
         <p className="text-xs text-text-faint truncate">{item.categoria?.nome ?? 'Sem categoria'} · Legado</p>
       </div>
-      <div className="flex-none text-right">
+      <div className="flex-none max-w-[42%] text-right">
         <FaixaPreco faixa={faixa} />
         <p className="text-xs text-text-faint">{disponiveis} un.</p>
       </div>
-      <ChevronRight size={18} className={cn('flex-none text-text-faint')} />
+      <ChevronRight size={15} className={cn('flex-none text-text-faint')} />
     </button>
   );
 }

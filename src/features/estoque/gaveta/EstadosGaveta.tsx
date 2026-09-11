@@ -16,9 +16,10 @@ import type { Gaveta } from '../types';
 // ============================================================================
 interface EmptyGavetasProps {
   onNova: () => void;
+  mostrarAcao?: boolean;
 }
 
-export function EmptyGavetas({ onNova }: EmptyGavetasProps) {
+export function EmptyGavetas({ onNova, mostrarAcao = true }: EmptyGavetasProps) {
   return (
     <div className="flex flex-col items-center justify-center gap-4 py-16 px-4 text-center">
       <div className="size-14 rounded-control bg-surface-inset flex items-center justify-center text-text-faint">
@@ -30,9 +31,11 @@ export function EmptyGavetas({ onNova }: EmptyGavetasProps) {
           Crie sua primeira gaveta para começar a organizar o estoque.
         </p>
       </div>
-      <Button type="button" variant="accent-cta" size="mobile" onClick={onNova}>
-        <Plus size={16} /> Criar Gaveta
-      </Button>
+      {mostrarAcao && (
+        <Button type="button" variant="accent-cta" size="mobile" onClick={onNova}>
+          <Plus size={16} /> Criar Gaveta
+        </Button>
+      )}
     </div>
   );
 }

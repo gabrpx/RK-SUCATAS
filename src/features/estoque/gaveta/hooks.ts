@@ -144,3 +144,46 @@ export function useMoverPecaGaveta() {
 
   return { mover, loading, error };
 }
+
+const CONCORRENCIA_MAX = 5;
+
+export interface ResultadoMoverEmLote {
+  sucesso: string[];
+  falhas: { id: string; error: string }[];
+}
+
+export function useMoverPecasGaveta() {
+  const { refreshData } = useData();
+  const [loading, setLoading] = useState(false);
+
+  const moverEmLote = useCallback(async (estoqueIds: string[], gavetaId: string | null): Promise<ResultadoMoverEmLote> => {
+    const sucesso: string[] = [];
+    const falhas: { id: string; error: string }[] = [];
+    if (estoqueIds.length === 0) return { sucesso, falhas };
+
+    setLoading(true);
+    try {
+      const fila = [...new Set(estoqueIds)];
+      const trabalhar = async () => {
+        while (fila.length > 0) {
+          const id = fila.shift();
+          if (!id) return;
+          try {
+            const result = await gavetasApi.moverPecaGaveta(id, gavetaId);
+            if (!result.success) throw new Error(result.error || 'Falha ao mover peça');
+            sucesso.push(id);
+          } catch (error: any) {
+            falhas.push({ id, error: error?.message || 'Falha ao mover peça' });
+          }
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCORRENCIA_MAX, fila.length) }, trabalhar));
+      if (sucesso.length > 0) await refreshData();
+      return { sucesso, falhas };
+    } finally {
+      setLoading(false);
+    }
+  }, [refreshData]);
+
+  return { moverEmLote, loading };
+}

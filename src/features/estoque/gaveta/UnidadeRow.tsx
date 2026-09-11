@@ -1,8 +1,8 @@
 // 1 linha de UNIDADE dentro do VarianteCard (T02, docs/mockups/T02-detalhe-gaveta.png):
 // dot de status, "#N «nome»", nota de condição + avaria, preço (herdado ou
-// próprio) à direita, ação de editar. Unidade "cadastro mínimo" (só preço,
-// sem nome/foto — fluxo de RegistrarUnidadeDialog) ganha tratamento visual
-// próprio com ⚠ e miniatura tracejada, porque ainda falta completar o cadastro.
+// próprio) à direita, ação de editar. Dados ausentes numa linha de backfill
+// herdam a peça-mãe; unidade rápida criada só com preço continua marcada como
+// cadastro mínimo até receber seus próprios dados.
 import { AlertTriangle, Pencil } from 'lucide-react';
 import { cn } from '../../../utils';
 import { condicaoNotaDaUnidade, valorDaUnidade } from '../valorEstoque';
@@ -13,18 +13,22 @@ const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currenc
 interface UnidadeRowProps {
   unidade: EstoqueUnidade;
   numero: number;
+  nomePadrao: string;
   valorPadrao: number;
   notaPadrao: number | null;
+  fotoPadrao: string | null;
   onEditar: (unidade: EstoqueUnidade) => void;
 }
 
-export function UnidadeRow({ unidade, numero, valorPadrao, notaPadrao, onEditar }: UnidadeRowProps) {
-  // Cadastro mínimo = fluxo rápido do RegistrarUnidadeDialog: só preço,
-  // nenhum nome nem foto próprios ainda — falta completar o cadastro.
-  const cadastroMinimo = !unidade.nome && unidade.fotos.length === 0;
+export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadrao, fotoPadrao, onEditar }: UnidadeRowProps) {
+  // A linha vazia criada pelo backfill representa a peça legada e herda seus
+  // dados. Já uma unidade rápida com preço próprio, mas sem nome/foto, ainda
+  // precisa ser completada e mantém o aviso de cadastro mínimo.
+  const cadastroMinimo = !unidade.nome && unidade.fotos.length === 0 && unidade.valor != null;
   const nota = condicaoNotaDaUnidade(unidade, notaPadrao);
   const valor = valorDaUnidade(unidade, valorPadrao);
-  const foto = unidade.fotos[0] ?? null;
+  const foto = unidade.fotos[0] ?? fotoPadrao ?? null;
+  const nome = unidade.nome || nomePadrao;
 
   const dotClasse = cadastroMinimo ? 'bg-warning' : unidade.avaria ? 'bg-warning' : 'bg-positive';
 
@@ -51,7 +55,7 @@ export function UnidadeRow({ unidade, numero, valorPadrao, notaPadrao, onEditar 
 
       <div className="flex-1 min-w-0">
         <p className="text-sm font-semibold text-text-primary truncate">
-          #{numero} {unidade.nome ? `"${unidade.nome}"` : ''}
+          #{numero} {nome ? `"${nome}"` : ''}
         </p>
         {cadastroMinimo ? (
           <p className="text-xs text-warning truncate flex items-center gap-1">

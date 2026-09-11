@@ -19,11 +19,11 @@ function Pill({ valor, label, accent }: { valor: string; label: string; accent?:
   return (
     <div
       className={cn(
-        'flex-none min-w-[104px] rounded-card border p-3',
+        'flex-none min-w-[84px] sm:min-w-[104px] rounded-card border px-3 py-2.5',
         accent ? 'bg-surface-card border-accent' : 'bg-surface-card border-border-subtle'
       )}
     >
-      <p className={cn('text-lg font-bold leading-tight truncate', accent ? 'text-accent' : 'text-text-primary')}>{valor}</p>
+      <p className={cn('text-base sm:text-lg font-bold leading-tight whitespace-nowrap', accent ? 'text-accent' : 'text-text-primary')}>{valor}</p>
       <p className="text-[10px] font-semibold uppercase tracking-wider text-text-muted mt-0.5">{label}</p>
     </div>
   );
@@ -31,7 +31,7 @@ function Pill({ valor, label, accent }: { valor: string; label: string; accent?:
 
 export function StatsRow({ gavetas, variantes, unidades, valorTotal }: StatsRowProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" role="list" aria-label="Estatísticas do estoque">
+    <div className="flex gap-1.5 sm:gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none" role="list" aria-label="Estatísticas do estoque">
       <Pill valor={fmtInt(gavetas)} label="Gavetas" />
       <Pill valor={fmtInt(variantes)} label="Variantes" />
       <Pill valor={fmtInt(unidades)} label="Unidades" />

@@ -18,6 +18,29 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.6.1',
+    data: '2026-09-11',
+    titulo: 'Gavetas mais rápidas e fáceis de organizar',
+    itens: [
+      {
+        tipo: 'fix',
+        texto: 'Peças antigas agora aparecem como unidades reais, herdando nome, foto, preço e nota, em vez de uma ficha incompleta artificial.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'A busca das gavetas aceita palavras em qualquer ordem, sem depender de acentos ou do nome exato, e também encontra código, categoria, modelo e dados das unidades.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'O nome da variante pode ser corrigido diretamente no card, e marcadores de avaria deixam de poluir o título organizacional.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Adicionar várias peças processa a seleção em paralelo controlado e atualiza o estoque uma única vez, com aviso claro em caso de falha parcial.',
+      },
+    ],
+  },
+  {
     versao: '1.6.0',
     data: '2026-09-11',
     titulo: 'Estoque organizado por Gavetas',

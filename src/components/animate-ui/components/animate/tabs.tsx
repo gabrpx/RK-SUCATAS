@@ -32,9 +32,11 @@ function Tabs({ className, ...props }: TabsProps) {
   );
 }
 
-type TabsListProps = TabsListPrimitiveProps;
+type TabsListProps = TabsListPrimitiveProps & {
+  variant?: 'default' | 'underline';
+};
 
-function TabsList({ className, ...props }: TabsListProps) {
+function TabsList({ className, variant = 'default', ...props }: TabsListProps) {
   // A "pílula" desliza com o spring padrão da base; com `prefers-reduced-motion`
   // ela apenas troca de lugar, sem percorrer o caminho.
   const reduce = useReducedMotion();
@@ -42,11 +44,19 @@ function TabsList({ className, ...props }: TabsListProps) {
   return (
     <TabsHighlightPrimitive
       transition={reduce ? { duration: 0 } : SPRING_MICRO}
-      className="absolute z-0 inset-0 rounded-control border border-border-default bg-surface-overlay shadow-elevated-sm"
+      className={cn(
+        'absolute z-0',
+        variant === 'underline'
+          ? 'inset-x-0 bottom-0 h-0.5 rounded-full bg-accent'
+          : 'inset-0 rounded-control border border-border-default bg-surface-overlay shadow-elevated-sm',
+      )}
     >
       <TabsListPrimitive
         className={cn(
-          'inline-flex h-9 w-fit items-center justify-center rounded-control border border-border-subtle bg-surface-inset p-1 text-text-muted',
+          'inline-flex w-fit items-center justify-center text-text-muted',
+          variant === 'underline'
+            ? 'h-10 gap-5 border-b border-border-subtle bg-transparent p-0'
+            : 'h-9 rounded-control border border-border-subtle bg-surface-inset p-1',
           className,
         )}
         {...props}

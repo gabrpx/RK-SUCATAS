@@ -16,14 +16,14 @@ interface FilterChipsProps {
 
 export function FilterChips({ opcoes, selecionado, onSelecionar }: FilterChipsProps) {
   return (
-    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1" role="tablist" aria-label="Filtrar por categoria">
+    <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-none" role="tablist" aria-label="Filtrar por categoria">
       <button
         type="button"
         role="tab"
         aria-selected={selecionado === null}
         onClick={() => onSelecionar(null)}
         className={cn(
-          'flex-none h-9 px-4 rounded-pill text-sm font-semibold whitespace-nowrap transition-colors',
+          'flex-none h-8 px-3.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-colors',
           selecionado === null
             ? 'bg-accent text-white'
             : 'bg-surface-card text-text-secondary hover:text-text-primary'
@@ -39,7 +39,7 @@ export function FilterChips({ opcoes, selecionado, onSelecionar }: FilterChipsPr
           aria-selected={selecionado === opcao.id}
           onClick={() => onSelecionar(opcao.id)}
           className={cn(
-            'flex-none h-9 px-4 rounded-pill text-sm font-semibold whitespace-nowrap transition-colors',
+            'flex-none h-8 px-3.5 rounded-pill text-xs font-semibold whitespace-nowrap transition-colors',
             selecionado === opcao.id
               ? 'bg-accent text-white'
               : 'bg-surface-card text-text-secondary hover:text-text-primary'

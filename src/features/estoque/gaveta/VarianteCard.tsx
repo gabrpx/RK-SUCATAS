@@ -10,7 +10,7 @@
 // Shopee = danger (rosa). "Novo" agora tem dado real: estoque.novo
 // (migration_063), booleano manual — some quando false/ausente.
 import { useState } from 'react';
-import { Package, Pencil, Plus, X } from 'lucide-react';
+import { Check, Package, Pencil, Plus, X } from 'lucide-react';
 import { cn } from '../../../utils';
 import { Button } from '../../../components/ui/button';
 import { estoqueApi } from '../api';
@@ -18,7 +18,9 @@ import { useData } from '../../../context/DataContext';
 import { faixaPrecoVariante } from './gavetaEstoque';
 import { UnidadeForm } from './UnidadeForm';
 import { UnidadeRow } from './UnidadeRow';
+import { nomeVarianteExibicao } from './buscaGavetas';
 import type { Estoque, EstoqueUnidade } from '../types';
+import { aviso } from '../../../components/ui/toast';
 
 const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
 
@@ -46,6 +48,9 @@ interface VarianteCardProps {
 
 export function VarianteCard({ item }: VarianteCardProps) {
   const { refreshData } = useData();
+  const [editandoNome, setEditandoNome] = useState(false);
+  const [nomeRascunho, setNomeRascunho] = useState(() => nomeVarianteExibicao(item.nome));
+  const [salvandoNome, setSalvandoNome] = useState(false);
   const [editandoAno, setEditandoAno] = useState(false);
   const [faixaAno, setFaixaAno] = useState(() => parseFaixaAno(item.ano));
   const [salvandoAno, setSalvandoAno] = useState(false);
@@ -57,6 +62,32 @@ export function VarianteCard({ item }: VarianteCardProps) {
   const semFicha = Math.max(0, (Number(item.quantidade) || 0) - unidadesDisponiveis.length);
   const totalUnidades = unidadesDisponiveis.length + semFicha;
   const capa = item.imagens[0] ?? null;
+  const nomeExibicao = nomeVarianteExibicao(item.nome);
+
+  const abrirEdicaoNome = () => {
+    setNomeRascunho(nomeExibicao);
+    setEditandoNome(true);
+  };
+
+  const salvarNome = async () => {
+    const nome = nomeRascunho.trim();
+    if (!nome) return aviso.atencao('Informe o nome da variante');
+    if (nome === item.nome) {
+      setEditandoNome(false);
+      return;
+    }
+    setSalvandoNome(true);
+    try {
+      const resultado = await estoqueApi.atualizarParcial(item.id, { nome });
+      if (!resultado.success) throw new Error(resultado.error || 'Falha ao renomear variante');
+      await refreshData();
+      setEditandoNome(false);
+    } catch (error: any) {
+      aviso.erro(error?.message || 'Não foi possível renomear a variante');
+    } finally {
+      setSalvandoNome(false);
+    }
+  };
 
   const abrirEdicaoAno = () => {
     setFaixaAno(parseFaixaAno(item.ano));
@@ -94,7 +125,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
     'w-16 border rounded-control py-1 px-2 text-sm text-center outline-none bg-surface-inset border-accent text-text-primary focus:ring-2 focus:ring-accent/50';
 
   return (
-    <div className={cn('rounded-card border p-3 space-y-3', editandoAno ? 'border-accent' : 'border-border-default')}>
+    <div className={cn('rounded-card border p-3 space-y-3', editandoAno || editandoNome ? 'border-accent' : 'border-border-default')}>
       <div className="flex items-start gap-3">
         <div className="flex-none size-14 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center text-text-faint">
           {capa ? (
@@ -106,7 +137,35 @@ export function VarianteCard({ item }: VarianteCardProps) {
 
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="font-bold text-text-primary truncate">{item.nome}</p>
+            {editandoNome ? (
+              <div className="flex min-w-0 flex-1 items-center gap-1.5">
+                <input
+                  aria-label="Nome da variante"
+                  value={nomeRascunho}
+                  onChange={(event) => setNomeRascunho(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter') salvarNome();
+                    if (event.key === 'Escape') setEditandoNome(false);
+                  }}
+                  autoFocus
+                  disabled={salvandoNome}
+                  className="h-9 min-w-0 flex-1 rounded-control border border-accent bg-surface-inset px-2 text-sm font-bold text-text-primary outline-none focus:ring-2 focus:ring-accent/50"
+                />
+                <button type="button" aria-label="Salvar nome da variante" onClick={salvarNome} disabled={salvandoNome} className="p-2 text-positive disabled:opacity-50">
+                  <Check size={15} />
+                </button>
+                <button type="button" aria-label="Cancelar edição do nome" onClick={() => setEditandoNome(false)} disabled={salvandoNome} className="p-2 text-text-faint hover:text-danger disabled:opacity-50">
+                  <X size={15} />
+                </button>
+              </div>
+            ) : (
+              <div className="flex min-w-0 items-center gap-1">
+                <p className="font-bold text-text-primary truncate">{nomeExibicao}</p>
+                <button type="button" aria-label="Editar nome da variante" onClick={abrirEdicaoNome} className="shrink-0 p-1 text-text-faint hover:text-accent-soft-fg">
+                  <Pencil size={12} />
+                </button>
+              </div>
+            )}
             <span
               className={cn(
                 'shrink-0 rounded-badge px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider',
@@ -187,8 +246,10 @@ export function VarianteCard({ item }: VarianteCardProps) {
               <UnidadeRow
                 unidade={unidade}
                 numero={i + 1}
+                nomePadrao={nomeExibicao}
                 valorPadrao={item.valor}
                 notaPadrao={item.condicao_nota}
+                fotoPadrao={capa}
                 onEditar={setUnidadeEditando}
               />
             </div>
