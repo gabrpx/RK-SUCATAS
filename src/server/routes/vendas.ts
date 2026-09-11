@@ -10,7 +10,7 @@ import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
 import { avisarAnunciosDesatualizados } from '../../services/mercadolivreSync.js';
 
 const SELECT_COM_JOIN =
-  '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome, natureza), cliente:clientes(id, nome, telefone), unidade:estoque_unidades(id, apelido, avaria, avaria_descricao, fotos, valor)';
+  '*, modelo_moto:modelos_moto(id, nome, ano), forma_pagamento:formas_pagamento(id, nome, natureza), cliente:clientes(id, nome, telefone), unidade:estoque_unidades(id, nome, avaria, avaria_descricao, fotos, valor)';
 
 const SELECT_COMPROVANTE = '*, autor:usuarios!comprovantes_pix_criado_por_fkey(id, nome_exibicao)';
 

@@ -37,7 +37,7 @@ const ANUNCIAR_SHOPEE = exigirPermissao('estoque.anunciar_shopee');
 // desnecessário — mas isso significa que coluna nova de `categorias` usada
 // pelo frontend precisa entrar aqui à mão. Ver estoque.test.ts.
 export const SELECT_COM_JOINS =
-  '*, categoria:categorias(id, nome, mercadolivre_categoria_id_padrao), modelo_moto:modelos_moto!estoque_modelo_moto_id_fkey(id, nome, ano)';
+  '*, categoria:categorias(id, nome, mercadolivre_categoria_id_padrao), modelo_moto:modelos_moto!estoque_modelo_moto_id_fkey(id, nome, ano), gaveta:gavetas(id, nome, icone)';
 
 // As fichas de unidade (migration_014) vêm numa consulta separada, e não como
 // join no select acima, de propósito: enquanto a migração não roda em
@@ -470,6 +470,7 @@ export function montarPayload(body: any) {
   // null explícito desvincula a peça da família (ver rodapé "Excluir" da
   // spec — desvincular em vez de apagar quando há venda no histórico).
   if (payload.familia_id !== undefined) payload.familia_id = payload.familia_id || null;
+  if (body?.gaveta_id !== undefined) payload.gaveta_id = body.gaveta_id || null;
   return payload;
 }
 
@@ -662,13 +663,14 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   function montarPayloadUnidade(body: any) {
     const payload: Record<string, any> = {};
-    // body.apelido/avaria_descricao === null (herança/campo limpo) precisa
+    // body.nome/avaria_descricao === null (herança/campo limpo) precisa
     // virar null no banco, não a string "null" — String(null) === 'null'.
-    if (body?.apelido !== undefined) payload.apelido = body.apelido === null ? null : String(body.apelido).trim() || null;
+    if (body?.nome !== undefined) payload.nome = body.nome === null ? null : String(body.nome).trim() || null;
     if (body?.avaria !== undefined) payload.avaria = Boolean(body.avaria);
     if (body?.avaria_descricao !== undefined) {
       payload.avaria_descricao = body.avaria_descricao === null ? null : String(body.avaria_descricao).trim() || null;
     }
+    if (body?.descricao !== undefined) payload.descricao = body.descricao === null ? null : String(body.descricao).trim() || null;
     if (body?.fotos !== undefined) {
       payload.fotos = Array.isArray(body.fotos) ? body.fotos.map((f: any) => String(f)).filter(Boolean) : [];
     }
@@ -691,7 +693,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // coluna condicao_nota só existe depois que a migration_024 rodar.
   // Diferente de anexarUnidades/anexarCompatibilidades (tabela inteira
   // ausente, detectado só na leitura), aqui o risco é a ESCRITA falhar por
-  // causa de UM campo — e não é razoável deixar apelido/avaria/fotos/valor
+  // causa de UM campo — e não é razoável deixar nome/avaria/fotos/valor
   // pararem de salvar por isso. Tenta com o campo; se a coluna não existir
   // ainda, tenta de novo sem ele e avisa no log — mesmo espírito de "a aba
   // não pode quebrar por migration pendente", agora pra escrita.
@@ -814,6 +816,32 @@ export function estoqueRouter(supabase: SupabaseClient) {
       res.json({ success: true });
     } catch (error: any) {
       console.error('Erro ao excluir unidade:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.post('/:id/unidades/:unidadeId/mover', EDITAR, async (req, res) => {
+    try {
+      const { ficha_destino_id } = req.body;
+      if (!ficha_destino_id) return res.status(400).json({ success: false, error: 'ficha_destino_id obrigatório' });
+
+      const { error } = await supabase.rpc('mover_unidade_estoque', {
+        p_unidade_id: req.params.unidadeId,
+        p_ficha_destino_id: ficha_destino_id,
+      });
+
+      if (error) {
+        if (error.code === '42883' || error.code === 'PGRST202' || error.code === 'PGRST205') {
+          console.warn('⚠️ Função mover_unidade_estoque ausente — rode supabase/migration_060_mover_unidade_estoque.sql.');
+          return res.status(503).json({ success: false, error: 'Função de movimentação não disponível. Rode a migration_060.' });
+        }
+        if (error.code === 'P0001') return res.status(400).json({ success: false, error: error.message });
+        throw error;
+      }
+
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error('Erro ao mover unidade:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

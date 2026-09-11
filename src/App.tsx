@@ -464,7 +464,7 @@ function DetailModal({
 
           {/* Unidades físicas desta peça: mesma peça, uma linha só no
               estoque, mas cada unidade diferente (nota própria, avaria,
-              apelido ou preço) ganha ficha e foto. */}
+              nome ou preço) ganha ficha e foto. */}
           {estoque && <UnidadesEstoque item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
         </div>
       </Modal>
@@ -563,6 +563,13 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     window.scrollTo(0, 0);
     contentRef.current?.scrollTo(0, 0);
   }, [activeTab]);
+
+  // "Venda rápida" do modal de família navega aqui via evento customizado
+  useEffect(() => {
+    const handler = () => setActiveTab('vendas');
+    window.addEventListener('rk:ir-para-vendas', handler);
+    return () => window.removeEventListener('rk:ir-para-vendas', handler);
+  }, []);
 
   const itemActions = useMemo(() => {
     if (!selectedDetailItem) return { edit: undefined, delete: undefined };

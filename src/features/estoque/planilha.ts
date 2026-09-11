@@ -296,12 +296,12 @@ export function gerarCsvEstoque(items: Estoque[], categorias: Categoria[]): stri
       // coluna enxuta em vez de repetir a mesma nota pra toda unidade sem ficha.
       (item.unidades ?? [])
         .filter((u) => u.condicao_nota != null)
-        .map((u) => `${u.apelido || 'Unidade'}: ${u.condicao_nota}/10`)
+        .map((u) => `${u.nome || 'Unidade'}: ${u.condicao_nota}/10`)
         .join(' | '),
       contarAvarias(item) || '',
       (item.unidades ?? [])
         .filter((u) => u.avaria)
-        .map((u) => [u.apelido, u.avaria_descricao].filter(Boolean).join(': '))
+        .map((u) => [u.nome, u.avaria_descricao].filter(Boolean).join(': '))
         .join(' | '),
       (item.links_ml ?? []).map((l) => l.url).join(' | '),
       item.anuncio_fb_url ?? '',

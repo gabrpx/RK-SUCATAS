@@ -17,10 +17,12 @@ export type NotaCadastro = 'com_nota' | 'sem_nota';
 export interface EstoqueUnidade {
   id: string;
   estoque_id: string;
-  /** Como a loja chama essa unidade: "A amassada", "Sem bico injetor" */
-  apelido: string | null;
+  /** Nome próprio desta unidade: "A amassada", "Sem bico injetor" */
+  nome: string | null;
   avaria: boolean;
   avaria_descricao: string | null;
+  /** Descrição geral própria da unidade (diferente de avaria_descricao, que é só sobre o defeito). */
+  descricao: string | null;
   /** Fotos desta unidade — separadas de estoque.imagens, que mostra a peça boa */
   fotos: string[];
   /** null = vale o preço normal da peça; preenchido = preço só desta unidade */
@@ -40,7 +42,7 @@ export interface EstoqueUnidade {
   atualizado_em: string;
 }
 
-export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'apelido' | 'avaria' | 'avaria_descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
+export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'nome' | 'avaria' | 'avaria_descricao' | 'descricao' | 'fotos' | 'valor' | 'condicao_nota'>;
 
 // Família de peça (migration_056) — agrupa N fichas (Estoque) sob um nome
 // comum ("Tanque de Combustível CG 125"), cada ficha mantendo seu próprio
@@ -57,6 +59,20 @@ export interface EstoqueFamilia {
 }
 
 export type EstoqueFamiliaInput = Pick<EstoqueFamilia, 'nome' | 'categoria_id' | 'descricao' | 'imagem_url'>;
+
+// Gaveta (migration_061) — agrupamento manual de peças semelhantes. Substitui
+// famílias. Peça sem gaveta (estoque.gaveta_id null) aparece em "itens não agrupados".
+export interface Gaveta {
+  id: string;
+  nome: string;
+  categoria_id: string | null;
+  categoria?: Categoria | null; // join opcional do backend
+  icone: string | null;
+  criado_em: string;
+  atualizado_em: string;
+}
+
+export type GavetaInput = Pick<Gaveta, 'nome' | 'categoria_id' | 'icone'>;
 
 // Snapshot de visitas/perguntas/vendas/saúde de um anúncio publicado pelo
 // sistema — ver supabase/migration_043_mercadolivre_publicacao.sql. Escrito
@@ -281,6 +297,9 @@ export interface Estoque {
   // Populado pelo backend via join em estoque_familias (anexarFamilias).
   // Ausente em payloads antigos em cache — sempre tratar como opcional.
   familia?: EstoqueFamilia | null;
+  // Gaveta (migration_061) — organização nova. null = item não agrupado.
+  gaveta_id?: string | null;
+  gaveta?: Gaveta | null; // join opcional do backend
   condicao: CondicaoPeca;
   // Estado físico da peça (1 = ruim, 10 = perfeita) — independente de
   // `condicao` acima, que é sobre origem (original/paralela), não estado.
@@ -347,6 +366,7 @@ export type EstoqueInput = Pick<
   | 'componentes'
   | 'anuncio_fb_url'
   | 'familia_id'
+  | 'gaveta_id'
 > & {
   // Ids dos modelos secundários — não é campo direto de `Estoque` (que expõe
   // os objetos já resolvidos em `modelos_compativeis`), é derivado na leitura

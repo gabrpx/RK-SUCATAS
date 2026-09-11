@@ -40,7 +40,7 @@ export function EstoqueItemExpandido({ item, categorias }: EstoqueItemExpandidoP
                 <li key={u.id} className="flex items-start gap-1.5 text-xs text-warning">
                   <AlertTriangle size={12} className="shrink-0 mt-0.5" />
                   <span>
-                    {u.apelido ? `${u.apelido}: ` : ''}
+                    {u.nome ? `${u.nome}: ` : ''}
                     {u.avaria_descricao || 'Sem descrição'}
                   </span>
                 </li>

@@ -11,7 +11,7 @@
 // - Sem vínculo de produto de catálogo (catalog_required não existe do lado
 //   da Shopee nesta pesquisa).
 // - Sem remoção de fundo integrada — não fazia parte do escopo desta fase.
-// - Variação usa só o apelido da ficha como rótulo (Shopee representa
+// - Variação usa só o nome da ficha como rótulo (Shopee representa
 //   variação como texto livre por "model", não atributo estruturado como
 //   COLOR/SIZE do Mercado Livre) — não precisa de um seletor de atributo.
 import { useEffect, useMemo, useState } from 'react';
@@ -460,7 +460,7 @@ export function EstoquePublicarShopeeModal({ aberto, onFechar, item, onPublicado
           </ModalSection>
 
           {unidadesElegiveis.length >= 2 && (
-            <ModalSection titulo="Variações" descricao="Cada ficha de unidade com preço próprio vira uma variação do anúncio (rótulo = apelido da ficha).">
+            <ModalSection titulo="Variações" descricao="Cada ficha de unidade com preço próprio vira uma variação do anúncio (rótulo = nome da ficha).">
               <div className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <label className={cn(labelClass, 'mb-0')}>Publicar como variações</label>
@@ -480,7 +480,7 @@ export function EstoquePublicarShopeeModal({ aberto, onFechar, item, onPublicado
                   <div className="space-y-2">
                     {unidadesElegiveis.map((u) => (
                       <div key={u.id} className="flex items-center justify-between gap-3 rounded-control border border-border-subtle bg-surface-inset px-3 py-2.5">
-                        <p className="text-sm text-text-primary truncate">{u.apelido || 'Sem apelido'}</p>
+                        <p className="text-sm text-text-primary truncate">{u.nome || 'Sem nome'}</p>
                         <p className="text-[11px] text-text-faint shrink-0">{formatarMoeda(u.valor ?? item.valor)}</p>
                       </div>
                     ))}

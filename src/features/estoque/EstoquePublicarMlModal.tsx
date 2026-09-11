@@ -1146,7 +1146,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
                         {unidadesElegiveis.map((u) => (
                           <div key={u.id} className="flex items-center gap-3 rounded-control border border-border-subtle bg-surface-inset px-3 py-2.5">
                             <div className="min-w-0 flex-1">
-                              <p className="text-sm text-text-primary truncate">{u.apelido || 'Sem apelido'}</p>
+                              <p className="text-sm text-text-primary truncate">{u.nome || 'Sem nome'}</p>
                               <p className="text-[11px] text-text-faint">{formatarMoeda(u.valor ?? item.valor)}</p>
                             </div>
                             <div className="w-40 shrink-0">
@@ -1169,7 +1169,7 @@ export function EstoquePublicarMlModal({ aberto, onFechar, item, modelos, onPubl
                 </div>
               ) : (
                 <p className="text-xs text-text-faint">
-                  {unidadesElegiveis.map((u) => u.apelido || formatarMoeda(u.valor ?? 0)).join(', ')}
+                  {unidadesElegiveis.map((u) => u.nome || formatarMoeda(u.valor ?? 0)).join(', ')}
                 </p>
               )}
             </ModalSection>

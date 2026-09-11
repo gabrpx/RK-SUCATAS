@@ -18,6 +18,31 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.6.0',
+    data: '2026-09-11',
+    titulo: 'Estoque organizado por Gavetas',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Nova aba "Gavetas" no Estoque: cada gaveta física agrupa as variantes de peça guardadas nela, e cada variante mostra suas unidades individuais — hierarquia Gaveta → Variante → Unidade.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Preço agora pertence à unidade, não à variante — a variante exibe a faixa de preço (mín~máx) calculada a partir das unidades disponíveis.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Itens ainda sem gaveta cadastrada aparecem em "Itens não agrupados", sem bloquear o uso da tela.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Agora dá pra mover peças pra dentro de uma gaveta e soltá-las de volta, direto na tela de detalhe.',
+      },
+    ],
+  },
+  {
     versao: '1.3.11',
     data: '2026-09-09',
     titulo: 'Tarefas em grupo, imagens anexadas e correções nos visualizadores de foto',
@@ -39,6 +64,78 @@ export const PATCH_NOTES: PatchNoteEntrada[] = [
         tipo: 'fix',
         texto:
           'O botão de fechar (X) ao ampliar uma foto não respondia bem ao toque no celular — a área clicável ficou maior. Fechar a foto ampliada, quando aberta por cima de outra janela (ex: editar uma peça no Estoque), agora volta pra essa janela em vez de fechar tudo.',
+      },
+    ],
+  },
+  {
+    versao: '1.5.1',
+    data: '2026-09-04',
+    titulo: 'Estoque — fotos e edição de unidade no painel de família',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto: 'Foto de cada unidade no painel de família agora abre em zoom ao clicar — mesma experiência da ficha avulsa.',
+      },
+      {
+        tipo: 'melhoria',
+        texto: 'Galeria completa de fotos da ficha-mãe exibida dentro de cada grupo (todas as fotos, não só a capa).',
+      },
+      {
+        tipo: 'feature',
+        texto: '"Editar unidade" abre o dialog com os dados reais da unidade pré-preenchidos (apelido, preço, condição, fotos, avaria) e salva via PATCH ao confirmar.',
+      },
+      {
+        tipo: 'fix',
+        texto: '"Registrar unidade" e "Editar unidade" usam agora o dropzone de upload com compressão automática — o campo de URL colada foi removido.',
+      },
+    ],
+  },
+  {
+    versao: '1.5.0',
+    data: '2026-09-04',
+    titulo: 'Famílias de peça — ações e migração assistida',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          '"Registrar unidade" no painel de família abre um fluxo de 2 passos: escolha o grupo (modelo/ano existente ou novo) e preencha foto, preço e condição. A unidade é vinculada automaticamente à família e ao grupo selecionado.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          '"Venda rápida" no painel de família navega direto para a tela de Vendas com a busca pré-preenchida pelo nome da família, para encontrar a peça instantaneamente.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Multi-seleção de unidades agora inclui "Mover para outro modelo/ano" — selecione as unidades, clique em Mover e escolha a ficha de destino. A operação é transacional: as quantidades de origem e destino ficam corretas mesmo em caso de acesso simultâneo.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Botão "Fundir" no Estoque abre a tela de migração assistida: detecta automaticamente peças avulsas com nomes similares, sugere grupos e aguarda confirmação manual antes de criar qualquer família — nenhuma fusão automática.',
+      },
+    ],
+  },
+  {
+    versao: '1.4.0',
+    data: '2026-09-03',
+    titulo: 'Famílias de peça no Estoque',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'A tabela de Estoque agora agrupa peças da mesma família em uma única linha (ex.: "Tanque CG 150" reúne as variações Carburada, MIX e Injetada). Buscar por "Titan 99" encontra a família mesmo que o texto só apareça numa das peças-filhas.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Clicar numa família abre o painel de detalhes com 6 métricas no cabeçalho (modelos, variações, em estoque, valor total, faixa de preço e unidades com avaria) e as unidades físicas organizadas por modelo/ano — mais antigas primeiro.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Cada unidade física ganha badges automáticos de "Melhor estado" e "Melhor preço" dentro do grupo, calculados pela maior nota de condição e menor preço disponível — sem campo manual.',
       },
     ],
   },

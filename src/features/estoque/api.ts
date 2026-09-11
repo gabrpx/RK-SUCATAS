@@ -49,6 +49,8 @@ export const estoqueApi = {
     api.patch(`/api/estoque/${estoqueId}/unidades/${unidadeId}`, payload) as Promise<ApiResult<EstoqueUnidade>>,
   excluirUnidade: (estoqueId: string, unidadeId: string) =>
     api.delete(`/api/estoque/${estoqueId}/unidades/${unidadeId}`) as Promise<ApiResult<null>>,
+  moverUnidade: (estoqueId: string, unidadeId: string, fichaDestinoId: string) =>
+    api.post(`/api/estoque/${estoqueId}/unidades/${unidadeId}/mover`, { ficha_destino_id: fichaDestinoId }) as Promise<ApiResult<null>>,
 
   // Anúncios do Mercado Livre vinculados a esta peça — aninhados no item
   // porque não existem fora dele (ver migration_025).

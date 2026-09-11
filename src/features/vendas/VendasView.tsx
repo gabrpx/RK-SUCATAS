@@ -284,7 +284,14 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const { estoque, vendas, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
-  const [busca, setBusca] = useState('');
+  const [busca, setBusca] = useState<string>(() => {
+    // "Venda rápida" do modal de família pré-preenche a busca via sessionStorage
+    try {
+      const pre = sessionStorage.getItem('rk:venda-rapida-busca');
+      if (pre) { sessionStorage.removeItem('rk:venda-rapida-busca'); return pre; }
+    } catch { /* privado */ }
+    return '';
+  });
   const [itemSelecionado, setItemSelecionado] = useState<Estoque | null>(null);
   const [componenteSelecionado, setComponenteSelecionado] = useState<string | null>(null);
   // Ficha específica (unidade física) escolhida pra vender, em vez de uma
@@ -548,7 +555,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                   onClick={() => selecionarUnidade(u.id)}
                   className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', unidadeSelecionadaId === u.id ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
                 >
-                  {u.apelido || 'Sem apelido'}
+                  {u.nome || 'Sem nome'}
                   {u.avaria && ' · avaria'}
                 </button>
               ))}

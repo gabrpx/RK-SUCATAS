@@ -71,7 +71,12 @@ vi.mock('../../components/TreeDropdown', () => ({
 
 vi.mock('./EstoqueAnunciosMlEditor', () => ({ EstoqueAnunciosMlEditor: () => null }));
 vi.mock('./EstoquePublicarMlModal', () => ({ EstoquePublicarMlModal: () => null }));
+vi.mock('./EstoquePublicarShopeeModal', () => ({ EstoquePublicarShopeeModal: () => null }));
 vi.mock('./ImportarPlanilhaModal', () => ({ ImportarPlanilhaModal: () => null }));
+vi.mock('./EstoqueFamiliaModal', () => ({
+  EstoqueFamiliaModal: ({ linha, open, onClose }: any) =>
+    open ? <div role="dialog" data-testid="familia-modal">{linha?.tipo === 'avulso' ? linha.item.nome : linha?.familia?.nome}</div> : null,
+}));
 
 function criarItem(overrides: Partial<Estoque> & Pick<Estoque, 'id' | 'nome'>): Estoque {
   return {
@@ -307,15 +312,16 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     expect(screen.getByText('Página 1 de 2')).toBeTruthy();
   });
 
-  it('clicar numa linha chama onSelectItem com a peça correspondente', () => {
+  it('clicar numa linha abre o modal de família da peça', () => {
     const item = criarItem({ id: 'a', nome: 'Peça Clicável' });
     mockEstado.estoque = [item];
-    const onSelectItem = vi.fn();
 
-    render(<EstoqueView onSelectItem={onSelectItem} />);
+    render(<EstoqueView onSelectItem={vi.fn()} />);
     fireEvent.click(tabela().getByText('Peça Clicável'));
 
-    expect(onSelectItem).toHaveBeenCalledWith(item);
+    // O clique abre EstoqueFamiliaModal (não mais o DetailModal via onSelectItem)
+    expect(screen.getByTestId('familia-modal')).toBeTruthy();
+    expect(screen.getByTestId('familia-modal').textContent).toBe('Peça Clicável');
   });
 
   // Regressão: o chevron de expandir mora DENTRO da linha, que por sua vez tem
@@ -341,16 +347,16 @@ describe('EstoqueView — tabela (TanStack + shadcn)', () => {
     expect(tabela().queryByText('Categoria completa')).not.toBeNull();
   });
 
-  it('com a linha já expandida, clicar no corpo da linha ainda abre o DetailModal', () => {
+  it('com a linha já expandida, clicar no corpo da linha ainda abre o modal de família', () => {
     const item = criarItem({ id: 'a', nome: 'Peça Expansível' });
     mockEstado.estoque = [item];
-    const onSelectItem = vi.fn();
 
-    render(<EstoqueView onSelectItem={onSelectItem} />);
+    render(<EstoqueView onSelectItem={vi.fn()} />);
     fireEvent.click(tabela().getByRole('button', { name: 'Ver mais detalhes' }));
     fireEvent.click(tabela().getByText('Peça Expansível'));
 
-    expect(onSelectItem).toHaveBeenCalledWith(item);
+    expect(screen.getByTestId('familia-modal')).toBeTruthy();
+    expect(screen.getByTestId('familia-modal').textContent).toBe('Peça Expansível');
   });
 
   it('indicador de fora de estoque: quantidade 0 exibe o nome com estilo esmaecido e riscado', () => {
