@@ -3,6 +3,7 @@
 // de apresentação; a lógica mora em pendenciasGaveta.ts.
 import { AlertTriangle, FileWarning, FolderInput, History, ImageOff, Tag } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
+import type { Key } from 'react';
 import { cn } from '../../../utils';
 import {
   ORDEM_PENDENCIAS,
@@ -39,6 +40,7 @@ function Chip({
   quantidade,
   className,
 }: {
+  key?: Key;
   tipo: PendenciaGaveta;
   /** número mostrado; null = só o nome do tipo (chips de variante). */
   quantidade: number | null;

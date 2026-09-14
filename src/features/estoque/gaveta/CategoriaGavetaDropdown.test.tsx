@@ -16,7 +16,9 @@ describe('CategoriaGavetaDropdown', () => {
     const onChange = vi.fn();
     render(<CategoriaGavetaDropdown id="categoria" label="Categoria" value="" options={opcoes} onChange={onChange} />);
 
-    fireEvent.click(screen.getByRole('button', { name: /categoria/i }));
+    const trigger = screen.getByRole('button', { name: /categoria/i });
+    fireEvent.pointerDown(trigger);
+    fireEvent.click(trigger);
     fireEvent.change(screen.getByRole('textbox', { name: /buscar categoria/i }), { target: { value: 'roda' } });
 
     expect(screen.getByRole('menuitemradio', { name: 'Roda dianteira' })).toBeTruthy();

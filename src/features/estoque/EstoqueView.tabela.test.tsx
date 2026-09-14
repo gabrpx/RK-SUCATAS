@@ -9,7 +9,7 @@
 // tabela (publicar ML, importar planilha, editor de anúncios ML) dublados.
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
+import { act, cleanup, fireEvent, render as rtlRender, screen, within } from '@testing-library/react';
 import { EstoqueView } from './EstoqueView';
 import type { Estoque } from './types';
 import type { Categoria, ModeloMoto } from '../../types/catalog';
@@ -73,6 +73,15 @@ vi.mock('./EstoqueAnunciosMlEditor', () => ({ EstoqueAnunciosMlEditor: () => nul
 vi.mock('./EstoquePublicarMlModal', () => ({ EstoquePublicarMlModal: () => null }));
 vi.mock('./EstoquePublicarShopeeModal', () => ({ EstoquePublicarShopeeModal: () => null }));
 vi.mock('./ImportarPlanilhaModal', () => ({ ImportarPlanilhaModal: () => null }));
+
+// A visão de gavetas é o padrão do produto. Estes testes cobrem a tabela
+// legada, portanto entram explicitamente na aba Lista antes de consultar o
+// DOM da tabela.
+function render(ui: React.ReactElement) {
+  const result = rtlRender(ui);
+  fireEvent.click(screen.getByRole('button', { name: 'Lista' }));
+  return result;
+}
 vi.mock('./EstoqueFamiliaModal', () => ({
   EstoqueFamiliaModal: ({ linha, open, onClose }: any) =>
     open ? <div role="dialog" data-testid="familia-modal">{linha?.tipo === 'avulso' ? linha.item.nome : linha?.familia?.nome}</div> : null,

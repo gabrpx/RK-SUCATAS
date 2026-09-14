@@ -3,6 +3,7 @@
 // próprio) à direita e uma ação de consulta. Edição acontece somente dentro
 // da ficha, para que selecionar uma unidade nunca altere seu cadastro.
 import { AlertTriangle, Eye, History, ImageOff } from 'lucide-react';
+import type { Key } from 'react';
 import { cn } from '../../../utils';
 import { condicaoNotaDaUnidade, valorDaUnidade } from '../valorEstoque';
 import { pendenciasDaUnidade } from './pendenciasGaveta';
@@ -11,6 +12,7 @@ import type { Estoque, EstoqueUnidade } from '../types';
 const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
 
 interface UnidadeRowProps {
+  key?: Key;
   unidade: EstoqueUnidade;
   numero: number;
   nomePadrao: string;

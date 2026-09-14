@@ -191,7 +191,9 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
     const topClientesCompleto = rankingTopClientes(clientes, vendas, orcamentos, { limite: 10 });
     const sumidosCompleto = clientesSumidos(clientes, vendas, orcamentos);
     const fiadoCalculado = resumoFiadoPorCliente(vendas, fiadoRecebimentos);
-    const fiadoCompleto = fiadoCalculado.length > 0 ? fiadoCalculado : (resumoFiado || []);
+    const fiadoCompleto = fiadoCalculado.length > 0
+      ? fiadoCalculado
+      : (resumoFiado || []).map((resumo) => ({ ...resumo, clienteId: null, vendas: [] }));
     const fiadoTotalGeral = fiadoCompleto.length > 0 && fiadoCalculado.length > 0
       ? fiadoCompleto.reduce((s, r) => s + r.totalEmAberto, 0)
       : (resumoFiadoTotal ?? 0);

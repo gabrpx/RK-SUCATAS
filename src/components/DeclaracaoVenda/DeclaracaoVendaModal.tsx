@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, type ReactNode } from 'react';
 import { Dialog as DialogPrimitive } from 'radix-ui';
 import { motion, AnimatePresence } from 'motion/react';
 import { X, FileText, Printer, RotateCcw, Check, Loader2 } from 'lucide-react';
@@ -473,7 +473,7 @@ export function DeclaracaoVendaModal({ open, onOpenChange }: Props) {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
+function SectionLabel({ children }: { children: ReactNode }) {
   return (
     <div className="flex items-center gap-3">
       <span className="text-text-muted text-2xs uppercase tracking-wider font-medium">
@@ -493,7 +493,7 @@ function Field({
   label: string;
   required?: boolean;
   error?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="space-y-1.5">

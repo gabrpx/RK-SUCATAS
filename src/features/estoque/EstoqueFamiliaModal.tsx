@@ -1,7 +1,7 @@
 // Modal de família de peça — abre ao clicar numa linha-família ou numa linha
 // avulsa na tabela de Estoque. Mostra grupos modelo/ano com cards de unidade,
 // métricas agregadas no header e ações (Registrar unidade, Venda rápida, etc.).
-import { useState, useMemo, useCallback } from 'react';
+import { useState, useMemo, useCallback, type Key } from 'react';
 import { Package, Search, MoreVertical, ShoppingCart, Plus, Trash2, Pencil, Check, Move, AlertTriangle, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
@@ -84,6 +84,7 @@ function MetricTile({ valor, label }: { valor: string | number; label: string })
 // ─── Unit card ──────────────────────────────────────────────────────────────
 
 interface UnidadeCardProps {
+  key?: Key;
   unidade: EstoqueUnidade;
   item: Estoque; // ficha-mãe (herança de foto/valor)
   isMelhorEstado: boolean;
@@ -217,6 +218,7 @@ function UnidadeCard({
 // ─── Grupo de modelo ─────────────────────────────────────────────────────────
 
 interface GrupoProps {
+  key?: Key;
   grupo: GrupoModeloFamilia;
   busca: string;
   statusFiltro: 'todos' | 'disponivel' | 'vendida';

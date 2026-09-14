@@ -19,7 +19,7 @@ export default defineConfig(() => {
     // o que exige code-splitting dentro do worker — só o formato 'es' suporta isso
     // (o padrão 'iife' do Vite quebra o build de produção nesse caso).
     worker: {
-      format: 'es',
+      format: 'es' as const,
     },
     resolve: {
       alias: {
@@ -32,6 +32,13 @@ export default defineConfig(() => {
       hmr: process.env.DISABLE_HMR !== 'true',
     },
     test: {
+      // Worktrees de outros agentes ficam dentro do repositório, mas não fazem
+      // parte da suíte deste checkout. Sem este filtro o Vitest executa os
+      // mesmos testes várias vezes e mistura dependências/estado entre árvores.
+      exclude: ['**/node_modules/**', '**/.worktrees/**', '**/dist/**'],
+      // A suíte de UI pode ficar mais lenta quando todos os arquivos rodam em
+      // paralelo; isso evita falso negativo sem mascarar travas reais.
+      testTimeout: 10000,
       // 'node' de propósito, NÃO 'jsdom': todo teste de DOM deste repo declara
       // o próprio `// @vitest-environment jsdom` no topo do arquivo. Ligar jsdom
       // global aqui não ajudaria nenhum deles e ainda jogaria os ~10 testes de

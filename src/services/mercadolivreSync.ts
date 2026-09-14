@@ -1091,7 +1091,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
         const shippingId = String(pedido.shipping.id);
         [custoEnvioTotal, receiverName] = await Promise.all([
           buscarCustoEnvioVendedor(conexao.accessToken, shippingId),
-          buscarEnvio(conexao.accessToken, shippingId).then((e) => e.receiverName).catch(() => null),
+          Promise.resolve(buscarEnvio(conexao.accessToken, shippingId)).then((e) => e?.receiverName ?? null).catch(() => null),
         ]);
       }
 

@@ -24,7 +24,10 @@ function contemMesmoNome(nome: string, folha: string) {
 /** Retorna somente a variação filha que diferencia o modelo base. */
 export function obterNomeVariacaoModelo(modelo: ModeloMoto, modelos: ModeloMoto[]): string | null {
   const caminho = getAncestorChain(modelo.id, modelos);
-  if (caminho.length < 4) return null;
+  // A marca e o agrupador de cilindrada já formam dois níveis válidos;
+  // modelos como "Dafra > 150 > Kansas" também precisam expor a folha
+  // cadastrada como variação, sem depender de uma árvore com níveis extras.
+  if (caminho.length < 3) return null;
 
   const base = caminho.at(-2);
   const folha = caminho.at(-1);

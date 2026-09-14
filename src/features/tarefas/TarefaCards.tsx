@@ -5,7 +5,7 @@
 // ações passadas por render prop (permissões diferentes).
 'use client';
 
-import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useId, useRef, useState, type Key, type ReactNode, type RefObject } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { DndContext, PointerSensor, TouchSensor, closestCenter, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
@@ -116,6 +116,7 @@ function ItemChecklistArrastavel({
   alternando,
   onToggle,
 }: {
+  key?: Key;
   item: TarefaItem;
   arrastavel: boolean;
   podeMarcar: boolean;
