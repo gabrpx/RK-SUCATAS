@@ -18,6 +18,7 @@ import {
 } from '../../services/shopeePublicacao.js';
 import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+import { fotosEfetivasDaUnidade } from '../fotosUnidade.js';
 
 // Gates por permissão granular (ver src/constants/permissoes.ts). Leitura é
 // separada da escrita, e a escrita ainda se divide por ação: criar/editar
@@ -69,7 +70,13 @@ async function anexarUnidades(supabase: SupabaseClient, itens: any[] | null): Pr
     porEstoque.set(unidade.estoque_id, atual);
   }
 
-  return lista.map((item) => ({ ...item, unidades: porEstoque.get(item.id) ?? [] }));
+  return lista.map((item) => ({
+    ...item,
+    unidades: (porEstoque.get(item.id) ?? []).map((unidade) => ({
+      ...unidade,
+      fotos: fotosEfetivasDaUnidade(unidade, item.imagens),
+    })),
+  }));
 }
 
 // Modelos SECUNDÁRIOS de uma peça (migration_019) — além do principal em

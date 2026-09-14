@@ -15,11 +15,11 @@ const unidade: EstoqueUnidade = {
 
 const variante = {
   nome: 'Tanque CG 150', valor: 350, condicao_nota: 8,
-  imagens: ['legada.jpg'], ano: '2004-2008',
-} as Pick<Estoque, 'nome' | 'ano' | 'valor' | 'condicao_nota' | 'imagens'>;
+  ano: '2004-2008',
+} as Pick<Estoque, 'nome' | 'ano' | 'valor' | 'condicao_nota'>;
 
 describe('UnidadeDetailDialog', () => {
-  it('mostra a ficha de consulta e separa fotos próprias das referências da variante', () => {
+  it('mostra a ficha de consulta usando apenas as fotos efetivas da unidade', () => {
     render(
       <UnidadeDetailDialog
         aberto
@@ -33,8 +33,7 @@ describe('UnidadeDetailDialog', () => {
 
     expect(screen.getByRole('heading', { name: /ficha da unidade 2/i })).toBeTruthy();
     expect(screen.getAllByRole('img', { name: /foto da unidade 2/i })).toHaveLength(3);
-    expect(screen.getByText(/fotos de referência da variante/i)).toBeTruthy();
-    expect(screen.getByRole('img', { name: /foto de referência da variante 1/i }).getAttribute('src')).toBe('legada.jpg');
+    expect(screen.queryByText(/fotos de referência da variante/i)).toBeNull();
     expect(screen.getByRole('button', { name: /editar unidade/i })).toBeTruthy();
   });
 });

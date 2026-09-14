@@ -11,7 +11,7 @@ interface UnidadeDetailDialogProps {
   aberto: boolean;
   unidade: EstoqueUnidade | null;
   numero: number;
-  variante: Pick<Estoque, 'nome' | 'ano' | 'valor' | 'condicao_nota' | 'imagens'>;
+  variante: Pick<Estoque, 'nome' | 'ano' | 'valor' | 'condicao_nota'>;
   onFechar: () => void;
   onEditar: (unidade: EstoqueUnidade) => void;
 }
@@ -84,13 +84,6 @@ export function UnidadeDetailDialog({ aberto, unidade, numero, variante, onFecha
         )}
       </ModalSection>
 
-      {variante.imagens.length > 0 && (
-        <ModalSection titulo="Fotos de referência da variante" descricao="Imagens legadas da variante; não representam necessariamente esta unidade.">
-          <div className="grid grid-cols-3 gap-2">
-            {variante.imagens.map((foto, index) => <img key={foto} src={foto} alt={`Foto de referência da variante ${index + 1}`} className="aspect-square w-full rounded-control object-cover" referrerPolicy="no-referrer" />)}
-          </div>
-        </ModalSection>
-      )}
     </Modal>
   );
 }
