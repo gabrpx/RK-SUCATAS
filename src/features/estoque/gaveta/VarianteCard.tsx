@@ -129,11 +129,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
     <div className={cn('rounded-card border p-3 space-y-3', editandoAno || editandoNome ? 'border-accent' : 'border-border-default')}>
       <div className="flex items-start gap-3">
         <div className="flex-none size-14 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center text-text-faint">
-          {item.unidades?.[0]?.fotos?.[0] ? (
-            <img src={item.unidades[0].fotos[0]} alt={`Foto de ${nomeExibicao}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          ) : (
-            <Package size={20} aria-hidden />
-          )}
+          <Package size={20} aria-hidden />
         </div>
 
         <div className="flex-1 min-w-0">
