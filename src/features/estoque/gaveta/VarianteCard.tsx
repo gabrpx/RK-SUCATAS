@@ -170,8 +170,8 @@ export function VarianteCard({ item }: VarianteCardProps) {
                 </button>
               </div>
             ) : (
-              <div className="flex min-w-0 items-center gap-1">
-                <p className="font-bold text-text-primary truncate">{nomeExibicao}</p>
+              <div className="flex min-w-0 items-start gap-1">
+                <p className="min-w-0 break-words font-bold leading-snug text-text-primary [overflow-wrap:anywhere]">{nomeExibicao}</p>
                 <button type="button" aria-label="Editar nome da variante" onClick={abrirEdicaoNome} className="shrink-0 p-1 text-text-faint hover:text-accent-soft-fg">
                   <Pencil size={12} />
                 </button>

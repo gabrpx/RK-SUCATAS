@@ -179,8 +179,8 @@ export function ItensNaoAgrupadosFila({ itens, gavetas, onAbrirItem, onGavetaCri
                         onClick={() => moverPara(g.id)}
                         className="flex items-center justify-between gap-2 rounded-control border border-border-subtle px-3 py-2.5 text-left text-sm text-text-primary hover:border-accent hover:bg-surface-raised min-h-11 disabled:opacity-50"
                       >
-                        <span className="truncate font-semibold">{g.nome}</span>
-                        <span className="shrink-0 text-xs text-text-muted">{g.categoria?.nome ?? 'Sem categoria'}</span>
+                        <span className="min-w-0 break-words font-semibold leading-snug [overflow-wrap:anywhere]">{g.nome}</span>
+                        <span className="max-w-[38%] shrink-0 break-words text-right text-xs leading-snug text-text-muted [overflow-wrap:anywhere]">{g.categoria?.nome ?? 'Sem categoria'}</span>
                       </button>
                     ))
                   )}

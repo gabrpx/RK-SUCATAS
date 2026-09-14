@@ -28,7 +28,7 @@ const views = [
 const moeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
 
 function Title({ resumo, compact = false }: { resumo?: EstoqueHeaderProps['resumo']; compact?: boolean }) {
-  return <div className="min-w-0"><h1 className={cn('font-bold text-text-primary', compact ? 'text-lg' : 'text-xl')}>Estoque</h1>{!!resumo?.itens && <p className="mt-0.5 truncate text-xs text-text-faint">Hoje: {resumo.itens} {resumo.itens === 1 ? 'peça' : 'peças'} · {moeda(resumo.valorTotal)}</p>}</div>;
+  return <div className="min-w-0"><h1 className={cn('font-bold text-text-primary', compact ? 'text-lg' : 'text-xl')}>Estoque</h1>{!!resumo?.itens && <p className="mt-0.5 break-words text-xs leading-snug text-text-faint [overflow-wrap:anywhere]">Hoje: {resumo.itens} {resumo.itens === 1 ? 'peça' : 'peças'} · {moeda(resumo.valorTotal)}</p>}</div>;
 }
 
 function Nova({ onClick }: { onClick: () => void }) {
@@ -54,7 +54,7 @@ export function EstoqueHeaderComando(props: EstoqueHeaderProps) {
 }
 
 export function EstoqueHeaderControle(props: EstoqueHeaderProps) {
-  return <header className="relative overflow-hidden rounded-card border border-border-default bg-surface-card p-3"><BorderTrail size={48} className="bg-accent" transition={{ duration: 7, repeat: Infinity, ease: 'linear' }} /><div className="flex items-center justify-between gap-3"><Title resumo={props.resumo} /><Nova onClick={props.onNovaGaveta} /></div><div className="mt-3 grid grid-cols-4 gap-1 border-t border-border-subtle pt-2">{views.map(({ id, label, Icon }) => <button key={id} type="button" onClick={() => props.onVisualizacaoChange(id)} className={cn('flex min-w-0 flex-col items-center gap-1 rounded-control py-2 text-[10px] font-semibold transition-colors', id === props.visualizacao ? 'bg-accent-soft text-accent-soft-fg' : 'text-text-muted hover:bg-surface-raised')}><Icon size={15} /><span className="max-w-full truncate">{label}</span></button>)}</div></header>;
+  return <header className="relative overflow-hidden rounded-card border border-border-default bg-surface-card p-3"><BorderTrail size={48} className="bg-accent" transition={{ duration: 7, repeat: Infinity, ease: 'linear' }} /><div className="flex items-center justify-between gap-3"><Title resumo={props.resumo} /><Nova onClick={props.onNovaGaveta} /></div><div className="mt-3 grid grid-cols-4 gap-1 border-t border-border-subtle pt-2">{views.map(({ id, label, Icon }) => <button key={id} type="button" onClick={() => props.onVisualizacaoChange(id)} className={cn('flex min-h-12 min-w-0 flex-col items-center justify-center gap-1 rounded-control py-1 text-[10px] font-semibold leading-tight transition-colors', id === props.visualizacao ? 'bg-accent-soft text-accent-soft-fg' : 'text-text-muted hover:bg-surface-raised')}><Icon size={15} /><span className="max-w-full break-words text-center">{label}</span></button>)}</div></header>;
 }
 
 export function EstoqueHeaderEditorial(props: EstoqueHeaderProps) {

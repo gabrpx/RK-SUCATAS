@@ -47,7 +47,7 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
       type="button"
       onClick={() => onAbrirFicha(unidade)}
       aria-label={`Ver ficha da unidade ${numero}: ${nome}`}
-      className="w-full flex items-center gap-3 py-2.5 px-2 rounded-control hover:bg-surface-raised transition-colors text-left min-h-11"
+      className="w-full flex items-start gap-3 rounded-control px-2 py-2.5 text-left transition-colors hover:bg-surface-raised sm:items-center"
     >
       <span className={cn('flex-none size-1.5 rounded-full', dotClasse)} aria-hidden />
 
@@ -76,17 +76,17 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
       </div>
 
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-text-primary truncate">
+        <p className="break-words text-sm font-semibold leading-snug text-text-primary [overflow-wrap:anywhere]">
           #{numero} {nome ? `"${nome}"` : ''}
         </p>
         {vendida ? (
-          <p className="text-xs text-text-faint truncate">Vendida</p>
+          <p className="text-xs leading-snug text-text-faint">Vendida</p>
         ) : cadastroPendente ? (
-          <p className="text-xs text-warning truncate flex items-center gap-1">
+          <p className="flex items-start gap-1 text-xs leading-snug text-warning">
             <AlertTriangle size={11} aria-hidden /> Sem nome e fotos
           </p>
         ) : (
-          <p className="text-xs text-text-muted truncate">
+          <p className="break-words text-xs leading-snug text-text-muted [overflow-wrap:anywhere]">
             {dadosHerdados ? 'Dados da variante' : `${nota != null ? `Nota ${nota} · ` : ''}${unidade.avaria ? 'Com avaria' : 'Sem avaria'}`}
             {unidade.fotos.length > 1 ? ` · ${unidade.fotos.length} fotos` : ''}
             {fotoLegada ? ' · Foto legada' : unidade.fotos.length === 0 ? ' · Sem foto' : ''}

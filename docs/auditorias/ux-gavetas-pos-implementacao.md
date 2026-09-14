@@ -10,6 +10,16 @@
 
 Auditoria comparativa antes/depois por fluxo, com screenshots capturadas na preview local com dados reais (255 variantes, 587 unidades, 4 gavetas, 241 itens não agrupados). Cada finding foi convertido em mudança testável (TDD) e reverificado ao vivo.
 
+## Verificação complementar — nomes completos no mobile
+
+**Data:** 2026-09-14
+
+- **Problema:** nomes de gavetas, variantes e unidades usavam `truncate`; em telas estreitas o modelo/aplicação desaparecia atrás de reticências.
+- **Correção:** os textos principais agora quebram em linhas (`break-words` + `overflow-wrap:anywhere`), enquanto preço, quantidade e chevron mantêm uma coluna própria. A altura da linha cresce conforme o conteúdo.
+- **Abrangência:** lista de gavetas, itens não agrupados, detalhe de variante, fichas de unidade, seletor de destino da fila e rótulos da navegação de visualizações.
+- **Validação visual:** preview `http://127.0.0.1:3011/estoque` em viewport mobile; “TAMPA DO CUBO CG 125 (ESPELHO DE FREIO)” e “TANQUE DE COMBUSTÍVEL CG 150” aparecem completos sem invadir preço ou ações.
+- **Validação automatizada:** teste específico em `GavetaRow.test.tsx` garante que o nome longo seja renderizado sem a classe `truncate`.
+
 ## Findings e estado final
 
 | # | Fluxo | Problema (antes) | Estado final | Evidência |

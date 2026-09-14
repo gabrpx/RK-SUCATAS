@@ -18,6 +18,23 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.2',
+    data: '2026-09-14',
+    titulo: 'Nomes completos nas gavetas no celular',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Nomes longos de gavetas, variantes e unidades agora quebram em linhas no celular, sem reticências que escondam o modelo ou a aplicação da peça.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Preço, quantidade, categoria e ações continuam alinhados ao lado do nome, com altura flexível para acomodar descrições maiores.',
+      },
+    ],
+  },
+  {
     versao: '1.7.1',
     data: '2026-09-14',
     titulo: 'Dashboard mais legível no celular',
