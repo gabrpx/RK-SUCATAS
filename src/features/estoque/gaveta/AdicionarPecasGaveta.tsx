@@ -109,7 +109,7 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
               return (
                 <label
                   key={item.id}
-                  className="flex items-center gap-3 py-2.5 min-h-11 cursor-pointer"
+                  className="grid grid-cols-[auto_auto_minmax(0,1fr)_auto] items-start gap-3 py-2.5 min-h-11 cursor-pointer"
                 >
                   <Checkbox checked={marcado} onCheckedChange={() => alternar(item.id)} />
                   <div className="flex-none size-9 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center text-text-faint">
@@ -120,12 +120,12 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-text-primary truncate">{item.nome}</p>
-                    <p className="text-xs text-text-muted truncate">
+                    <p className="text-sm font-semibold leading-snug text-text-primary break-words [overflow-wrap:anywhere]">{item.nome}</p>
+                    <p className="text-xs leading-snug text-text-muted break-words [overflow-wrap:anywhere]">
                       {item.codigo} {item.categoria?.nome ? `· ${item.categoria.nome}` : ''}
                     </p>
                   </div>
-                  <span className="shrink-0 text-sm font-bold text-text-primary">{fmtMoeda(item.valor)}</span>
+                  <span className="shrink-0 pt-0.5 text-right text-sm font-bold tabular-nums text-text-primary whitespace-nowrap">{fmtMoeda(item.valor)}</span>
                 </label>
               );
             })}
