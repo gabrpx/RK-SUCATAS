@@ -100,15 +100,14 @@ function Subpainel({ titulo, children }: { titulo: string; children: React.React
   );
 }
 
-// Linha de MetricCards: no mobile vira carrossel com scroll-snap (o valor em
-// moeda cabe inteiro em ~78% da largura, sem cortar) e no desktop volta a ser
-// grade — mesmo padrão já usado no Dashboard padrão (ver DashboardView, seção
-// "Métricas"), aqui centralizado pra não repetir a classe longa em cada linha.
+// Linha de MetricCards: em telas estreitas empilha os cards para preservar
+// rótulos e valores completos. Duas colunas só entram quando há largura real;
+// isso evita o carrossel cortado que dificultava a leitura no celular.
 function MetricRow({ children }: { children: React.ReactNode }) {
   return (
-    <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-0.5 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 sm:overflow-visible">
+    <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
       {Children.map(children, (child) => (
-        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">{child}</div>
+        <div className="min-w-0">{child}</div>
       ))}
     </div>
   );
@@ -337,30 +336,28 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
 
   return (
     <div className="bg-surface-card border border-border-subtle rounded-card overflow-hidden">
-      <button
-        type="button"
-        onClick={() => setExpandido((v) => !v)}
-        className="w-full flex items-center justify-between gap-3 px-5 py-4 bg-accent-soft-bg/40 hover:bg-accent-soft-bg/60 transition-colors"
-      >
-        <div className="flex items-center gap-2.5 min-w-0">
-          <span className="text-sm font-semibold text-text-primary truncate">Visão completa do negócio</span>
-        </div>
-        <div className="flex items-center gap-1.5 shrink-0">
-          {onAlternarPosicao && (
-            <span
-              role="button"
-              tabIndex={0}
-              title={noTopo ? 'Mover para o final' : 'Mover para o topo'}
-              onClick={(e) => { e.stopPropagation(); onAlternarPosicao(); }}
-              onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.stopPropagation(); e.preventDefault(); onAlternarPosicao(); } }}
-              className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-inset transition-colors"
-            >
-              {noTopo ? <ArrowDownToLine size={15} /> : <ArrowUpToLine size={15} />}
-            </span>
-          )}
+      <div className="flex items-center gap-2 px-5 py-4 bg-accent-soft-bg/40">
+        <button
+          type="button"
+          onClick={() => setExpandido((v) => !v)}
+          aria-expanded={expandido}
+          className="min-w-0 flex-1 flex items-center gap-2.5 text-left hover:opacity-80 transition-opacity"
+        >
+          <span className="text-sm font-semibold text-text-primary leading-snug break-words">Visão completa do negócio</span>
           <ChevronDown size={18} className={cn('text-text-faint transition-transform shrink-0', expandido && 'rotate-180')} />
-        </div>
-      </button>
+        </button>
+        {onAlternarPosicao && (
+          <button
+            type="button"
+            title={noTopo ? 'Mover para o final' : 'Mover para o topo'}
+            aria-label={noTopo ? 'Mover visão completa para o final' : 'Mover visão completa para o topo'}
+            onClick={onAlternarPosicao}
+            className="p-2 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-inset transition-colors shrink-0"
+          >
+            {noTopo ? <ArrowDownToLine size={15} /> : <ArrowUpToLine size={15} />}
+          </button>
+        )}
+      </div>
 
       {expandido && (
         <div className="p-4 md:p-5 space-y-8 border-t border-border-subtle">

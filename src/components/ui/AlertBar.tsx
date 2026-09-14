@@ -34,20 +34,20 @@ export function AlertBar({ tom, icone: Icone, mensagem, acaoLabel, onAcao }: Ale
       className={cn(
         // Borda arredondada só do lado direito (spec: "0 9px 9px 0") — a esquerda
         // fica reta porque é onde entra a borda-destaque de 2px do tom
-        'flex items-center justify-between gap-3 border-l-2 pl-3 pr-2 py-2.5 rounded-[0_9px_9px_0]',
+        'flex flex-col items-stretch sm:flex-row sm:items-center justify-between gap-2 sm:gap-3 border-l-2 pl-3 pr-2 py-2.5 rounded-[0_9px_9px_0]',
         toneClasses.border,
         toneClasses.bg
       )}
     >
-      <div className={cn('flex items-center gap-2 min-w-0', toneClasses.fg)}>
+      <div className={cn('flex items-start gap-2 min-w-0', toneClasses.fg)}>
         <Icone size={16} strokeWidth={1.75} className="shrink-0" />
-        <span className="text-sm text-text-primary truncate">{mensagem}</span>
+        <span className="text-sm leading-snug text-text-primary break-words">{mensagem}</span>
       </div>
 
       <button
         type="button"
         onClick={onAcao}
-        className={cn('shrink-0 -my-2 -mr-2 py-2 px-2 rounded-control text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 hover:opacity-80 transition-opacity duration-fast', toneClasses.fg)}
+        className={cn('self-end sm:self-auto shrink-0 -my-1 sm:-my-2 -mr-2 py-2 px-2 rounded-control text-2xs font-semibold uppercase tracking-wide underline underline-offset-2 hover:opacity-80 transition-opacity duration-fast', toneClasses.fg)}
       >
         {acaoLabel}
       </button>

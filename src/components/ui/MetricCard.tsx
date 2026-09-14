@@ -59,12 +59,12 @@ export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto
   const mostraBadge = tendencia && tendencia.pct != null;
 
   return (
-    <div className="group relative overflow-hidden bg-surface-card border border-border-subtle rounded-card p-5 transition-[transform,border-color,box-shadow] duration-base hover:-translate-y-0.5 hover:border-border-default hover:shadow-md">
+    <div className="group relative min-w-0 h-full overflow-hidden bg-surface-card border border-border-subtle rounded-card p-4 sm:p-5 transition-[transform,border-color,box-shadow] duration-base hover:-translate-y-0.5 hover:border-border-default hover:shadow-md">
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-surface-edge" />
 
       {/* Cabeçalho: rótulo à esquerda, ícone à direita (posição do menu no card original) */}
       <div className="flex items-start justify-between gap-2">
-        <p className="text-2xs font-semibold uppercase tracking-[0.06em] text-text-faint leading-tight line-clamp-2">{label}</p>
+        <p className="min-w-0 text-2xs font-semibold uppercase tracking-[0.06em] text-text-faint leading-tight line-clamp-2 break-words">{label}</p>
         <Icone size={16} strokeWidth={1.75} className={cn('shrink-0 mt-px', ICON_TONE[tom])} />
       </div>
 
@@ -73,7 +73,7 @@ export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto
           label (regra do design system: número > label). Quando vem como
           número, conta até o valor final — reforça que ali está o dado. */}
       <div className="flex flex-wrap items-center gap-2.5 mt-3">
-        <span className="text-2xl sm:text-3xl font-semibold text-text-primary leading-none tabular-nums tracking-tight">
+        <span className="min-w-0 max-w-full text-xl sm:text-3xl font-semibold text-text-primary leading-tight tabular-nums tracking-tight break-words">
           {typeof valor === 'number' ? (
             formatarValor ? (
               // O primitivo `CountingNumber` do animate-ui não aceita uma
@@ -105,7 +105,7 @@ export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto
 
       {/* Divisória + contexto (até 2 linhas no mobile em vez de cortar) */}
       {contexto && (
-        <p className="text-xs text-text-faint mt-3 border-t border-border-subtle pt-2.5 leading-snug line-clamp-2">{contexto}</p>
+        <p className="text-xs text-text-faint mt-3 border-t border-border-subtle pt-2.5 leading-snug line-clamp-2 break-words">{contexto}</p>
       )}
     </div>
   );

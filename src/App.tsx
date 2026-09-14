@@ -679,8 +679,11 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
-          <FloatingNotaButton />
-          <GlobalSearch onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />
+          {/* O Dashboard já oferece busca no cabeçalho e precisa manter a área
+              de leitura livre no mobile; os FABs continuam disponíveis nas
+              telas operacionais onde não há esse atalho no topo. */}
+          {activeTab !== 'dashboard' && <FloatingNotaButton />}
+          {activeTab !== 'dashboard' && <GlobalSearch onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />}
         </div>
       )}
 

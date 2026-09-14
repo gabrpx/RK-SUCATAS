@@ -18,6 +18,28 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.1',
+    data: '2026-09-14',
+    titulo: 'Dashboard mais legível no celular',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto:
+          'Os cards de métricas agora se adaptam à largura do celular sem cortar valores, rótulos ou contexto; nomes longos quebram em linhas legíveis e a visão executiva começa abaixo do resumo operacional em novas instalações.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Alertas, notificações e listas do Dashboard ganharam leitura completa, foco de teclado e ações mais claras. A busca não fica mais sobre o conteúdo no Dashboard mobile, porque já está disponível no cabeçalho.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Falhas ao carregar o resumo de pendências agora aparecem com a opção "Tentar novamente", em vez de serem ignoradas silenciosamente.',
+      },
+    ],
+  },
+  {
     versao: '1.7.0',
     data: '2026-09-14',
     titulo: 'Gavetas viram um painel operacional',

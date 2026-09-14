@@ -116,7 +116,7 @@ export function NotificationList({
             style={{ zIndex: visiveis.length - i }}
           >
             <div className="flex justify-between items-center gap-2">
-              <h4 className="text-sm font-medium text-text-primary truncate">{notificacao.title}</h4>
+              <h4 className="min-w-0 text-sm font-medium text-text-primary leading-snug line-clamp-2 break-words">{notificacao.title}</h4>
               {notificacao.count != null && (
                 <div className="flex items-center text-xs gap-0.5 font-medium text-text-muted shrink-0">
                   <RotateCcw className="size-3" />
@@ -124,7 +124,7 @@ export function NotificationList({
                 </div>
               )}
             </div>
-            <div className="text-xs text-text-muted font-medium truncate">
+            <div className="text-xs text-text-muted font-medium leading-snug line-clamp-2 break-words">
               <span>{notificacao.time}</span>
               &nbsp;•&nbsp;
               <span>{notificacao.subtitle}</span>

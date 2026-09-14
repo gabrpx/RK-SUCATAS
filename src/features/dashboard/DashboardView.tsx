@@ -7,7 +7,7 @@
 // Construída inteiramente com os componentes de src/components/ui/ e os
 // tokens de src/styles/theme.css — nada de hex/cor direta aqui.
 import type React from 'react';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import {
   Package,
@@ -55,6 +55,23 @@ import { fetchWithRetry } from '../../utils/api';
 export const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
 const PRIORIDADE_ORDEM: Record<Tarefa['prioridade'], number> = { alta: 0, media: 1, baixa: 2 };
+
+type ResumoPendente = {
+  id: string;
+  codigo: string;
+  cliente_nome: string;
+  criado_em: string;
+  total?: number;
+  itens?: Orcamento['itens'];
+};
+
+type ResumoDashboard = {
+  pendencias: ResumoPendente[];
+  fiadoResumo: { clienteNome: string; totalEmAberto: number; diasEmAbertoMax: number }[];
+  fiadoTotalEmAberto: number;
+  pendenciasManuaisTotalEmAberto?: number;
+  pendenciasManuaisQtd?: number;
+};
 
 // Total de um orçamento após desconto — mesma fórmula de OrcamentosView.tsx
 // (subtotal dos itens menos desconto fixo ou percentual), duplicada aqui
@@ -151,23 +168,34 @@ export function LinhaAtividade({
   const iconClasses = tom === 'positive' ? 'bg-positive-bg text-positive' : 'bg-warning-bg text-warning';
   const valorClasses = tom === 'positive' ? 'text-positive' : 'text-warning';
 
-  return (
-    <div
-      onClick={onClick}
-      className={cn('flex items-center gap-3 px-5 py-3 transition-colors duration-fast', onClick && 'cursor-pointer hover:bg-surface-raised')}
-    >
+  const conteudo = (
       <div className={cn('size-8 rounded-control flex items-center justify-center shrink-0', iconClasses)}>
         <Icone size={15} strokeWidth={1.75} />
       </div>
-      <div className="min-w-0 flex-1">
-        <p className="text-sm font-medium text-text-primary truncate">{titulo}</p>
+  );
+  const detalhes = (
+    <div className="min-w-0 flex-1">
+        <p className="text-sm font-medium text-text-primary leading-snug line-clamp-2 break-words">{titulo}</p>
         <div className="flex items-center gap-2 mt-0.5">
           <StatusBadge texto={legenda} tom="neutral" />
           <span className="text-2xs text-text-faint">{data}</span>
         </div>
       </div>
-      <span className={cn('text-sm font-medium shrink-0 tabular-nums', valorClasses)}>{formatCurrency(valor)}</span>
-    </div>
+  );
+  const valorNode = <span className={cn('text-sm font-medium shrink-0 tabular-nums text-right', valorClasses)}>{formatCurrency(valor)}</span>;
+
+  if (!onClick) {
+    return <div className="flex items-start gap-3 px-5 py-3">{conteudo}{detalhes}{valorNode}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="w-full flex items-start gap-3 px-5 py-3 text-left transition-colors duration-fast hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent"
+    >
+      {conteudo}{detalhes}{valorNode}
+    </button>
   );
 }
 
@@ -186,9 +214,9 @@ function DashboardSkeleton() {
         </div>
         <div className={cn(bar, 'h-10 w-64 hidden md:block')} />
       </div>
-      <div className="flex gap-3 overflow-x-hidden sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="shrink-0 w-[78%] sm:w-auto bg-surface-card border border-border-subtle rounded-card p-4 space-y-3">
+          <div key={i} className="min-w-0 bg-surface-card border border-border-subtle rounded-card p-4 space-y-3">
             <div className={cn(bar, 'size-9 rounded-control')} />
             <div className={cn(bar, 'h-2.5 w-20')} />
             <div className={cn(bar, 'h-5 w-28')} />
@@ -235,7 +263,7 @@ export function DashboardView({
   const verVisaoDono = pode('dashboard.ver_visao_dono');
   const [searchTerm, setSearchTerm] = useState('');
   const [visaoDonoNoTopo, setVisaoDonoNoTopo] = useState(() => {
-    try { return localStorage.getItem('dashboard_visao_dono_posicao') !== 'fim'; } catch { return true; }
+    try { return localStorage.getItem('dashboard_visao_dono_posicao') === 'topo'; } catch { return false; }
   });
   const alternarPosicaoVisaoDono = () => {
     setVisaoDonoNoTopo((prev) => {
@@ -245,24 +273,33 @@ export function DashboardView({
     });
   };
 
-  const [resumoDashboard, setResumoDashboard] = useState<{
-    pendencias: any[];
-    fiadoResumo: { clienteNome: string; totalEmAberto: number; diasEmAbertoMax: number }[];
-    fiadoTotalEmAberto: number;
-    pendenciasManuaisTotalEmAberto?: number;
-    pendenciasManuaisQtd?: number;
-  } | null>(null);
-  useEffect(() => {
+  const [resumoDashboard, setResumoDashboard] = useState<ResumoDashboard | null>(null);
+  const [resumoDashboardErro, setResumoDashboardErro] = useState(false);
+  const [resumoDashboardCarregando, setResumoDashboardCarregando] = useState(false);
+  const carregarResumoDashboard = useCallback(async () => {
     const verDash = pode('dashboard.ver');
     const verOrc = pode('orcamentos.ver');
     const verCx = pode('caixa.ver');
-    if (verDash && (!verOrc || !verCx)) {
-      fetchWithRetry('/api/dashboard/resumo-pendencias')
-        .then((r) => r.json())
-        .then((j: any) => { if (j.success) setResumoDashboard(j.data); })
-        .catch(() => {});
+    if (!verDash || (verOrc && verCx)) return;
+
+    setResumoDashboardCarregando(true);
+    setResumoDashboardErro(false);
+    try {
+      const resposta = await fetchWithRetry('/api/dashboard/resumo-pendencias');
+      if (!resposta.ok) throw new Error(`Resumo indisponível (${resposta.status})`);
+      const resultado = await resposta.json() as { success?: boolean; data?: ResumoDashboard };
+      if (!resultado.success || !resultado.data) throw new Error('Resposta de resumo inválida');
+      setResumoDashboard(resultado.data);
+    } catch {
+      setResumoDashboardErro(true);
+    } finally {
+      setResumoDashboardCarregando(false);
     }
-  }, []);
+  }, [pode]);
+
+  useEffect(() => {
+    void carregarResumoDashboard();
+  }, [carregarResumoDashboard]);
 
   // Dashboard só é visível pra admin/equipe (ver TAB_ROLES) — quem chega
   // aqui sempre vê TODAS as tarefas pendentes do sistema, não só as suas
@@ -464,7 +501,7 @@ export function DashboardView({
         <div>
           <h1 className="text-3xl md:text-4xl font-semibold text-text-primary tracking-tight leading-none">Painel geral</h1>
           <p className="text-sm text-text-faint mt-2">
-            {NOME_LOJA} · atualizado agora
+            {NOME_LOJA} · período atual
           </p>
         </div>
 
@@ -518,13 +555,12 @@ export function DashboardView({
         />
       )}
 
-      {/* 2. Métricas — no mobile é um carrossel com scroll-snap (dá pra sentir
-          que tem mais card fora da tela); no desktop vira grade 4 colunas.
-          Não é a mesma composição só empilhada em breakpoints diferentes.
-          Só aparece com `dashboard.ver_valores`. */}
+      {/* 2. Métricas — em telas estreitas os cards empilham para que o valor,
+          rótulo e contexto sejam lidos por inteiro. A grade começa em duas
+          colunas somente quando há espaço real para isso. */}
       {verValores && (
-      <div className="flex gap-3 overflow-x-auto snap-x snap-mandatory no-scrollbar pb-0.5 sm:grid sm:grid-cols-2 lg:grid-cols-4 sm:gap-4 sm:overflow-visible">
-        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <div className="min-w-0">
           <MetricCard
             icone={Package}
             label="Valor em estoque"
@@ -534,7 +570,7 @@ export function DashboardView({
             tom="positive"
           />
         </div>
-        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+        <div className="min-w-0">
           <MetricCard
             icone={ShoppingCart}
             label="Vendas do mês"
@@ -545,7 +581,7 @@ export function DashboardView({
             tendencia={variacaoVendas}
           />
         </div>
-        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+        <div className="min-w-0">
           <MetricCard
             icone={Wallet}
             label="Saídas do mês"
@@ -556,7 +592,7 @@ export function DashboardView({
             tendencia={variacaoSaidas}
           />
         </div>
-        <div className="shrink-0 w-[78%] snap-start sm:w-auto sm:shrink">
+        <div className="min-w-0">
           <MetricCard
             icone={Receipt}
             label="Ticket médio"
@@ -583,7 +619,7 @@ export function DashboardView({
               <p className="text-3xl font-semibold text-warning leading-none tabular-nums tracking-tight">
                 <AnimatedNumber value={metrics.itensEstoqueBaixo.length} />
               </p>
-              <p className="text-xs text-text-secondary mt-1 truncate">peça(s) com estoque baixo (≤ 2 unidades)</p>
+              <p className="text-xs text-text-secondary mt-1 leading-snug break-words">peça(s) com estoque baixo (≤ 2 unidades)</p>
             </div>
           </div>
           <button
@@ -604,6 +640,22 @@ export function DashboardView({
           onAcao={() => onNavigateClientesSumidos?.()}
         />
       )}
+      {resumoDashboardErro && (
+        <div role="alert" className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-l-2 border-l-danger bg-danger-bg pl-4 pr-3 py-3 rounded-[0_9px_9px_0]">
+          <div className="flex items-start gap-2 min-w-0">
+            <AlertTriangle size={17} strokeWidth={1.75} className="text-danger shrink-0 mt-0.5" />
+            <p className="text-sm leading-snug text-text-primary break-words">Não foi possível atualizar o resumo de pendências.</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => void carregarResumoDashboard()}
+            disabled={resumoDashboardCarregando}
+            className="self-end sm:self-auto shrink-0 rounded-control px-2 py-2 text-2xs font-semibold uppercase tracking-wide text-danger underline underline-offset-2 disabled:opacity-50"
+          >
+            {resumoDashboardCarregando ? 'Atualizando…' : 'Tentar novamente'}
+          </button>
+        </div>
+      )}
       {metrics.pendenciasTotalGeral > 0 && (
         <AlertBar
           tom="warning"
@@ -620,6 +672,9 @@ export function DashboardView({
       <div className="grid grid-cols-1 lg:grid-cols-[1.55fr_1fr] gap-4">
         <PanelCard titulo="Desempenho (30 dias)">
           <div className="p-4">
+            <p className="sr-only">
+              Saldo acumulado dos últimos 30 dias: {chartData.length > 0 ? `${formatCurrency(chartData[chartData.length - 1].valor)} no último ponto, partindo de ${formatCurrency(chartData[0].valor)}.` : 'sem lançamentos no período.'}
+            </p>
             <AreaChart
               data={chartData}
               index="label"
@@ -653,16 +708,18 @@ export function DashboardView({
               <EmptyState icone={Receipt} mensagem="Sem vendas registradas este mês ainda." />
             ) : (
               <div className="flex flex-col sm:flex-row items-center gap-5">
-                <DonutChart
-                  data={pieData}
-                  category="name"
-                  value="value"
-                  colors={PIE_COLORS}
-                  valueFormatter={formatCurrency}
-                  showLabel
-                  label={formatCurrency(metrics.valorVendasMes)}
-                  className="h-40 w-40 shrink-0"
-                />
+                <div role="img" aria-label={`Distribuição das vendas por forma de pagamento. Total ${formatCurrency(metrics.valorVendasMes)}.`}>
+                  <DonutChart
+                    data={pieData}
+                    category="name"
+                    value="value"
+                    colors={PIE_COLORS}
+                    valueFormatter={formatCurrency}
+                    showLabel
+                    label={formatCurrency(metrics.valorVendasMes)}
+                    className="h-40 w-40 shrink-0"
+                  />
+                </div>
 
                 {/* Legenda em lista — nunca flutuante sobre o gráfico */}
                 <ul className="w-full space-y-2">
@@ -756,7 +813,7 @@ export function DashboardView({
             </div>
             <div className="divide-y divide-border-subtle">
               {tarefasPendentes.slice(0, 5).map((t) => (
-                <div key={t.id} onClick={() => onTabChange('tarefas')} className="flex items-center gap-3 px-5 py-3 cursor-pointer hover:bg-surface-raised transition-colors duration-fast">
+                <button key={t.id} type="button" onClick={() => onTabChange('tarefas')} className="w-full flex items-start gap-3 px-5 py-3 text-left cursor-pointer hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent transition-colors duration-fast">
                   <div
                     className={cn(
                       'size-8 rounded-control flex items-center justify-center shrink-0',
@@ -766,13 +823,13 @@ export function DashboardView({
                     <ClipboardList size={15} strokeWidth={1.75} />
                   </div>
                   <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-text-primary truncate">{t.titulo}</p>
+                    <p className="text-sm font-medium text-text-primary leading-snug line-clamp-2 break-words">{t.titulo}</p>
                     <div className="flex items-center gap-2 mt-0.5">
                       <StatusBadge texto={t.atribuido?.nome_exibicao || 'Sem responsável'} tom="neutral" />
                       {t.prazo && <span className="text-2xs text-text-faint">{new Date(t.prazo).toLocaleDateString('pt-BR')}</span>}
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           </>
