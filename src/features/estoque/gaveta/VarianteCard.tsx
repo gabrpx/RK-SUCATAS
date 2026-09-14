@@ -20,6 +20,7 @@ import { UnidadeForm } from './UnidadeForm';
 import { UnidadeRow } from './UnidadeRow';
 import { UnidadeDetailDialog } from './UnidadeDetailDialog';
 import { nomeVarianteExibicao } from './buscaGavetas';
+import { PendenciaVarianteChips } from './PendenciaBadges';
 import type { Estoque, EstoqueUnidade } from '../types';
 import { aviso } from '../../../components/ui/toast';
 
@@ -226,6 +227,8 @@ export function VarianteCard({ item }: VarianteCardProps) {
             <FaixaPreco faixa={faixa} />
             <span className="text-xs font-semibold text-text-muted">{totalUnidades} un.</span>
           </div>
+
+          <PendenciaVarianteChips item={item} className="mt-1.5" />
         </div>
       </div>
 
@@ -246,6 +249,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
                 nomePadrao={nomeExibicao}
                 valorPadrao={item.valor}
                 notaPadrao={item.condicao_nota}
+                variante={item}
                 onAbrirFicha={setUnidadeEmFicha}
               />
             </div>

@@ -2,7 +2,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { UnidadeRow } from './UnidadeRow';
-import type { EstoqueUnidade } from '../types';
+import type { Estoque, EstoqueUnidade } from '../types';
 
 afterEach(cleanup);
 
@@ -32,7 +32,7 @@ describe('UnidadeRow — dados herdados da variante', () => {
     expect(abrirFicha).toHaveBeenCalledWith(expect.objectContaining({ id: 'u1' }));
   });
 
-  it('não usa foto da variante como foto da unidade', () => {
+  it('sem foto própria e sem foto legada da variante: marca "Sem foto" e não mostra imagem', () => {
     render(
       <UnidadeRow
         unidade={unidadeEmBranco()}
@@ -44,8 +44,26 @@ describe('UnidadeRow — dados herdados da variante', () => {
       />
     );
 
-    expect(screen.getByText(/Sem fotos/)).toBeTruthy();
+    expect(screen.getByText(/Sem foto/)).toBeTruthy();
     expect(screen.queryByRole('img')).toBeNull();
+  });
+
+  it('sem foto própria mas com foto legada na variante: exibe a foto herdada marcada como legada', () => {
+    const variante = { imagens: ['legada.jpg'], valor: 350 } as Estoque;
+    render(
+      <UnidadeRow
+        unidade={unidadeEmBranco()}
+        numero={1}
+        nomePadrao="Tanque CG 150"
+        valorPadrao={350}
+        notaPadrao={4}
+        variante={variante}
+        onAbrirFicha={vi.fn()}
+      />
+    );
+
+    expect(screen.getByRole('img', { name: /foto da unidade 1/i }).getAttribute('src')).toBe('legada.jpg');
+    expect(screen.getByText(/Foto legada/)).toBeTruthy();
   });
 
   it('mostra a primeira foto própria e o total de fotos da unidade', () => {

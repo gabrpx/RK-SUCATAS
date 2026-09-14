@@ -2,10 +2,11 @@
 // dot de status, "#N «nome»", nota de condição + avaria, preço (herdado ou
 // próprio) à direita e uma ação de consulta. Edição acontece somente dentro
 // da ficha, para que selecionar uma unidade nunca altere seu cadastro.
-import { AlertTriangle, Eye, ImageOff } from 'lucide-react';
+import { AlertTriangle, Eye, History, ImageOff } from 'lucide-react';
 import { cn } from '../../../utils';
 import { condicaoNotaDaUnidade, valorDaUnidade } from '../valorEstoque';
-import type { EstoqueUnidade } from '../types';
+import { pendenciasDaUnidade } from './pendenciasGaveta';
+import type { Estoque, EstoqueUnidade } from '../types';
 
 const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
 
@@ -16,9 +17,11 @@ interface UnidadeRowProps {
   valorPadrao: number;
   notaPadrao: number | null;
   onAbrirFicha: (unidade: EstoqueUnidade) => void;
+  /** Variante-pai — necessária para distinguir foto legada de ausência de foto. */
+  variante?: Estoque;
 }
 
-export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadrao, onAbrirFicha }: UnidadeRowProps) {
+export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadrao, onAbrirFicha, variante }: UnidadeRowProps) {
   const dadosProprios = Boolean(
     unidade.nome || unidade.fotos.length || unidade.avaria || unidade.descricao ||
     unidade.avaria_descricao || unidade.valor != null || unidade.condicao_nota != null
@@ -29,6 +32,10 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
   const valor = valorDaUnidade(unidade, valorPadrao);
   const foto = unidade.fotos[0] ?? null;
   const nome = unidade.nome || nomePadrao;
+
+  const pendencias = pendenciasDaUnidade(unidade, variante);
+  const fotoLegada = pendencias.includes('foto_legada');
+  const fotoEfetiva = foto ?? (fotoLegada ? variante?.imagens?.[0] ?? null : null);
 
   const dotClasse = cadastroPendente || unidade.avaria ? 'bg-warning' : 'bg-positive';
 
@@ -43,12 +50,23 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
 
       <div
         className={cn(
-          'flex-none size-9 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center',
-          (cadastroPendente || dadosHerdados) && 'border border-dashed border-warning/50 bg-transparent'
+          'relative flex-none size-9 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center',
+          (cadastroPendente || (dadosHerdados && !fotoEfetiva)) && 'border border-dashed border-warning/50 bg-transparent',
+          fotoLegada && 'border border-dashed border-border-default'
         )}
       >
-        {foto ? (
-          <img src={foto} alt={`Foto da unidade ${numero}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+        {fotoEfetiva ? (
+          <>
+            <img src={fotoEfetiva} alt={`Foto da unidade ${numero}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+            {fotoLegada && (
+              <span
+                className="absolute inset-x-0 bottom-0 flex items-center justify-center bg-black/55 py-px"
+                title="Foto herdada da variante (ainda não é foto própria da unidade)"
+              >
+                <History size={9} className="text-white" aria-hidden />
+              </span>
+            )}
+          </>
         ) : cadastroPendente ? (
           <AlertTriangle size={14} className="text-warning" aria-hidden />
         ) : null}
@@ -65,13 +83,15 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
         ) : (
           <p className="text-xs text-text-muted truncate">
             {dadosHerdados ? 'Dados da variante' : `${nota != null ? `Nota ${nota} · ` : ''}${unidade.avaria ? 'Com avaria' : 'Sem avaria'}`}
-            {unidade.fotos.length > 1 ? ` · ${unidade.fotos.length} fotos` : unidade.fotos.length === 0 ? ' · Sem fotos' : ''}
+            {unidade.fotos.length > 1 ? ` · ${unidade.fotos.length} fotos` : ''}
+            {fotoLegada ? ' · Foto legada' : unidade.fotos.length === 0 ? ' · Sem foto' : ''}
+            {pendencias.includes('sem_preco') ? ' · Sem preço' : ''}
           </p>
         )}
       </div>
 
       <span className="flex-none text-sm font-bold text-text-primary tabular-nums">{fmtMoeda(valor)}</span>
-      {!foto && <ImageOff size={14} className="flex-none text-text-faint" aria-hidden />}
+      {pendencias.includes('sem_foto') && <ImageOff size={14} className="flex-none text-warning" aria-hidden />}
       <Eye size={14} className="flex-none text-text-faint" aria-hidden />
     </button>
   );

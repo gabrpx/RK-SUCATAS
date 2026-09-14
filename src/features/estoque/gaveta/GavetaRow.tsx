@@ -6,6 +6,7 @@
 import { ChevronRight, Fuel, Lightbulb, Zap, Puzzle, Package } from 'lucide-react';
 import { cn } from '../../../utils';
 import { statsGaveta, faixaPrecoVariante } from './gavetaEstoque';
+import { ResumoPendenciasChips } from './PendenciaBadges';
 import type { Estoque, Gaveta } from '../types';
 
 const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
@@ -55,6 +56,7 @@ export function GavetaRow({ gaveta, itens, onClick }: GavetaRowProps) {
         <p className="text-xs text-text-muted truncate">
           {gaveta.categoria?.nome ?? 'Sem categoria'} · {stats.variantes} {stats.variantes === 1 ? 'variante' : 'variantes'}
         </p>
+        <ResumoPendenciasChips itens={itens} className="mt-1" />
       </div>
       <div className="flex-none max-w-[42%] text-right">
         <FaixaPreco faixa={stats.faixa} />
