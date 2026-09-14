@@ -4,7 +4,7 @@
 // componente não assume nada sobre onde vive, e a navegação pro detalhe é um
 // prop (onAbrirGaveta/onAbrirItem) que a rota decide o que fazer.
 import { useMemo, useState } from 'react';
-import { Loader2, Search } from 'lucide-react';
+import { Loader2, Search, X } from 'lucide-react';
 import { useData } from '../../../context/DataContext';
 import { useCatalogos } from '../../../hooks/useCatalogos';
 import { Button } from '../../../components/ui/button';
@@ -20,12 +20,12 @@ import { useCriarGaveta, useGavetas } from './hooks';
 import { agruparPorGaveta, statsGaveta } from './gavetaEstoque';
 import { GavetaRow, GavetaRowNaoAgrupado } from './GavetaRow';
 import { StatsRow } from './StatsRow';
-import { FilterChips, type FilterChipOption } from './FilterChips';
+import { FilterChips, FiltrosRapidosChips, type FilterChipOption } from './FilterChips';
 import { CategoriaGavetaDropdown } from './CategoriaGavetaDropdown';
 import { GavetaListSkeleton } from './GavetaSkeletons';
 import { AlertaDuplicataGaveta, EmptyGavetas, OfflineBar, encontrarGavetaSemelhante } from './EstadosGaveta';
 import type { Estoque, Gaveta } from '../types';
-import { correspondeBuscaEstoque, normalizarTextoBusca } from './buscaGavetas';
+import { correspondeBuscaEstoque, itemAtendeFiltroRapido, normalizarTextoBusca, type FiltroRapido } from './buscaGavetas';
 import { EstoqueHeaderControle, type EstoqueViewId } from './EstoqueHeaderVariants';
 
 interface GavetaListProps {
@@ -46,6 +46,7 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
 
   const [busca, setBusca] = useState('');
   const [categoriaFiltro, setCategoriaFiltro] = useState<string | null>(null);
+  const [filtrosRapidos, setFiltrosRapidos] = useState<Set<FiltroRapido>>(new Set());
   const [modalAberto, setModalAberto] = useState(false);
   const [nomeNovaGaveta, setNomeNovaGaveta] = useState('');
   const [categoriaNovaGaveta, setCategoriaNovaGaveta] = useState<string>('');
@@ -77,23 +78,63 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
 
   const buscaNormalizada = normalizarTextoBusca(busca);
   const termosBusca = buscaNormalizada.split(/\s+/).filter(Boolean);
+  const filtrosAtivos = filtrosRapidos.size > 0;
+  const filtrando = buscaNormalizada !== '' || filtrosAtivos || categoriaFiltro !== null;
 
+  // Um item passa nos filtros de estado (AND) e na busca textual.
+  const itemPassaEstado = (item: Estoque) =>
+    Array.from(filtrosRapidos).every((f) => itemAtendeFiltroRapido(item, f));
+  const itemPassaBusca = (item: Estoque) => !buscaNormalizada || correspondeBuscaEstoque(item, busca);
+
+  // Cada linha guarda também quantos itens dela realmente casaram — é isso que
+  // alimenta a contagem "X resultados em Y gavetas" (sem recontar o estoque
+  // inteiro nem misturar com o resumo geral).
   const linhasFiltradas = useMemo(() => {
-    return linhasGaveta.filter((linha) => {
-      if (categoriaFiltro && linha.gaveta.categoria_id !== categoriaFiltro) return false;
-      if (buscaNormalizada && !termosBusca.every((termo) => normalizarTextoBusca(linha.gaveta.nome).includes(termo))) {
-        const algumItemBate = linha.itens.some((item) => correspondeBuscaEstoque(item, busca));
-        if (!algumItemBate) return false;
-      }
-      return true;
-    });
-  }, [linhasGaveta, categoriaFiltro, buscaNormalizada]);
+    return linhasGaveta
+      .filter((linha) => !categoriaFiltro || linha.gaveta.categoria_id === categoriaFiltro)
+      .map((linha) => {
+        const itensQueBatem = linha.itens.filter((item) => itemPassaEstado(item) && itemPassaBusca(item));
+        const nomeDaGavetaBate =
+          buscaNormalizada.length > 0 &&
+          termosBusca.every((termo) => normalizarTextoBusca(linha.gaveta.nome).includes(termo));
+        return { ...linha, itensQueBatem, nomeDaGavetaBate };
+      })
+      .filter((linha) => {
+        // Sem filtro de estado: nome da gaveta batendo já mostra a gaveta.
+        if (linha.nomeDaGavetaBate && !filtrosAtivos) return true;
+        if (!buscaNormalizada && !filtrosAtivos) return true;
+        return linha.itensQueBatem.length > 0;
+      });
+  }, [linhasGaveta, categoriaFiltro, buscaNormalizada, filtrosRapidos]);
 
   const itensNaoAgrupadosFiltrados = useMemo(() => {
     const itens = linhaNaoAgrupada?.itens ?? [];
-    if (!buscaNormalizada) return itens;
-    return itens.filter((item) => correspondeBuscaEstoque(item, busca));
-  }, [linhaNaoAgrupada, busca, buscaNormalizada]);
+    return itens.filter((item) => itemPassaEstado(item) && itemPassaBusca(item));
+  }, [linhaNaoAgrupada, busca, buscaNormalizada, filtrosRapidos]);
+
+  // "Resultado atual" — separado do "Resumo do estoque" (StatsRow, sempre total).
+  const resultado = useMemo(() => {
+    const variantes =
+      linhasFiltradas.reduce((s, l) => s + (l.nomeDaGavetaBate && !filtrosAtivos ? l.itens.length : l.itensQueBatem.length), 0) +
+      itensNaoAgrupadosFiltrados.length;
+    const gavetas = linhasFiltradas.length;
+    return { variantes, gavetas };
+  }, [linhasFiltradas, itensNaoAgrupadosFiltrados, filtrosAtivos]);
+
+  const alternarFiltroRapido = (id: FiltroRapido) =>
+    setFiltrosRapidos((prev) => {
+      const proximo = new Set(prev);
+      if (proximo.has(id)) proximo.delete(id);
+      else proximo.add(id);
+      return proximo;
+    });
+
+  const limparBusca = () => setBusca('');
+  const limparTudo = () => {
+    setBusca('');
+    setCategoriaFiltro(null);
+    setFiltrosRapidos(new Set());
+  };
 
   const fecharModal = () => {
     setModalAberto(false);
@@ -160,20 +201,53 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar peça, modelo, código..."
-              className={cn(inputClass, 'h-11 pl-9')}
+              placeholder="Buscar peça, modelo, código, categoria..."
+              className={cn(inputClass, 'h-11 pl-9', busca && 'pr-10')}
+            />
+            {busca && (
+              <button
+                type="button"
+                onClick={limparBusca}
+                aria-label="Limpar busca"
+                className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center justify-center size-7 rounded-control text-text-faint hover:text-text-primary hover:bg-surface-raised"
+              >
+                <X size={15} />
+              </button>
+            )}
+          </div>
+
+          <div>
+            <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Resumo do estoque</p>
+            <StatsRow
+              gavetas={gavetas.length}
+              variantes={statsGerais.variantes}
+              unidades={statsGerais.unidadesDisponiveis}
+              valorTotal={statsGerais.valorTotal}
             />
           </div>
 
-          <StatsRow
-            gavetas={gavetas.length}
-            variantes={statsGerais.variantes}
-            unidades={statsGerais.unidadesDisponiveis}
-            valorTotal={statsGerais.valorTotal}
-          />
-
           {opcoesCategoria.length > 0 && (
             <FilterChips opcoes={opcoesCategoria} selecionado={categoriaFiltro} onSelecionar={setCategoriaFiltro} />
+          )}
+
+          <FiltrosRapidosChips ativos={filtrosRapidos} onAlternar={alternarFiltroRapido} />
+
+          {filtrando && (
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-text-secondary" role="status" aria-live="polite">
+                <span className="font-semibold text-text-primary">{resultado.variantes}</span>{' '}
+                {resultado.variantes === 1 ? 'resultado' : 'resultados'} em{' '}
+                <span className="font-semibold text-text-primary">{resultado.gavetas}</span>{' '}
+                {resultado.gavetas === 1 ? 'gaveta' : 'gavetas'}
+              </p>
+              <button
+                type="button"
+                onClick={limparTudo}
+                className="shrink-0 text-xs font-semibold text-accent-soft-fg hover:underline"
+              >
+                Limpar filtros
+              </button>
+            </div>
           )}
 
           {estoqueError && (

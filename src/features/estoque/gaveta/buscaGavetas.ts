@@ -1,4 +1,5 @@
 import type { Estoque } from '../types';
+import { pendenciasDaVariante } from './pendenciasGaveta';
 
 export function normalizarTextoBusca(texto: string): string {
   return (texto || '')
@@ -42,4 +43,53 @@ export function correspondeBuscaEstoque(item: Estoque, busca: string): boolean {
 /** Remove marcador físico que pertence à unidade, sem alterar outros parênteses legítimos. */
 export function nomeVarianteExibicao(nome: string): string {
   return nome.replace(/\s*\(\s*avaria\s*\)\s*$/i, '').trim();
+}
+
+// Filtros rápidos da lista de gavetas (T03). Operam sobre a VARIANTE (peça),
+// reaproveitando o modelo de pendências pra nunca discordar dos badges.
+export type FiltroRapido =
+  | 'pendentes'
+  | 'sem_foto'
+  | 'com_avaria'
+  | 'disponiveis'
+  | 'vendidas'
+  | 'sem_preco';
+
+export const FILTROS_RAPIDOS: { id: FiltroRapido; nome: string }[] = [
+  { id: 'pendentes', nome: 'Pendentes' },
+  { id: 'sem_foto', nome: 'Sem foto' },
+  { id: 'sem_preco', nome: 'Sem preço' },
+  { id: 'com_avaria', nome: 'Com avaria' },
+  { id: 'disponiveis', nome: 'Disponíveis' },
+  { id: 'vendidas', nome: 'Vendidas' },
+];
+
+function unidadesDisponiveis(item: Estoque) {
+  return (item.unidades ?? []).filter((u) => !u.vendida_em);
+}
+
+/** Estoque à venda = quantidade física ainda não vendida (fichas + fantasmas). */
+function temEstoqueDisponivel(item: Estoque): boolean {
+  const vendidas = (item.unidades ?? []).filter((u) => u.vendida_em).length;
+  return (Number(item.quantidade) || 0) - vendidas > 0 || unidadesDisponiveis(item).length > 0;
+}
+
+export function itemAtendeFiltroRapido(item: Estoque, filtro: FiltroRapido): boolean {
+  const pend = pendenciasDaVariante(item);
+  switch (filtro) {
+    case 'pendentes':
+      return pend.length > 0;
+    case 'sem_foto':
+      return pend.includes('sem_foto');
+    case 'sem_preco':
+      return pend.includes('sem_preco');
+    case 'com_avaria':
+      return unidadesDisponiveis(item).some((u) => u.avaria);
+    case 'disponiveis':
+      return temEstoqueDisponivel(item);
+    case 'vendidas':
+      return (item.unidades ?? []).some((u) => u.vendida_em);
+    default:
+      return true;
+  }
 }
