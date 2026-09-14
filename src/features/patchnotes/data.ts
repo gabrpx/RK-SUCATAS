@@ -18,6 +18,43 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.0',
+    data: '2026-09-14',
+    titulo: 'Gavetas viram um painel operacional',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Pendências agora aparecem direto na lista, na variante e na unidade — "sem gaveta", "ficha pendente", "sem foto", "foto legada", "com avaria" e "sem preço" — sempre com ícone e texto, nunca só cor.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Filtros rápidos por estado (pendentes, sem foto, sem preço, com avaria, disponíveis, vendidas), botão para limpar busca/filtros e a contagem "X resultados em Y gavetas" separada do resumo geral do estoque.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          '"Itens não agrupados" virou fila de trabalho: contador de pendências, seleção múltipla e "Mover para gaveta" em lote, com opção de criar uma gaveta nova na hora.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'No detalhe da gaveta dá para ordenar por nome, quantidade, valor ou pendências, filtrar por estado, ver as unidades vendidas em uma seção recolhida e desfazer o "Soltar da gaveta".',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'A ficha da unidade mostra o que falta preencher ("Pendências desta ficha" + "Completar ficha"), deixa claro quando preço e condição são herdados da variante e diferencia foto própria de foto legada.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Ao cadastrar unidades, "Salvar e adicionar próxima" mantém o fluxo aberto; ao selecionar peças, "Selecionar todos os resultados" e um resumo do destino agilizam mover em lote.',
+      },
+    ],
+  },
+  {
     versao: '1.6.1',
     data: '2026-09-11',
     titulo: 'Gavetas mais rápidas e fáceis de organizar',
