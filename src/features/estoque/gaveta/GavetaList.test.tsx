@@ -21,6 +21,7 @@ vi.mock('./hooks', () => ({
     refetch: vi.fn(),
   }),
   useCriarGaveta: () => ({ criar: vi.fn(), loading: false, error: null }),
+  useMoverPecasGaveta: () => ({ moverEmLote: vi.fn(), loading: false }),
 }));
 vi.mock('./EstadosGaveta', () => ({
   AlertaDuplicataGaveta: () => null,

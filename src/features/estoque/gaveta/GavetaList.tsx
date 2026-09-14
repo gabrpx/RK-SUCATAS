@@ -18,7 +18,8 @@ import {
 import { cn } from '../../../utils';
 import { useCriarGaveta, useGavetas } from './hooks';
 import { agruparPorGaveta, statsGaveta } from './gavetaEstoque';
-import { GavetaRow, GavetaRowNaoAgrupado } from './GavetaRow';
+import { GavetaRow } from './GavetaRow';
+import { ItensNaoAgrupadosFila } from './ItensNaoAgrupadosFila';
 import { StatsRow } from './StatsRow';
 import { FilterChips, FiltrosRapidosChips, type FilterChipOption } from './FilterChips';
 import { CategoriaGavetaDropdown } from './CategoriaGavetaDropdown';
@@ -265,19 +266,12 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
                   </div>
                 ))}
 
-                {itensNaoAgrupadosFiltrados.length > 0 && (
-                  <div className="mt-4 pt-3 border-t border-border-subtle">
-                    <div className="mb-1 flex items-center gap-3 px-3">
-                      <p className="shrink-0 text-[10px] font-semibold uppercase tracking-wider text-text-muted">Itens não agrupados</p>
-                      <span className="h-px flex-1 bg-border-subtle" aria-hidden="true" />
-                    </div>
-                    {itensNaoAgrupadosFiltrados.map((item) => (
-                      <div key={item.id}>
-                        <GavetaRowNaoAgrupado item={item} onClick={onAbrirItemNaoAgrupado} />
-                      </div>
-                    ))}
-                  </div>
-                )}
+                <ItensNaoAgrupadosFila
+                  itens={itensNaoAgrupadosFiltrados}
+                  gavetas={gavetas}
+                  onAbrirItem={onAbrirItemNaoAgrupado}
+                  onGavetaCriada={() => recarregarGavetas()}
+                />
               </>
             )}
           </div>
