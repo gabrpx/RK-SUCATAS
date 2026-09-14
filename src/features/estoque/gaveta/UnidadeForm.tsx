@@ -24,6 +24,8 @@ const MAX_FOTOS = 5;
 
 interface UnidadeFormProps {
   estoqueId: string;
+  /** Nome derivado da variação do modelo; o funcionário pode editar ou apagar. */
+  nomeSugerido?: string | null;
   /** Presente = editando ficha existente; ausente = nova unidade */
   unidade?: EstoqueUnidade;
   onSalvar: (unidade: EstoqueUnidade) => void;
@@ -35,9 +37,9 @@ interface UnidadeFormProps {
   onSalvarEContinuar?: (unidade: EstoqueUnidade) => void;
 }
 
-function formVazio(unidade?: EstoqueUnidade): EstoqueUnidadeInput {
+function formVazio(unidade?: EstoqueUnidade, nomeSugerido?: string | null): EstoqueUnidadeInput {
   return {
-    nome: unidade?.nome ?? '',
+    nome: unidade?.nome ?? nomeSugerido ?? '',
     condicao_nota: unidade?.condicao_nota ?? null,
     avaria: unidade?.avaria ?? false,
     avaria_descricao: unidade?.avaria_descricao ?? '',
@@ -47,8 +49,8 @@ function formVazio(unidade?: EstoqueUnidade): EstoqueUnidadeInput {
   };
 }
 
-export function UnidadeForm({ estoqueId, unidade, onSalvar, onCancelar, onSalvarEContinuar }: UnidadeFormProps) {
-  const [form, setForm] = useState<EstoqueUnidadeInput>(() => formVazio(unidade));
+export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCancelar, onSalvarEContinuar }: UnidadeFormProps) {
+  const [form, setForm] = useState<EstoqueUnidadeInput>(() => formVazio(unidade, nomeSugerido));
   const [salvando, setSalvando] = useState(false);
   const [enviandoFotos, setEnviandoFotos] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -130,13 +132,13 @@ export function UnidadeForm({ estoqueId, unidade, onSalvar, onCancelar, onSalvar
         </div>
         <div>
           <label className={labelClass} htmlFor="unidade-nome">
-            Nome (opcional)
+            Nome {nomeSugerido && !unidade ? '(sugerido)' : '(opcional)'}
           </label>
           <input
             id="unidade-nome"
             value={form.nome ?? ''}
             onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-            placeholder="Ex: A do risco"
+            placeholder={nomeSugerido && !unidade ? nomeSugerido : 'Ex: A do risco'}
             className={cn(inputClass, 'h-11 sm:h-9')}
           />
         </div>

@@ -15,12 +15,14 @@ import { cn } from '../../../utils';
 import { Button } from '../../../components/ui/button';
 import { estoqueApi } from '../api';
 import { useData } from '../../../context/DataContext';
+import { useCatalogos } from '../../../hooks/useCatalogos';
 import { faixaPrecoVariante } from './gavetaEstoque';
 import { UnidadeForm } from './UnidadeForm';
 import { UnidadeRow } from './UnidadeRow';
 import { UnidadeDetailDialog } from './UnidadeDetailDialog';
 import { nomeVarianteExibicao } from './buscaGavetas';
 import { PendenciaVarianteChips } from './PendenciaBadges';
+import { obterNomeVariacaoModelo } from '../../motos/nomeModelo';
 import type { Estoque, EstoqueUnidade } from '../types';
 import { aviso } from '../../../components/ui/toast';
 
@@ -50,6 +52,7 @@ interface VarianteCardProps {
 
 export function VarianteCard({ item }: VarianteCardProps) {
   const { refreshData } = useData();
+  const { modelos } = useCatalogos();
   const [editandoNome, setEditandoNome] = useState(false);
   const [nomeRascunho, setNomeRascunho] = useState(() => nomeVarianteExibicao(item.nome));
   const [salvandoNome, setSalvandoNome] = useState(false);
@@ -67,6 +70,9 @@ export function VarianteCard({ item }: VarianteCardProps) {
   const semFicha = Math.max(0, (Number(item.quantidade) || 0) - unidadesDisponiveis.length);
   const totalUnidades = unidadesDisponiveis.length + semFicha;
   const nomeExibicao = nomeVarianteExibicao(item.nome);
+  const modeloCatalogo = item.modelo_moto_id ? modelos.find((modelo) => modelo.id === item.modelo_moto_id) : undefined;
+  const nomeVariacaoSugerido = modeloCatalogo ? obterNomeVariacaoModelo(modeloCatalogo, modelos) : null;
+  const nomePadraoUnidade = nomeVariacaoSugerido || nomeExibicao;
 
   const abrirEdicaoNome = () => {
     setNomeRascunho(nomeExibicao);
@@ -253,7 +259,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
               <UnidadeRow
                 unidade={unidade}
                 numero={i + 1}
-                nomePadrao={nomeExibicao}
+                nomePadrao={nomePadraoUnidade}
                 valorPadrao={item.valor}
                 notaPadrao={item.condicao_nota}
                 variante={item}
@@ -300,6 +306,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
           <div className="mt-2">
             <UnidadeForm
               estoqueId={item.id}
+              nomeSugerido={nomeVariacaoSugerido}
               onSalvar={aoSalvarUnidade}
               onSalvarEContinuar={aoSalvarEContinuar}
               onCancelar={() => setNovaUnidadeAberta(false)}

@@ -4,7 +4,7 @@
 // componente não assume nada sobre onde vive, e a navegação pro detalhe é um
 // prop (onAbrirGaveta/onAbrirItem) que a rota decide o que fazer.
 import { useMemo, useState } from 'react';
-import { Loader2, Search, X } from 'lucide-react';
+import { Loader2, Search, WandSparkles, X } from 'lucide-react';
 import { useData } from '../../../context/DataContext';
 import { useCatalogos } from '../../../hooks/useCatalogos';
 import { Button } from '../../../components/ui/button';
@@ -28,6 +28,7 @@ import { AlertaDuplicataGaveta, EmptyGavetas, ErroEstadoGavetas, OfflineBar, Sem
 import type { Estoque, Gaveta } from '../types';
 import { correspondeBuscaEstoque, itemAtendeFiltroRapido, normalizarTextoBusca, type FiltroRapido } from './buscaGavetas';
 import { EstoqueHeaderControle, type EstoqueViewId } from './EstoqueHeaderVariants';
+import { OrganizacaoAssistidaPreview } from './OrganizacaoAssistidaPreview';
 
 interface GavetaListProps {
   /** Navegação pro detalhe da gaveta (Task 13 decide a rota real). */
@@ -54,6 +55,7 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
   // Uma vez que o usuário escolhe "criar mesmo assim", não insiste no aviso
   // pro mesmo nome — senão o clique preciso teria que ser repetido no submit.
   const [ignorarDuplicata, setIgnorarDuplicata] = useState(false);
+  const [organizacaoAberta, setOrganizacaoAberta] = useState(false);
 
   // Peças ativas — mesma base usada pelo resto do módulo de estoque.
   const itensAtivos = useMemo(() => estoque.filter((i) => i.ativo), [estoque]);
@@ -202,6 +204,11 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
         onNovaGaveta={() => setModalAberto(true)}
       />
 
+      <div className="flex items-center justify-between gap-3 rounded-card border border-accent/20 bg-accent-soft/40 px-3 py-2.5">
+        <div className="flex min-w-0 items-center gap-2"><WandSparkles size={16} className="shrink-0 text-accent" /><div className="min-w-0"><p className="text-sm font-semibold text-text-primary">Organização assistida</p><p className="truncate text-xs text-text-muted">Sugestões inteligentes para itens sem gaveta</p></div></div>
+        <Button type="button" variant="outline" size="sm" onClick={() => setOrganizacaoAberta(true)}>Ver sugestões</Button>
+      </div>
+
       {carregandoGavetas ? (
         <GavetaListSkeleton />
       ) : erroBloqueante && semPermissao ? (
@@ -348,6 +355,7 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      <OrganizacaoAssistidaPreview open={organizacaoAberta} onOpenChange={setOrganizacaoAberta} />
     </section>
   );
 }
