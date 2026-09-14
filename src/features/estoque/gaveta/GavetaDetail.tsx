@@ -53,7 +53,7 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
 
   const itensVisiveis = useMemo(() => {
     const filtrados = itens.filter((item) =>
-      Array.from(filtrosRapidos).every((f) => itemAtendeFiltroRapido(item, f)),
+      Array.from(filtrosRapidos as Set<FiltroRapido>).every((f) => itemAtendeFiltroRapido(item, f)),
     );
     return ordenarVariantes(filtrados, ordenacao);
   }, [itens, filtrosRapidos, ordenacao]);

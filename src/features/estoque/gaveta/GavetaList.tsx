@@ -84,7 +84,7 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
 
   // Um item passa nos filtros de estado (AND) e na busca textual.
   const itemPassaEstado = (item: Estoque) =>
-    Array.from(filtrosRapidos).every((f) => itemAtendeFiltroRapido(item, f));
+    Array.from(filtrosRapidos as Set<FiltroRapido>).every((f) => itemAtendeFiltroRapido(item, f));
   const itemPassaBusca = (item: Estoque) => !buscaNormalizada || correspondeBuscaEstoque(item, busca);
 
   // Cada linha guarda também quantos itens dela realmente casaram — é isso que
