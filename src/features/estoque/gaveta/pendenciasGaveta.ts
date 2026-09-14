@@ -53,7 +53,10 @@ function fichasPendentes(item: Estoque): number {
  * necessário para distinguir foto legada (herdada da variante) de ausência
  * total de foto, e para saber o preço herdado.
  */
-export function pendenciasDaUnidade(unidade: EstoqueUnidade, variante?: Estoque): PendenciaGaveta[] {
+export function pendenciasDaUnidade(
+  unidade: EstoqueUnidade,
+  variante?: Pick<Estoque, 'imagens' | 'valor'>,
+): PendenciaGaveta[] {
   const pend: PendenciaGaveta[] = [];
 
   const temFotoPropria = (unidade.fotos?.length ?? 0) > 0;

@@ -1,17 +1,18 @@
 import { useState } from 'react';
-import { AlertTriangle, CheckCircle2, ImageOff, Pencil, Package } from 'lucide-react';
+import { AlertTriangle, ImageOff, Pencil, Package } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { ImageZoom } from '../../../components/ui/image-zoom';
 import { Modal, ModalSection } from '../../../components/ui/Modal';
 import { cn } from '../../../utils';
 import { condicaoNotaDaUnidade, valorDaUnidade } from '../valorEstoque';
+import { pendenciasDaUnidade, nomePendencia } from './pendenciasGaveta';
 import type { Estoque, EstoqueUnidade } from '../types';
 
 interface UnidadeDetailDialogProps {
   aberto: boolean;
   unidade: EstoqueUnidade | null;
   numero: number;
-  variante: Pick<Estoque, 'nome' | 'ano' | 'valor' | 'condicao_nota'>;
+  variante: Pick<Estoque, 'nome' | 'ano' | 'valor' | 'condicao_nota' | 'imagens'>;
   onFechar: () => void;
   onEditar: (unidade: EstoqueUnidade) => void;
 }
@@ -27,6 +28,9 @@ export function UnidadeDetailDialog({ aberto, unidade, numero, variante, onFecha
   const valor = valorDaUnidade(unidade, variante.valor);
   const usaValorDaVariante = unidade.valor == null;
   const usaNotaDaVariante = unidade.condicao_nota == null;
+  const vendida = Boolean(unidade.vendida_em);
+  const pendencias = vendida ? [] : pendenciasDaUnidade(unidade, variante);
+  const usaFotoLegada = pendencias.includes('foto_legada');
 
   return (
     <Modal
@@ -54,12 +58,28 @@ export function UnidadeDetailDialog({ aberto, unidade, numero, variante, onFecha
 
       <ModalSection titulo="Resumo da unidade">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <Info label="Preço efetivo" value={fmtMoeda(valor)} detail={usaValorDaVariante ? 'Usa preço da variante' : 'Preço próprio'} />
-          <Info label="Condição" value={nota != null ? `Nota ${nota}` : 'Sem nota de condição'} detail={usaNotaDaVariante && nota != null ? 'Usa nota da variante' : undefined} />
+          <Info label="Preço efetivo" value={fmtMoeda(valor)} detail={usaValorDaVariante ? 'Herdado da variante' : 'Preço próprio'} />
+          <Info label="Condição" value={nota != null ? `Nota ${nota}` : 'Sem nota de condição'} detail={usaNotaDaVariante && nota != null ? 'Herdada da variante' : usaNotaDaVariante ? undefined : 'Própria'} />
           <Info label="Avaria" value={unidade.avaria ? 'Com avaria' : 'Sem avaria informada'} detail={unidade.avaria_descricao || undefined} />
-          <Info label="Disponibilidade" value={unidade.vendida_em ? 'Vendida' : 'Disponível'} />
+          <Info label="Disponibilidade" value={vendida ? 'Vendida' : 'Disponível'} />
         </div>
       </ModalSection>
+
+      {pendencias.length > 0 && (
+        <ModalSection titulo={`Pendências desta ficha · ${pendencias.length}`}>
+          <ul className="space-y-1.5">
+            {pendencias.map((tipo) => (
+              <li key={tipo} className="flex items-center gap-2 text-sm text-text-secondary">
+                <AlertTriangle size={14} className={cn('shrink-0', tipo === 'foto_legada' ? 'text-text-muted' : 'text-warning')} aria-hidden />
+                <span className="capitalize">{nomePendencia(tipo)}</span>
+              </li>
+            ))}
+          </ul>
+          <Button type="button" variant="accent-cta" size="sm" className="mt-3" onClick={() => onEditar(unidade)}>
+            <Pencil size={14} /> Completar ficha
+          </Button>
+        </ModalSection>
+      )}
 
       {(unidade.descricao || unidade.avaria_descricao) && (
         <ModalSection titulo="Observações">
@@ -76,6 +96,15 @@ export function UnidadeDetailDialog({ aberto, unidade, numero, variante, onFecha
                 <ImageZoom src={foto} alt={`Foto da unidade ${numero}`} className="aspect-square w-full rounded-control" triggerClassName="block w-full" referrerPolicy="no-referrer" />
               </div>
             ))}
+          </div>
+        ) : usaFotoLegada ? (
+          <div className="space-y-2">
+            <div className="rounded-control border border-dashed border-border-default p-1 max-w-[180px]">
+              <ImageZoom src={variante.imagens[0]} alt="Foto herdada da variante" className="aspect-square w-full rounded-control" triggerClassName="block w-full" referrerPolicy="no-referrer" />
+            </div>
+            <p className="text-xs text-text-muted">
+              Foto herdada da variante — esta unidade ainda não tem foto própria.
+            </p>
           </div>
         ) : (
           <div className="flex items-center gap-2 rounded-control border border-dashed border-border-default px-3 py-4 text-sm text-text-muted">

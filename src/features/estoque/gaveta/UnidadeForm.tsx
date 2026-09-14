@@ -28,6 +28,11 @@ interface UnidadeFormProps {
   unidade?: EstoqueUnidade;
   onSalvar: (unidade: EstoqueUnidade) => void;
   onCancelar: () => void;
+  /**
+   * Só faz sentido ao criar: salva e mantém o form aberto e limpo para
+   * cadastrar a próxima unidade em sequência, sem fechar/reabrir.
+   */
+  onSalvarEContinuar?: (unidade: EstoqueUnidade) => void;
 }
 
 function formVazio(unidade?: EstoqueUnidade): EstoqueUnidadeInput {
@@ -42,7 +47,7 @@ function formVazio(unidade?: EstoqueUnidade): EstoqueUnidadeInput {
   };
 }
 
-export function UnidadeForm({ estoqueId, unidade, onSalvar, onCancelar }: UnidadeFormProps) {
+export function UnidadeForm({ estoqueId, unidade, onSalvar, onCancelar, onSalvarEContinuar }: UnidadeFormProps) {
   const [form, setForm] = useState<EstoqueUnidadeInput>(() => formVazio(unidade));
   const [salvando, setSalvando] = useState(false);
   const [enviandoFotos, setEnviandoFotos] = useState(false);
@@ -71,7 +76,7 @@ export function UnidadeForm({ estoqueId, unidade, onSalvar, onCancelar }: Unidad
     }
   };
 
-  const salvar = async () => {
+  const salvar = async (continuar = false) => {
     if (!precoValido) return;
     setSalvando(true);
     setErro(null);
@@ -86,7 +91,12 @@ export function UnidadeForm({ estoqueId, unidade, onSalvar, onCancelar }: Unidad
         ? await estoqueApi.atualizarUnidade(estoqueId, unidade.id, payload)
         : await estoqueApi.criarUnidade(estoqueId, payload);
       if (!resultado.success) throw new Error(resultado.error);
-      onSalvar(resultado.data);
+      if (continuar && onSalvarEContinuar) {
+        onSalvarEContinuar(resultado.data);
+        setForm(formVazio()); // limpa e mantém aberto para a próxima
+      } else {
+        onSalvar(resultado.data);
+      }
     } catch (err: any) {
       setErro(err.message || 'Erro ao salvar unidade');
     } finally {
@@ -231,20 +241,34 @@ export function UnidadeForm({ estoqueId, unidade, onSalvar, onCancelar }: Unidad
         )}
       </div>
 
-      <div className="flex gap-3">
-        <Button
-          type="button"
-          variant="accent-cta"
-          size="mobile"
-          className="flex-1 sm:h-9 sm:text-sm"
-          onClick={salvar}
-          disabled={!precoValido || salvando || enviandoFotos}
-        >
-          {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
-        </Button>
-        <Button type="button" variant="ghost" size="mobile" className="flex-1 sm:h-9 sm:text-sm" onClick={onCancelar} disabled={salvando}>
-          Cancelar
-        </Button>
+      <div className="flex flex-col gap-2">
+        <div className="flex gap-3">
+          <Button
+            type="button"
+            variant="accent-cta"
+            size="mobile"
+            className="flex-1 sm:h-9 sm:text-sm"
+            onClick={() => salvar(false)}
+            disabled={!precoValido || salvando || enviandoFotos}
+          >
+            {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+          </Button>
+          <Button type="button" variant="ghost" size="mobile" className="flex-1 sm:h-9 sm:text-sm" onClick={onCancelar} disabled={salvando}>
+            Cancelar
+          </Button>
+        </div>
+        {!unidade && onSalvarEContinuar && (
+          <Button
+            type="button"
+            variant="outline"
+            size="mobile"
+            className="w-full sm:h-9 sm:text-sm"
+            onClick={() => salvar(true)}
+            disabled={!precoValido || salvando || enviandoFotos}
+          >
+            {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar e adicionar próxima unidade'}
+          </Button>
+        )}
       </div>
     </div>
   );

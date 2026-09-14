@@ -125,6 +125,11 @@ export function VarianteCard({ item }: VarianteCardProps) {
     await refreshData();
   };
 
+  // Salvar e continuar: atualiza os dados mas mantém o form aberto e limpo.
+  const aoSalvarEContinuar = async () => {
+    await refreshData();
+  };
+
   const inputAnoClass =
     'w-16 border rounded-control py-1 px-2 text-sm text-center outline-none bg-surface-inset border-accent text-text-primary focus:ring-2 focus:ring-accent/50';
 
@@ -293,7 +298,12 @@ export function VarianteCard({ item }: VarianteCardProps) {
 
         {novaUnidadeAberta && (
           <div className="mt-2">
-            <UnidadeForm estoqueId={item.id} onSalvar={aoSalvarUnidade} onCancelar={() => setNovaUnidadeAberta(false)} />
+            <UnidadeForm
+              estoqueId={item.id}
+              onSalvar={aoSalvarUnidade}
+              onSalvarEContinuar={aoSalvarEContinuar}
+              onCancelar={() => setNovaUnidadeAberta(false)}
+            />
           </div>
         )}
 
