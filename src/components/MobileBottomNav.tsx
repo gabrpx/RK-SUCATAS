@@ -2,6 +2,7 @@ import {
   LayoutDashboard,
   Package,
   ShoppingCart,
+  Receipt,
   Wallet,
   Truck,
   Settings,
@@ -25,6 +26,10 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMo
     { id: 'caixa', icon: Wallet, label: 'Caixa', roles: ['admin', 'gerente'] },
     { id: 'frete', icon: Truck, label: 'Frete', roles: ['admin', 'gerente'] },
     { id: 'configuracoes', icon: Settings, label: 'Config', roles: ['admin', 'gerente'] },
+    // No fim de propósito: só os 4 primeiros ficam na barra principal (ver
+    // comentário acima) — Orçamentos é ferramenta de pré-venda, de uso menos
+    // frequente que Caixa, então tolera bem ficar dentro de "Mais".
+    { id: 'orcamentos', icon: Receipt, label: 'Orçamentos', roles: ['admin', 'gerente'] },
   ];
 
   const allowedItems = allItems.filter(item => item.roles.includes(userRole));

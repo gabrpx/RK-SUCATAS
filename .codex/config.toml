@@ -1,0 +1,7 @@
+[shell_environment_policy]
+inherit = "core"
+
+[shell_environment_policy.set]
+ANTHROPIC_BASE_URL = "http://localhost:20128/v1"
+ANTHROPIC_API_KEY = "sk-a149e5d5686f2b6d-dd7a75-68a6a9f5"
+ANTHROPIC_MODEL = "combo/modelos-gratuitos"
