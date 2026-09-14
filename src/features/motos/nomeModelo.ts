@@ -1,18 +1,6 @@
 import type { ModeloMoto } from '../../types/catalog';
 import { getAncestorChain } from './motoTree';
 
-type RegraApelido = {
-  cilindrada: string;
-  inicio: number;
-  fim: number;
-  apelido: string;
-};
-
-const REGRAS_APELIDO: RegraApelido[] = [
-  { cilindrada: 'cg 125', inicio: 1995, fim: 1999, apelido: 'Titan' },
-  { cilindrada: 'cg 150', inicio: 2004, fim: 2008, apelido: 'Carburada' },
-];
-
 function normalizar(texto: string) {
   return texto
     .toLowerCase()
@@ -23,33 +11,44 @@ function normalizar(texto: string) {
     .trim();
 }
 
-function anoInicial(ano: string | null | undefined) {
-  const encontrado = ano?.match(/\d{4}/)?.[0];
-  return encontrado ? Number(encontrado) : null;
+function tokens(nome: string) {
+  return normalizar(nome).split(' ').filter(Boolean);
 }
 
-function apelidoConhecido(caminho: ModeloMoto[], ano: string | null) {
-  const cilindrada = caminho.find((item) => /^cg\s+\d+/i.test(item.nome));
-  const inicio = anoInicial(ano) ?? anoInicial(cilindrada?.ano);
-  if (!cilindrada || inicio === null) return null;
-
-  const regra = REGRAS_APELIDO.find(
-    (item) => normalizar(cilindrada.nome) === item.cilindrada && inicio >= item.inicio && inicio <= item.fim,
-  );
-  return regra?.apelido ?? null;
+function contemMesmoNome(nome: string, folha: string) {
+  const nomeTokens = tokens(nome);
+  const folhaTokens = tokens(folha);
+  return nomeTokens.length > 0 && nomeTokens.every((token) => folhaTokens.includes(token));
 }
 
-/**
- * Nome de apresentação: mantém o catálogo original e só acrescenta apelidos
- * conhecidos quando a combinação de cilindrada e período é inequívoca.
- */
+/** Retorna somente a variação filha que diferencia o modelo base. */
+export function obterNomeVariacaoModelo(modelo: ModeloMoto, modelos: ModeloMoto[]): string | null {
+  const caminho = getAncestorChain(modelo.id, modelos);
+  if (caminho.length < 4) return null;
+
+  const base = caminho.at(-2);
+  const folha = caminho.at(-1);
+  if (!base || !folha) return null;
+
+  const nomeBase = base.nome.trim();
+  const nomeFolha = folha.nome.trim();
+  if (!nomeBase || !nomeFolha || normalizar(nomeBase) === normalizar(nomeFolha)) return null;
+
+  const variacao = nomeFolha
+    .replace(new RegExp(`^${nomeBase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*`, 'i'), '')
+    .replace(/\s+\d{2,4}$/, '')
+    .trim();
+  return variacao && !contemMesmoNome(variacao, nomeBase) ? variacao : null;
+}
+
+/** Nome de apresentação baseado no caminho real do catálogo. */
 export function formatarNomeModeloMoto(modelo: ModeloMoto, modelos: ModeloMoto[]) {
   const caminho = getAncestorChain(modelo.id, modelos);
-  const nomes = caminho.map((item) => item.nome).filter(Boolean);
-  const ultimoNome = nomes.at(-1) ?? modelo.nome;
-  const apelido = apelidoConhecido(caminho, modelo.ano);
-  const nomeComApelido = apelido && !normalizar(ultimoNome).includes(normalizar(apelido)) ? `${ultimoNome} ${apelido}` : ultimoNome;
-  const prefixo = nomes.length > 1 ? nomes.slice(0, -1).filter((nome) => normalizar(nome) !== normalizar(ultimoNome)).join(' ') : '';
-  const nome = [prefixo, nomeComApelido].filter(Boolean).join(' ');
-  return modelo.ano ? `${nome} · ${modelo.ano}` : nome;
+  const nomes = caminho.map((item) => item.nome.trim()).filter(Boolean);
+  if (nomes.length === 0) return modelo.nome;
+
+  const folha = nomes.at(-1)!;
+  const prefixos = nomes.slice(0, -1).filter((nome) => !/^\d+$/.test(normalizar(nome)) && !contemMesmoNome(nome, folha));
+  const nome = [...prefixos, folha].join(' ');
+  return modelo.ano?.trim() ? `${nome} · ${modelo.ano.trim()}` : nome;
 }

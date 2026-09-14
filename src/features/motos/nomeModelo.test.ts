@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatarNomeModeloMoto } from './nomeModelo';
+import { formatarNomeModeloMoto, obterNomeVariacaoModelo } from './nomeModelo';
 import type { ModeloMoto } from '../../types/catalog';
 
 const modelo = (id: string, nome: string, parent_id: string | null, ano: string | null = null): ModeloMoto => ({
@@ -11,31 +11,36 @@ const modelo = (id: string, nome: string, parent_id: string | null, ano: string 
   imagem_url: null,
 });
 
-describe('formatarNomeModeloMoto', () => {
-  it('apresenta Titan para CG 125 entre 1995 e 1999 sem alterar o catálogo', () => {
+describe('nomeModelo', () => {
+  it('apresenta a variação sem repetir os níveis da árvore', () => {
     const modelos = [
       modelo('honda', 'Honda', null),
-      modelo('cg125', 'CG 125', 'honda'),
-      modelo('moto', 'CG 125', 'cg125', '1995 a 1999'),
+      modelo('cilindrada', '125', 'honda'),
+      modelo('cg125', 'CG 125', 'cilindrada'),
+      modelo('moto', 'CG 125 Titan 99', 'cg125', '1995 a 1999'),
     ];
 
-    expect(formatarNomeModeloMoto(modelos[2], modelos)).toBe('Honda CG 125 Titan · 1995 a 1999');
-    expect(modelos[2].nome).toBe('CG 125');
+    expect(formatarNomeModeloMoto(modelos[2], modelos)).toBe('Honda CG 125');
+    expect(formatarNomeModeloMoto(modelos[3], modelos)).toBe('Honda CG 125 Titan 99 · 1995 a 1999');
+    expect(obterNomeVariacaoModelo(modelos[3], modelos)).toBe('Titan');
+    expect(modelos[3].nome).toBe('CG 125 Titan 99');
   });
 
-  it('identifica a CG 150 carburada pelo período conhecido', () => {
+  it('extrai a variação cadastrada para qualquer marca sem regra fixa', () => {
     const modelos = [
-      modelo('honda', 'Honda', null),
-      modelo('cg150', 'CG 150', 'honda'),
-      modelo('moto', 'CG 150', 'cg150', '2004 a 2008'),
+      modelo('dafra', 'Dafra', null),
+      modelo('150', '150', 'dafra'),
+      modelo('modelo', 'Kansas', '150', '2008 a 2015'),
     ];
 
-    expect(formatarNomeModeloMoto(modelos[2], modelos)).toBe('Honda CG 150 Carburada · 2004 a 2008');
+    expect(formatarNomeModeloMoto(modelos[2], modelos)).toBe('Dafra Kansas · 2008 a 2015');
+    expect(obterNomeVariacaoModelo(modelos[2], modelos)).toBe('Kansas');
   });
 
-  it('preserva o caminho oficial quando não existe uma regra segura', () => {
+  it('não inventa uma variação quando o modelo é genérico', () => {
     const modelos = [modelo('honda', 'Honda', null), modelo('fan', 'Fan 160', 'honda', '2016+')];
 
     expect(formatarNomeModeloMoto(modelos[1], modelos)).toBe('Honda Fan 160 · 2016+');
+    expect(obterNomeVariacaoModelo(modelos[1], modelos)).toBeNull();
   });
 });
