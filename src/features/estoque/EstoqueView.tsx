@@ -76,6 +76,7 @@ import { baixarCsv } from '../../utils/csv';
 import { aviso } from '../../components/ui/toast';
 import { buildTree as buildCategoriaTree, getDescendantIds } from '../categorias/categoriaTree';
 import { buildTree as buildMotoTree, getDescendantIds as getDescendantIdsMoto } from '../motos/motoTree';
+import { formatarNomeModeloMoto } from '../motos/nomeModelo';
 import { CategoriaOrgChart } from '../categorias/CategoriaOrgChart';
 import { MotoOrgChart } from '../motos/MotoOrgChart';
 import { sumWithDescendants } from '../../utils/tree';
@@ -645,12 +646,12 @@ export function EstoqueView({
             const modelosUnicos = new Set(linha.itens.map((i) => i.modelo_moto_id).filter(Boolean));
             const texto =
               modelosUnicos.size === 0 ? 'Universal'
-              : modelosUnicos.size === 1 ? (linha.itens[0]?.modelo_moto?.nome ?? 'Universal')
+              : modelosUnicos.size === 1 ? (linha.itens[0]?.modelo_moto ? formatarNomeModeloMoto(linha.itens[0].modelo_moto, modelos) : 'Universal')
               : `${modelosUnicos.size} modelos`;
             return <StatusBadge tom="neutral" texto={texto} />;
           }
           const item = linha.item;
-          return <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />;
+          return <StatusBadge tom="neutral" texto={item.modelo_moto ? formatarNomeModeloMoto(item.modelo_moto, modelos) : 'Universal'} />;
         },
       },
       {
@@ -910,7 +911,7 @@ export function EstoqueView({
             </p>
           )}
           <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-            <StatusBadge tom="neutral" texto={item.modelo_moto?.nome ? `${item.modelo_moto.nome}${item.ano ? ` · ${item.ano}` : ''}` : 'Universal'} />
+            <StatusBadge tom="neutral" texto={item.modelo_moto ? formatarNomeModeloMoto(item.modelo_moto, modelos) : 'Universal'} />
             <AnuncioBadge label="ML" canal="Mercado Livre" count={item.links_ml?.length ?? 0} onAbrir={() => abrirAnunciosMl(item)} />
             <AnuncioBadge label="SP" canal="Shopee" count={item.links_shopee?.length ?? 0} onAbrir={() => abrirAnunciosShopee(item)} />
             <AnuncioBadge label="FB" canal="Facebook" count={item.anuncio_fb_url ? 1 : 0} onAbrir={() => window.open(item.anuncio_fb_url!, '_blank', 'noopener,noreferrer')} />
