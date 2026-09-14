@@ -40,11 +40,25 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
     return disponiveis.filter((item) => correspondeBuscaEstoque(item, busca));
   }, [disponiveis, busca]);
 
+  const todosResultadosMarcados = filtrados.length > 0 && filtrados.every((item) => selecionados.has(item.id));
+
   const alternar = (id: string) => {
     setSelecionados((prev) => {
       const proximo = new Set(prev);
       if (proximo.has(id)) proximo.delete(id);
       else proximo.add(id);
+      return proximo;
+    });
+  };
+
+  const alternarTodos = () => {
+    setSelecionados((prev) => {
+      const proximo = new Set(prev);
+      if (todosResultadosMarcados) {
+        for (const item of filtrados) proximo.delete(item.id);
+      } else {
+        for (const item of filtrados) proximo.add(item.id);
+      }
       return proximo;
     });
   };
@@ -74,13 +88,23 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
       subtitulo={`Peças sem gaveta que podem entrar em "${gavetaNome}"`}
       tamanho="md"
       rodape={
-        <div className="flex items-center justify-end gap-2">
-          <Button type="button" variant="ghost" onClick={onFechar} disabled={loading}>
-            Cancelar
-          </Button>
-          <Button type="button" variant="accent-cta" onClick={confirmar} disabled={loading || selecionados.size === 0}>
-            {loading ? <Loader2 size={16} className="animate-spin" /> : `Adicionar ${selecionados.size} peça${selecionados.size === 1 ? '' : 's'}`}
-          </Button>
+        <div className="flex flex-col gap-2">
+          {selecionados.size > 0 && (
+            <p className="text-xs text-text-muted">
+              <span className="font-semibold text-text-primary">
+                {selecionados.size} peça{selecionados.size === 1 ? '' : 's'}
+              </span>{' '}
+              → <span className="font-semibold text-text-primary">"{gavetaNome}"</span>
+            </p>
+          )}
+          <div className="flex items-center justify-end gap-2">
+            <Button type="button" variant="ghost" onClick={onFechar} disabled={loading}>
+              Cancelar
+            </Button>
+            <Button type="button" variant="accent-cta" onClick={confirmar} disabled={loading || selecionados.size === 0}>
+              {loading ? <Loader2 size={16} className="animate-spin" /> : `Adicionar ${selecionados.size} peça${selecionados.size === 1 ? '' : 's'}`}
+            </Button>
+          </div>
         </div>
       }
     >
@@ -103,7 +127,21 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
         ) : filtrados.length === 0 ? (
           <p className="text-sm text-text-muted text-center py-8">Nenhuma peça encontrada.</p>
         ) : (
-          <div className="flex flex-col divide-y divide-border-subtle max-h-[50vh] overflow-y-auto">
+          <>
+            <div className="flex items-center justify-between gap-3 px-0.5">
+              <label className="flex items-center gap-2 cursor-pointer text-xs font-semibold text-text-secondary min-h-11">
+                <Checkbox
+                  aria-label="Selecionar todos os resultados"
+                  checked={todosResultadosMarcados}
+                  onCheckedChange={alternarTodos}
+                />
+                Selecionar todos os resultados ({filtrados.length})
+              </label>
+              <span className="text-xs text-text-muted whitespace-nowrap">
+                {selecionados.size} selecionada{selecionados.size === 1 ? '' : 's'}
+              </span>
+            </div>
+            <div className="flex flex-col divide-y divide-border-subtle max-h-[50vh] overflow-y-auto">
             {filtrados.map((item) => {
               const marcado = selecionados.has(item.id);
               return (
@@ -129,7 +167,8 @@ export function AdicionarPecasGaveta({ gavetaId, gavetaNome, onFechar }: Adicion
                 </label>
               );
             })}
-          </div>
+            </div>
+          </>
         )}
       </div>
     </Modal>
