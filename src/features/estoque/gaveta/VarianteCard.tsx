@@ -10,7 +10,7 @@
 // Shopee = danger (rosa). "Novo" agora tem dado real: estoque.novo
 // (migration_063), booleano manual — some quando false/ausente.
 import { useState } from 'react';
-import { Check, Package, Pencil, Plus, X } from 'lucide-react';
+import { Check, ChevronDown, Package, Pencil, Plus, X } from 'lucide-react';
 import { cn } from '../../../utils';
 import { Button } from '../../../components/ui/button';
 import { estoqueApi } from '../api';
@@ -59,9 +59,11 @@ export function VarianteCard({ item }: VarianteCardProps) {
   const [novaUnidadeAberta, setNovaUnidadeAberta] = useState(false);
   const [unidadeEmFicha, setUnidadeEmFicha] = useState<EstoqueUnidade | null>(null);
   const [unidadeEditando, setUnidadeEditando] = useState<EstoqueUnidade | null>(null);
+  const [mostrarVendidas, setMostrarVendidas] = useState(false);
 
   const faixa = faixaPrecoVariante(item);
   const unidadesDisponiveis = (item.unidades ?? []).filter((u) => !u.vendida_em);
+  const unidadesVendidas = (item.unidades ?? []).filter((u) => u.vendida_em);
   const semFicha = Math.max(0, (Number(item.quantidade) || 0) - unidadesDisponiveis.length);
   const totalUnidades = unidadesDisponiveis.length + semFicha;
   const nomeExibicao = nomeVarianteExibicao(item.nome);
@@ -258,6 +260,36 @@ export function VarianteCard({ item }: VarianteCardProps) {
             <p className="text-xs text-text-faint py-2">Nenhuma unidade cadastrada.</p>
           )}
         </div>
+
+        {unidadesVendidas.length > 0 && (
+          <div className="mt-2 border-t border-border-subtle pt-2">
+            <button
+              type="button"
+              onClick={() => setMostrarVendidas((v) => !v)}
+              aria-expanded={mostrarVendidas}
+              className="flex w-full items-center gap-1.5 text-[11px] font-semibold text-text-muted hover:text-text-secondary min-h-9"
+            >
+              <ChevronDown size={13} className={cn('transition-transform', mostrarVendidas && 'rotate-180')} aria-hidden />
+              Vendidas ({unidadesVendidas.length})
+            </button>
+            {mostrarVendidas && (
+              <div className="mt-1 flex flex-col divide-y divide-border-subtle opacity-70">
+                {unidadesVendidas.map((unidade, i) => (
+                  <UnidadeRow
+                    key={unidade.id}
+                    unidade={unidade}
+                    numero={unidadesDisponiveis.length + i + 1}
+                    nomePadrao={nomeExibicao}
+                    valorPadrao={item.valor}
+                    notaPadrao={item.condicao_nota}
+                    variante={item}
+                    onAbrirFicha={setUnidadeEmFicha}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {novaUnidadeAberta && (
           <div className="mt-2">

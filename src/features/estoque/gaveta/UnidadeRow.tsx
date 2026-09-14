@@ -33,11 +33,12 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
   const foto = unidade.fotos[0] ?? null;
   const nome = unidade.nome || nomePadrao;
 
-  const pendencias = pendenciasDaUnidade(unidade, variante);
+  const vendida = Boolean(unidade.vendida_em);
+  const pendencias = vendida ? [] : pendenciasDaUnidade(unidade, variante);
   const fotoLegada = pendencias.includes('foto_legada');
   const fotoEfetiva = foto ?? (fotoLegada ? variante?.imagens?.[0] ?? null : null);
 
-  const dotClasse = cadastroPendente || unidade.avaria ? 'bg-warning' : 'bg-positive';
+  const dotClasse = vendida ? 'bg-text-faint' : cadastroPendente || unidade.avaria ? 'bg-warning' : 'bg-positive';
 
   return (
     <button
@@ -76,7 +77,9 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
         <p className="text-sm font-semibold text-text-primary truncate">
           #{numero} {nome ? `"${nome}"` : ''}
         </p>
-        {cadastroPendente ? (
+        {vendida ? (
+          <p className="text-xs text-text-faint truncate">Vendida</p>
+        ) : cadastroPendente ? (
           <p className="text-xs text-warning truncate flex items-center gap-1">
             <AlertTriangle size={11} aria-hidden /> Sem nome e fotos
           </p>

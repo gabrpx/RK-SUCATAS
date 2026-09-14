@@ -4,10 +4,11 @@
 // Task 13 — recebe o id da gaveta e a navegação de volta como props, sem
 // assumir router nenhum (mesmo padrão de GavetaList).
 import { useMemo, useState } from 'react';
-import { ChevronLeft, Pencil, Plus, X } from 'lucide-react';
+import { AlertTriangle, ChevronLeft, Pencil, Plus, X } from 'lucide-react';
 import { useData } from '../../../context/DataContext';
 import { cn } from '../../../utils';
 import { Button } from '../../../components/ui/button';
+import { aviso } from '../../../components/ui/toast';
 import { useAtualizarGaveta, useGavetas, useMoverPecaGaveta } from './hooks';
 import { statsGaveta } from './gavetaEstoque';
 import { VarianteCard } from './VarianteCard';
@@ -15,6 +16,11 @@ import { AdicionarPecasGaveta } from './AdicionarPecasGaveta';
 import { EditarGavetaDialog } from './EditarGavetaDialog';
 import { GavetaDetailSkeleton } from './GavetaSkeletons';
 import { OfflineBar } from './EstadosGaveta';
+import { ResumoPendenciasChips } from './PendenciaBadges';
+import { resumirPendenciasEstoque } from './pendenciasGaveta';
+import { FiltrosRapidosChips } from './FilterChips';
+import { itemAtendeFiltroRapido, type FiltroRapido } from './buscaGavetas';
+import { ordenarVariantes, CRITERIOS_ORDENACAO, type CriterioOrdenacao } from './ordenacaoVariantes';
 
 interface GavetaDetailProps {
   gavetaId: string;
@@ -31,8 +37,11 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
 
   const [editandoTitulo, setEditandoTitulo] = useState(false);
   const [tituloRascunho, setTituloRascunho] = useState('');
+  const [erroTitulo, setErroTitulo] = useState<string | null>(null);
   const [adicionando, setAdicionando] = useState(false);
   const [editandoGaveta, setEditandoGaveta] = useState(false);
+  const [ordenacao, setOrdenacao] = useState<CriterioOrdenacao>('nome');
+  const [filtrosRapidos, setFiltrosRapidos] = useState<Set<FiltroRapido>>(new Set());
 
   const itens = useMemo(
     () => estoque.filter((i) => i.ativo && i.gaveta_id === gavetaId),
@@ -40,10 +49,45 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
   );
 
   const stats = useMemo(() => statsGaveta(itens), [itens]);
+  const resumoPend = useMemo(() => resumirPendenciasEstoque(itens), [itens]);
+
+  const itensVisiveis = useMemo(() => {
+    const filtrados = itens.filter((item) =>
+      Array.from(filtrosRapidos).every((f) => itemAtendeFiltroRapido(item, f)),
+    );
+    return ordenarVariantes(filtrados, ordenacao);
+  }, [itens, filtrosRapidos, ordenacao]);
+
+  const alternarFiltroRapido = (id: FiltroRapido) =>
+    setFiltrosRapidos((prev) => {
+      const proximo = new Set(prev);
+      if (proximo.has(id)) proximo.delete(id);
+      else proximo.add(id);
+      return proximo;
+    });
+
+  // Soltar da gaveta com recuperação: age na hora, avisa e oferece "Desfazer"
+  // (move de volta pra mesma gaveta). Sem modal — a saída é o próprio undo.
+  const soltarComUndo = async (estoqueId: string, nomePeca: string) => {
+    try {
+      await soltarPeca(estoqueId, null);
+      aviso.sucesso(`"${nomePeca}" saiu da gaveta.`, {
+        acao: {
+          label: 'Desfazer',
+          onClick: () => {
+            soltarPeca(estoqueId, gavetaId).catch(() => aviso.erro('Não foi possível desfazer.'));
+          },
+        },
+      });
+    } catch (error) {
+      aviso.falha(error, 'Não foi possível soltar a peça da gaveta.');
+    }
+  };
 
   const abrirEdicaoTitulo = () => {
     if (!gaveta) return;
     setTituloRascunho(gaveta.nome);
+    setErroTitulo(null);
     setEditandoTitulo(true);
   };
 
@@ -56,9 +100,13 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
     try {
       const atualizada = await atualizar(gaveta.id, { nome });
       setGavetas((prev) => prev.map((g) => (g.id === atualizada.id ? atualizada : g)));
+      setErroTitulo(null);
       setEditandoTitulo(false);
-    } catch {
-      // erro silencioso — usuário pode tentar de novo
+    } catch (error) {
+      // Erro visível e acionável — mantém o modo de edição pra tentar de novo.
+      const msg = error instanceof Error ? error.message : 'Não foi possível salvar o nome da gaveta.';
+      setErroTitulo(msg);
+      aviso.erro(msg);
     }
   };
 
@@ -126,10 +174,18 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
             <Pencil size={14} className="text-text-faint group-hover:text-accent-soft-fg" />
           </button>
         )}
+        {editandoTitulo && erroTitulo && (
+          <p className="mt-1 flex items-center gap-1 text-xs text-danger" role="alert">
+            <AlertTriangle size={12} aria-hidden /> {erroTitulo}
+          </p>
+        )}
         <p className="text-xs text-text-muted mt-0.5">
           {gaveta.categoria?.nome ?? 'Sem categoria'} · {stats.variantes} {stats.variantes === 1 ? 'variante' : 'variantes'} ·{' '}
-          {stats.unidadesDisponiveis} {stats.unidadesDisponiveis === 1 ? 'unidade' : 'unidades'} · {faixaTexto}
+          {stats.unidadesDisponiveis} {stats.unidadesDisponiveis === 1 ? 'unidade disponível' : 'unidades disponíveis'}
+          {resumoPend.porTipo.ficha_pendente > 0 && ` · ${resumoPend.porTipo.ficha_pendente} ${resumoPend.porTipo.ficha_pendente === 1 ? 'ficha pendente' : 'fichas pendentes'}`}
+          {' · '}{faixaTexto}
         </p>
+        <ResumoPendenciasChips itens={itens} maxChips={6} className="mt-1.5" />
       </div>
 
       <div className="flex justify-between items-center gap-2">
@@ -149,22 +205,46 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
           </Button>
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
-          {itens.map((item) => (
-            <div key={item.id} className="space-y-1">
-              <VarianteCard item={item} />
-              <div className="flex justify-end">
-                <button
-                  type="button"
-                  onClick={() => soltarPeca(item.id, null)}
-                  className="text-xs text-text-faint hover:text-danger px-2 py-1 min-h-11 sm:min-h-0"
-                >
-                  Soltar da gaveta
-                </button>
-              </div>
+        <>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <label className="flex items-center gap-2 text-xs text-text-muted">
+              Ordenar por
+              <select
+                aria-label="Ordenar variantes"
+                value={ordenacao}
+                onChange={(e) => setOrdenacao(e.target.value as CriterioOrdenacao)}
+                className="h-9 rounded-control border border-border-default bg-surface-inset px-2 text-xs text-text-primary outline-none focus:ring-2 focus:ring-accent/50"
+              >
+                {CRITERIOS_ORDENACAO.map((c) => (
+                  <option key={c.id} value={c.id}>{c.nome}</option>
+                ))}
+              </select>
+            </label>
+          </div>
+
+          <FiltrosRapidosChips ativos={filtrosRapidos} onAlternar={alternarFiltroRapido} />
+
+          {itensVisiveis.length === 0 ? (
+            <p className="text-sm text-text-muted text-center py-8">Nenhuma variante com esse filtro.</p>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {itensVisiveis.map((item) => (
+                <div key={item.id} className="space-y-1">
+                  <VarianteCard item={item} />
+                  <div className="flex justify-end">
+                    <button
+                      type="button"
+                      onClick={() => soltarComUndo(item.id, item.nome)}
+                      className="text-xs text-text-faint hover:text-danger px-2 py-1 min-h-11 sm:min-h-0"
+                    >
+                      Soltar da gaveta
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
 
       {adicionando && (
