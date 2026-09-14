@@ -49,7 +49,10 @@ import { iniciarDisparoDeLembretes } from './src/services/lembretesScheduler.js'
 import { iniciarDisparoDeCobrancas } from './src/services/cobrancasScheduler.js';
 import { pode } from './src/constants/permissoes.js';
 
-dotenv.config();
+// A worktree de preview pode reutilizar, com segurança, o .env da raiz sem
+// duplicar credenciais em outra pasta. Em execução normal, continua usando
+// .env no diretório atual.
+dotenv.config({ path: process.env.DOTENV_CONFIG_PATH || '.env' });
 
 async function startServer() {
   console.log('🌐 Validando variáveis de ambiente...');
@@ -78,7 +81,8 @@ async function startServer() {
     cors({
       origin: (origin, callback) => {
         if (!origin) return callback(null, true);
-        const isAllowed = allowedOrigins.some((allowed) => origin === allowed || origin.startsWith(allowed));
+        const isLocalPreview = origin.startsWith('http://localhost:') || origin.startsWith('http://127.0.0.1:');
+        const isAllowed = isLocalPreview || allowedOrigins.some((allowed) => origin === allowed || origin.startsWith(allowed));
         if (!isAllowed) console.log(`⚠️ Origin não permitida pelo CORS: ${origin}`);
         // Só libera o Access-Control-Allow-Origin pra quem está na lista —
         // antes disso ficava sempre true (chamava callback(null,true)
@@ -379,7 +383,13 @@ async function startServer() {
 
   // Frontend: Vite em dev, estático em produção
   if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({ server: { middlewareMode: true }, appType: 'spa' });
+    const vite = await createViteServer({
+      // O loader runner evita que o Vite tente gravar um arquivo temporário
+      // dentro de node_modules quando o preview roda em uma worktree.
+      configLoader: 'runner',
+      server: { middlewareMode: true },
+      appType: 'spa',
+    });
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');

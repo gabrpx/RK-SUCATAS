@@ -18,6 +18,7 @@ import { useData } from '../../../context/DataContext';
 import { faixaPrecoVariante } from './gavetaEstoque';
 import { UnidadeForm } from './UnidadeForm';
 import { UnidadeRow } from './UnidadeRow';
+import { UnidadeDetailDialog } from './UnidadeDetailDialog';
 import { nomeVarianteExibicao } from './buscaGavetas';
 import type { Estoque, EstoqueUnidade } from '../types';
 import { aviso } from '../../../components/ui/toast';
@@ -55,13 +56,13 @@ export function VarianteCard({ item }: VarianteCardProps) {
   const [faixaAno, setFaixaAno] = useState(() => parseFaixaAno(item.ano));
   const [salvandoAno, setSalvandoAno] = useState(false);
   const [novaUnidadeAberta, setNovaUnidadeAberta] = useState(false);
+  const [unidadeEmFicha, setUnidadeEmFicha] = useState<EstoqueUnidade | null>(null);
   const [unidadeEditando, setUnidadeEditando] = useState<EstoqueUnidade | null>(null);
 
   const faixa = faixaPrecoVariante(item);
   const unidadesDisponiveis = (item.unidades ?? []).filter((u) => !u.vendida_em);
   const semFicha = Math.max(0, (Number(item.quantidade) || 0) - unidadesDisponiveis.length);
   const totalUnidades = unidadesDisponiveis.length + semFicha;
-  const capa = item.imagens[0] ?? null;
   const nomeExibicao = nomeVarianteExibicao(item.nome);
 
   const abrirEdicaoNome = () => {
@@ -128,11 +129,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
     <div className={cn('rounded-card border p-3 space-y-3', editandoAno || editandoNome ? 'border-accent' : 'border-border-default')}>
       <div className="flex items-start gap-3">
         <div className="flex-none size-14 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center text-text-faint">
-          {capa ? (
-            <img src={capa} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-          ) : (
-            <Package size={20} />
-          )}
+          <Package size={20} aria-hidden />
         </div>
 
         <div className="flex-1 min-w-0">
@@ -249,8 +246,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
                 nomePadrao={nomeExibicao}
                 valorPadrao={item.valor}
                 notaPadrao={item.condicao_nota}
-                fotoPadrao={capa}
-                onEditar={setUnidadeEditando}
+                onAbrirFicha={setUnidadeEmFicha}
               />
             </div>
           ))}
@@ -276,6 +272,18 @@ export function VarianteCard({ item }: VarianteCardProps) {
           </div>
         )}
       </div>
+
+      <UnidadeDetailDialog
+        aberto={Boolean(unidadeEmFicha)}
+        unidade={unidadeEmFicha}
+        numero={unidadesDisponiveis.findIndex((unidade) => unidade.id === unidadeEmFicha?.id) + 1}
+        variante={item}
+        onFechar={() => setUnidadeEmFicha(null)}
+        onEditar={(unidade) => {
+          setUnidadeEmFicha(null);
+          setUnidadeEditando(unidade);
+        }}
+      />
     </div>
   );
 }

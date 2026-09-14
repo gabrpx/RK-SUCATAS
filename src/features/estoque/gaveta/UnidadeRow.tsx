@@ -1,9 +1,8 @@
 // 1 linha de UNIDADE dentro do VarianteCard (T02, docs/mockups/T02-detalhe-gaveta.png):
 // dot de status, "#N «nome»", nota de condição + avaria, preço (herdado ou
-// próprio) à direita, ação de editar. Dados ausentes numa linha de backfill
-// herdam a peça-mãe; unidade rápida criada só com preço continua marcada como
-// cadastro mínimo até receber seus próprios dados.
-import { AlertTriangle, Pencil } from 'lucide-react';
+// próprio) à direita e uma ação de consulta. Edição acontece somente dentro
+// da ficha, para que selecionar uma unidade nunca altere seu cadastro.
+import { AlertTriangle, Eye, ImageOff } from 'lucide-react';
 import { cn } from '../../../utils';
 import { condicaoNotaDaUnidade, valorDaUnidade } from '../valorEstoque';
 import type { EstoqueUnidade } from '../types';
@@ -16,26 +15,28 @@ interface UnidadeRowProps {
   nomePadrao: string;
   valorPadrao: number;
   notaPadrao: number | null;
-  fotoPadrao: string | null;
-  onEditar: (unidade: EstoqueUnidade) => void;
+  onAbrirFicha: (unidade: EstoqueUnidade) => void;
 }
 
-export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadrao, fotoPadrao, onEditar }: UnidadeRowProps) {
-  // A linha vazia criada pelo backfill representa a peça legada e herda seus
-  // dados. Já uma unidade rápida com preço próprio, mas sem nome/foto, ainda
-  // precisa ser completada e mantém o aviso de cadastro mínimo.
-  const cadastroMinimo = !unidade.nome && unidade.fotos.length === 0 && unidade.valor != null;
+export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadrao, onAbrirFicha }: UnidadeRowProps) {
+  const dadosProprios = Boolean(
+    unidade.nome || unidade.fotos.length || unidade.avaria || unidade.descricao ||
+    unidade.avaria_descricao || unidade.valor != null || unidade.condicao_nota != null
+  );
+  const dadosHerdados = !dadosProprios;
+  const cadastroPendente = dadosProprios && !unidade.nome && unidade.fotos.length === 0;
   const nota = condicaoNotaDaUnidade(unidade, notaPadrao);
   const valor = valorDaUnidade(unidade, valorPadrao);
-  const foto = unidade.fotos[0] ?? fotoPadrao ?? null;
+  const foto = unidade.fotos[0] ?? null;
   const nome = unidade.nome || nomePadrao;
 
-  const dotClasse = cadastroMinimo ? 'bg-warning' : unidade.avaria ? 'bg-warning' : 'bg-positive';
+  const dotClasse = cadastroPendente || unidade.avaria ? 'bg-warning' : 'bg-positive';
 
   return (
     <button
       type="button"
-      onClick={() => onEditar(unidade)}
+      onClick={() => onAbrirFicha(unidade)}
+      aria-label={`Ver ficha da unidade ${numero}: ${nome}`}
       className="w-full flex items-center gap-3 py-2.5 px-2 rounded-control hover:bg-surface-raised transition-colors text-left min-h-11"
     >
       <span className={cn('flex-none size-1.5 rounded-full', dotClasse)} aria-hidden />
@@ -43,13 +44,13 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
       <div
         className={cn(
           'flex-none size-9 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center',
-          cadastroMinimo && 'border border-dashed border-warning/50 bg-transparent'
+          (cadastroPendente || dadosHerdados) && 'border border-dashed border-warning/50 bg-transparent'
         )}
       >
         {foto ? (
-          <img src={foto} alt="" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
-        ) : cadastroMinimo ? (
-          <AlertTriangle size={14} className="text-warning" />
+          <img src={foto} alt={`Foto da unidade ${numero}`} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+        ) : cadastroPendente ? (
+          <AlertTriangle size={14} className="text-warning" aria-hidden />
         ) : null}
       </div>
 
@@ -57,20 +58,21 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
         <p className="text-sm font-semibold text-text-primary truncate">
           #{numero} {nome ? `"${nome}"` : ''}
         </p>
-        {cadastroMinimo ? (
+        {cadastroPendente ? (
           <p className="text-xs text-warning truncate flex items-center gap-1">
-            <AlertTriangle size={11} /> Incompleto · Cadastro mínimo
+            <AlertTriangle size={11} aria-hidden /> Sem nome e fotos
           </p>
         ) : (
           <p className="text-xs text-text-muted truncate">
-            {nota != null ? `Nota ${nota} · ` : ''}
-            {unidade.avaria ? 'Com avaria' : 'Sem avaria'}
+            {dadosHerdados ? 'Dados da variante' : `${nota != null ? `Nota ${nota} · ` : ''}${unidade.avaria ? 'Com avaria' : 'Sem avaria'}`}
+            {unidade.fotos.length > 1 ? ` · ${unidade.fotos.length} fotos` : unidade.fotos.length === 0 ? ' · Sem fotos' : ''}
           </p>
         )}
       </div>
 
       <span className="flex-none text-sm font-bold text-text-primary tabular-nums">{fmtMoeda(valor)}</span>
-      <Pencil size={14} className="flex-none text-text-faint" />
+      {!foto && <ImageOff size={14} className="flex-none text-text-faint" aria-hidden />}
+      <Eye size={14} className="flex-none text-text-faint" aria-hidden />
     </button>
   );
 }

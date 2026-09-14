@@ -2,12 +2,16 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
+import { fileURLToPath } from 'node:url';
 import {defineConfig} from 'vite';
+
+const projectRoot = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig(() => {
   return {
     plugins: [react(), tailwindcss()],
     base: './', // Necessário para o Capacitor carregar corretamente os assets
+    cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
     build: {
       outDir: 'dist',
     },
@@ -19,7 +23,7 @@ export default defineConfig(() => {
     },
     resolve: {
       alias: {
-        '@': path.resolve(__dirname, '.'),
+        '@': projectRoot,
       },
     },
     server: {

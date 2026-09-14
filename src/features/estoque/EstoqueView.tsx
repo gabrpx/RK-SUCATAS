@@ -53,6 +53,7 @@ import { EstoqueAnunciosShopeeLista } from './EstoqueAnunciosShopeeLista';
 import { EstoquePublicarShopeeModal } from './EstoquePublicarShopeeModal';
 import { Expandable, ExpandableContent, ExpandableTrigger } from '../../components/ui/expandable';
 import { EstoqueItemExpandido } from './EstoqueItemExpandido';
+import { EstoqueItemDetailDialog } from './EstoqueItemDetailDialog';
 import { SPRING_MICRO } from '../../components/ui/motion';
 import { AnimatedNumber } from '../../components/ui/animated-number';
 import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
@@ -202,7 +203,7 @@ export function EstoqueView({
   const transicaoExpansao = reduzirMovimento ? { duration: 0 } : SPRING_MICRO;
 
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto' | 'organograma' | 'gavetas'>('lista');
+  const [visualizacao, setVisualizacao] = useState<'lista' | 'por_moto' | 'organograma' | 'gavetas'>('gavetas');
   const [orgChartDominio, setOrgChartDominio] = useState<'categorias' | 'motos'>('categorias');
   // Fase 1 gavetas (Task 13): sub-navegação lista <-> detalhe fica local à
   // aba, mesmo padrão sem-router usado pelo resto do módulo (GavetaList/
@@ -233,6 +234,7 @@ export function EstoqueView({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
   const [familiaModalLinha, setFamiliaModalLinha] = useState<EstoqueLinha | null>(null);
+  const [itemNaoAgrupadoDetalhe, setItemNaoAgrupadoDetalhe] = useState<Estoque | null>(null);
   const [fundirModalAberto, setFundirModalAberto] = useState(false);
   const [formData, setFormData] = useState<EstoqueInput>(EMPTY_FORM);
   const [isSaving, setIsSaving] = useState(false);
@@ -1099,7 +1101,7 @@ export function EstoqueView({
         ) : (
           <GavetaList
             onAbrirGaveta={(gaveta) => setGavetaSelecionadaId(gaveta.id)}
-            onAbrirItemNaoAgrupado={onSelectItem}
+            onAbrirItemNaoAgrupado={setItemNaoAgrupadoDetalhe}
             resumoDoDia={resumoDoDia}
             onVisualizacaoChange={(valor) => {
               setVisualizacao(valor);
@@ -1357,6 +1359,17 @@ export function EstoqueView({
           })()}
         </>
       )}
+
+      <EstoqueItemDetailDialog
+        aberto={Boolean(itemNaoAgrupadoDetalhe)}
+        item={itemNaoAgrupadoDetalhe}
+        categorias={categorias}
+        onFechar={() => setItemNaoAgrupadoDetalhe(null)}
+        onEditar={(item) => {
+          setItemNaoAgrupadoDetalhe(null);
+          openEditModal(item);
+        }}
+      />
 
       {/* Modal criar/editar */}
       <AnimatePresence>

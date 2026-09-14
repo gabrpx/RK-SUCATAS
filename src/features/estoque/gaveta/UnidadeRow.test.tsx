@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { UnidadeRow } from './UnidadeRow';
 import type { EstoqueUnidade } from '../types';
 
@@ -15,56 +15,52 @@ function unidadeEmBranco(over: Partial<EstoqueUnidade> = {}): EstoqueUnidade {
 }
 
 describe('UnidadeRow — dados herdados da variante', () => {
-  it('mostra a peça legada como unidade real, com nome, foto e preço herdados', () => {
-    const { container } = render(
+  it('abre a ficha ao selecionar a unidade, sem disparar edição', () => {
+    const abrirFicha = vi.fn();
+    render(
       <UnidadeRow
         unidade={unidadeEmBranco()}
         numero={1}
         nomePadrao="Tanque CG 150 Carburada"
         valorPadrao={350}
         notaPadrao={4}
-        fotoPadrao="https://exemplo/tanque.jpg"
-        onEditar={vi.fn()}
+        onAbrirFicha={abrirFicha}
       />
     );
 
-    expect(screen.getByText(/Tanque CG 150 Carburada/i)).toBeTruthy();
-    expect(screen.queryByText(/Cadastro mínimo/i)).toBeNull();
-    expect(screen.getByText(/R\$\s*350,00/)).toBeTruthy();
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://exemplo/tanque.jpg');
+    fireEvent.click(screen.getByRole('button', { name: /ver ficha da unidade 1/i }));
+    expect(abrirFicha).toHaveBeenCalledWith(expect.objectContaining({ id: 'u1' }));
   });
 
-  it('mantém cadastro mínimo para unidade rápida criada apenas com preço', () => {
+  it('não usa foto da variante como foto da unidade', () => {
     render(
       <UnidadeRow
-        unidade={unidadeEmBranco({ valor: 275 })}
+        unidade={unidadeEmBranco()}
         numero={1}
         nomePadrao="Tanque CG 150"
         valorPadrao={350}
-        notaPadrao={null}
-        fotoPadrao="https://exemplo/tanque.jpg"
-        onEditar={vi.fn()}
+        notaPadrao={4}
+        onAbrirFicha={vi.fn()}
       />
     );
 
-    expect(screen.getByText(/Cadastro mínimo/i)).toBeTruthy();
+    expect(screen.getByText(/Sem fotos/)).toBeTruthy();
+    expect(screen.queryByRole('img')).toBeNull();
   });
 
-  it('prioriza os dados próprios da unidade sobre os herdados', () => {
-    const { container } = render(
+  it('mostra a primeira foto própria e o total de fotos da unidade', () => {
+    render(
       <UnidadeRow
-        unidade={unidadeEmBranco({ nome: 'Vermelho', fotos: ['https://exemplo/propria.jpg'], valor: 400 })}
-        numero={2}
+        unidade={unidadeEmBranco({ fotos: ['a.jpg', 'b.jpg', 'c.jpg'] })}
+        numero={1}
         nomePadrao="Tanque CG 150"
         valorPadrao={350}
-        notaPadrao={8}
-        fotoPadrao="https://exemplo/padrao.jpg"
-        onEditar={vi.fn()}
+        notaPadrao={4}
+        onAbrirFicha={vi.fn()}
       />
     );
 
-    expect(screen.getByText(/Vermelho/i)).toBeTruthy();
-    expect(screen.getByText(/R\$\s*400,00/)).toBeTruthy();
-    expect(container.querySelector('img')?.getAttribute('src')).toBe('https://exemplo/propria.jpg');
+    expect(screen.getByRole('img', { name: /foto da unidade 1/i }).getAttribute('src')).toBe('a.jpg');
+    expect(screen.getByText(/3 fotos/)).toBeTruthy();
   });
 });
