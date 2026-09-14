@@ -21,6 +21,7 @@ import { agruparPorGaveta, statsGaveta } from './gavetaEstoque';
 import { GavetaRow, GavetaRowNaoAgrupado } from './GavetaRow';
 import { StatsRow } from './StatsRow';
 import { FilterChips, type FilterChipOption } from './FilterChips';
+import { CategoriaGavetaDropdown } from './CategoriaGavetaDropdown';
 import { GavetaListSkeleton } from './GavetaSkeletons';
 import { AlertaDuplicataGaveta, EmptyGavetas, OfflineBar, encontrarGavetaSemelhante } from './EstadosGaveta';
 import type { Estoque, Gaveta } from '../types';
@@ -244,22 +245,13 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
               )}
             </div>
             <div>
-              <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted" htmlFor="nova-gaveta-categoria">
-                Categoria (opcional)
-              </label>
-              <select
+              <CategoriaGavetaDropdown
                 id="nova-gaveta-categoria"
+                label="Categoria (opcional)"
                 value={categoriaNovaGaveta}
-                onChange={(e) => setCategoriaNovaGaveta(e.target.value)}
-                className={cn(inputClass, 'h-11')}
-              >
-                <option value="">Sem categoria</option>
-                {categorias.map((cat) => (
-                  <option key={cat.id} value={cat.id}>
-                    {cat.nome}
-                  </option>
-                ))}
-              </select>
+                onChange={setCategoriaNovaGaveta}
+                options={[{ id: '', nome: 'Sem categoria' }, ...categorias.map((cat) => ({ id: cat.id, nome: cat.nome }))]}
+              />
             </div>
           </div>
 
