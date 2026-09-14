@@ -3,11 +3,58 @@
 // gaveta. Só é montado nas telas de verdade na Task 13 (rota) — aqui só os
 // componentes, sem assumir onde vivem.
 import { useEffect, useState } from 'react';
-import { Box, Plus, WifiOff } from 'lucide-react';
+import { Box, Lock, Plus, RefreshCw, ServerCrash, WifiOff } from 'lucide-react';
 import { cn } from '../../../utils';
 import { Button } from '../../../components/ui/button';
 import { tokenizar, similaridade, CORTE_POSSIVEL } from '../detectarDuplicata';
 import type { Gaveta } from '../types';
+
+// Distingue erro de permissão (403 / "sem permissão") de erro de rede — os
+// dois pedem telas diferentes (retry não resolve falta de permissão).
+export function ehErroDePermissao(mensagem?: string | null): boolean {
+  const m = (mensagem || '').toLowerCase();
+  return m.includes('403') || m.includes('permiss') || m.includes('autoriza') || m.includes('não autorizado');
+}
+
+// ============================================================================
+// Erro de rede recuperável — SEMPRE com ação "Tentar novamente" (regra do
+// CLAUDE.md: todo alerta tem ação).
+// ============================================================================
+export function ErroEstadoGavetas({ mensagem, onTentarNovamente }: { mensagem?: string; onTentarNovamente: () => void }) {
+  return (
+    <div role="alert" className="flex flex-col items-center justify-center gap-4 py-16 px-4 text-center">
+      <div className="size-14 rounded-control bg-danger-bg flex items-center justify-center text-danger">
+        <ServerCrash size={28} strokeWidth={1.5} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-base font-bold text-text-primary">Não foi possível carregar o estoque</p>
+        <p className="text-sm text-text-muted max-w-[22rem]">{mensagem || 'Verifique sua conexão e tente novamente.'}</p>
+      </div>
+      <Button type="button" variant="outline" size="mobile" onClick={onTentarNovamente}>
+        <RefreshCw size={16} /> Tentar novamente
+      </Button>
+    </div>
+  );
+}
+
+// ============================================================================
+// Sem permissão — não oferece retry (não é falha de rede); orienta o usuário.
+// ============================================================================
+export function SemPermissaoGavetas() {
+  return (
+    <div role="alert" className="flex flex-col items-center justify-center gap-4 py-16 px-4 text-center">
+      <div className="size-14 rounded-control bg-surface-inset flex items-center justify-center text-text-faint">
+        <Lock size={26} strokeWidth={1.5} />
+      </div>
+      <div className="flex flex-col gap-1">
+        <p className="text-base font-bold text-text-primary">Sem permissão para ver o estoque</p>
+        <p className="text-sm text-text-muted max-w-[22rem]">
+          Peça a um administrador para liberar o acesso à área de estoque.
+        </p>
+      </div>
+    </div>
+  );
+}
 
 // ============================================================================
 // Empty state — nenhuma gaveta cadastrada (nem itens não agrupados).

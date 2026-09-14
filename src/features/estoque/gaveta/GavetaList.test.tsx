@@ -11,7 +11,7 @@ afterEach(() => {
 });
 
 vi.mock('../../../context/DataContext', () => ({
-  useData: () => ({ estoque: [], estoqueError: null }),
+  useData: () => ({ estoque: [], estoqueError: false, refreshData: vi.fn() }),
 }));
 vi.mock('../../../hooks/useCatalogos', () => ({ useCatalogos: () => ({ categorias: [] }) }));
 vi.mock('./hooks', () => ({
@@ -27,6 +27,9 @@ vi.mock('./EstadosGaveta', () => ({
   AlertaDuplicataGaveta: () => null,
   EmptyGavetas: () => null,
   OfflineBar: () => null,
+  ErroEstadoGavetas: () => null,
+  SemPermissaoGavetas: () => null,
+  ehErroDePermissao: () => false,
   encontrarGavetaSemelhante: () => null,
 }));
 

@@ -24,7 +24,7 @@ import { StatsRow } from './StatsRow';
 import { FilterChips, FiltrosRapidosChips, type FilterChipOption } from './FilterChips';
 import { CategoriaGavetaDropdown } from './CategoriaGavetaDropdown';
 import { GavetaListSkeleton } from './GavetaSkeletons';
-import { AlertaDuplicataGaveta, EmptyGavetas, OfflineBar, encontrarGavetaSemelhante } from './EstadosGaveta';
+import { AlertaDuplicataGaveta, EmptyGavetas, ErroEstadoGavetas, OfflineBar, SemPermissaoGavetas, ehErroDePermissao, encontrarGavetaSemelhante } from './EstadosGaveta';
 import type { Estoque, Gaveta } from '../types';
 import { correspondeBuscaEstoque, itemAtendeFiltroRapido, normalizarTextoBusca, type FiltroRapido } from './buscaGavetas';
 import { EstoqueHeaderControle, type EstoqueViewId } from './EstoqueHeaderVariants';
@@ -40,9 +40,9 @@ interface GavetaListProps {
 }
 
 export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia, onVisualizacaoChange }: GavetaListProps) {
-  const { estoque, estoqueError } = useData();
+  const { estoque, estoqueError, refreshData } = useData();
   const { categorias } = useCatalogos();
-  const { gavetas, loading: carregandoGavetas, refetch: recarregarGavetas } = useGavetas();
+  const { gavetas, loading: carregandoGavetas, error: erroGavetas, refetch: recarregarGavetas } = useGavetas();
   const { criar, loading: criando, error: erroCriar } = useCriarGaveta();
 
   const [busca, setBusca] = useState('');
@@ -180,6 +180,17 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
   // (mensagem de filtro sem resultado), não o empty state de primeira vez.
   const semNadaCadastrado = !carregandoGavetas && gavetas.length === 0 && (linhaNaoAgrupada?.itens.length ?? 0) === 0;
 
+  // Erro que BLOQUEIA a tela: só quando não há nada carregado pra mostrar. Se
+  // já existe dado (erro veio de um refresh), mantém a lista e avisa inline.
+  // estoqueError é boolean no DataContext; erroGavetas traz a mensagem real.
+  const mensagemErro = erroGavetas || (estoqueError ? 'Verifique sua conexão e tente novamente.' : null);
+  const erroBloqueante = mensagemErro && semNadaCadastrado ? mensagemErro : null;
+  const semPermissao = ehErroDePermissao(erroBloqueante);
+  const tentarNovamente = () => {
+    void refreshData();
+    void recarregarGavetas();
+  };
+
   return (
     <section aria-labelledby="gavetas-estoque-titulo" className="flex flex-col gap-3.5 w-full max-w-2xl mx-auto px-0 sm:px-4">
       <OfflineBar />
@@ -193,6 +204,10 @@ export function GavetaList({ onAbrirGaveta, onAbrirItemNaoAgrupado, resumoDoDia,
 
       {carregandoGavetas ? (
         <GavetaListSkeleton />
+      ) : erroBloqueante && semPermissao ? (
+        <SemPermissaoGavetas />
+      ) : erroBloqueante ? (
+        <ErroEstadoGavetas mensagem={erroBloqueante} onTentarNovamente={tentarNovamente} />
       ) : semNadaCadastrado ? (
         <EmptyGavetas onNova={() => setModalAberto(true)} mostrarAcao={false} />
       ) : (
