@@ -26,6 +26,7 @@ import {
 } from '../../../components/ui/dialog';
 import { cn } from '../../../utils';
 import { useAtualizarGaveta, useExcluirGaveta } from './hooks';
+import { CategoriaGavetaDropdown } from './CategoriaGavetaDropdown';
 import type { Gaveta } from '../types';
 
 const inputClass =
@@ -126,24 +127,13 @@ export function EditarGavetaDialog({ gaveta, qtdPecas, onFechar, onAtualizada, o
                   className={cn(inputClass, 'h-11')}
                 />
               </div>
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted" htmlFor="editar-gaveta-categoria">
-                  Categoria (opcional)
-                </label>
-                <select
-                  id="editar-gaveta-categoria"
-                  value={categoriaId}
-                  onChange={(e) => setCategoriaId(e.target.value)}
-                  className={cn(inputClass, 'h-11')}
-                >
-                  <option value="">Sem categoria</option>
-                  {categorias.map((cat) => (
-                    <option key={cat.id} value={cat.id}>
-                      {cat.nome}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <CategoriaGavetaDropdown
+                id="editar-gaveta-categoria"
+                label="Categoria (opcional)"
+                value={categoriaId}
+                onChange={setCategoriaId}
+                options={[{ id: '', nome: 'Sem categoria' }, ...categorias.map((cat) => ({ id: cat.id, nome: cat.nome }))]}
+              />
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wider mb-1.5 block text-text-muted" htmlFor="editar-gaveta-icone">
                   Ícone (emoji, opcional)
