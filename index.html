@@ -1,10 +1,25 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="./icone_rk.png" />
     <title>RK Sucatas - Gestão Inteligente</title>
+
+    <!-- PWA: instalável via "Adicionar à Tela de Início" (Android/Chrome e,
+         principalmente, Safari no iPhone — é o único caminho pra receber Web
+         Push no iOS, que não suporta instalar .apk). Ícones vêm de /public,
+         referenciados com caminho absoluto de propósito: diferente do
+         script/CSS do bundle (que usam base:'./' pro Capacitor), esses
+         arquivos não passam pelo pipeline de asset do Vite, então o caminho
+         final é sempre a raiz do que estiver servindo o dist/, seja o
+         WebView do Capacitor (https://localhost/) ou o domínio real. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="/icon-192.png" />
+    <meta name="theme-color" content="#09090b" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="RK Sucatas" />
   </head>
   <body>
     <div id="root"></div>

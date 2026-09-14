@@ -1,0 +1,295 @@
+/*
+ * Design tokens do sistema.
+ * Cor sempre carrega significado — nunca decorativa. Ver CLAUDE.md > Design system.
+ *
+ * Paleta (rebrand — preto dominante / detalhes brancos / laranja):
+ * - Superfícies: escala neutra quase-preta (sem o tom azulado antigo). O app
+ *   é preto-dominante; card/raised/overlay sobem em cinza neutro só o
+ *   suficiente pra dar profundidade a card-dentro-de-card (dropdowns,
+ *   popovers, sub-painéis). --surface-inset é o degrau mais fundo (preto).
+ * - Detalhes em branco: texto neutro (sem tinta azul), bordas/divisores
+ *   neutros que leem como fio branco sutil sobre preto, e o realce de topo
+ *   dos cards (--gradient-surface-edge) em branco translúcido.
+ * - --accent agora é LARANJA (a marca deixou de ser o roxo #5b3df0).
+ *   --accent-bright/--accent-strong são derivados dele só pra alimentar o
+ *   gradiente do único CTA preenchido por tela (a regra "no máximo um accent
+ *   preenchido por tela" continua valendo — o laranja entra "levemente",
+ *   como toque, não como preenchimento em massa).
+ * - --warning deslocado de âmbar-laranja pra AMARELO-âmbar de propósito: com
+ *   o accent agora laranja, warning precisava de matiz próprio pra não
+ *   colidir com a marca (cor sempre com significado). positive/negative/
+ *   danger inalterados no matiz.
+ * - Sombras: agora preto puro (antes tinham tinta azul-escura).
+ * - Gradientes com propósito: o glow do topo da página virou laranja bem
+ *   sutil (era violeta). Respeitam a otimização mobile do index.css.
+ * As 4 regras originais (cor com significado, 1 accent por tela, alerta
+ * sempre com ação, número > label) continuam valendo sem mudança.
+ */
+
+:root {
+  /* Superfícies — preto dominante, escala neutra */
+  --surface-page: #060607;
+  --surface-card: #101012;
+  --surface-raised: #18181b;
+  --surface-overlay: #212125;
+  --surface-inset: #000000;
+  --border-subtle: #212124;
+  --border-default: #33333a;
+
+  /* Texto — branco/neutro */
+  --text-primary: #f6f6f7;
+  --text-secondary: #cbcbce;
+  --text-muted: #8c8c92;
+  --text-faint: #64646a;
+
+  /* Cores semânticas */
+  --accent: #f2751c;
+  --accent-soft-bg: #3a2109;
+  --accent-soft-fg: #f0b483;
+  --accent-bright: #ff8c3a;
+  --accent-strong: #d15f0f;
+
+  --positive: #5dcaa5;
+  --positive-bg: #04342c;
+
+  --negative: #f0997b;
+  --negative-bg: #4a1b0c;
+
+  /* Amarelo-âmbar — matiz próprio, separado do laranja da marca */
+  --warning: #f4c025;
+  --warning-bg: #3a2c02;
+
+  --danger: #f09595;
+  --danger-bg: #501313;
+
+  /* Info — roxo. Significado fixo: peça PARALELA (não-original) no badge do
+     VarianteCard. Retoma o matiz roxo que era da marca antiga (#5b3df0),
+     agora livre de significado desde que o accent virou laranja. */
+  --info: #b3a4f5;
+  --info-bg: #241a4a;
+
+  /* Accent-alt — azul. Significado fixo: peça NOVA (não-usada) no badge do
+     VarianteCard. Azul distinto do laranja de marca e do roxo de "paralela". */
+  --accent-alt: #7fb2f0;
+  --accent-alt-bg: #0c2947;
+
+  /* Overlays — fundo escurecido atrás de modais/lightbox e controles
+     translúcidos sobre foto. Opacidade fixa faz parte do valor, não é
+     aplicada via modificador Tailwind (/70 etc) no componente. Os controles
+     translúcidos em branco (0.1) fazem parte dos "detalhes em branco". */
+  --overlay-scrim: rgba(0, 0, 0, 0.7);
+  --overlay-scrim-strong: rgba(0, 0, 0, 0.95);
+  --overlay-control-bg: rgba(255, 255, 255, 0.1);
+  --media-overlay-badge: rgba(0, 0, 0, 0.6);
+  --media-overlay-dot: rgba(255, 255, 255, 0.3);
+
+  /* Sombras coloridas — mesmo tom do accent/positive, pra CTAs preenchidos */
+  --accent-shadow: rgba(242, 117, 28, 0.25);
+  --positive-shadow: rgba(93, 202, 165, 0.2);
+
+  --shadow-elevated-sm: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-elevated-md: 0 6px 16px -4px rgba(0, 0, 0, 0.55);
+  --shadow-elevated-lg: 0 16px 40px -12px rgba(0, 0, 0, 0.65);
+
+  /* Elevation — 4 níveis explícitos + glow do CTA único */
+  --elevation-1: 0 1px 2px rgba(0,0,0,.4), inset 0 1px 0 rgba(255,255,255,.04);
+  --elevation-2: 0 4px 12px -2px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,255,255,.05);
+  --elevation-3: 0 12px 32px -8px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,255,255,.06);
+  --elevation-4: 0 24px 60px -16px rgba(0,0,0,.75), inset 0 1px 0 rgba(255,255,255,.08);
+  --elevation-glow-accent: 0 0 40px -8px rgba(242,117,28,.45);
+
+  --duration-instant: 100ms;
+  --duration-fast: 150ms;
+  --duration-base: 220ms;
+  --duration-slow: 400ms;
+  --ease-standard: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-soft: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Motion — presets pra vitrine (Login, PatchNotes, Dashboard) */
+  --ease-out-expo: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out-quart: cubic-bezier(0.76, 0, 0.24, 1);
+  --ease-bounce-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --duration-hero: 700ms;
+  --duration-showcase: 1200ms;
+
+  /* Gradientes - sempre com propósito (profundidade/ênfase), nunca decorativo.
+     -page: atmosfera do app inteiro (não só Login) - um glow laranja bem
+     sutil vindo do topo, cor da marca, some rápido sobre o preto.
+     -accent-cta: único botão accent preenchido da tela. -surface-edge:
+     realce de 1px em branco no topo de cards elevados - o "barato" de
+     profundidade que substitui blur no mobile. Consumidos via classes
+     .bg-gradient-* escritas à mão em index.css (namespace de background-image
+     não é confiável no @theme). */
+  --gradient-page:
+    radial-gradient(ellipse 1400px 700px at 50% -15%, rgba(242, 117, 28, 0.10), transparent 60%),
+    radial-gradient(ellipse at top, var(--surface-raised), var(--surface-page));
+  --gradient-accent-cta: linear-gradient(135deg, var(--accent-bright), var(--accent-strong));
+  --gradient-surface-edge: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0) 40%);
+
+  /* Raios */
+  --radius-card: 11px;
+  --radius-control: 8px;
+  --radius-badge: 5px;
+  --radius-sheet: 11px;
+  --radius-pill: 999px;
+  --radius-modal: 20px;
+  --radius-sheet-mobile: 24px 24px 0 0;
+
+  /* shadcn/ui — mapeamento pros vars que os componentes esperam. Sempre
+     apontando pra um token que já existe acima, nunca uma cor nova.
+     Slot "accent" do shadcn (hover neutro) fica de fora de propósito: o
+     nome colide com o --accent de marca (laranja) já usado no app inteiro
+     pro CTA único da tela. Componentes shadcn que pedem hover:bg-accent
+     usam bg-surface-raised/text-text-primary direto (ver button.tsx e
+     dialog.tsx) em vez de um alias aqui. */
+  --background: var(--surface-page);
+  --foreground: var(--text-primary);
+  --primary: var(--accent);
+  --secondary: var(--surface-card);
+  --secondary-foreground: var(--text-primary);
+  --muted-foreground: var(--text-muted);
+  --destructive: var(--danger);
+  --border: var(--border-subtle);
+  --ring: var(--accent);
+
+  /* Foco acessível */
+  --focus-ring-color: var(--accent);
+  --focus-ring-offset: var(--surface-page);
+
+  /* Z-index escala — mata o z-[9999] espalhado.
+     Valores escolhidos pra dominar o z hardcoded pré-existente no app
+     (header sticky z-[100], dropdowns/popovers z-[150-200], image-zoom
+     z-[3000], VisualizadorFotos z-[4000]) — ver whole-branch review C1. */
+  --z-nav: 100;
+  --z-dropdown: 500;
+  --z-modal: 3000;
+  --z-toast: 4000;
+  --z-tooltip: 5000;
+}
+
+/*
+ * Mapeamento para o Tailwind v4 (config CSS-first).
+ * Gera utilities como bg-surface-card, text-text-primary, rounded-card, etc.
+ */
+@theme inline {
+  --color-surface-page: var(--surface-page);
+  --color-surface-card: var(--surface-card);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-overlay: var(--surface-overlay);
+  --color-surface-inset: var(--surface-inset);
+  --color-border-subtle: var(--border-subtle);
+  --color-border-default: var(--border-default);
+
+  --color-text-primary: var(--text-primary);
+  --color-text-secondary: var(--text-secondary);
+  --color-text-muted: var(--text-muted);
+  --color-text-faint: var(--text-faint);
+
+  --color-accent: var(--accent);
+  --color-accent-soft-bg: var(--accent-soft-bg);
+  --color-accent-soft-fg: var(--accent-soft-fg);
+  --color-accent-bright: var(--accent-bright);
+  --color-accent-strong: var(--accent-strong);
+
+  --color-positive: var(--positive);
+  --color-positive-bg: var(--positive-bg);
+
+  --color-negative: var(--negative);
+  --color-negative-bg: var(--negative-bg);
+
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+
+  --color-accent-alt: var(--accent-alt);
+  --color-accent-alt-bg: var(--accent-alt-bg);
+
+  --color-overlay-scrim: var(--overlay-scrim);
+  --color-overlay-scrim-strong: var(--overlay-scrim-strong);
+  --color-overlay-control-bg: var(--overlay-control-bg);
+  --color-media-overlay-badge: var(--media-overlay-badge);
+  --color-media-overlay-dot: var(--media-overlay-dot);
+
+  --color-accent-shadow: var(--accent-shadow);
+  --color-positive-shadow: var(--positive-shadow);
+
+  --radius-card: var(--radius-card);
+  --radius-control: var(--radius-control);
+  --radius-badge: var(--radius-badge);
+  --radius-sheet: var(--radius-sheet);
+  --radius-pill: var(--radius-pill);
+  --radius-modal: var(--radius-modal);
+
+  --shadow-sm: var(--shadow-elevated-sm);
+  --shadow-md: var(--shadow-elevated-md);
+  --shadow-lg: var(--shadow-elevated-lg);
+
+  --shadow-elevation-1: var(--elevation-1);
+  --shadow-elevation-2: var(--elevation-2);
+  --shadow-elevation-3: var(--elevation-3);
+  --shadow-elevation-4: var(--elevation-4);
+  --shadow-glow-accent: var(--elevation-glow-accent);
+
+  --duration-instant: var(--duration-instant);
+  --duration-fast: var(--duration-fast);
+  --duration-base: var(--duration-base);
+  --duration-slow: var(--duration-slow);
+  --duration-hero: var(--duration-hero);
+  --duration-showcase: var(--duration-showcase);
+  --ease-standard: var(--ease-standard);
+  --ease-soft: var(--ease-soft);
+  --ease-out-expo: var(--ease-out-expo);
+  --ease-in-out-quart: var(--ease-in-out-quart);
+  --ease-bounce-soft: var(--ease-bounce-soft);
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-3xs: 0.625rem;
+  --text-3xs--line-height: 0.875rem;
+
+  /* shadcn/ui */
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-primary: var(--primary);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+
+  /* Tipografia */
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+/* Borda animada de "tarefa nova não lida" (Tarefas > TarefaCards, Fase 2).
+   Só box-shadow (sem filter/blur/transform) — leve o bastante pra ficar
+   ligada indefinidamente numa grade inteira de cards sem custar render, e
+   sem o corte visual que um `border` animado teria por cima do border real
+   do card (border já carrega o tom de "atrasada"/seleção). */
+@keyframes tarefa-pulso-nao-lida {
+  0%, 100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+  50% {
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 0%, transparent);
+  }
+}
+
+.tarefa-nao-lida {
+  animation: tarefa-pulso-nao-lida 2s ease-in-out infinite;
+  will-change: box-shadow;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tarefa-nao-lida {
+    animation: none;
+    box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 45%, transparent);
+  }
+}

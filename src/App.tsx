@@ -12,21 +12,12 @@
  */
 
 import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
+import { Capacitor } from '@capacitor/core';
 import {
-  LayoutDashboard,
   Package,
-  TrendingUp,
-  DollarSign,
-  ShoppingCart,
-  Wallet,
-  Menu,
-  X,
   ChevronRight,
-  ChevronLeft,
   Loader2,
   Wrench,
-  Sun,
-  Moon,
   Trash2,
   Edit,
   Truck,
@@ -34,29 +25,60 @@ import {
   CreditCard,
   MessageCircle,
   FileText,
-  LogOut,
-  Settings,
+  Gauge,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
-import { DataProvider } from './context/DataContext';
-import { BudgetModal } from './components/BudgetModal';
+import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { DashboardSidebar } from './components/DashboardSidebar';
+import { Modal } from './components/ui/Modal';
+import { Button } from './components/ui/button';
 import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
 import { VendasView } from './features/vendas/VendasView';
+import { OrcamentosView } from './features/orcamentos/OrcamentosView';
+import { ClientesView } from './features/clientes/ClientesView';
+import { formaPagamentoEfetiva } from './features/fiado/metricas';
+import type { FiadoRecebimento } from './features/fiado/types';
+import { valorVendidoEmPartes, valorRestanteEstimado } from './features/vendas/metricas';
 import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
+import { MercadoLivreView } from './features/mercadolivre/MercadoLivreView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
+import { TarefasView } from './features/tarefas/TarefasView';
+import { PatchNotesView } from './features/patchnotes/PatchNotesView';
+import { NotificacoesView } from './features/notificacoes/NotificacoesView';
+import { Toaster } from './components/ui/toast';
+import { ConfirmProvider } from './components/ui/ConfirmProvider';
+import { SincronizacaoMlProvider } from './features/mercadolivre/SincronizacaoMlContext';
+import { VisualizadorFotos } from './components/ui/VisualizadorFotos';
+import { UnidadesEstoque } from './features/estoque/UnidadesEstoque';
+import { contarAvarias } from './features/estoque/valorEstoque';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
+import { PromocaoBadge } from './features/promocoes/PromocaoBadge';
+import { ComprovantesPixVenda } from './features/comprovantes/ComprovantesPixVenda';
+import { VendaClienteResumo } from './features/vendas/VendaClienteResumo';
+import type { Tab } from './constants/navigation';
+import { usePermissao } from './hooks/usePermissao';
+import { FloatingNotaButton } from './components/DeclaracaoVenda';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'caixa' | 'frete' | 'configuracoes';
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'caixa', 'frete', 'configuracoes'];
+// 'fiado' saiu da navegação: virou sub-aba do Caixa. Não fica em VALID_TABS
+// pra a URL /fiado não abrir mais uma aba solta — os botões que iam pra lá
+// agora redirecionam pro Caixa na sub-aba de vendas fiado.
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes'];
+
+// Primeira aba que o usuário pode VER — usada como fallback quando a URL pede
+// uma aba que ele não tem permissão de ver. `dashboard` como último recurso
+// (nunca deveria acontecer: todo usuário vê ao menos patchnotes/notificacoes).
+function primeiraAbaPermitida(pode: (chave: string) => boolean): Tab {
+  return (VALID_TABS.find((tab) => pode(`${tab}.ver`)) ?? 'dashboard') as Tab;
+}
 
 function isVenda(item: DetailItem): item is Venda {
   return 'valor_total' in item;
@@ -67,17 +89,26 @@ function isVenda(item: DetailItem): item is Venda {
 // =============================================================================
 
 // Acesso via localhost pula a tela de login — conveniência de desenvolvimento
-// local, espelha o bypass equivalente em middleware/auth.ts no backend. Nunca
-// ativa fora da própria máquina, já que checa o hostname que o navegador
-// realmente carregou.
-const IS_LOCALHOST = ['localhost', '127.0.0.1'].includes(window.location.hostname);
+// local, espelha o bypass equivalente em middleware/auth.ts no backend. Exclui
+// plataforma nativa de propósito: o Capacitor no Android serve o WebView em
+// https://localhost/ por padrão, então sem o !isNativePlatform() o app
+// empacotado (APK) também cairia nesse bypass e logaria como admin sozinho.
+const IS_LOCALHOST = !Capacitor.isNativePlatform() && ['localhost', '127.0.0.1'].includes(window.location.hostname);
+
+// Uma vez que alguém desloga explicitamente em localhost, o bypass acima para
+// de reautenticar sozinho nesta aba/sessão — senão o logout nunca "pega" (o
+// reload volta a cair no bypass e reloga como admin na hora). Fica em
+// sessionStorage de propósito: reseta ao fechar a aba, então não altera o
+// fluxo padrão de dev em sessões novas, só depois de um logout explícito.
+const FORCE_REAL_AUTH_KEY = 'rk_force_real_auth';
 
 export default function App() {
   const [isUserAuthenticated, setIsUserAuthenticated] = useState<boolean | null>(null);
 
   useEffect(() => {
     const checkAuthStatus = () => {
-      if (IS_LOCALHOST) {
+      const forcarAuthReal = sessionStorage.getItem(FORCE_REAL_AUTH_KEY) === '1';
+      if (IS_LOCALHOST && !forcarAuthReal) {
         setIsUserAuthenticated(true);
         if (window.location.pathname === '/' || window.location.pathname.toLowerCase() === '/login') {
           window.history.replaceState(null, '', '/dashboard');
@@ -86,9 +117,9 @@ export default function App() {
       }
 
       const token = localStorage.getItem('auth_token');
-      const role = localStorage.getItem('user_role');
+      const roles = localStorage.getItem('user_roles');
 
-      if (token && role) {
+      if (token && roles) {
         setIsUserAuthenticated(true);
         if (window.location.pathname.toLowerCase() === '/login' || window.location.pathname === '/') {
           window.history.replaceState(null, '', '/dashboard');
@@ -107,17 +138,20 @@ export default function App() {
   }, []);
 
   const handleLogout = () => {
+    sessionStorage.setItem(FORCE_REAL_AUTH_KEY, '1');
     localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_role');
+    localStorage.removeItem('user_roles');
+    localStorage.removeItem('user_permissoes');
     localStorage.removeItem('user_name');
+    localStorage.removeItem('user_id');
     setIsUserAuthenticated(false);
     window.location.href = '/login';
   };
 
   if (isUserAuthenticated === null) {
     return (
-      <div className="min-h-screen bg-[#0f1115] flex items-center justify-center">
-        <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+      <div className="min-h-screen bg-surface-page flex items-center justify-center">
+        <Loader2 className="w-8 h-8 text-accent animate-spin" />
       </div>
     );
   }
@@ -134,56 +168,76 @@ export default function App() {
   }
 
   return (
-    <DataProvider>
-      <AppContent onLogout={handleLogout} />
-    </DataProvider>
+    // ConfirmProvider no nível mais externo do app autenticado: qualquer
+    // feature (Estoque, Vendas, Caixa, etc.) precisa poder chamar useConfirm()
+    // pra substituir window.confirm, então tem que envolver DataProvider
+    // inteiro, não só AppContent — senão qualquer provider ficaria fora do
+    // alcance do diálogo.
+    <ConfirmProvider>
+      <DataProvider>
+        {/* SincronizacaoMlProvider por fora do AppContent pelo mesmo motivo do
+            Toaster logo abaixo: precisa sobreviver à troca de aba, senão o
+            toast "Sincronizar agora" (disparado de Vendas/Orçamentos) para de
+            funcionar assim que a pessoa sai daquela tela antes de clicar. */}
+        <SincronizacaoMlProvider>
+          <AppContent onLogout={handleLogout} />
+        </SincronizacaoMlProvider>
+        {/* Fora do AppContent pra sobreviver à troca de aba e continuar
+            aparecendo mesmo na tela de login. */}
+        <Toaster />
+      </DataProvider>
+    </ConfirmProvider>
   );
 }
-
-// =============================================================================
-// SIDEBAR ITEM
-// =============================================================================
-
-const SidebarItem = memo(({ icon: Icon, label, active, onClick, theme, className }: { icon: any; label: string; active: boolean; onClick: () => void; theme: 'light' | 'dark'; className?: string }) => (
-  <motion.button
-    whileHover={{ x: 4 }}
-    whileTap={{ scale: 0.98 }}
-    onClick={onClick}
-    className={cn(
-      'w-full flex items-center gap-4 px-5 py-4 rounded-2xl transition-all duration-500 group relative overflow-hidden transform-gpu',
-      active ? 'bg-violet-600 text-white shadow-[0_10px_30px_rgba(139,92,246,0.3)]' : theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-900/50 hover:text-zinc-300' : 'text-zinc-500 hover:bg-zinc-100 hover:text-zinc-900',
-      className
-    )}
-  >
-    <Icon size={20} strokeWidth={active ? 3 : 2} className="relative z-10" />
-    {label && <span className="font-black text-xs uppercase tracking-[0.2em] whitespace-nowrap relative z-10">{label}</span>}
-  </motion.button>
-));
 
 // =============================================================================
 // DETAIL MODAL — mostra um item de Estoque ou uma Venda
 // =============================================================================
 
-const DetailItemBox = ({ label, value, icon: Icon, theme }: { label: string; value: any; icon: any; theme: 'light' | 'dark' }) => (
-  <div className={cn('p-4 rounded-2xl border flex flex-col gap-1.5', theme === 'dark' ? 'bg-zinc-900/40 border-zinc-800/50' : 'bg-zinc-50 border-zinc-200')}>
-    <div className="flex items-center gap-2 text-zinc-500">
+const DetailItemBox = ({ label, value, icon: Icon }: { label: string; value: any; icon: any }) => (
+  <div className={cn('p-4 rounded-2xl border flex flex-col gap-1.5', 'bg-surface-card/40 border-border-default/50')}>
+    <div className="flex items-center gap-2 text-text-muted">
       <Icon size={14} strokeWidth={2.5} />
       <span className="text-[10px] uppercase font-black tracking-widest">{label}</span>
     </div>
-    <span className={cn('text-sm md:text-base font-black truncate uppercase', theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900')}>{value ?? '-'}</span>
+    <span className={cn('text-sm md:text-base font-black truncate uppercase', 'text-text-primary')}>{value ?? '-'}</span>
   </div>
 );
 
-function DetailModal({ item, onClose, theme, onEdit, onDelete }: { item: DetailItem; onClose: () => void; theme: 'light' | 'dark'; onEdit?: (item: DetailItem) => void; onDelete?: (id: string) => void }) {
-  useEffect(() => {
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.body.style.overflow = 'unset';
-    };
-  }, []);
-
+function DetailModal({
+  item,
+  onClose,
+  onEdit,
+  onDelete,
+  readOnly,
+  onAlterado,
+  onAbrirFiado,
+  fiadoRecebimentos = [],
+  vendas: todasAsVendas = [],
+}: {
+  item: DetailItem;
+  onClose: () => void;
+  onEdit?: (item: DetailItem) => void;
+  onDelete?: (id: string) => void;
+  readOnly?: boolean;
+  onAlterado?: () => void;
+  onAbrirFiado?: () => void;
+  fiadoRecebimentos?: FiadoRecebimento[];
+  vendas?: Venda[];
+}) {
+  const { pode } = usePermissao();
+  const podeExcluirComprovante = pode('vendas.excluir_comprovante');
   const venda = isVenda(item) ? item : null;
   const estoque = !venda ? (item as Estoque) : null;
+  const imagens = estoque?.imagens ?? [];
+  const [indiceImagem, setIndiceImagem] = useState(0);
+  const [fotoCheiaAberta, setFotoCheiaAberta] = useState(false);
+
+  // Troca de item (ex: clicar em outro card sem fechar o modal) reinicia a
+  // galeria pra capa, em vez de manter o índice do item anterior.
+  useEffect(() => {
+    setIndiceImagem(0);
+  }, [estoque?.id]);
 
   const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -197,110 +251,228 @@ function DetailModal({ item, onClose, theme, onEdit, onDelete }: { item: DetailI
 
   const titulo = venda ? venda.nome_item : estoque!.nome;
   const valor = venda ? venda.valor_total : estoque!.valor;
-  const imagem = estoque?.imagem_url;
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <motion.div
-        initial={{ scale: 0.9, opacity: 0 }}
-        animate={{ scale: 1, opacity: 1 }}
-        exit={{ scale: 0.9, opacity: 0 }}
-        transition={{ type: 'spring', damping: 25, stiffness: 200 }}
-        className={cn('w-[95%] md:max-w-2xl h-[90vh] md:h-auto md:max-h-[90vh] rounded-[2.5rem] overflow-hidden border shadow-2xl flex flex-col relative', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
-      >
-        <div className="md:hidden w-full flex justify-center pt-4 pb-2">
-          <div className="w-12 h-1.5 rounded-full bg-zinc-800/50" />
-        </div>
-        <button onClick={onClose} className={cn('absolute top-6 right-6 z-50 p-2 rounded-full shadow-xl border', theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white' : 'bg-zinc-100 border-zinc-200 text-zinc-500')}>
-          <X size={20} />
-        </button>
-
-        <div className="flex-1 overflow-y-auto scrollbar-hide">
-          <div className="relative aspect-[4/3] w-full bg-zinc-950 overflow-hidden flex items-center justify-center">
-            {imagem ? <img src={imagem} className="w-full h-full object-contain" referrerPolicy="no-referrer" /> : <Package size={64} strokeWidth={1} className="opacity-10 text-zinc-700" />}
-          </div>
-
-          <div className="p-8 space-y-8">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="px-3 py-1 bg-violet-500/10 text-violet-500 text-[10px] font-black uppercase tracking-widest rounded-full border border-violet-500/20">
-                    {venda ? 'Venda' : estoque?.categoria?.nome || 'Peça'}
-                  </span>
-                  {estoque && <NotaCadastroBadge value={estoque.nota_cadastro} />}
-                </div>
-                {estoque?.codigo && <span className="text-zinc-500 text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
-              </div>
-              <h2 className={cn('text-3xl md:text-4xl font-black tracking-tight uppercase leading-none', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{titulo}</h2>
-              <div className="text-4xl md:text-5xl font-black tracking-tighter text-emerald-500">{formatCurrency(valor)}</div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
+    <>
+      <Modal
+        aberto={true}
+        onFechar={onClose}
+        titulo={titulo}
+        tamanho="lg"
+        rodape={
+          onEdit || onDelete || estoque ? (
+            <div className={cn('grid gap-3', onEdit && onDelete && estoque ? 'grid-cols-3' : 'grid-cols-2')}>
+              {onEdit && (
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    onEdit(item);
+                    onClose();
+                  }}
+                  className="h-auto py-4 rounded-control gap-2 font-black text-xs uppercase tracking-[0.2em] bg-surface-card border-border-default text-text-primary hover:bg-surface-raised"
+                >
+                  <Edit size={16} /> Editar
+                </Button>
+              )}
+              {onDelete && (
+                <Button
+                  variant="destructive"
+                  // Sem window.confirm aqui: quem recebe o onDelete já abre
+                  // a própria confirmação (Estoque) ou o modal de
+                  // cancelamento (Vendas) — eram duas perguntas seguidas.
+                  onClick={() => {
+                    onDelete((item as any).id);
+                    onClose();
+                  }}
+                  className="h-auto py-4 rounded-control gap-2 font-black text-xs uppercase tracking-[0.2em] bg-danger/10 border border-danger/20 text-danger hover:bg-danger/20"
+                >
+                  <Trash2 size={16} /> Excluir
+                </Button>
+              )}
+              {/* WhatsApp só faz sentido pra Estoque (falar sobre a peça) —
+                  numa venda já concluída não há nada a "compartilhar". Virou
+                  uma ação secundária pequena, não mais o CTA principal do modal —
+                  por isso a cor positive/emerald (nem erro, nem o acento
+                  principal da tela) em vez do accent usado antes. */}
               {estoque && (
-                <>
-                  <DetailItemBox label="Quantidade" value={estoque.quantidade} icon={Package} theme={theme} />
-                  <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} theme={theme} />
-                  <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} theme={theme} />
-                  <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} theme={theme} />
-                </>
-              )}
-              {venda && (
-                <>
-                  <DetailItemBox label="Quantidade" value={venda.quantidade} icon={Package} theme={theme} />
-                  <DetailItemBox label="Pagamento" value={venda.forma_pagamento?.nome} icon={CreditCard} theme={theme} />
-                  <DetailItemBox label="Data" value={new Date(venda.data).toLocaleDateString('pt-BR')} icon={Calendar} theme={theme} />
-                  {venda.cliente_nome && <DetailItemBox label="Cliente" value={venda.cliente_nome} icon={Edit} theme={theme} />}
-                </>
+                <Button
+                  variant="outline"
+                  onClick={handleWhatsAppShare}
+                  title="Compartilhar no WhatsApp"
+                  className="h-auto py-4 rounded-control gap-2 font-black text-xs uppercase tracking-[0.2em] bg-positive/10 border-positive/20 text-positive hover:bg-positive/20"
+                >
+                  <MessageCircle size={16} /> WhatsApp
+                </Button>
               )}
             </div>
-
-            {(estoque?.descricao || venda?.observacoes) && (
-              <div className={cn('p-6 rounded-3xl border space-y-2', theme === 'dark' ? 'bg-zinc-900/30 border-zinc-800' : 'bg-zinc-50 border-zinc-100')}>
-                <h4 className="text-[10px] font-black uppercase text-amber-400 tracking-[0.1em] flex items-center gap-2">
-                  <FileText size={14} /> {venda ? 'Observações' : 'Descrição'}
-                </h4>
-                <p className={cn('text-sm leading-relaxed', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600')}>{estoque?.descricao || venda?.observacoes}</p>
+          ) : undefined
+        }
+      >
+        <div className="-mx-5 -mt-5 md:-mx-6 md:-mt-6">
+          <div className="relative aspect-[4/3] w-full bg-surface-inset overflow-hidden flex items-center justify-center">
+            {imagens[indiceImagem] ? (
+              <button type="button" onClick={() => setFotoCheiaAberta(true)} className="w-full h-full cursor-zoom-in">
+                <img src={imagens[indiceImagem]} className="w-full h-full object-contain" referrerPolicy="no-referrer" alt={titulo} />
+              </button>
+            ) : (
+              <Package size={64} strokeWidth={1} className="opacity-10 text-text-faint" />
+            )}
+            {imagens.length > 1 && (
+              <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1.5">
+                {imagens.map((_, i) => (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => setIndiceImagem(i)}
+                    aria-label={`Foto ${i + 1}`}
+                    className={cn('size-1.5 rounded-full transition-colors', i === indiceImagem ? 'bg-white' : 'bg-media-overlay-dot')}
+                  />
+                ))}
               </div>
             )}
+          </div>
 
-            <div className="flex flex-col gap-3 pt-4">
-              <button onClick={handleWhatsAppShare} className="w-full bg-emerald-500 hover:bg-emerald-600 text-white py-5 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-emerald-500/20 flex items-center justify-center gap-3">
-                <MessageCircle size={20} /> Compartilhar no WhatsApp
-              </button>
+          {imagens.length > 1 && (
+            <div className="flex gap-2 px-5 md:px-6 pt-4 overflow-x-auto scrollbar-hide">
+              {imagens.map((url, i) => (
+                <button
+                  key={url}
+                  type="button"
+                  onClick={() => setIndiceImagem(i)}
+                  className={cn('size-14 rounded-xl overflow-hidden border-2 shrink-0 transition-colors', i === indiceImagem ? 'border-accent' : 'border-transparent')}
+                >
+                  <img src={url} className="w-full h-full object-cover" referrerPolicy="no-referrer" alt={`${titulo} ${i + 1}`} />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
 
-              {(onEdit || onDelete) && (
-                <div className="grid grid-cols-2 gap-3">
-                  {onEdit && (
-                    <button
-                      onClick={() => {
-                        onEdit(item);
-                        onClose();
-                      }}
-                      className={cn('py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] border flex items-center justify-center gap-2', theme === 'dark' ? 'bg-zinc-900 border-zinc-800 text-white hover:bg-zinc-800' : 'bg-white border-zinc-200 text-zinc-900')}
-                    >
-                      <Edit size={16} /> Editar
-                    </button>
-                  )}
-                  {onDelete && (
-                    <button
-                      onClick={() => {
-                        if (window.confirm('Tem certeza que deseja excluir este item?')) {
-                          onDelete((item as any).id);
+        <div className="space-y-8 pt-6">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="px-3 py-1 bg-accent/10 text-accent text-[10px] font-black uppercase tracking-widest rounded-full border border-accent/20">
+                  {venda ? 'Venda' : estoque?.categoria?.nome || 'Peça'}
+                </span>
+                {estoque && <NotaCadastroBadge value={estoque.nota_cadastro} />}
+              </div>
+              {estoque?.codigo && <span className="text-text-muted text-[10px] font-mono font-bold">#{estoque.codigo}</span>}
+            </div>
+            {estoque?.promocao_ativa ? (
+              <div className="flex items-end gap-3 flex-wrap">
+                <div className="text-4xl md:text-5xl font-black tracking-tighter text-text-primary">{formatCurrency(estoque.promocao_ativa.valor_promocional)}</div>
+                <div className="flex flex-col gap-1 pb-1">
+                  <span className="text-base font-bold text-text-muted line-through">{formatCurrency(valor)}</span>
+                  <PromocaoBadge promocao={estoque.promocao_ativa} />
+                </div>
+              </div>
+            ) : (
+              <div className="text-4xl md:text-5xl font-black tracking-tighter text-text-primary">{formatCurrency(valor)}</div>
+            )}
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            {estoque && (
+              <>
+                <DetailItemBox
+                  label="Quantidade"
+                  value={contarAvarias(estoque) > 0 ? `${estoque.quantidade} · ${contarAvarias(estoque)} c/ avaria` : estoque.quantidade}
+                  icon={Package}
+                />
+                <DetailItemBox label="Modelo de Moto" value={estoque.modelo_moto?.nome || 'Universal'} icon={Truck} />
+                <DetailItemBox label="Condição" value={estoque.condicao === 'original' ? 'Original' : 'Paralela'} icon={Wrench} />
+                {estoque.condicao_nota != null && <DetailItemBox label="Estado físico" value={`${estoque.condicao_nota}/10`} icon={Gauge} />}
+                <DetailItemBox label="Ano" value={estoque.ano} icon={Calendar} />
+              </>
+            )}
+            {venda && (
+              <>
+                <DetailItemBox label="Quantidade" value={venda.quantidade} icon={Package} />
+                {(() => {
+                  const efetiva = formaPagamentoEfetiva(venda, fiadoRecebimentos);
+                  const valorPagamento = efetiva ? `${efetiva.formas.join(', ')}${efetiva.quitadoTotal ? '' : ' (parcial)'}` : venda.forma_pagamento?.nome;
+                  return <DetailItemBox label="Pagamento" value={valorPagamento} icon={CreditCard} />;
+                })()}
+                <DetailItemBox label="Data" value={new Date(venda.data).toLocaleDateString('pt-BR')} icon={Calendar} />
+                {venda.cliente_nome && <DetailItemBox label="Cliente" value={venda.cliente_nome} icon={Edit} />}
+              </>
+            )}
+          </div>
+
+          {venda && formaPagamentoEfetiva(venda, fiadoRecebimentos) && (
+            <div className={cn('p-4 rounded-3xl border space-y-1.5', 'bg-surface-card/30 border-border-subtle')}>
+              <h4 className="text-[10px] font-black uppercase text-accent-soft-fg tracking-[0.1em]">Recebimentos deste fiado</h4>
+              {fiadoRecebimentos
+                .filter((r) => r.venda_id === venda.id)
+                .sort((a, b) => new Date(b.recebido_em).getTime() - new Date(a.recebido_em).getTime())
+                .map((r) => (
+                  <div key={r.id} className="flex items-center justify-between text-xs">
+                    <span className={'text-text-faint'}>
+                      {new Date(r.recebido_em).toLocaleDateString('pt-BR')} · {r.forma_pagamento?.nome || '—'}
+                    </span>
+                    <span className="font-medium text-text-secondary">{formatCurrency(r.valor)}</span>
+                  </div>
+                ))}
+            </div>
+          )}
+
+          {venda && (
+            <div className="space-y-4">
+              <ComprovantesPixVenda vendaId={venda.id} podeExcluir={podeExcluirComprovante} readOnly={readOnly} />
+              {venda.cliente_id && (
+                <VendaClienteResumo
+                  clienteId={venda.cliente_id}
+                  venda={venda}
+                  podeExcluirComprovante={podeExcluirComprovante}
+                  onAbrirFiado={
+                    onAbrirFiado
+                      ? () => {
+                          onAbrirFiado();
                           onClose();
                         }
-                      }}
-                      className="py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] bg-rose-500/10 border border-rose-500/20 text-rose-500 hover:bg-rose-500/20 flex items-center justify-center gap-2"
-                    >
-                      <Trash2 size={16} /> Excluir
-                    </button>
-                  )}
-                </div>
+                      : undefined
+                  }
+                />
               )}
             </div>
-          </div>
+          )}
+
+          {(estoque?.descricao || venda?.observacoes) && (
+            <div className={cn('p-6 rounded-3xl border space-y-2', 'bg-surface-card/30 border-border-subtle')}>
+              <h4 className="text-[10px] font-black uppercase text-accent-soft-fg tracking-[0.1em] flex items-center gap-2">
+                <FileText size={14} /> {venda ? 'Observações' : 'Descrição'}
+              </h4>
+              <p className={cn('text-sm leading-relaxed', 'text-text-secondary')}>{estoque?.descricao || venda?.observacoes}</p>
+            </div>
+          )}
+
+          {/* Venda em partes: mostra o cálculo antes mesmo de abrir uma
+              venda nova, não só no momento de vender (ver VendasView). */}
+          {estoque && (estoque.unidades_incompletas?.length ?? 0) > 0 && (
+            <div className={cn('p-4 rounded-3xl border', 'bg-surface-card/30 border-border-subtle')}>
+              <h4 className="text-[10px] font-black uppercase text-accent-soft-fg tracking-[0.1em] mb-2">Venda em partes</h4>
+              <p className="text-xs text-text-muted mb-1">
+                {estoque.unidades_incompletas.length} unidade(s) incompleta(s) — falta: {estoque.unidades_incompletas.map((u) => u.faltando.join(', ')).join(' · ')}
+              </p>
+              <p className="text-xs text-text-muted">
+                Valor original: {formatCurrency(estoque.valor)} · Já vendido em partes: {formatCurrency(valorVendidoEmPartes(estoque.id, todasAsVendas))} · Restante:{' '}
+                {formatCurrency(valorRestanteEstimado(estoque.valor, estoque.id, todasAsVendas))}
+              </p>
+            </div>
+          )}
+
+          {/* Unidades físicas desta peça: mesma peça, uma linha só no
+              estoque, mas cada unidade diferente (nota própria, avaria,
+              nome ou preço) ganha ficha e foto. */}
+          {estoque && <UnidadesEstoque item={estoque} readOnly={readOnly} onAlterado={onAlterado} />}
         </div>
-      </motion.div>
-    </div>
+      </Modal>
+
+      {fotoCheiaAberta && imagens.length > 0 && (
+        <VisualizadorFotos fotos={imagens} indice={indiceImagem} onTrocar={setIndiceImagem} onFechar={() => setFotoCheiaAberta(false)} />
+      )}
+    </>
   );
 }
 
@@ -308,27 +480,26 @@ function DetailModal({ item, onClose, theme, onEdit, onDelete }: { item: DetailI
 // LOGOUT MODAL
 // =============================================================================
 
-const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolean; onClose: () => void; onLogout: () => void; theme: 'light' | 'dark' }) => {
-  if (!isOpen) return null;
+const LogoutModal = memo(({ isOpen, onClose, onLogout }: { isOpen: boolean; onClose: () => void; onLogout: () => void }) => {
   return (
-    <div className="fixed inset-0 z-[20000] flex items-center justify-center p-4">
-      <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={onClose} className="absolute inset-0 bg-black/80 backdrop-blur-md" />
-      <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('relative w-full max-w-sm rounded-[2.5rem] overflow-hidden shadow-2xl p-8 text-center', theme === 'dark' ? 'bg-zinc-950 border border-zinc-800' : 'bg-white')}>
-        <div className="w-20 h-20 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-6">
-          <LogOut size={36} />
-        </div>
-        <h2 className={cn('text-2xl font-black tracking-tight mb-2', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Sair da Conta?</h2>
-        <p className="text-zinc-500 text-sm font-medium mb-8">Tem certeza que deseja encerrar sua sessão atual?</p>
+    <Modal
+      aberto={isOpen}
+      onFechar={onClose}
+      titulo="Sair da conta?"
+      tamanho="sm"
+      rodape={
         <div className="flex flex-col gap-3">
-          <button onClick={onLogout} className="w-full bg-rose-500 hover:bg-rose-600 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl shadow-rose-500/20">
+          <button onClick={onLogout} className="w-full bg-danger hover:opacity-90 text-surface-page py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-xl">
             Sim, Sair Agora
           </button>
-          <button onClick={onClose} className={cn('w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em]', theme === 'dark' ? 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800' : 'bg-zinc-100 text-zinc-600')}>
+          <button onClick={onClose} className={cn('w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em]', 'bg-surface-card text-text-secondary hover:bg-surface-raised')}>
             Cancelar
           </button>
         </div>
-      </motion.div>
-    </div>
+      }
+    >
+      <p className="text-sm text-text-secondary">Tem certeza que deseja encerrar sua sessão atual?</p>
+    </Modal>
   );
 });
 
@@ -336,14 +507,35 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades', notificacoes: 'Notificações' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
+  // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
+  // fichas de unidade (badge de avaria e valor total dependem disso), pra
+  // mostrar a forma de pagamento efetiva de uma venda fiado já quitada, e pro
+  // cálculo de quanto já foi vendido em partes de um item incompleto.
+  const { refreshData, fiadoRecebimentos, vendas: todasAsVendas } = useData();
+
+  // Permissões do usuário logado (ver src/hooks/usePermissao.ts). Substitui o
+  // controle por cargo: `pode('tela.acao')` decide o que aparece, `isAdmin`
+  // marca o super-usuário. No localhost o hook já devolve admin (mesmo bypass
+  // de dev de App/middleware).
+  const { pode, isAdmin } = usePermissao();
+
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
-    return VALID_TABS.includes(path) ? path : 'dashboard';
+    const abaValida = VALID_TABS.includes(path);
+    if (abaValida && pode(`${path}.ver`)) return path;
+    // Aba inexistente OU sem permissão de ver: cai na primeira aba que o
+    // usuário pode ver, em vez de sempre tentar 'dashboard'.
+    return primeiraAbaPermitida(pode);
   });
   const [pendingEditItem, setPendingEditItem] = useState<Estoque | null>(null);
+  const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
+  const [pendingClienteId, setPendingClienteId] = useState<string | null>(null);
+  const [pendingFiltroSumidos, setPendingFiltroSumidos] = useState(false);
+  // Abre o Caixa já na sub-aba de vendas fiado (deep-link que antes ia pra aba Fiado).
+  const [pendingCaixaFiado, setPendingCaixaFiado] = useState(false);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
@@ -353,9 +545,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
-  const [isBudgetModalOpen, setIsBudgetModalOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => (localStorage.getItem('theme') as 'light' | 'dark') || 'dark');
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -374,15 +564,12 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     contentRef.current?.scrollTo(0, 0);
   }, [activeTab]);
 
+  // "Venda rápida" do modal de família navega aqui via evento customizado
   useEffect(() => {
-    localStorage.setItem('theme', theme);
-    document.documentElement.classList.toggle('dark', theme === 'dark');
-  }, [theme]);
-
-  useEffect(() => {
-    const shouldLock = isBudgetModalOpen || isLogoutModalOpen || !!selectedDetailItem;
-    document.body.style.overflow = shouldLock ? 'hidden' : 'unset';
-  }, [isBudgetModalOpen, isLogoutModalOpen, selectedDetailItem]);
+    const handler = () => setActiveTab('vendas');
+    window.addEventListener('rk:ir-para-vendas', handler);
+    return () => window.removeEventListener('rk:ir-para-vendas', handler);
+  }, []);
 
   const itemActions = useMemo(() => {
     if (!selectedDetailItem) return { edit: undefined, delete: undefined };
@@ -403,110 +590,118 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   }, [selectedDetailItem, estoqueActions, vendasActions, activeTab]);
 
   return (
-    <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', theme === 'dark' ? 'bg-[radial-gradient(ellipse_at_top,_#1a1b1f,_#09090b)] text-zinc-100' : 'bg-zinc-50 text-zinc-900')}>
-      <AnimatePresence>
-        {isSidebarOpen && <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setIsSidebarOpen(false)} className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 lg:hidden" />}
-      </AnimatePresence>
-
-      {/* Sidebar */}
-      <aside
-        className={cn(
-          'fixed top-0 h-screen inset-y-0 left-0 z-50 transition-all duration-300 ease-in-out border-r hidden md:flex overflow-y-auto',
-          theme === 'dark' ? 'bg-zinc-950/50 border-zinc-800/50 backdrop-blur-xl' : 'bg-white border-zinc-200 shadow-xl',
-          isSidebarOpen ? 'w-64' : 'w-20'
-        )}
-      >
-        <div className={cn('h-full flex flex-col p-4', theme === 'dark' ? 'bg-zinc-950' : 'bg-white')}>
-          <div className="flex items-center gap-3 px-2 mb-10 overflow-hidden">
-            <div className="w-10 h-10 shrink-0 rounded-xl bg-zinc-900 border border-zinc-800 flex items-center justify-center">
-              <Wrench className={theme === 'dark' ? 'text-zinc-100' : 'text-zinc-900'} size={20} />
-            </div>
-            {isSidebarOpen && (
-              <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col min-w-0">
-                <span className={cn('font-black text-xl tracking-tighter truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>
-                  RK <span className="text-violet-500">SUCATAS</span>
-                </span>
-                <span className="text-[8px] font-bold text-zinc-500 uppercase tracking-[0.2em]">Gestão Inteligente</span>
-              </motion.div>
-            )}
-          </div>
-
-          <nav className="flex-1 space-y-2">
-            <SidebarItem icon={LayoutDashboard} label={isSidebarOpen ? 'Dashboard' : ''} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} theme={theme} />
-            <SidebarItem icon={Package} label={isSidebarOpen ? 'Estoque' : ''} active={activeTab === 'estoque'} onClick={() => setActiveTab('estoque')} theme={theme} />
-            <SidebarItem icon={ShoppingCart} label={isSidebarOpen ? 'Vendas' : ''} active={activeTab === 'vendas'} onClick={() => setActiveTab('vendas')} theme={theme} />
-            <SidebarItem icon={Wallet} label={isSidebarOpen ? 'Caixa' : ''} active={activeTab === 'caixa'} onClick={() => setActiveTab('caixa')} theme={theme} />
-            <SidebarItem icon={Truck} label={isSidebarOpen ? 'Frete' : ''} active={activeTab === 'frete'} onClick={() => setActiveTab('frete')} theme={theme} />
-            <SidebarItem icon={Settings} label={isSidebarOpen ? 'Configurações' : ''} active={activeTab === 'configuracoes'} onClick={() => setActiveTab('configuracoes')} theme={theme} />
-            <SidebarItem icon={LogOut} label={isSidebarOpen ? 'Sair' : ''} active={false} onClick={() => setIsLogoutModalOpen(true)} theme={theme} className="text-rose-500 hover:bg-rose-500/10 hover:text-rose-600" />
-          </nav>
-
-          <button onClick={() => setIsSidebarOpen((v) => !v)} className={cn('mt-4 p-3 rounded-xl flex items-center justify-center', theme === 'dark' ? 'text-zinc-500 hover:bg-zinc-900' : 'text-zinc-400 hover:bg-zinc-100')}>
-            {isSidebarOpen ? <ChevronLeft size={18} /> : <ChevronRight size={18} />}
-          </button>
-        </div>
-      </aside>
+    <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', 'bg-[radial-gradient(ellipse_at_top,_var(--color-surface-raised),_var(--color-surface-page))] text-text-primary')}>
+      <DashboardSidebar
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        isOpen={isSidebarOpen}
+        onToggle={() => setIsSidebarOpen((v) => !v)}
+        onLogoutClick={() => setIsLogoutModalOpen(true)}
+      />
 
       {/* Main Content */}
-      <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-64' : 'md:ml-20')}>
-        <header className={cn('min-h-16 border-b backdrop-blur-md flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', theme === 'dark' ? 'bg-zinc-950/40 border-zinc-800/50' : 'bg-white/50 border-zinc-200')}>
+      <main className={cn('flex-1 flex flex-col min-w-0 pb-nav-safe md:pb-0 transition-all duration-300', isSidebarOpen ? 'md:ml-[260px]' : 'md:ml-[68px]')}>
+        {/* No mobile o título da view já aparece grande dentro de cada tela;
+            este header só existe pra desktop, pra não duplicar o nome no topo. */}
+        <header className={cn('min-h-16 border-b backdrop-blur-md hidden md:flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-surface-inset/40 border-border-default/50')}>
           <div className="flex items-center gap-2 md:gap-4">
-            <button onClick={() => setIsSidebarOpen((v) => !v)} className="md:hidden p-2 rounded-lg text-zinc-400 hover:bg-zinc-800/50">
-              <Menu size={20} />
-            </button>
-            <h2 className={cn('text-base md:text-lg font-semibold capitalize', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{TAB_LABELS[activeTab]}</h2>
+            <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-text-primary')}>{TAB_LABELS[activeTab]}</h2>
           </div>
-          <button onClick={() => setTheme((t) => (t === 'dark' ? 'light' : 'dark'))} className={cn('p-2 rounded-lg transition-all', theme === 'dark' ? 'hover:bg-zinc-800 text-amber-400' : 'hover:bg-zinc-100 text-violet-600')}>
-            {theme === 'dark' ? <Sun size={20} /> : <Moon size={20} />}
-          </button>
         </header>
 
-        <div ref={contentRef} className="p-4 md:p-6 pb-32 md:pb-6 overflow-y-auto flex-1">
+        <div ref={contentRef} className="p-4 md:p-6 pt-[calc(env(safe-area-inset-top)+1rem)] md:pt-6 pb-32 md:pb-6 overflow-y-auto flex-1">
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
               {activeTab === 'dashboard' ? (
-                <DashboardView theme={theme} onSelectItem={setSelectedDetailItem} onTabChange={(tab) => setActiveTab(tab as Tab)} />
+                <DashboardView
+                  onSelectItem={setSelectedDetailItem}
+                  onTabChange={(tab) => setActiveTab(tab as Tab)}
+                  onOpenSearch={() => setIsSearchOpen(true)}
+                  onNavigateEstoqueBaixo={() => {
+                    setActiveTab('estoque');
+                    setPendingEstoqueBaixo(true);
+                  }}
+                  onNavigateCliente={(clienteId) => {
+                    setActiveTab('clientes');
+                    setPendingClienteId(clienteId);
+                  }}
+                  onNavigateClientesSumidos={() => {
+                    setActiveTab('clientes');
+                    setPendingFiltroSumidos(true);
+                  }}
+                  onNavigateFiado={() => {
+                    setActiveTab('caixa');
+                    setPendingCaixaFiado(true);
+                  }}
+                />
               ) : activeTab === 'estoque' ? (
-                <EstoqueView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setEstoqueActions} pendingEditItem={pendingEditItem} setPendingEditItem={setPendingEditItem} />
+                <EstoqueView
+                                   onSelectItem={setSelectedDetailItem}
+                  onRegisterActions={setEstoqueActions}
+                  pendingEditItem={pendingEditItem}
+                  setPendingEditItem={setPendingEditItem}
+                  filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
+                  setFiltroEstoqueBaixoInicial={setPendingEstoqueBaixo}
+                  readOnly={!(pode('estoque.criar') || pode('estoque.editar') || pode('estoque.deletar') || pode('estoque.anunciar_ml') || pode('estoque.anunciar_shopee'))}
+                />
               ) : activeTab === 'vendas' ? (
-                <VendasView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
+                <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
+              ) : activeTab === 'orcamentos' ? (
+                <OrcamentosView />
+              ) : activeTab === 'clientes' ? (
+                <ClientesView
+                  pendingClienteId={pendingClienteId}
+                  setPendingClienteId={setPendingClienteId}
+                  pendingFiltroSumidos={pendingFiltroSumidos}
+                  setPendingFiltroSumidos={setPendingFiltroSumidos}
+                />
               ) : activeTab === 'caixa' ? (
-                <CaixaView theme={theme} />
+                <CaixaView pendingFiado={pendingCaixaFiado} setPendingFiado={setPendingCaixaFiado} />
               ) : activeTab === 'frete' ? (
-                <FreteView theme={theme} />
+                <FreteView />
+              ) : activeTab === 'mercadolivre' ? (
+                <MercadoLivreView />
+              ) : activeTab === 'tarefas' ? (
+                <TarefasView />
+              ) : activeTab === 'patchnotes' ? (
+                <PatchNotesView />
+              ) : activeTab === 'notificacoes' ? (
+                <NotificacoesView />
               ) : (
-                <ConfiguracoesView theme={theme} />
+                <ConfiguracoesView />
               )}
             </motion.div>
           </AnimatePresence>
         </div>
       </main>
 
-      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} theme={theme} userRole="admin" isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} />
+      <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} onLogoutClick={() => setIsLogoutModalOpen(true)} />
 
       {!isMoreMenuOpen && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
-          <GlobalSearch theme={theme} onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />
-          <motion.button
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            whileHover={{ scale: 1.05 }}
-            whileTap={{ scale: 0.95 }}
-            onClick={() => setIsBudgetModalOpen(true)}
-            className={cn('relative w-14 h-14 rounded-full flex items-center justify-center shadow-2xl border', theme === 'dark' ? 'bg-zinc-800 hover:bg-zinc-700 border-zinc-700' : 'bg-white hover:bg-gray-50 border-zinc-200')}
-          >
-            <DollarSign className={cn('w-6 h-6', theme === 'dark' ? 'text-violet-400' : 'text-violet-600')} />
-          </motion.button>
+          <FloatingNotaButton />
+          <GlobalSearch onSelectItem={setSelectedDetailItem} isOpen={isSearchOpen} setIsOpen={setIsSearchOpen} customClick={() => setIsSearchOpen(true)} />
         </div>
       )}
 
-      <BudgetModal isOpen={isBudgetModalOpen} onClose={() => setIsBudgetModalOpen(false)} theme={theme} />
+      {selectedDetailItem && (
+        <DetailModal
+          item={selectedDetailItem}
+          onClose={() => setSelectedDetailItem(null)}
+          onEdit={itemActions.edit}
+          onDelete={itemActions.delete}
+          readOnly={!(pode('estoque.editar') || pode('vendas.editar'))}
+          onAlterado={refreshData}
+          onAbrirFiado={() => {
+            setActiveTab('caixa');
+            setPendingCaixaFiado(true);
+          }}
+          fiadoRecebimentos={fiadoRecebimentos}
+          vendas={todasAsVendas}
+        />
+      )}
 
-      <AnimatePresence>
-        {selectedDetailItem && <DetailModal item={selectedDetailItem} theme={theme} onClose={() => setSelectedDetailItem(null)} onEdit={itemActions.edit} onDelete={itemActions.delete} />}
-      </AnimatePresence>
-
-      <AnimatePresence>{isLogoutModalOpen && <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} theme={theme} />}</AnimatePresence>
+      <LogoutModal isOpen={isLogoutModalOpen} onClose={() => setIsLogoutModalOpen(false)} onLogout={onLogout} />
     </div>
   );
 }

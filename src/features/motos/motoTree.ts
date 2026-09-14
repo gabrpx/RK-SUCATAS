@@ -35,6 +35,14 @@ export function buildTree(modelos: ModeloMoto[], compare: (a: ModeloMoto, b: Mod
   return raizes;
 }
 
+// `ano` aceita ano único ("2015") ou período em texto livre ("2004-2008",
+// "2013+") — pra ordenar/comparar, extrai só o primeiro número (ano de
+// início da faixa). null quando não há nenhum número no texto.
+export function extrairAnoOrdenavel(ano: string | null | undefined): number | null {
+  const match = ano?.match(/\d+/);
+  return match ? Number(match[0]) : null;
+}
+
 function normalizarTexto(texto: string) {
   return (texto || '')
     .toLowerCase()

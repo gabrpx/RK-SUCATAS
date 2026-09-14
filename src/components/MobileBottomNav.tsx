@@ -1,48 +1,57 @@
-import {
-  LayoutDashboard,
-  Package,
-  ShoppingCart,
-  Wallet,
-  Truck,
-  Settings,
-  MoreHorizontal,
-  X
-} from 'lucide-react';
-import { useState } from 'react';
+import { LogOut, MoreHorizontal, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { NAV_ITEMS, NAV_GROUP_LABELS } from '../constants/navigation';
+import type { NavGroup } from '../constants/navigation';
+import { Button } from './ui/button';
+import { usePermissao } from '../hooks/usePermissao';
 
 function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMoreOpen, setIsMoreOpen }: any) => {
-  const allItems = [
-    { id: 'dashboard', icon: LayoutDashboard, label: 'Início', roles: ['admin', 'gerente'] },
-    { id: 'estoque', icon: Package, label: 'Estoque', roles: ['admin', 'gerente'] },
-    { id: 'vendas', icon: ShoppingCart, label: 'Vendas', roles: ['admin', 'gerente'] },
-    { id: 'caixa', icon: Wallet, label: 'Caixa', roles: ['admin', 'gerente'] },
-    { id: 'frete', icon: Truck, label: 'Frete', roles: ['admin', 'gerente'] },
-    { id: 'configuracoes', icon: Settings, label: 'Config', roles: ['admin', 'gerente'] },
-  ];
+// O que se usa todo dia fica fixo na barra principal — independente da
+// ordem de NAV_ITEMS (essa é pensada pra agrupar a sidebar desktop, não pra
+// prioridade de uso mobile).
+const MOBILE_MAIN_IDS = ['dashboard', 'estoque', 'vendas', 'caixa'];
 
-  const allowedItems = allItems.filter(item => item.roles.includes(userRole));
+export const MobileBottomNav = ({ activeTab, setActiveTab, isMoreOpen, setIsMoreOpen, onLogoutClick }: any) => {
+  const { pode } = usePermissao();
+  const allowedItems = NAV_ITEMS.filter((item) => pode(`${item.id}.ver`));
 
-  // 4 na barra principal (o que se usa todo dia); Frete e Configurações vão pro "Mais".
-  const mainItems = allowedItems.slice(0, 4);
-  const moreItems = allowedItems.slice(4);
+  const mainItems = MOBILE_MAIN_IDS
+    .map(id => allowedItems.find(item => item.id === id))
+    .filter((item): item is (typeof allowedItems)[number] => Boolean(item));
+  const moreItems = allowedItems.filter(item => !MOBILE_MAIN_IDS.includes(item.id));
+
+  // Agrupa moreItems por seção (mesmos grupos da sidebar desktop) mantendo a
+  // ordem de NAV_ITEMS; só mostra cabeçalho pra grupo que realmente tem item.
+  const moreGroups: Array<{ group: NavGroup; items: typeof moreItems }> = [];
+  for (const item of moreItems) {
+    const last = moreGroups[moreGroups.length - 1];
+    if (last && last.group === item.group) {
+      last.items.push(item);
+    } else {
+      moreGroups.push({ group: item.group, items: [item] });
+    }
+  }
 
   const handleTabClick = (id: string) => {
     setActiveTab(id);
     setIsMoreOpen(false);
   };
 
+  const handleLogoutClick = () => {
+    setIsMoreOpen(false);
+    onLogoutClick();
+  };
+
   return (
     <>
       <div className={cn(
         "fixed bottom-0 left-0 right-0 z-50 md:hidden border-t pb-safe",
-        theme === 'dark' ? "bg-zinc-950 border-zinc-800" : "bg-white border-zinc-200"
+        "bg-surface-inset border-border-default"
       )}>
         <div className="flex justify-around items-center h-16">
           {mainItems.map(item => (
@@ -51,24 +60,24 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMo
               onClick={() => handleTabClick(item.id)}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
-                activeTab === item.id 
-                  ? "text-violet-500" 
-                  : theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
+                activeTab === item.id
+                  ? "text-accent"
+                  : "text-text-muted"
               )}
             >
               <item.icon size={22} />
-              <span className="text-[10px] font-medium truncate w-full text-center px-1">{item.label}</span>
+              <span className="text-[10px] font-medium truncate w-full text-center px-1">{item.mobileLabel ?? item.label}</span>
             </button>
           ))}
-          
+
           {moreItems.length > 0 && (
             <button
               onClick={() => setIsMoreOpen(!isMoreOpen)}
               className={cn(
                 "flex flex-col items-center justify-center gap-1 w-full h-full transition-colors relative",
                 isMoreOpen || moreItems.some(i => i.id === activeTab)
-                  ? "text-violet-500" 
-                  : theme === 'dark' ? "text-zinc-500" : "text-zinc-400"
+                  ? "text-accent"
+                  : "text-text-muted"
               )}
             >
               <MoreHorizontal size={22} />
@@ -82,12 +91,16 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMo
       <AnimatePresence>
         {isMoreOpen && (
           <>
+            {/* Sem backdrop-blur aqui de propósito: animar opacity num elemento
+                com backdrop-filter força o Safari/iOS a recompor o blur a
+                cada frame da transição — é isso que trava o "Mais" no
+                celular. Scrim sólido tem o mesmo efeito de leitura sem o custo. */}
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setIsMoreOpen(false)}
-              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55] md:hidden"
+              className="fixed inset-0 bg-overlay-scrim z-[55] md:hidden"
             />
             <motion.div
               initial={{ y: "100%" }}
@@ -95,44 +108,68 @@ export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMo
               exit={{ y: "100%" }}
               transition={{ type: 'spring', damping: 25, stiffness: 200 }}
               className={cn(
-                "fixed bottom-0 left-0 right-0 z-[60] md:hidden rounded-t-3xl p-6 pb-nav-safe",
-                theme === 'dark' ? "bg-zinc-900 border-t border-zinc-800" : "bg-white border-t border-zinc-200"
+                "fixed bottom-0 left-0 right-0 z-[60] md:hidden rounded-t-3xl p-6 pb-nav-safe max-h-[80vh] overflow-y-auto",
+                "bg-surface-card border-t border-border-subtle"
               )}
             >
               <div className="flex items-center justify-between mb-6">
                 <h3 className={cn(
                   "text-lg font-bold",
-                  theme === 'dark' ? "text-white" : "text-zinc-900"
+                  "text-text-primary"
                 )}>
                   Mais Opções
                 </h3>
-                <button 
+                <Button
+                  variant="ghost"
+                  size="icon"
                   onClick={() => setIsMoreOpen(false)}
-                  className={cn(
-                    "p-2 rounded-full",
-                    theme === 'dark' ? "bg-zinc-800 text-zinc-400" : "bg-zinc-100 text-zinc-500"
-                  )}
+                  className="!rounded-full bg-surface-raised text-text-muted hover:bg-surface-raised hover:text-text-muted"
                 >
                   <X size={20} />
-                </button>
+                </Button>
               </div>
 
-              <div className="grid grid-cols-3 gap-4">
-                {moreItems.map(item => (
-                  <button
-                    key={item.id}
-                    onClick={() => handleTabClick(item.id)}
-                    className={cn(
-                      "flex flex-col items-center justify-center gap-3 p-4 rounded-2xl transition-all",
-                      activeTab === item.id
-                        ? "bg-violet-500/10 text-violet-500 border border-violet-500/20"
-                        : theme === 'dark' ? "bg-zinc-800/50 text-zinc-400 border border-transparent" : "bg-zinc-50 text-zinc-500 border border-transparent"
+              <div className="space-y-5">
+                {moreGroups.map((section, idx) => (
+                  <div key={`${section.group ?? 'no-group'}-${idx}`}>
+                    {section.group && (
+                      <span className={cn(
+                        "block mb-2 text-[10px] font-black uppercase tracking-[0.2em]",
+                        "text-text-muted"
+                      )}>
+                        {NAV_GROUP_LABELS[section.group]}
+                      </span>
                     )}
-                  >
-                    <item.icon size={24} />
-                    <span className="text-[11px] font-bold text-center">{item.label}</span>
-                  </button>
+                    <div className="grid grid-cols-3 gap-4">
+                      {section.items.map(item => (
+                        <Button
+                          key={item.id}
+                          variant="ghost"
+                          onClick={() => handleTabClick(item.id)}
+                          className={cn(
+                            "h-auto flex-col gap-3 p-4 rounded-control transition-all",
+                            activeTab === item.id
+                              ? "bg-accent/10 text-accent border border-accent/20 hover:bg-accent/10 hover:text-accent"
+                              : "bg-surface-raised/50 text-text-muted border border-transparent hover:bg-surface-raised/50 hover:text-text-muted"
+                          )}
+                        >
+                          <item.icon size={24} />
+                          <span className="text-[11px] font-bold text-center">{item.mobileLabel ?? item.label}</span>
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 ))}
+              </div>
+
+              <div className={cn('mt-5 pt-5 border-t', 'border-border-default')}>
+                <button
+                  onClick={handleLogoutClick}
+                  className="flex items-center gap-3 w-full px-2 py-2 rounded-xl text-danger hover:bg-danger-bg transition-colors"
+                >
+                  <LogOut size={20} />
+                  <span className="text-sm font-bold">Sair</span>
+                </button>
               </div>
             </motion.div>
           </>

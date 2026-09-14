@@ -1,9 +1,17 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
+@import "tw-animate-css";
+@import "./styles/theme.css";
+@import "./styles/orgchart.css";
 
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+/* shadcn/ui base reset — só a cor de borda/ring padrão pra elementos que
+   não especificam a própria (ver theme.css pro mapeamento dos tokens).
+   Sem o bg-background/text-foreground do template padrão: o body abaixo
+   já define fundo (gradiente) e cor de texto próprios. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
 }
 
 :root {
@@ -26,9 +34,16 @@
 .left-safe { left: var(--safe-left); }
 .right-safe { right: var(--safe-right); }
 
+/* Gradientes com propósito (ver theme.css) — classes escritas à mão em vez
+   de utility gerada pelo Tailwind (@theme não tem namespace confiável pra
+   background-image entre versões do v4). */
+.bg-gradient-page { background-image: var(--gradient-page); }
+.bg-gradient-accent-cta { background-image: var(--gradient-accent-cta); }
+.bg-gradient-surface-edge { background-image: var(--gradient-surface-edge); }
+
 body {
-  @apply font-sans antialiased bg-[#0a0a0c] text-zinc-200;
-  background: radial-gradient(ellipse at top, #1a1b1f, #0a0a0c);
+  @apply font-sans antialiased text-text-secondary;
+  background-image: var(--gradient-page);
   min-height: 100vh;
 }
 
@@ -39,11 +54,11 @@ body {
 }
 
 ::-webkit-scrollbar-track {
-  @apply bg-zinc-950/50;
+  @apply bg-surface-inset/50;
 }
 
 ::-webkit-scrollbar-thumb {
-  @apply bg-zinc-700 rounded-full hover:bg-violet-500 transition-colors duration-300;
+  @apply bg-border-default rounded-full hover:bg-accent transition-colors duration-300;
 }
 
 
@@ -61,6 +76,18 @@ input[type=number] {
 @keyframes shimmer {
   0% { transform: translateX(-100%); }
   100% { transform: translateX(100%); }
+}
+
+/* Shimmer animation for Skeleton atoms */
+@keyframes shimmer-gradient {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+.animate-shimmer {
+  background: linear-gradient(90deg, var(--surface-raised) 0%, var(--surface-overlay) 50%, var(--surface-raised) 100%);
+  background-size: 200% 100%;
+  animation: shimmer-gradient 1.6s var(--ease-in-out-quart) infinite;
 }
 
 .no-scrollbar::-webkit-scrollbar {
@@ -88,37 +115,53 @@ input[type=number] {
     -webkit-backdrop-filter: none !important;
   }
   
-  /* Gradientes elegantes para tema escuro */
-  .dark .bg-zinc-900\/40, 
-  .dark .bg-zinc-900\/50, 
-  .dark .bg-zinc-900\/80, 
-  .dark .bg-zinc-900\/90,
-  .dark .bg-zinc-950\/50,
-  .bg-zinc-900\/40, 
-  .bg-zinc-900\/50, 
-  .bg-zinc-900\/80, 
+  /* Gradientes elegantes pra evitar composição pesada de blur no mobile —
+     seleciona tanto as classes zinc antigas quanto os tokens que as
+     substituíram, já que nem todo arquivo usa o mesmo nível de opacidade. */
+  .bg-zinc-900\/40,
+  .bg-zinc-900\/50,
+  .bg-zinc-900\/80,
   .bg-zinc-900\/90,
-  .bg-zinc-950\/50 {
-    background: linear-gradient(135deg, #18181b 0%, #09090b 100%) !important;
-  }
-
-  /* Gradientes elegantes para tema claro */
-  .bg-white\/50, 
-  .bg-white\/80, 
-  .bg-white\/90 {
-    background: linear-gradient(135deg, #ffffff 0%, #f4f4f5 100%) !important;
+  .bg-zinc-950\/50,
+  .bg-surface-card\/40,
+  .bg-surface-card\/50,
+  .bg-surface-card\/80,
+  .bg-surface-card\/90,
+  .bg-surface-inset\/50 {
+    background: linear-gradient(135deg, var(--surface-raised) 0%, var(--surface-page) 100%) !important;
   }
 
   /* Overlay de modais mais sólido */
-  .bg-black\/60, .bg-black\/80 {
-    background: rgba(0,0,0,0.9) !important;
+  .bg-black\/60, .bg-black\/80,
+  .bg-media-overlay-badge {
+    background: var(--overlay-scrim-strong) !important;
   }
   
-  /* Reduzir sombras pesadas */
-  .shadow-2xl, 
-  .shadow-\[0_8px_30px_rgb\(0\,0\,0\,0\.2\)\], 
+  /* Reduzir sombras pesadas — inclui a escala nova (--shadow-lg) do
+     redesign, mesma lógica das classes antigas que já estavam aqui. */
+  .shadow-2xl,
+  .shadow-lg,
+  .shadow-\[0_8px_30px_rgb\(0\,0\,0\,0\.2\)\],
   .shadow-\[0_0_50px_-12px_rgba\(0\,0\,0\,0\.5\)\] {
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
   }
 }
 
+
+/* Menos movimento, quando o sistema pede.
+   As animações feitas em JS (motion) já tratam `prefers-reduced-motion` uma a
+   uma — cada componente decide o que fazer sem movimento. O que esta regra
+   cobre é o outro lado: as transições e animações declaradas em CSS
+   (transition-colors, transition-transform, o marquee, o thumb do switch),
+   que não passam por lá. Duração quase zero em vez de `none` porque manter a
+   transição existindo preserva os eventos `transitionend` de quem os escuta. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

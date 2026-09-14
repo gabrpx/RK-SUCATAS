@@ -92,8 +92,8 @@ export function useCatalogos() {
     return result;
   }, []);
 
-  const renomearMoto = useCallback(async (id: string, nome: string, ano?: string | null) => {
-    const result = await modelosMotoApi.renomear(id, nome, ano);
+  const renomearMoto = useCallback(async (id: string, nome: string, ano?: string | null, imagem_url?: string | null) => {
+    const result = await modelosMotoApi.renomear(id, nome, ano, imagem_url);
     if (result.success) setModelos((prev) => prev.map((m) => (m.id === id ? result.data : m)));
     return result;
   }, []);
@@ -141,6 +141,12 @@ export function useCatalogos() {
     return result;
   }, []);
 
+  const alternarNaturezaFormaPagamento = useCallback(async (id: string, natureza: 'avista' | 'fiado') => {
+    const result = await formasPagamentoApi.atualizarNatureza(id, natureza);
+    if (result.success) setFormasPagamento((prev) => prev.map((f) => (f.id === id ? result.data : f)));
+    return result;
+  }, []);
+
   return {
     categorias,
     modelos,
@@ -161,5 +167,6 @@ export function useCatalogos() {
     criarFormaPagamento,
     renomearFormaPagamento,
     excluirFormaPagamento,
+    alternarNaturezaFormaPagamento,
   };
 }

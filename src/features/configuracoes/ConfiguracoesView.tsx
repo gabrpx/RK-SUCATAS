@@ -7,16 +7,20 @@
 // (árvores de categoria/moto com drag handle + 4 ícones por linha) abertos
 // ao mesmo tempo.
 import { useState } from 'react';
-import { Settings, Layers, Bike, Wallet } from 'lucide-react';
+import { Settings, Layers, Bike, Wallet, Users, Tag } from 'lucide-react';
 import { cn } from '../../utils';
+import { usePermissao } from '../../hooks/usePermissao';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { ManageListSection } from './ManageListSection';
 import { CategoriaTreeManager } from './CategoriaTreeManager';
 import { MotoTreeManager } from './MotoTreeManager';
+import { UsuariosView } from '../usuarios/UsuariosView';
+import { PromocoesView } from '../promocoes/PromocoesView';
 
-type Aba = 'categorias' | 'motos' | 'pagamento';
+type Aba = 'categorias' | 'motos' | 'pagamento' | 'promocoes' | 'usuarios';
 
-export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
+export function ConfiguracoesView() {
+  const { isAdmin } = usePermissao();
   const {
     categorias,
     modelos,
@@ -35,32 +39,35 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
     criarFormaPagamento,
     renomearFormaPagamento,
     excluirFormaPagamento,
+    alternarNaturezaFormaPagamento,
   } = useCatalogos();
 
   const [aba, setAba] = useState<Aba>('categorias');
 
-  const abas: { id: Aba; label: string; icone: typeof Layers; total: number }[] = [
+  const abas: { id: Aba; label: string; icone: typeof Layers; total?: number }[] = [
     { id: 'categorias', label: 'Categorias de Peça', icone: Layers, total: categorias.length },
     { id: 'motos', label: 'Motos', icone: Bike, total: modelos.length },
     { id: 'pagamento', label: 'Formas de Pagamento', icone: Wallet, total: formasPagamento.length },
+    { id: 'promocoes', label: 'Promoções', icone: Tag },
+    ...(isAdmin ? [{ id: 'usuarios' as Aba, label: 'Usuários', icone: Users }] : []),
   ];
 
   return (
     <div className="space-y-6 pb-24 md:pb-6">
       <div className="flex items-center gap-4">
-        <div className="p-3 bg-zinc-500/10 rounded-2xl">
-          <Settings className={theme === 'dark' ? 'text-zinc-300' : 'text-zinc-600'} size={28} />
+        <div className="p-3 bg-accent/10 rounded-2xl">
+          <Settings className={'text-accent'} size={28} />
         </div>
         <div>
-          <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Configurações</h2>
-          <p className="text-sm text-zinc-500">Categorias, motos e formas de pagamento do sistema</p>
+          <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-text-primary')}>Configurações</h2>
+          <p className="text-sm text-text-muted">Categorias, motos e formas de pagamento do sistema</p>
         </div>
       </div>
 
       <div
         className={cn(
           'flex items-center gap-1 p-1.5 rounded-2xl border overflow-x-auto',
-          theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-zinc-100/70 border-zinc-200'
+          'bg-surface-card border-border-subtle'
         )}
       >
         {abas.map((item) => {
@@ -71,24 +78,24 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
               key={item.id}
               onClick={() => setAba(item.id)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-colors shrink-0',
+                'flex items-center gap-2 px-4 py-3 sm:py-2.5 rounded-xl text-sm font-bold transition-colors shrink-0',
                 ativo
-                  ? 'bg-violet-600 text-white shadow-sm'
-                  : theme === 'dark'
-                  ? 'text-zinc-400 hover:text-zinc-200 hover:bg-zinc-800/60'
-                  : 'text-zinc-500 hover:text-zinc-800 hover:bg-white'
+                  ? 'bg-accent text-white shadow-sm'
+                  : 'text-text-muted hover:text-text-secondary hover:bg-surface-raised'
               )}
             >
               <Icone size={16} />
               {item.label}
-              <span
-                className={cn(
-                  'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                  ativo ? 'bg-white/20 text-white' : theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-200 text-zinc-500'
-                )}
-              >
-                {item.total}
-              </span>
+              {item.total !== undefined && (
+                <span
+                  className={cn(
+                    'text-[10px] font-bold px-1.5 py-0.5 rounded-full',
+                    ativo ? 'bg-white/20 text-white' : 'bg-surface-raised text-text-muted'
+                  )}
+                >
+                  {item.total}
+                </span>
+              )}
             </button>
           );
         })}
@@ -96,7 +103,6 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
 
       {aba === 'categorias' && (
         <CategoriaTreeManager
-          theme={theme}
           categorias={categorias}
           onCriar={criarCategoria}
           onRenomear={renomearCategoria}
@@ -107,7 +113,6 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
       )}
       {aba === 'motos' && (
         <MotoTreeManager
-          theme={theme}
           modelos={modelos}
           onCriar={criarNoMoto}
           onCriarRapido={criarMotoRapido}
@@ -119,15 +124,21 @@ export function ConfiguracoesView({ theme }: { theme: 'light' | 'dark' }) {
       )}
       {aba === 'pagamento' && (
         <ManageListSection
-          theme={theme}
           titulo="Formas de Pagamento"
           icone={Wallet}
           itens={formasPagamento}
           onCriar={criarFormaPagamento}
           onRenomear={renomearFormaPagamento}
           onExcluir={excluirFormaPagamento}
+          toggle={{
+            rotulo: 'Fiado',
+            ativo: (item) => item.natureza === 'fiado',
+            onAlternar: (item) => alternarNaturezaFormaPagamento(item.id, item.natureza === 'fiado' ? 'avista' : 'fiado'),
+          }}
         />
       )}
+      {aba === 'promocoes' && <PromocoesView />}
+      {aba === 'usuarios' && isAdmin && <UsuariosView />}
     </div>
   );
 }

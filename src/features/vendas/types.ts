@@ -1,4 +1,6 @@
 import type { ModeloMoto, FormaPagamento } from '../../types/catalog';
+import type { ClienteResumo } from '../clientes/types';
+import type { EstoqueUnidade } from '../estoque/types';
 
 export interface Venda {
   id: string;
@@ -12,12 +14,25 @@ export interface Venda {
   modelo_moto_id: string | null;
   modelo_moto?: ModeloMoto | null;
   cliente_nome: string | null;
+  cliente_id: string | null;
+  cliente?: ClienteResumo | null;
   observacoes: string | null;
   // Nome da parte vendida avulsa (ex: "Inferior"), quando a venda não é do
   // item inteiro — ver estoque.componentes / estoque.unidades_incompletas.
   componente_vendido: string | null;
+  // Ficha de unidade específica vendida (ver migration_038) — null quando a
+  // venda foi por quantidade genérica, sem apontar qual unidade física saiu.
+  unidade_id: string | null;
+  unidade?: EstoqueUnidade | null;
   data: string;
   criado_em: string;
+  // Canal de origem — 'mercado_livre' quando a venda veio de um pedido
+  // importado (ver src/services/mercadolivreSync.ts); os 3 campos ml_* só
+  // existem nesse caso.
+  canal: 'balcao' | 'mercado_livre';
+  ml_order_id: string | null;
+  ml_item_id: string | null;
+  ml_shipping_id: string | null;
 }
 
 // Payload pra registrar uma venda nova (chama a função registrar_venda no banco,
@@ -29,9 +44,13 @@ export interface VendaInput {
   forma_pagamento_id: string;
   modelo_moto_id?: string | null;
   cliente_nome?: string | null;
+  cliente_id?: string | null;
   observacoes?: string | null;
   data?: string;
   // Quando informado, vende só essa parte do item (não desconta a unidade
   // inteira) — precisa estar em estoque.componentes do item selecionado.
   componente?: string | null;
+  // Quando informado, vende essa ficha específica (estoque_unidades.id) em
+  // vez de uma unidade genérica — opcional, mutuamente exclusivo com componente.
+  unidade_id?: string | null;
 }

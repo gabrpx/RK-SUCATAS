@@ -8,9 +8,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { mensagemErroExclusao } from '../dbErrors.js';
 import { getDescendantIds, ehDescendenteOuIgual } from '../../features/motos/motoTree.js';
 import type { ModeloMoto } from '../../types/catalog.js';
+import { exigirAlguma } from '../../../middleware/auth.js';
 
 const MSG_NOME_DUPLICADO = 'Já existe um modelo com esse nome neste nível.';
 const MSG_PAI_INVALIDO = 'Modelo pai inválido.';
+
+// Modelos de moto são dado de referência (GET aberto a qualquer autenticado,
+// usado pra montar a visão "Por Moto" e filtros). A escrita normalmente é da
+// tela de Configurações, MAS o cadastro-rápido está embutido no formulário de
+// Estoque/Vendas — então quem pode criar peça/venda também precisa poder criar
+// um modelo na hora. Por isso a escrita aceita QUALQUER uma dessas permissões.
+const ESCRITA = exigirAlguma('configuracoes.gerenciar_motos', 'estoque.criar', 'estoque.editar', 'vendas.criar', 'orcamentos.criar');
 
 export function modelosMotoRouter(supabase: SupabaseClient) {
   const router = Router();
@@ -55,12 +63,13 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.post('/', async (req, res) => {
+  router.post('/', ESCRITA, async (req, res) => {
     try {
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome é obrigatório' });
       const parent_id = req.body?.parent_id || null;
       const ano = req.body?.ano ? String(req.body.ano).trim() : null;
+      const imagem_url = req.body?.imagem_url ? String(req.body.imagem_url).trim() : null;
 
       // Novo nó entra no fim da lista de irmãos, não disputando ordem=0 com um já existente.
       let query = supabase.from('modelos_moto').select('id', { count: 'exact', head: true });
@@ -69,7 +78,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
 
       const { data, error } = await supabase
         .from('modelos_moto')
-        .insert([{ nome, parent_id, ano, ordem: totalIrmaos ?? 0 }])
+        .insert([{ nome, parent_id, ano, imagem_url, ordem: totalIrmaos ?? 0 }])
         .select()
         .single();
       if (error) {
@@ -87,12 +96,13 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
   // Acha-ou-cria a marca e a cilindrada, depois insere a moto como filha do
   // nó mais específico dos dois. Retorna os três nós (novos ou reaproveitados)
   // pro frontend atualizar o estado local sem duplicar.
-  router.post('/rapido', async (req, res) => {
+  router.post('/rapido', ESCRITA, async (req, res) => {
     try {
       const marcaNome = String(req.body?.marca || '').trim();
       const cilindradaNome = req.body?.cilindrada ? String(req.body.cilindrada).trim() : '';
       const nome = String(req.body?.nome || '').trim();
       const ano = req.body?.ano ? String(req.body.ano).trim() : null;
+      const imagem_url = req.body?.imagem_url ? String(req.body.imagem_url).trim() : null;
 
       if (!marcaNome) return res.status(400).json({ success: false, error: 'Marca é obrigatória' });
       if (!nome) return res.status(400).json({ success: false, error: 'Nome do modelo é obrigatório' });
@@ -105,7 +115,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
 
       const { data: moto, error } = await supabase
         .from('modelos_moto')
-        .insert([{ nome, parent_id: parentDaMoto, ano, ordem: totalIrmaos.count ?? 0 }])
+        .insert([{ nome, parent_id: parentDaMoto, ano, imagem_url, ordem: totalIrmaos.count ?? 0 }])
         .select()
         .single();
       if (error) {
@@ -119,10 +129,10 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.put('/:id', async (req, res) => {
+  router.put('/:id', ESCRITA, async (req, res) => {
     try {
       const { id } = req.params;
-      const atualizacao: Partial<Pick<ModeloMoto, 'nome' | 'parent_id' | 'ano'>> = {};
+      const atualizacao: Partial<Pick<ModeloMoto, 'nome' | 'parent_id' | 'ano' | 'imagem_url'>> = {};
 
       if (req.body?.nome !== undefined) {
         const nome = String(req.body.nome).trim();
@@ -132,6 +142,10 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
 
       if (req.body?.ano !== undefined) {
         atualizacao.ano = req.body.ano ? String(req.body.ano).trim() : null;
+      }
+
+      if (req.body?.imagem_url !== undefined) {
+        atualizacao.imagem_url = req.body.imagem_url ? String(req.body.imagem_url).trim() : null;
       }
 
       if (req.body?.parent_id !== undefined) {
@@ -164,7 +178,7 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/reordenar', async (req, res) => {
+  router.patch('/reordenar', ESCRITA, async (req, res) => {
     try {
       const ids: string[] = Array.isArray(req.body?.ids) ? req.body.ids : [];
       if (ids.length === 0) return res.status(400).json({ success: false, error: 'Lista de ids vazia' });
@@ -179,24 +193,31 @@ export function modelosMotoRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id', async (req, res) => {
+  router.delete('/:id', ESCRITA, async (req, res) => {
     try {
       const { id } = req.params;
       const modelos = await listarTodos();
       const idsDaSubarvore = getDescendantIds(id, modelos);
 
-      const [{ count: countEstoque, error: erroEstoque }, { count: countVendas, error: erroVendas }] = await Promise.all([
+      const [{ count: countEstoque, error: erroEstoque }, { count: countVendas, error: erroVendas }, { count: countCompativel, error: erroCompativel }] = await Promise.all([
         supabase.from('estoque').select('id', { count: 'exact', head: true }).in('modelo_moto_id', idsDaSubarvore),
         supabase.from('vendas').select('id', { count: 'exact', head: true }).in('modelo_moto_id', idsDaSubarvore),
+        // migration_019: modelo também pode estar em uso só como "também serve
+        // em" de alguma peça, sem ser o modelo_moto_id principal dela.
+        supabase.from('estoque_modelos_compativeis').select('estoque_id', { count: 'exact', head: true }).in('modelo_moto_id', idsDaSubarvore),
       ]);
       if (erroEstoque) throw erroEstoque;
       if (erroVendas) throw erroVendas;
+      // Tabela pode não existir ainda (migration_019 não rodada) — degrada
+      // graciosamente pra 0 em vez de derrubar a exclusão inteira.
+      if (erroCompativel && erroCompativel.code !== '42P01' && erroCompativel.code !== 'PGRST205') throw erroCompativel;
 
-      const total = (countEstoque || 0) + (countVendas || 0);
+      const total = (countEstoque || 0) + (countVendas || 0) + (countCompativel || 0);
       if (total > 0) {
+        const sufixoCompativel = countCompativel ? ` (${countCompativel} delas só como "também serve em")` : '';
         return res.status(409).json({
           success: false,
-          error: `Não é possível excluir: existem ${countEstoque || 0} peça(s) e ${countVendas || 0} venda(s) usando este modelo ou seus sub-níveis.`,
+          error: `Não é possível excluir: existem ${(countEstoque || 0) + (countCompativel || 0)} peça(s)${sufixoCompativel} e ${countVendas || 0} venda(s) usando este modelo ou seus sub-níveis.`,
         });
       }
 

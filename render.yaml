@@ -20,3 +20,5 @@ services:
         sync: false
       - key: MELHOR_ENVIO_TOKEN
         sync: false
+      - key: FIREBASE_SERVICE_ACCOUNT
+        sync: false

@@ -6,20 +6,25 @@
 // Por padrão toda a árvore começa recolhida (só as raízes aparecem) — o
 // usuário abre só o que precisa, em vez de receber a lista inteira já expandida.
 import React, { useMemo, useState } from 'react';
-import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, ChevronDown, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { Plus, Trash2, Pencil, Check, X, Loader2, ChevronRight, GripVertical, FolderInput, Layers, ChevronsDownUp, ChevronsUpDown, Search, ArrowDownAZ, List, Network, Folder, FolderOpen, FileText, MoreHorizontal } from 'lucide-react';
 import { DndContext, closestCenter, PointerSensor, TouchSensor, useSensor, useSensors, type DragEndEvent } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { AnimatePresence, motion } from 'motion/react';
 import { cn } from '../../utils';
+import { SPRING_MICRO } from '../../components/ui/motion';
 import { CustomDropdown } from '../../components/CustomDropdown';
-import { buildTree, filterTree, getDescendantIds, getDepth, type CategoriaNode } from '../categorias/categoriaTree';
+import { TreeDropdown, type TreeDropdownNode } from '../../components/TreeDropdown';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
+import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem } from '../../components/ui/dropdown-menu';
+import { buildTree, filterTree, getDescendantIds, type CategoriaNode } from '../categorias/categoriaTree';
+import { CategoriaOrgChart } from '../categorias/CategoriaOrgChart';
 import type { Categoria } from '../../types/catalog';
 
 type ApiResult = { success: boolean; error?: string };
 
 interface CategoriaTreeManagerProps {
-  theme: 'light' | 'dark';
   categorias: Categoria[];
   onCriar: (nome: string, parentId?: string | null) => Promise<ApiResult>;
   onRenomear: (id: string, nome: string) => Promise<ApiResult>;
@@ -30,12 +35,13 @@ interface CategoriaTreeManagerProps {
 
 const ROOT_OPTION_VALUE = '__raiz__';
 
-export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, onMover, onReordenar, onExcluir }: CategoriaTreeManagerProps) {
+export function CategoriaTreeManager({ categorias, onCriar, onRenomear, onMover, onReordenar, onExcluir }: CategoriaTreeManagerProps) {
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erroCriar, setErroCriar] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [sortKey, setSortKey] = useState<'nome_asc' | 'nome_desc' | 'manual'>('nome_asc');
+  const [modoVisualizacao, setModoVisualizacao] = useState<'lista' | 'organograma'>('lista');
 
   // Guarda quem está ABERTO (não recolhido) — começa vazio, ou seja, tudo
   // recolhido por padrão até o usuário clicar pra expandir.
@@ -122,45 +128,68 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
     setCriando(false);
   };
 
-  const opcoesParaMover = (idExcluido: string) => {
+  // Nós elegíveis como novo pai — exclui a própria categoria e toda a
+  // subárvore dela (não dá pra mover uma categoria pra dentro dela mesma).
+  const nosParaMover = (idExcluido: string): TreeDropdownNode[] => {
     const bloqueados = new Set(getDescendantIds(idExcluido, categorias));
-    const opcoes = categorias
-      .filter((c) => !bloqueados.has(c.id))
-      .map((c) => ({ value: c.id, label: `${'　'.repeat(getDepth(c.id, categorias))}${getDepth(c.id, categorias) > 0 ? '└ ' : ''}${c.nome}` }));
-    return [{ value: ROOT_OPTION_VALUE, label: '— Categoria raiz —' }, ...opcoes];
+    return categorias.filter((c) => !bloqueados.has(c.id)).map((c) => ({ id: c.id, nome: c.nome, parent_id: c.parent_id, ordem: c.ordem }));
   };
 
   const totalRaizes = arvoreCompleta.length;
-  const borderGuia = theme === 'dark' ? 'border-zinc-800' : 'border-zinc-200';
+  const borderGuia = 'border-border-default';
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200 shadow-sm')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', theme === 'dark' ? 'border-zinc-800/50' : 'border-zinc-100')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', theme === 'dark' ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-border-default/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center shrink-0', 'bg-accent/10 text-accent')}>
           <Layers size={18} />
         </div>
         <div className="min-w-0">
-          <h3 className={cn('font-black text-sm', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Categorias de Peça</h3>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{categorias.length} cadastrada(s) · {totalRaizes} raiz(es)</p>
+          <h3 className={cn('font-black text-sm', 'text-text-primary')}>Categorias de Peça</h3>
+          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{categorias.length} cadastrada(s) · {totalRaizes} raiz(es)</p>
         </div>
-        {idsComFilhos.size > 0 && (
-          <button
-            onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
-            className={cn(
-              'ml-auto flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
-              theme === 'dark' ? 'text-zinc-400 hover:text-violet-400 hover:bg-violet-500/10' : 'text-zinc-500 hover:text-violet-600 hover:bg-violet-50'
-            )}
-          >
-            {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
-            <span className="hidden sm:inline">{tudoExpandido ? 'Recolher tudo' : 'Expandir tudo'}</span>
-          </button>
-        )}
+        <div className="ml-auto flex items-center gap-2 shrink-0">
+          <div className="inline-flex items-center gap-1 p-1 rounded-control bg-surface-inset border border-border-default">
+            <button
+              type="button"
+              onClick={() => setModoVisualizacao('lista')}
+              className={cn(
+                'px-2.5 py-1.5 rounded-control text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                modoVisualizacao === 'lista' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <List size={12} /> <span className="hidden sm:inline">Lista</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setModoVisualizacao('organograma')}
+              className={cn(
+                'px-2.5 py-1.5 rounded-control text-[10px] font-semibold uppercase tracking-wider transition-colors flex items-center gap-1.5',
+                modoVisualizacao === 'organograma' ? 'bg-surface-card text-text-primary shadow-sm' : 'text-text-muted hover:text-text-secondary'
+              )}
+            >
+              <Network size={12} /> <span className="hidden sm:inline">Organograma</span>
+            </button>
+          </div>
+          {modoVisualizacao === 'lista' && idsComFilhos.size > 0 && (
+            <button
+              onClick={() => setExpandidoIds(tudoExpandido ? new Set() : new Set(idsComFilhos))}
+              className={cn(
+                'flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest px-2.5 py-1.5 rounded-lg transition-colors shrink-0',
+                'text-text-muted hover:text-accent hover:bg-accent/10'
+              )}
+            >
+              {tudoExpandido ? <ChevronsDownUp size={13} /> : <ChevronsUpDown size={13} />}
+              <span className="hidden sm:inline">{tudoExpandido ? 'Recolher tudo' : 'Expandir tudo'}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
-            <Search size={15} className="text-zinc-500 shrink-0" />
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-surface-inset border-border-default')}>
+            <Search size={15} className="text-text-muted shrink-0" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -168,13 +197,12 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
               className="flex-1 py-2.5 bg-transparent outline-none text-sm"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => setSearchTerm('')} className="size-5 rounded-full text-text-muted hover:text-text-muted shrink-0">
                 <X size={13} />
-              </button>
+              </Button>
             )}
           </div>
           <CustomDropdown
-            theme={theme}
             icon={<ArrowDownAZ size={14} />}
             value={sortKey}
             onChange={(v) => setSortKey(v as typeof sortKey)}
@@ -186,29 +214,43 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
           />
         </div>
 
-        <div className="flex items-center gap-2">
-          <input
-            value={novoNome}
-            onChange={(e) => setNovoNome(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleCriarRaiz()}
-            placeholder="Nova categoria raiz..."
-            className={cn(
-              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
-            )}
-          />
-          <button
-            onClick={handleCriarRaiz}
-            disabled={criando || !novoNome.trim()}
-            className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
-          >
-            {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          </button>
-        </div>
-        {erroCriar && <p className="text-xs text-rose-500">{erroCriar}</p>}
+        {modoVisualizacao === 'lista' && (
+          <>
+            <div className="flex items-center gap-2">
+              <input
+                value={novoNome}
+                onChange={(e) => setNovoNome(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleCriarRaiz()}
+                placeholder="Nova categoria raiz..."
+                className={cn(
+                  'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
+                  'bg-surface-inset border-border-default text-text-primary'
+                )}
+              />
+              <Button
+                size="icon"
+                onClick={handleCriarRaiz}
+                disabled={criando || !novoNome.trim()}
+                className="rounded-xl shrink-0"
+              >
+                {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+              </Button>
+            </div>
+            {erroCriar && <p className="text-xs text-danger">{erroCriar}</p>}
+          </>
+        )}
 
-        {arvore.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">
+        {modoVisualizacao === 'organograma' ? (
+          <div className="max-h-[34rem] overflow-y-auto pr-1 pt-2">
+            <CategoriaOrgChart
+              categorias={categorias}
+              arvore={arvore}
+              forceExpandedIds={idsExpandidosNaBusca}
+              emptyMessage={searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma categoria cadastrada ainda.'}
+            />
+          </div>
+        ) : arvore.length === 0 ? (
+          <p className="text-sm text-text-muted py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhuma categoria cadastrada ainda.'}
           </p>
         ) : (
@@ -219,7 +261,6 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
                 parentId={null}
                 depth={0}
                 h={{
-                  theme,
                   borderGuia,
                   arrastavel: sortKey === 'manual',
                   expandidoIds: idsExpandidosNaBusca ?? expandidoIds,
@@ -260,7 +301,7 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
                   },
                   movendoId,
                   setMovendoId,
-                  opcoesParaMover,
+                  nosParaMover,
                   onMover: async (id, parentId) => {
                     await onMover(id, parentId);
                     setMovendoId(null);
@@ -273,52 +314,57 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
         )}
       </div>
 
-      <AnimatePresence>
-        {itemParaExcluir && (
-          <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
+      <Modal
+        aberto={!!itemParaExcluir}
+        onFechar={() => {
+          setItemParaExcluir(null);
+          setErroExclusao(null);
+        }}
+        titulo={itemParaExcluir ? `Excluir "${itemParaExcluir.nome}"?` : 'Excluir?'}
+        icone={Trash2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setItemParaExcluir(null);
+                setErroExclusao(null);
+              }}
+              className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm"
             >
-              <h3 className="text-lg font-black mb-2">Excluir "{itemParaExcluir.nome}"?</h3>
-              <p className="text-sm text-zinc-500 mb-4">
-                {getDescendantIds(itemParaExcluir.id, categorias).length > 1
-                  ? `Isso também excluirá as ${getDescendantIds(itemParaExcluir.id, categorias).length - 1} subcategoria(s) abaixo dela. Essa ação não pode ser desfeita.`
-                  : 'Essa ação não pode ser desfeita.'}
-              </p>
-              {erroExclusao && <p className="text-xs text-rose-500 mb-4">{erroExclusao}</p>}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setItemParaExcluir(null);
-                    setErroExclusao(null);
-                  }}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300"
-                >
-                  Cancelar
-                </button>
-                <button
-                  onClick={async () => {
-                    if (!itemParaExcluir) return;
-                    setExcluindo(true);
-                    setErroExclusao(null);
-                    const result = await onExcluir(itemParaExcluir.id);
-                    setExcluindo(false);
-                    if (result.success) setItemParaExcluir(null);
-                    else setErroExclusao(result.error || 'Erro ao excluir');
-                  }}
-                  disabled={excluindo}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2"
-                >
-                  {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
-                </button>
-              </div>
-            </motion.div>
+              Cancelar
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={async () => {
+                if (!itemParaExcluir) return;
+                setExcluindo(true);
+                setErroExclusao(null);
+                const result = await onExcluir(itemParaExcluir.id);
+                setExcluindo(false);
+                if (result.success) setItemParaExcluir(null);
+                else setErroExclusao(result.error || 'Erro ao excluir');
+              }}
+              disabled={excluindo}
+              className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm"
+            >
+              {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
+            </Button>
           </div>
+        }
+      >
+        {itemParaExcluir && (
+          <>
+            <p className="text-sm text-text-muted">
+              {getDescendantIds(itemParaExcluir.id, categorias).length > 1
+                ? `Isso também excluirá as ${getDescendantIds(itemParaExcluir.id, categorias).length - 1} subcategoria(s) abaixo dela. Essa ação não pode ser desfeita.`
+                : 'Essa ação não pode ser desfeita.'}
+            </p>
+            {erroExclusao && <p className="text-xs text-danger mt-3">{erroExclusao}</p>}
+          </>
         )}
-      </AnimatePresence>
+      </Modal>
     </div>
   );
 }
@@ -326,7 +372,6 @@ export function CategoriaTreeManager({ theme, categorias, onCriar, onRenomear, o
 // Handlers/estado compartilhados por toda a árvore — passados por referência
 // (não espalhados via JSX spread) pra cada nível/linha recursiva.
 interface ArvoreHandlers {
-  theme: 'light' | 'dark';
   borderGuia: string;
   arrastavel: boolean;
   expandidoIds: Set<string>;
@@ -345,7 +390,7 @@ interface ArvoreHandlers {
   onCriarSub: (parentId: string) => void;
   movendoId: string | null;
   setMovendoId: (id: string | null) => void;
-  opcoesParaMover: (id: string) => { value: string; label: string }[];
+  nosParaMover: (id: string) => TreeDropdownNode[];
   onMover: (id: string, parentId: string | null) => void;
   onPedirExclusao: (node: Categoria) => void;
 }
@@ -370,7 +415,7 @@ function CategoriaNivel({ nodes, parentId, depth, h }: CategoriaNivelProps) {
 }
 
 function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; parentId: string | null; depth: number; h: ArvoreHandlers }) {
-  const { theme, borderGuia, expandidoIds, onToggleExpandido } = h;
+  const { borderGuia, expandidoIds, onToggleExpandido } = h;
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: node.id,
     data: { parentId },
@@ -385,28 +430,49 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
       <div
         className={cn(
           'group flex items-center gap-1 rounded-xl',
-          theme === 'dark' ? 'hover:bg-zinc-800/40' : 'hover:bg-zinc-50'
+          'hover:bg-surface-raised'
         )}
       >
         <button
           {...(h.arrastavel ? { ...attributes, ...listeners } : {})}
           className={cn(
             'p-1.5 shrink-0 touch-none',
-            h.arrastavel ? 'text-zinc-500 cursor-grab active:cursor-grabbing' : 'text-zinc-500 opacity-40 cursor-not-allowed'
+            h.arrastavel ? 'text-text-muted cursor-grab active:cursor-grabbing' : 'text-text-muted opacity-40 cursor-not-allowed'
           )}
           title={h.arrastavel ? 'Arrastar para reordenar' : 'Disponível apenas em Ordem manual (arrastar)'}
         >
           <GripVertical size={14} />
         </button>
 
-        <button
+        <Button
+          variant="ghost"
+          size="icon"
           onClick={() => temFilhos && onToggleExpandido(node.id)}
-          className={cn('w-5 h-5 flex items-center justify-center shrink-0 text-zinc-500', !temFilhos && 'opacity-0 pointer-events-none')}
+          className={cn('size-8 sm:size-5 text-text-muted', !temFilhos && 'opacity-0 pointer-events-none')}
         >
-          {expandido ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
-        </button>
+          <motion.span animate={{ rotate: expandido ? 90 : 0 }} transition={SPRING_MICRO} className="flex">
+            <ChevronRight size={14} />
+          </motion.span>
+        </Button>
 
-        <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-2">
+        {/* Ícone no estilo Files: pasta (aberta/fechada) para nós com filhos,
+            arquivo para folhas. Anima a troca com um leve fade/scale. */}
+        <span className="shrink-0 flex items-center justify-center size-5 text-accent">
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.span
+              key={temFilhos ? (expandido ? 'aberta' : 'fechada') : 'arquivo'}
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              transition={{ duration: 0.12 }}
+              className="flex"
+            >
+              {temFilhos ? expandido ? <FolderOpen size={15} /> : <Folder size={15} /> : <FileText size={14} className="text-text-muted" />}
+            </motion.span>
+          </AnimatePresence>
+        </span>
+
+        <div className="flex-1 min-w-0 flex items-center justify-between gap-2 px-2 py-2.5 sm:py-2">
           {h.editandoId === node.id ? (
             <>
               <input
@@ -419,66 +485,97 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
                 }}
                 className={cn(
                   'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                  theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                  'bg-surface-inset border-accent/50 text-text-primary'
                 )}
               />
-              <button onClick={() => h.onSalvarEdicao(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => h.onSalvarEdicao(node.id)} className="size-7 rounded-lg text-positive hover:text-positive hover:bg-positive/10 shrink-0">
                 <Check size={14} />
-              </button>
-              <button onClick={h.onCancelarEdicao} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+              </Button>
+              <Button variant="ghost" size="icon" onClick={h.onCancelarEdicao} className="size-7 rounded-lg text-text-muted shrink-0">
                 <X size={14} />
-              </button>
+              </Button>
             </>
           ) : h.movendoId === node.id ? (
             <>
-              <CustomDropdown
-                theme={theme}
+              <TreeDropdown
                 variant="form"
                 className="flex-1"
-                options={h.opcoesParaMover(node.id)}
+                nodes={h.nosParaMover(node.id)}
                 value={node.parent_id ?? ROOT_OPTION_VALUE}
                 onChange={(value) => h.onMover(node.id, value === ROOT_OPTION_VALUE ? null : value)}
+                emptyOption={{ value: ROOT_OPTION_VALUE, label: '— Categoria raiz —' }}
+                searchPlaceholder="Buscar categoria..."
               />
-              <button onClick={() => h.setMovendoId(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => h.setMovendoId(null)} className="size-7 rounded-lg text-text-muted shrink-0">
                 <X size={14} />
-              </button>
+              </Button>
             </>
           ) : (
             <>
               <span
                 onClick={() => temFilhos && onToggleExpandido(node.id)}
                 className={cn(
-                  'flex items-center gap-2 text-sm truncate min-w-0',
+                  'flex items-center gap-2 text-sm min-w-0 sm:truncate',
                   temFilhos && 'cursor-pointer',
                   temFilhos ? 'font-bold' : 'font-medium',
-                  theme === 'dark' ? 'text-zinc-200' : 'text-zinc-700'
+                  'text-text-primary'
                 )}
               >
-                <span className="truncate">{node.nome}</span>
+                {/* No mobile o nome quebra em várias linhas em vez de truncar,
+                    pra ninguém ficar como "CAI..."; no desktop segue truncando. */}
+                <span className="min-w-0 break-words sm:truncate">{node.nome}</span>
                 {temFilhos && (
                   <span
                     className={cn(
                       'shrink-0 text-[10px] font-bold px-1.5 py-0.5 rounded-full',
-                      theme === 'dark' ? 'bg-zinc-800 text-zinc-400' : 'bg-zinc-100 text-zinc-500'
+                      'bg-surface-raised text-text-muted'
                     )}
                   >
                     {node.children.length}
                   </span>
                 )}
               </span>
-              <div className="flex items-center gap-1 shrink-0">
-                <button onClick={() => h.onIniciarSub(node.id)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Adicionar subcategoria">
+              {/* Desktop: ações inline. Mobile: agrupadas num menu ⋯ pra o nome
+                  ter largura pra aparecer inteiro (item 2). */}
+              <div className="hidden sm:flex items-center gap-1 shrink-0">
+                <Button variant="ghost" size="icon" onClick={() => h.onIniciarSub(node.id)} className="size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10" title="Adicionar subcategoria">
                   <Plus size={13} />
-                </button>
-                <button onClick={() => h.setMovendoId(node.id)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Mover para outra categoria">
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => h.setMovendoId(node.id)} className="size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10" title="Mover para outra categoria">
                   <FolderInput size={13} />
-                </button>
-                <button onClick={() => h.onIniciarEdicao(node)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors" title="Renomear">
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => h.onIniciarEdicao(node)} className="size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10" title="Renomear">
                   <Pencil size={13} />
-                </button>
-                <button onClick={() => h.onPedirExclusao(node)} className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors" title="Excluir">
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => h.onPedirExclusao(node)} className="size-7 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10" title="Excluir">
                   <Trash2 size={13} />
-                </button>
+                </Button>
+              </div>
+              <div className="sm:hidden shrink-0">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      className="flex size-8 items-center justify-center rounded-lg text-text-muted transition-colors hover:bg-surface-inset hover:text-text-primary active:bg-surface-inset"
+                      title="Ações"
+                    >
+                      <MoreHorizontal size={16} />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem onSelect={() => h.onIniciarSub(node.id)}>
+                      <Plus /> Adicionar subcategoria
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => h.setMovendoId(node.id)}>
+                      <FolderInput /> Mover
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => h.onIniciarEdicao(node)}>
+                      <Pencil /> Renomear
+                    </DropdownMenuItem>
+                    <DropdownMenuItem variant="danger" onSelect={() => h.onPedirExclusao(node)}>
+                      <Trash2 /> Excluir
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </>
           )}
@@ -499,24 +596,34 @@ function CategoriaRow({ node, parentId, depth, h }: { node: CategoriaNode; paren
               placeholder="Nome da subcategoria..."
               className={cn(
                 'flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none',
-                theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400'
+                'bg-surface-inset border-accent/50 text-text-primary'
               )}
             />
-            <button onClick={() => h.onCriarSub(node.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10 shrink-0">
+            <Button variant="ghost" size="icon" onClick={() => h.onCriarSub(node.id)} className="size-7 rounded-lg text-positive hover:text-positive hover:bg-positive/10 shrink-0">
               <Check size={14} />
-            </button>
-            <button onClick={h.onCancelarSub} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50 shrink-0">
+            </Button>
+            <Button variant="ghost" size="icon" onClick={h.onCancelarSub} className="size-7 rounded-lg text-text-muted shrink-0">
               <X size={14} />
-            </button>
+            </Button>
           </div>
         </div>
       )}
 
-      {temFilhos && expandido && (
-        <div className={cn('ml-3 pl-5 border-l', borderGuia)}>
-          <CategoriaNivel nodes={node.children} parentId={node.id} depth={depth + 1} h={h} />
-        </div>
-      )}
+      <AnimatePresence initial={false}>
+        {temFilhos && expandido && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
+            className="overflow-hidden"
+          >
+            <div className={cn('ml-3 pl-5 border-l', borderGuia)}>
+              <CategoriaNivel nodes={node.children} parentId={node.id} depth={depth + 1} h={h} />
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -4,9 +4,10 @@
 // backend recusar (item em uso), exibe o motivo em vez de falhar silencioso.
 import { useMemo, useState } from 'react';
 import { Plus, Trash2, Pencil, Check, X, Loader2, Search, ArrowDownAZ } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { cn } from '../../utils';
 import { CustomDropdown } from '../../components/CustomDropdown';
+import { Modal } from '../../components/ui/Modal';
+import { Button } from '@/src/components/ui/button';
 
 function normalizarTexto(texto: string) {
   return (texto || '')
@@ -20,19 +21,29 @@ function normalizarTexto(texto: string) {
 interface Item {
   id: string;
   nome: string;
+  [key: string]: any;
+}
+
+// Toggle opcional por item (hoje só usado por Formas de Pagamento, pro
+// marcador "é fiado?" — ver migration_030). Sem isso, o componente continua
+// se comportando exatamente como antes pra Categorias/Motos.
+interface ToggleConfig {
+  rotulo: string;
+  ativo: (item: Item) => boolean;
+  onAlternar: (item: Item) => Promise<{ success: boolean; error?: string }>;
 }
 
 interface ManageListSectionProps {
-  theme: 'light' | 'dark';
   titulo: string;
   icone: any;
   itens: Item[];
   onCriar: (nome: string) => Promise<{ success: boolean; error?: string }>;
   onExcluir: (id: string) => Promise<{ success: boolean; error?: string }>;
   onRenomear?: (id: string, nome: string) => Promise<{ success: boolean; error?: string }>;
+  toggle?: ToggleConfig;
 }
 
-export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar, onExcluir, onRenomear }: ManageListSectionProps) {
+export function ManageListSection({ titulo, icone: Icone, itens, onCriar, onExcluir, onRenomear, toggle }: ManageListSectionProps) {
   const [novoNome, setNovoNome] = useState('');
   const [criando, setCriando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -90,21 +101,21 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
   };
 
   return (
-    <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200 shadow-sm')}>
-      <div className={cn('flex items-center gap-3 p-5 border-b', theme === 'dark' ? 'border-zinc-800/50' : 'border-zinc-100')}>
-        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', theme === 'dark' ? 'bg-violet-500/10 text-violet-400' : 'bg-violet-50 text-violet-600')}>
+    <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
+      <div className={cn('flex items-center gap-3 p-5 border-b', 'border-border-default/50')}>
+        <div className={cn('w-9 h-9 rounded-xl flex items-center justify-center', 'bg-accent/10 text-accent')}>
           <Icone size={18} />
         </div>
         <div>
-          <h3 className={cn('font-black text-sm', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{titulo}</h3>
-          <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest">{itens.length} cadastrado(s)</p>
+          <h3 className={cn('font-black text-sm', 'text-text-primary')}>{titulo}</h3>
+          <p className="text-[10px] text-text-muted font-bold uppercase tracking-widest">{itens.length} cadastrado(s)</p>
         </div>
       </div>
 
       <div className="p-5 space-y-3">
         <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
-            <Search size={15} className="text-zinc-500 shrink-0" />
+          <div className={cn('flex-1 flex items-center gap-2 rounded-xl border px-3', 'bg-surface-inset border-border-default')}>
+            <Search size={15} className="text-text-muted shrink-0" />
             <input
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -112,13 +123,12 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
               className="flex-1 py-2.5 bg-transparent outline-none text-sm"
             />
             {searchTerm && (
-              <button onClick={() => setSearchTerm('')} className="p-1 rounded-full hover:bg-zinc-800/50 text-zinc-500 shrink-0">
+              <Button variant="ghost" size="icon" onClick={() => setSearchTerm('')} className="size-5 rounded-full text-text-muted hover:text-text-muted shrink-0">
                 <X size={13} />
-              </button>
+              </Button>
             )}
           </div>
           <CustomDropdown
-            theme={theme}
             icon={<ArrowDownAZ size={14} />}
             value={sortKey}
             onChange={(v) => setSortKey(v as typeof sortKey)}
@@ -136,22 +146,23 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
             onKeyDown={(e) => e.key === 'Enter' && handleCriar()}
             placeholder="Nome novo..."
             className={cn(
-              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-violet-500/50',
-              theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+              'flex-1 border rounded-xl py-2.5 px-4 text-sm outline-none focus:ring-2 focus:ring-accent/50',
+              'bg-surface-inset border-border-default text-text-primary'
             )}
           />
-          <button
+          <Button
+            size="icon"
             onClick={handleCriar}
             disabled={criando || !novoNome.trim()}
-            className="p-2.5 rounded-xl bg-violet-600 text-white hover:bg-violet-700 disabled:opacity-50 transition-colors shrink-0"
+            className="rounded-xl shrink-0"
           >
             {criando ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
-          </button>
+          </Button>
         </div>
-        {erro && <p className="text-xs text-rose-500">{erro}</p>}
+        {erro && <p className="text-xs text-danger">{erro}</p>}
 
         {itensExibidos.length === 0 ? (
-          <p className="text-sm text-zinc-500 py-4 text-center">
+          <p className="text-sm text-text-muted py-4 text-center">
             {searchTerm.trim() ? `Nenhum resultado para "${searchTerm.trim()}".` : 'Nenhum item cadastrado ainda.'}
           </p>
         ) : (
@@ -159,7 +170,7 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
             {itensExibidos.map((item) => (
               <div
                 key={item.id}
-                className={cn('flex items-center justify-between gap-2 px-3 py-2 rounded-xl', theme === 'dark' ? 'hover:bg-zinc-800/40' : 'hover:bg-zinc-50')}
+                className={cn('flex items-center justify-between gap-2 px-3 py-2.5 sm:py-2 rounded-xl', 'hover:bg-surface-raised')}
               >
                 {editandoId === item.id ? (
                   <>
@@ -171,27 +182,41 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
                         if (e.key === 'Enter') salvarEdicao(item.id);
                         if (e.key === 'Escape') setEditandoId(null);
                       }}
-                      className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', theme === 'dark' ? 'bg-zinc-950 border-violet-500/50 text-zinc-200' : 'bg-white border-violet-400')}
+                      className={cn('flex-1 border rounded-lg py-1.5 px-3 text-sm outline-none', 'bg-surface-inset border-accent/50 text-text-primary')}
                     />
-                    <button onClick={() => salvarEdicao(item.id)} className="p-1.5 rounded-lg text-emerald-500 hover:bg-emerald-500/10">
+                    <Button variant="ghost" size="icon" onClick={() => salvarEdicao(item.id)} className="size-9 sm:size-7 rounded-lg text-positive hover:text-positive hover:bg-positive/10">
                       <Check size={14} />
-                    </button>
-                    <button onClick={() => setEditandoId(null)} className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-800/50">
+                    </Button>
+                    <Button variant="ghost" size="icon" onClick={() => setEditandoId(null)} className="size-9 sm:size-7 rounded-lg text-text-muted">
                       <X size={14} />
-                    </button>
+                    </Button>
                   </>
                 ) : (
                   <>
-                    <span className={cn('text-sm font-medium truncate', theme === 'dark' ? 'text-zinc-200' : 'text-zinc-700')}>{item.nome}</span>
+                    <span className={cn('text-sm font-medium truncate', 'text-text-primary')}>{item.nome}</span>
                     <div className="flex items-center gap-1 shrink-0">
-                      {onRenomear && (
-                        <button onClick={() => iniciarEdicao(item)} className="p-1.5 rounded-lg text-zinc-500 hover:text-violet-500 hover:bg-violet-500/10 transition-colors">
-                          <Pencil size={13} />
+                      {toggle && (
+                        <button
+                          onClick={() => toggle.onAlternar(item)}
+                          title={toggle.rotulo}
+                          className={cn(
+                            'px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-colors',
+                            toggle.ativo(item)
+                              ? 'bg-warning/15 text-warning'
+                              : 'bg-surface-raised text-text-muted hover:text-text-secondary'
+                          )}
+                        >
+                          {toggle.rotulo}
                         </button>
                       )}
-                      <button onClick={() => setItemParaExcluir(item)} className="p-1.5 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors">
+                      {onRenomear && (
+                        <Button variant="ghost" size="icon" onClick={() => iniciarEdicao(item)} className="size-9 sm:size-7 rounded-lg text-text-muted hover:text-accent hover:bg-accent/10">
+                          <Pencil size={13} />
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" onClick={() => setItemParaExcluir(item)} className="size-9 sm:size-7 rounded-lg text-text-muted hover:text-danger hover:bg-danger/10">
                         <Trash2 size={13} />
-                      </button>
+                      </Button>
                     </div>
                   </>
                 )}
@@ -201,31 +226,36 @@ export function ManageListSection({ theme, titulo, icone: Icone, itens, onCriar,
         )}
       </div>
 
-      <AnimatePresence>
-        {itemParaExcluir && (
-          <div className="fixed inset-0 z-[3000] bg-black/70 backdrop-blur-sm flex items-center justify-center p-4">
-            <motion.div initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }} className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}>
-              <h3 className="text-lg font-black mb-2">Excluir "{itemParaExcluir.nome}"?</h3>
-              <p className="text-sm text-zinc-500 mb-4">Essa ação não pode ser desfeita.</p>
-              {erroExclusao && <p className="text-xs text-rose-500 mb-4">{erroExclusao}</p>}
-              <div className="flex gap-3">
-                <button
-                  onClick={() => {
-                    setItemParaExcluir(null);
-                    setErroExclusao(null);
-                  }}
-                  className="flex-1 py-3 rounded-2xl font-bold text-sm bg-zinc-900 text-zinc-300"
-                >
-                  Cancelar
-                </button>
-                <button onClick={confirmarExclusao} disabled={excluindo} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600 disabled:opacity-50 flex items-center justify-center gap-2">
-                  {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
-                </button>
-              </div>
-            </motion.div>
+      <Modal
+        aberto={!!itemParaExcluir}
+        onFechar={() => {
+          setItemParaExcluir(null);
+          setErroExclusao(null);
+        }}
+        titulo={itemParaExcluir ? `Excluir "${itemParaExcluir.nome}"?` : 'Excluir?'}
+        icone={Trash2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setItemParaExcluir(null);
+                setErroExclusao(null);
+              }}
+              className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm"
+            >
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={confirmarExclusao} disabled={excluindo} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
+              {excluindo ? <Loader2 size={16} className="animate-spin" /> : 'Excluir'}
+            </Button>
           </div>
-        )}
-      </AnimatePresence>
+        }
+      >
+        <p className="text-sm text-text-muted">Essa ação não pode ser desfeita.</p>
+        {erroExclusao && <p className="text-xs text-danger mt-3">{erroExclusao}</p>}
+      </Modal>
     </div>
   );
 }

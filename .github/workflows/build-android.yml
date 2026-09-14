@@ -6,11 +6,17 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    # `secrets` não pode ser lido direto num `if:` de step (não é um
+    # contexto disponível ali) — espelha pra uma env de job, que os steps
+    # já conseguem checar em `if: env.X != ''`.
+    env:
+      CAPGO_API_KEY: ${{ secrets.CAPGO_API_KEY }}
+      ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
 
     steps:
       - name: Checkout code
@@ -44,39 +50,35 @@ jobs:
             npx cap add android
           fi
 
-      - name: Create google-services.json
+      # Credencial real do projeto Firebase dedicado (Cloud Messaging) — vem
+      # de secret, nunca fica versionada. Sem esse secret configurado, o
+      # arquivo fica vazio e o build do Android segue normal (o
+      # build.gradle já trata google-services.json ausente/vazio sem quebrar,
+      # só o push nativo FCM que não funciona até isso ser configurado).
+      - name: Write google-services.json
+        env:
+          GOOGLE_SERVICES_JSON: ${{ secrets.GOOGLE_SERVICES_JSON }}
         run: |
           mkdir -p android/app
-          cat > android/app/google-services.json << 'EOF'
-          {
-            "project_info": {
-              "project_number": "987595911324",
-              "project_id": "gen-lang-client-0969674405",
-              "storage_bucket": "gen-lang-client-0969674405.firebasestorage.app"
-            },
-            "client": [
-              {
-                "client_info": {
-                  "mobilesdk_app_id": "1:987595911324:web:d45ad88174ddf2711abd59",
-                  "android_client_info": {
-                    "package_name": "com.rksucatas.app"
-                  }
-                },
-                "oauth_client": [],
-                "api_key": [
-                  {
-                    "current_key": "AIzaSyDnKbxxwb1cs5MBEOIu7WcaKwKA2I5Iit4"
-                  }
-                ],
-                "services": {
-                  "appinvite_service": {
-                    "other_platform_oauth_client": []
-                  }
-                }
-              }
-            ]
-          }
-          EOF
+          printf '%s' "$GOOGLE_SERVICES_JSON" > android/app/google-services.json
+
+      # Chave de assinatura de release própria e estável (ver comentário em
+      # android/app/build.gradle) — sem secret configurado, o step é pulado e
+      # o build gradle abaixo segue sem signingConfig (gera um APK de release
+      # sem assinatura, só pra não quebrar builds de fork/PR sem os secrets).
+      - name: Write release keystore
+        if: ${{ env.ANDROID_KEYSTORE_BASE64 != '' }}
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          mkdir -p android/app
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/app/rk-sucatas-release.keystore
+          cat > android/keystore.properties <<PROPS
+          storeFile=app/rk-sucatas-release.keystore
+          storePassword=$ANDROID_KEYSTORE_PASSWORD
+          keyAlias=rk-sucatas
+          keyPassword=$ANDROID_KEYSTORE_PASSWORD
+          PROPS
 
       - name: Sync Capacitor
         run: npx cap sync android
@@ -85,16 +87,58 @@ jobs:
         run: |
           cd android
           chmod +x gradlew
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleRelease --stacktrace
 
       - name: Verify APK output
-        run: |
-          test -f android/app/build/outputs/apk/debug/app-debug.apk
+        run: test -f android/app/build/outputs/apk/release/app-release.apk
 
-      - name: Upload APK
+      # Release fixa (mesma tag sempre) com o APK mais recente — link estável
+      # pra instalar/reinstalar, em vez de depender do artifact do Actions
+      # (expira em 30 dias e exige estar logado no GitHub).
+      - name: Publish latest APK (GitHub Release)
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: apk-latest
+          name: APK mais recente
+          body: |
+            Build automático a partir do commit ${{ github.sha }}.
+
+            Reinstale este APK só quando a mudança envolver código nativo (novo plugin Capacitor, nova permissão, etc). Mudanças só de tela/JS chegam sozinhas no app já instalado via atualização automática (Capgo).
+          files: android/app/build/outputs/apk/release/app-release.apk
+
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: rk-sucatas-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: error
           retention-days: 30
+
+      # Publica o bundle web (JS/CSS/assets) pro Capgo — apps já instalados
+      # baixam essa atualização sozinhos em background (CapacitorUpdater com
+      # autoUpdate:true, ver capacitor.config.ts) sem precisar reinstalar o
+      # APK. Só cobre mudança de JS/tela: mudança em código nativo (plugin
+      # novo, permissão nova, etc.) exige reinstalar o APK publicado acima.
+      #
+      # Versão do bundle = versão do package.json + número do run (ex:
+      # "1.3.0-42"). Isso é ESSENCIAL: o Capgo recusa reenviar uma versão que
+      # já existe, e a estratégia padrão do canal ('none') entrega sempre o
+      # ÚLTIMO bundle enviado. Antes o comando reusava só a versão do
+      # package.json, então esquecer de bumpá-la fazia todo push reenviar o
+      # mesmo número, o Capgo rejeitar como duplicado e o canal congelar no
+      # último bundle aceito — os apps instalados paravam de atualizar sem
+      # ninguém perceber. O sufixo do run garante um bundle único por build.
+      #
+      # É o ÚLTIMO passo e SEM continue-on-error de propósito: o APK/artifact
+      # já foram publicados acima, então uma falha aqui não bloqueia o
+      # release, mas marca o run como vermelho — falha de OTA fica visível em
+      # vez de ser engolida em silêncio.
+      - name: Publish OTA update (Capgo)
+        if: ${{ env.CAPGO_API_KEY != '' }}
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          npx @capgo/cli@latest bundle upload com.rksucatas.app \
+            --path ./dist \
+            --channel production \
+            --bundle "${PKG_VERSION}-${GITHUB_RUN_NUMBER}" \
+            --apikey "$CAPGO_API_KEY"

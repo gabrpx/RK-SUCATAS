@@ -1,8 +1,13 @@
 // Aba Caixa: livro de entradas e saídas. Entradas geradas por uma venda
 // (venda_id preenchido) são somente leitura aqui — pra reverter, cancela a
 // venda na aba Vendas. Lançamentos manuais (despesas, retiradas, etc.) são
-// criados/editados/excluídos direto por aqui.
-import { useMemo, useState } from 'react';
+// criados/editados/excluídos direto por aqui. Exceção: o VALOR de um
+// lançamento vindo de uma venda do Mercado Livre pode ser editado na mão —
+// é a saída pra quando a correção automática de taxa (tela do Mercado Livre)
+// não consegue recuperar a comissão de um pedido antigo/inacessível na API.
+import { useEffect, useMemo, useState } from 'react';
+import { flexRender, getCoreRowModel, getSortedRowModel, useReactTable } from '@tanstack/react-table';
+import type { Column, ColumnDef, SortingState } from '@tanstack/react-table';
 import {
   Wallet,
   Plus,
@@ -13,17 +18,25 @@ import {
   Loader2,
   Search,
   Link2,
-  X,
   Calendar,
   Eye,
   EyeOff,
+  ChevronDown,
+  Pencil,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
 import { cn, parseLocalDate } from '../../utils';
 import { useData } from '../../context/DataContext';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { CustomDropdown } from '../../components/CustomDropdown';
-import { caixaApi } from './api';
+import { Modal } from '../../components/ui/Modal';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { aviso } from '../../components/ui/toast';
+import { Button } from '@/src/components/ui/button';
+import { caixaApi, caixaPendenciasApi } from './api';
+import { PendenciasUnificadasTab } from './PendenciasUnificadasTab';
+import { SeletorCliente } from '../clientes/SeletorCliente';
+import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
+import { usePermissao } from '../../hooks/usePermissao';
 import type { CaixaEntry, CaixaTipo } from './types';
 
 const formatCurrency = (value: number) =>
@@ -46,14 +59,43 @@ function isDentroDoPeriodo(dataStr: string, periodo: PeriodoFiltro): boolean {
   return true;
 }
 
-export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
-  const { caixa, setCaixa, showSensitiveInfo, setShowSensitiveInfo } = useData();
+// Cabeçalho clicável reaproveitado pelas colunas Data/Forma de pagamento/Valor.
+function SortableHead({ column, label, align }: { column: Column<CaixaEntry, unknown>; label: string; align?: 'right' }) {
+  const ordenado = column.getIsSorted();
+  return (
+    <button
+      type="button"
+      onClick={column.getToggleSortingHandler()}
+      className={cn('inline-flex items-center gap-1 hover:text-accent-soft-fg transition-colors', align === 'right' && 'flex-row-reverse', ordenado && 'text-accent-soft-fg')}
+    >
+      {label}
+      <ChevronDown size={10} className={cn('transition-transform', ordenado ? 'opacity-100' : 'opacity-0', ordenado === 'asc' && 'rotate-180')} />
+    </button>
+  );
+}
+
+export function CaixaView({ pendingFiado, setPendingFiado }: { pendingFiado?: boolean; setPendingFiado?: (v: boolean) => void }) {
+  const { caixa, setCaixa, vendas, showSensitiveInfo, setShowSensitiveInfo } = useData();
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState('');
   const [tipoFiltro, setTipoFiltro] = useState<'todos' | CaixaTipo>('todos');
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [entryToDelete, setEntryToDelete] = useState<CaixaEntry | null>(null);
+  const [entryToEdit, setEntryToEdit] = useState<CaixaEntry | null>(null);
+  const [aba, setAba] = useState<'lancamentos' | 'pendencias'>('lancamentos');
+
+  // Ids de venda do canal Mercado Livre — só o VALOR de um lançamento ligado
+  // a uma dessas fica editável aqui (ver comentário de cabeçalho do arquivo).
+  const vendaIdsMercadoLivre = useMemo(() => new Set(vendas.filter((v) => v.canal === 'mercado_livre').map((v) => v.id)), [vendas]);
+  const podeEditarValor = (entry: CaixaEntry) => !!entry.venda_id && vendaIdsMercadoLivre.has(entry.venda_id);
+
+  useEffect(() => {
+    if (!pendingFiado) return;
+    setAba('pendencias');
+    setPendingFiado?.(false);
+  }, [pendingFiado, setPendingFiado]);
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   const filtered = useMemo(() => {
     return caixa
@@ -63,83 +105,201 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
       .sort((a, b) => parseLocalDate(b.data).getTime() - parseLocalDate(a.data).getTime());
   }, [caixa, tipoFiltro, periodo, search]);
 
+  // Sobre `filtered`, não sobre o que a ordenação de coluna da tabela
+  // reordenou — o total precisa continuar batendo com "esse recorte de
+  // período/tipo/busca", independente de qual coluna a pessoa clicou.
   const totals = useMemo(() => {
     const entradas = filtered.filter((e) => e.tipo === 'entrada').reduce((sum, e) => sum + Number(e.valor), 0);
     const saidas = filtered.filter((e) => e.tipo === 'saida').reduce((sum, e) => sum + Number(e.valor), 0);
     return { entradas, saidas, saldo: entradas - saidas };
   }, [filtered]);
 
+  const columns = useMemo<ColumnDef<CaixaEntry>[]>(
+    () => [
+      {
+        id: 'descricao',
+        accessorFn: (e) => e.descricao,
+        header: 'Lançamento',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const entry = row.original;
+          return (
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={cn(
+                  'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                  entry.tipo === 'entrada' ? 'bg-positive/10 text-positive' : 'bg-negative/10 text-negative'
+                )}
+              >
+                {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+              </div>
+              <div className="min-w-0">
+                <p className="font-bold text-sm truncate text-text-primary">{entry.descricao}</p>
+                {entry.venda_id && (
+                  <p className="text-xs text-accent flex items-center gap-1">
+                    <Link2 size={11} /> venda
+                  </p>
+                )}
+              </div>
+            </div>
+          );
+        },
+      },
+      {
+        id: 'data',
+        accessorFn: (e) => parseLocalDate(e.data).getTime(),
+        header: ({ column }) => <SortableHead column={column} label="Data" />,
+        cell: ({ row }) => <span className="text-sm text-text-muted">{parseLocalDate(row.original.data).toLocaleDateString('pt-BR')}</span>,
+      },
+      {
+        id: 'forma_pagamento',
+        accessorFn: (e) => e.forma_pagamento?.nome ?? '',
+        header: ({ column }) => <SortableHead column={column} label="Forma de pagamento" />,
+        cell: ({ row }) => <span className="text-sm text-text-muted">{row.original.forma_pagamento?.nome ?? '—'}</span>,
+      },
+      {
+        id: 'valor',
+        accessorFn: (e) => e.valor,
+        header: ({ column }) => <SortableHead column={column} label="Valor" align="right" />,
+        cell: ({ row }) => {
+          const entry = row.original;
+          return (
+            <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-positive' : 'text-negative')}>
+              {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
+            </span>
+          );
+        },
+      },
+      {
+        id: 'acoes',
+        header: '',
+        enableSorting: false,
+        cell: ({ row }) => {
+          const entry = row.original;
+          if (!entry.venda_id) {
+            return (
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => setEntryToDelete(entry)}
+                className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
+              >
+                <Trash2 size={14} />
+              </Button>
+            );
+          }
+          return podeEditarValor(entry) ? (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={() => setEntryToEdit(entry)}
+              title="Corrigir valor recebido (venda do Mercado Livre)"
+              className="size-8 rounded-lg text-text-muted hover:text-accent hover:bg-accent-soft-bg"
+            >
+              <Pencil size={14} />
+            </Button>
+          ) : null;
+        },
+      },
+    ],
+    [vendaIdsMercadoLivre]
+  );
+
+  const table = useReactTable<CaixaEntry>({
+    data: filtered,
+    columns,
+    state: { sorting },
+    onSortingChange: setSorting,
+    getRowId: (entry) => entry.id,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  });
+
   const handleDelete = async () => {
     if (!entryToDelete) return;
-    const id = entryToDelete.id;
-    setCaixa((prev) => prev.filter((e) => e.id !== id));
+    const entrada = entryToDelete;
+    setCaixa((prev) => prev.filter((e) => e.id !== entrada.id));
     setEntryToDelete(null);
     try {
-      const result = await caixaApi.excluir(id);
+      const result = await caixaApi.excluir(entrada.id);
       if (!result.success) throw new Error(result.error);
-    } catch (err) {
-      console.error('Erro ao excluir lançamento:', err);
+    } catch (err: any) {
+      // Backend recusa (409) lançamento vinculado a um recebimento de fiado —
+      // sem isso a linha sumia da tela mesmo sem ter sido excluída de verdade.
+      setCaixa((prev) => (prev.some((e) => e.id === entrada.id) ? prev : [...prev, entrada]));
+      aviso.falha(err, 'Erro ao excluir lançamento');
     }
   };
 
-  const cardClass = cn('rounded-3xl border p-5', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200');
+  const cardClass = cn('rounded-3xl border p-5', 'bg-surface-card border-border-subtle');
 
   return (
     <div className="space-y-6 pb-24 md:pb-6">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="p-3 bg-emerald-500/10 rounded-2xl">
-            <Wallet className="text-emerald-500" size={28} />
+          <div className="p-3 bg-accent/10 rounded-2xl">
+            <Wallet className="text-accent" size={28} />
           </div>
           <div>
-            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Caixa</h2>
-            <p className={cn('text-sm', theme === 'dark' ? 'text-zinc-500' : 'text-zinc-500')}>Entradas e saídas financeiras</p>
+            <h2 className={cn('text-2xl md:text-3xl font-black tracking-tight', 'text-text-primary')}>Caixa</h2>
+            <p className={cn('text-sm', 'text-text-muted')}>Entradas e saídas financeiras</p>
           </div>
         </div>
-        <button
+        <Button
           onClick={() => setIsModalOpen(true)}
-          className="flex items-center justify-center gap-2 bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest transition-all shadow-lg shadow-emerald-500/20"
+          className="h-auto px-5 py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
         >
           <Plus size={18} /> Novo Lançamento
-        </button>
+        </Button>
       </div>
 
+      <Tabs value={aba} onValueChange={(v) => setAba(v as typeof aba)}>
+        <TabsList className="h-11 sm:h-9 items-stretch border-border-default">
+          <TabsTrigger value="lancamentos" className="text-xs font-semibold px-4">Lançamentos</TabsTrigger>
+          <TabsTrigger value="pendencias" className="text-xs font-semibold px-4">Pendências</TabsTrigger>
+        </TabsList>
+      </Tabs>
+
+      {aba === 'pendencias' ? (
+        <PendenciasUnificadasTab />
+      ) : (
+        <>
       {/* Totais */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className={cardClass}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Entradas</span>
-            <TrendingUp size={16} className="text-emerald-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Entradas</span>
+            <TrendingUp size={16} className="text-positive" />
           </div>
-          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-emerald-500' : 'blur-md select-none text-emerald-500')}>
+          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-positive' : 'blur-md select-none text-positive')}>
             {formatCurrency(totals.entradas)}
           </p>
         </div>
         <div className={cardClass}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saídas</span>
-            <TrendingDown size={16} className="text-rose-500" />
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Saídas</span>
+            <TrendingDown size={16} className="text-negative" />
           </div>
-          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-rose-500' : 'blur-md select-none text-rose-500')}>
+          <p className={cn('text-2xl font-black', showSensitiveInfo ? 'text-negative' : 'blur-md select-none text-negative')}>
             {formatCurrency(totals.saidas)}
           </p>
         </div>
         <div className={cardClass}>
           <div className="flex items-center justify-between mb-2">
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Saldo</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-text-muted">Saldo</span>
             <div className="flex items-center gap-2">
-              <button onClick={() => setShowSensitiveInfo((v) => !v)} className="text-zinc-500 hover:text-zinc-300">
+              <Button variant="ghost" size="icon" onClick={() => setShowSensitiveInfo((v) => !v)} className="size-6 text-text-muted hover:text-text-secondary">
                 {showSensitiveInfo ? <Eye size={14} /> : <EyeOff size={14} />}
-              </button>
-              <Scale size={16} className={theme === 'dark' ? 'text-zinc-400' : 'text-zinc-500'} />
+              </Button>
+              <Scale size={16} className={'text-text-muted'} />
             </div>
           </div>
           <p
             className={cn(
               'text-2xl font-black',
               !showSensitiveInfo && 'blur-md select-none',
-              totals.saldo >= 0 ? 'text-emerald-500' : 'text-rose-500'
+              totals.saldo >= 0 ? 'text-positive' : 'text-negative'
             )}
           >
             {formatCurrency(totals.saldo)}
@@ -149,8 +309,8 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
 
       {/* Filtros */}
       <div className="flex flex-col md:flex-row gap-3 md:items-center">
-        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', theme === 'dark' ? 'bg-zinc-900 border-zinc-800' : 'bg-white border-zinc-200')}>
-          <Search size={16} className="text-zinc-500 shrink-0" />
+        <div className={cn('flex-1 flex items-center gap-2 px-4 py-2.5 rounded-xl border', 'bg-surface-inset border-border-default')}>
+          <Search size={16} className="text-text-muted shrink-0" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -159,7 +319,6 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
           />
         </div>
         <CustomDropdown
-          theme={theme}
           variant="pill"
           icon={<Calendar size={14} />}
           value={periodo}
@@ -173,7 +332,6 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
           ]}
         />
         <CustomDropdown
-          theme={theme}
           variant="pill"
           value={tipoFiltro}
           onChange={(v) => setTipoFiltro(v as 'todos' | CaixaTipo)}
@@ -186,117 +344,233 @@ export function CaixaView({ theme }: { theme: 'light' | 'dark' }) {
       </div>
 
       {/* Lista */}
-      <div className={cn('rounded-3xl border overflow-hidden', theme === 'dark' ? 'bg-zinc-900/50 border-zinc-800' : 'bg-white border-zinc-200')}>
-        {filtered.length === 0 ? (
-          <div className="p-12 text-center text-zinc-500 text-sm">Nenhum lançamento encontrado para este filtro.</div>
+      <div className={cn('rounded-3xl border overflow-hidden', 'bg-surface-card border-border-subtle')}>
+        {table.getRowModel().rows.length === 0 ? (
+          <div className="p-12 text-center text-text-muted text-sm">Nenhum lançamento encontrado para este filtro.</div>
         ) : (
-          <div className="divide-y divide-zinc-800/50">
-            {filtered.map((entry) => (
-              <div key={entry.id} className="flex items-center justify-between gap-4 px-5 py-4 hover:bg-zinc-800/20 transition-colors">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={cn(
-                      'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
-                      entry.tipo === 'entrada' ? 'bg-emerald-500/10 text-emerald-500' : 'bg-rose-500/10 text-rose-500'
-                    )}
-                  >
-                    {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
-                  </div>
-                  <div className="min-w-0">
-                    <p className={cn('font-bold text-sm truncate', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>{entry.descricao}</p>
-                    <p className="text-xs text-zinc-500 flex items-center gap-2">
-                      {parseLocalDate(entry.data).toLocaleDateString('pt-BR')}
-                      {entry.forma_pagamento && <span>· {entry.forma_pagamento.nome}</span>}
-                      {entry.venda_id && (
-                        <span className="flex items-center gap-1 text-violet-400">
-                          <Link2 size={11} /> venda
-                        </span>
+          <>
+            <div className="overflow-x-auto hidden md:block">
+              <Table>
+                <TableHeader>
+                  {table.getHeaderGroups().map((headerGroup) => (
+                    <TableRow key={headerGroup.id} className="border-b border-border-subtle hover:bg-transparent">
+                      {headerGroup.headers.map((header) => (
+                        <TableHead
+                          key={header.id}
+                          className={cn(
+                            'h-auto px-5 py-3 text-[10px] font-semibold uppercase tracking-wide text-text-muted',
+                            header.column.id === 'valor' && 'text-right'
+                          )}
+                        >
+                          {header.isPlaceholder ? null : flexRender(header.column.columnDef.header, header.getContext())}
+                        </TableHead>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableHeader>
+                <TableBody>
+                  {table.getRowModel().rows.map((row) => (
+                    <TableRow key={row.id} className="border-b border-border-subtle last:border-b-0">
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell
+                          key={cell.id}
+                          className={cn('px-5 py-3 whitespace-normal', cell.column.id === 'valor' && 'text-right', cell.column.id === 'acoes' && 'w-10 px-2')}
+                        >
+                          {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+
+            <div className="md:hidden divide-y divide-border-subtle">
+              {table.getRowModel().rows.map((row) => {
+                const entry = row.original;
+                return (
+                  <div key={row.id} className="flex items-center justify-between gap-4 px-5 py-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div
+                        className={cn(
+                          'w-9 h-9 rounded-xl flex items-center justify-center shrink-0',
+                          entry.tipo === 'entrada' ? 'bg-positive/10 text-positive' : 'bg-negative/10 text-negative'
+                        )}
+                      >
+                        {entry.tipo === 'entrada' ? <TrendingUp size={16} /> : <TrendingDown size={16} />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className={cn('font-bold text-sm truncate', 'text-text-primary')}>{entry.descricao}</p>
+                        <p className="text-xs text-text-muted flex items-center gap-2">
+                          {parseLocalDate(entry.data).toLocaleDateString('pt-BR')}
+                          {entry.forma_pagamento && <span>· {entry.forma_pagamento.nome}</span>}
+                          {entry.venda_id && (
+                            <span className="flex items-center gap-1 text-accent">
+                              <Link2 size={11} /> venda
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3 shrink-0">
+                      <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-positive' : 'text-negative')}>
+                        {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
+                      </span>
+                      {!entry.venda_id && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEntryToDelete(entry)}
+                          className="size-8 rounded-lg text-text-muted hover:text-danger hover:bg-danger-bg"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
                       )}
-                    </p>
+                      {podeEditarValor(entry) && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEntryToEdit(entry)}
+                          title="Corrigir valor recebido (venda do Mercado Livre)"
+                          className="size-8 rounded-lg text-text-muted hover:text-accent hover:bg-accent-soft-bg"
+                        >
+                          <Pencil size={14} />
+                        </Button>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <div className="flex items-center gap-3 shrink-0">
-                  <span className={cn('font-black text-sm', entry.tipo === 'entrada' ? 'text-emerald-500' : 'text-rose-500')}>
-                    {entry.tipo === 'entrada' ? '+' : '-'} {formatCurrency(entry.valor)}
-                  </span>
-                  {!entry.venda_id && (
-                    <button
-                      onClick={() => setEntryToDelete(entry)}
-                      className="p-2 rounded-lg text-zinc-500 hover:text-rose-500 hover:bg-rose-500/10 transition-colors"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  )}
-                </div>
-              </div>
-            ))}
-          </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </div>
+        </>
+      )}
 
-      <LancamentoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} theme={theme} loading={loading} setLoading={setLoading} />
+      <LancamentoModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} loading={loading} setLoading={setLoading} />
 
       {/* Confirmação de exclusão */}
-      <AnimatePresence>
-        {entryToDelete && (
-          <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/70 backdrop-blur-sm p-4">
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className={cn('w-full max-w-sm rounded-3xl border p-6 text-center', theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200')}
-            >
-              <div className="w-16 h-16 rounded-full bg-rose-500/10 flex items-center justify-center text-rose-500 mx-auto mb-4">
-                <Trash2 size={28} />
-              </div>
-              <h3 className={cn('text-lg font-black mb-2', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Excluir lançamento?</h3>
-              <p className="text-sm text-zinc-500 mb-6">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setEntryToDelete(null)}
-                  className={cn('flex-1 py-3 rounded-2xl font-bold text-sm', theme === 'dark' ? 'bg-zinc-900 text-zinc-300' : 'bg-zinc-100 text-zinc-700')}
-                >
-                  Cancelar
-                </button>
-                <button onClick={handleDelete} className="flex-1 py-3 rounded-2xl font-bold text-sm bg-rose-500 text-white hover:bg-rose-600">
-                  Excluir
-                </button>
-              </div>
-            </motion.div>
+      <Modal
+        aberto={!!entryToDelete}
+        onFechar={() => setEntryToDelete(null)}
+        titulo="Excluir lançamento?"
+        icone={Trash2}
+        tamanho="sm"
+        rodape={
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={() => setEntryToDelete(null)} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
+              Cancelar
+            </Button>
+            <Button variant="destructive" onClick={handleDelete} className="h-auto flex-1 py-3 rounded-2xl font-bold text-sm">
+              Excluir
+            </Button>
           </div>
-        )}
-      </AnimatePresence>
+        }
+      >
+        {entryToDelete && <p className="text-sm text-text-muted">"{entryToDelete.descricao}" será removido do caixa. Essa ação não pode ser desfeita.</p>}
+      </Modal>
+
+      <EditarValorModal entry={entryToEdit} onClose={() => setEntryToEdit(null)} />
     </div>
+  );
+}
+
+// Corrige o VALOR de um lançamento de venda do Mercado Livre — a saída
+// manual pra quando a correção automática (tela do Mercado Livre) não
+// conseguiu recuperar a taxa de um pedido antigo/inacessível na API.
+function EditarValorModal({ entry, onClose }: { entry: CaixaEntry | null; onClose: () => void }) {
+  const { setCaixa } = useData();
+  const [valor, setValor] = useState('');
+  const [salvando, setSalvando] = useState(false);
+
+  useEffect(() => {
+    if (entry) setValor(String(entry.valor));
+  }, [entry]);
+
+  const handleSalvar = async () => {
+    if (!entry || !valor || Number(valor) <= 0) return;
+    setSalvando(true);
+    try {
+      const result = await caixaApi.atualizar(entry.id, { valor: Number(valor) });
+      if (result.success) {
+        setCaixa((prev) => prev.map((e) => (e.id === entry.id ? result.data : e)));
+        onClose();
+      } else {
+        aviso.falha(result.error, 'Erro ao corrigir valor');
+      }
+    } catch (err) {
+      aviso.falha(err, 'Erro ao corrigir valor');
+    } finally {
+      setSalvando(false);
+    }
+  };
+
+  return (
+    <Modal
+      aberto={!!entry}
+      onFechar={onClose}
+      titulo="Corrigir valor recebido"
+      icone={Pencil}
+      tamanho="sm"
+      rodape={
+        <Button onClick={handleSalvar} disabled={salvando || !valor || Number(valor) <= 0} className="h-auto w-full py-3 rounded-2xl font-bold text-sm">
+          {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
+        </Button>
+      }
+    >
+      {entry && (
+        <div className="space-y-4">
+          <p className="text-sm text-text-muted">
+            "{entry.descricao}" veio de uma venda do Mercado Livre. Ajuste aqui só quando a correção automática da taxa não conseguiu recuperar o valor certo
+            — o preço da peça em Vendas não muda.
+          </p>
+          <div>
+            <label className="text-xs font-bold uppercase tracking-wider mb-1.5 block text-text-muted">Valor recebido (R$)</label>
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={valor}
+              onChange={(e) => setValor(e.target.value)}
+              className="w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary"
+            />
+          </div>
+        </div>
+      )}
+    </Modal>
   );
 }
 
 function LancamentoModal({
   isOpen,
   onClose,
-  theme,
   loading,
   setLoading,
 }: {
   isOpen: boolean;
   onClose: () => void;
-  theme: 'light' | 'dark';
   loading: boolean;
   setLoading: (v: boolean) => void;
 }) {
-  const { setCaixa } = useData();
+  const { setCaixa, setCaixaPendencias } = useData();
   const { formasPagamento } = useCatalogos();
-  const [tipo, setTipo] = useState<CaixaTipo>('saida');
+  const [modo, setModo] = useState<CaixaTipo | 'pendencia'>('saida');
   const [descricao, setDescricao] = useState('');
   const [valor, setValor] = useState('');
   const [formaPagamentoId, setFormaPagamentoId] = useState('');
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [clienteId, setClienteId] = useState<string | null>(null);
+  const [clienteNomeTexto, setClienteNomeTexto] = useState('');
 
   const reset = () => {
-    setTipo('saida');
+    setModo('saida');
     setDescricao('');
     setValor('');
     setFormaPagamentoId('');
     setData(new Date().toISOString().slice(0, 10));
+    setClienteId(null);
+    setClienteNomeTexto('');
   };
 
   const handleClose = () => {
@@ -308,16 +582,27 @@ function LancamentoModal({
     if (!descricao.trim() || !valor || Number(valor) <= 0) return;
     setLoading(true);
     try {
-      const result = await caixaApi.lancar({
-        tipo,
-        descricao: descricao.trim(),
-        valor: Number(valor),
-        forma_pagamento_id: formaPagamentoId || null,
-        data,
-      });
-      if (result.success) {
-        setCaixa((prev) => [result.data, ...prev]);
-        handleClose();
+      if (modo === 'pendencia') {
+        // "Fiado/Pendência" é sempre um valor a RECEBER no futuro — não
+        // lança em `caixa` agora, só quando um recebimento for confirmado
+        // na sub-aba Pendências (ver migration_041).
+        const result = await caixaPendenciasApi.criar({ descricao: descricao.trim(), valor_total: Number(valor), data, cliente_id: clienteId });
+        if (result.success) {
+          setCaixaPendencias((prev) => [result.data, ...prev]);
+          handleClose();
+        }
+      } else {
+        const result = await caixaApi.lancar({
+          tipo: modo,
+          descricao: descricao.trim(),
+          valor: Number(valor),
+          forma_pagamento_id: formaPagamentoId || null,
+          data,
+        });
+        if (result.success) {
+          setCaixa((prev) => [result.data, ...prev]);
+          handleClose();
+        }
       }
     } catch (err) {
       console.error('Erro ao lançar no caixa:', err);
@@ -327,80 +612,93 @@ function LancamentoModal({
   };
 
   const inputClass = cn(
-    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-violet-500/50',
-    theme === 'dark' ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : 'bg-white border-zinc-200 text-zinc-900'
+    'w-full border rounded-xl py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50',
+    'bg-surface-inset border-border-default text-text-primary'
   );
-  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', theme === 'dark' ? 'text-zinc-400' : 'text-zinc-600');
-
-  if (!isOpen) return null;
+  const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   return (
-    <div className="fixed inset-0 z-[2000] flex items-end md:items-center justify-center bg-black/70 backdrop-blur-sm">
-      <motion.div
-        initial={{ y: '100%', opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
-        exit={{ y: '100%', opacity: 0 }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-        className={cn(
-          'w-full md:max-w-md rounded-t-[2.5rem] md:rounded-[2.5rem] border p-6 md:p-8 max-h-[90vh] overflow-y-auto',
-          theme === 'dark' ? 'bg-zinc-950 border-zinc-800' : 'bg-white border-zinc-200'
-        )}
-      >
-        <div className="md:hidden w-full flex justify-center -mt-2 mb-4">
-          <div className="w-12 h-1.5 rounded-full bg-zinc-800" />
-        </div>
-
-        <div className="flex items-center justify-between mb-6">
-          <h3 className={cn('text-xl font-black', theme === 'dark' ? 'text-white' : 'text-zinc-900')}>Novo Lançamento</h3>
-          <button onClick={handleClose} className="p-2 rounded-full text-zinc-500 hover:bg-zinc-800/50">
-            <X size={20} />
+    <Modal
+      aberto={isOpen}
+      onFechar={handleClose}
+      titulo="Novo Lançamento"
+      tamanho="md"
+      rodape={
+        <Button
+          onClick={handleSubmit}
+          disabled={loading || !descricao.trim() || !valor}
+          className="h-auto w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow"
+        >
+          {loading ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Lançamento'}
+        </Button>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-3">
+          <button
+            type="button"
+            onClick={() => setModo('entrada')}
+            className={cn(
+              'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+              modo === 'entrada' ? 'bg-positive border-positive text-surface-page' : 'border-border-default text-text-muted'
+            )}
+          >
+            Entrada
+          </button>
+          <button
+            type="button"
+            onClick={() => setModo('saida')}
+            className={cn(
+              'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+              modo === 'saida' ? 'bg-negative border-negative text-surface-page' : 'border-border-default text-text-muted'
+            )}
+          >
+            Saída
+          </button>
+          <button
+            type="button"
+            onClick={() => setModo('pendencia')}
+            className={cn(
+              'py-3 rounded-xl font-black text-[11px] uppercase tracking-wider border transition-all',
+              modo === 'pendencia' ? 'bg-warning border-warning text-surface-page' : 'border-border-default text-text-muted'
+            )}
+          >
+            Fiado/Pendência
           </button>
         </div>
 
-        <div className="space-y-4">
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              type="button"
-              onClick={() => setTipo('entrada')}
-              className={cn(
-                'py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all',
-                tipo === 'entrada' ? 'bg-emerald-500 border-emerald-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
-              )}
-            >
-              Entrada
-            </button>
-            <button
-              type="button"
-              onClick={() => setTipo('saida')}
-              className={cn(
-                'py-3 rounded-xl font-black text-xs uppercase tracking-widest border transition-all',
-                tipo === 'saida' ? 'bg-rose-500 border-rose-500 text-white' : theme === 'dark' ? 'border-zinc-800 text-zinc-400' : 'border-zinc-200 text-zinc-500'
-              )}
-            >
-              Saída
-            </button>
-          </div>
+        <div>
+          <label className={labelClass}>Descrição</label>
+          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: Conta de luz, retirada..." className={inputClass} />
+        </div>
 
+        <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className={labelClass}>Descrição</label>
-            <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex: Conta de luz, retirada..." className={inputClass} />
+            <label className={labelClass}>Valor (R$)</label>
+            <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" className={inputClass} />
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Valor (R$)</label>
-              <input type="number" min="0" step="0.01" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" className={inputClass} />
-            </div>
-            <div>
-              <label className={labelClass}>Data</label>
-              <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass} />
-            </div>
+          <div>
+            <label className={labelClass}>Data</label>
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputClass} />
           </div>
+        </div>
 
+        {modo === 'pendencia' ? (
+          <div className="space-y-4">
+            <SeletorCliente
+              clienteId={clienteId}
+              nome={clienteNomeTexto}
+              onChange={(id, nome) => { setClienteId(id); setClienteNomeTexto(nome); }}
+              placeholder="Vincular cliente (opcional)"
+            />
+            <p className={cn('text-xs rounded-xl px-4 py-3', 'bg-surface-card text-text-secondary')}>
+              Não lança no saldo do Caixa agora — só quando o recebimento for confirmado na sub-aba "Pendências", com a forma de pagamento real usada na hora.
+            </p>
+          </div>
+        ) : (
           <div>
             <label className={labelClass}>Forma de pagamento (opcional)</label>
             <CustomDropdown
-              theme={theme}
               variant="form"
               value={formaPagamentoId}
               onChange={setFormaPagamentoId}
@@ -408,16 +706,8 @@ function LancamentoModal({
               options={formasPagamento.map((p) => ({ value: p.id, label: p.nome }))}
             />
           </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={loading || !descricao.trim() || !valor}
-            className="w-full bg-emerald-500 hover:bg-emerald-600 disabled:opacity-50 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] transition-all shadow-lg shadow-emerald-500/20 flex items-center justify-center gap-2 mt-2"
-          >
-            {loading ? <Loader2 size={18} className="animate-spin" /> : 'Salvar Lançamento'}
-          </button>
-        </div>
-      </motion.div>
-    </div>
+        )}
+      </div>
+    </Modal>
   );
 }

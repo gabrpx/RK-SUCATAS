@@ -17,7 +17,7 @@ export function NotaCadastroBadge({ value, size = 'md' }: { value: NotaCadastro 
       className={cn(
         'inline-flex items-center gap-1 rounded-full font-black uppercase tracking-wide border shrink-0',
         size === 'sm' ? 'text-[9px] px-2 py-0.5' : 'text-[10px] px-2 py-1',
-        isCom ? 'bg-sky-500/10 text-sky-500 border-sky-500/30' : 'bg-rose-500/10 text-rose-500 border-rose-500/30'
+        isCom ? 'bg-positive/10 text-positive border-positive/30' : 'bg-danger/10 text-danger border-danger/30'
       )}
     >
       <Icon size={size === 'sm' ? 9 : 11} strokeWidth={3} />

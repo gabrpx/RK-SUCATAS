@@ -1,7 +1,9 @@
 import { Capacitor } from '@capacitor/core';
 
-const PROD_URL = 'https://rk-sucatas-987595911324.southamerica-east1.run.app';
-const BASE_URL = Capacitor.isNativePlatform() ? PROD_URL : '';
+const PROD_URL = 'https://rk-sucatas.onrender.com';
+export const BASE_URL = Capacitor.isNativePlatform() ? PROD_URL : '';
+
+const REQUEST_TIMEOUT_MS = 15 * 1000;
 
 export async function fetchWithRetry(url: string, options: any = {}, retries = 3) {
   const absoluteUrl = url.startsWith('http') ? url : `${BASE_URL}${url}`;
@@ -14,17 +16,31 @@ export async function fetchWithRetry(url: string, options: any = {}, retries = 3
   };
 
   for (let i = 0; i < retries; i++) {
+    const timeoutController = new AbortController();
+    // Conexão de celular às vezes trava a requisição sem nunca dar erro nem
+    // resposta — sem isso o app fica esperando pra sempre em vez de tentar de novo.
+    const timeoutId = setTimeout(() => timeoutController.abort(), REQUEST_TIMEOUT_MS);
+
     try {
-      const response = await fetch(absoluteUrl, { ...options, headers });
-      
+      const response = await fetch(absoluteUrl, { ...options, headers, signal: options.signal ?? timeoutController.signal });
+      clearTimeout(timeoutId);
+
       if (response.status === 401 && !url.includes('/login')) {
         localStorage.removeItem('auth_token');
         window.location.href = '/login';
         throw new Error('Sessão expirada');
       }
 
+      // Erro do lado do servidor (cold start, instabilidade) merece retentativa
+      // igual a uma falha de rede — só erro do cliente (400/403/404...) é definitivo.
+      if (response.status >= 500 && i < retries - 1) {
+        await new Promise(res => setTimeout(res, 1000 * (i + 1)));
+        continue;
+      }
+
       return response;
     } catch (err) {
+      clearTimeout(timeoutId);
       if (i === retries - 1) throw err;
       await new Promise(res => setTimeout(res, 1000 * (i + 1)));
     }
