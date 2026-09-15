@@ -19,6 +19,21 @@ const DialogClose = DialogPrimitive.Close;
 
 // O overlay captura cliques fora e fecha o dialog; stopPropagation impede
 // que o clique dentro do Content o feche também.
+
+// Camadas do Radix que abrem POR CIMA deste dialog — menus, selects, popovers
+// (todos via [data-radix-popper-content-wrapper]) e outros dialogs empilhados
+// (role="dialog") — renderizam por portal FORA do DOM deste Content. Sem esta
+// exceção, o DismissableLayer do Radix trata o foco/clique nelas como "fora" do
+// dialog e o fecha por trás — foi o que quebrava o menu de ações e o form de
+// editar unidade dentro do modal da lista de estoque. Mesmo padrão do Modal.tsx
+// (que já protegia o [data-photo-overlay] do visualizador de fotos).
+const SELETOR_CAMADA_ACIMA = '[data-radix-popper-content-wrapper],[role="dialog"],[role="menu"],[role="listbox"],[data-photo-overlay]';
+
+function alvoEmCamadaAcima(e: { target: EventTarget | null; detail?: unknown }): boolean {
+  const alvoReal = ((e as { detail?: { originalEvent?: { target?: EventTarget } } }).detail?.originalEvent?.target ?? e.target) as HTMLElement | null;
+  return Boolean(alvoReal?.closest?.(SELETOR_CAMADA_ACIMA));
+}
+
 type DialogContentProps = {
   open: boolean;
   onClose: () => void;
@@ -47,17 +62,20 @@ function DialogContent({ open, onClose, title, description, children, className 
         <DialogPrimitive.Overlay
           className="fixed inset-0 bg-overlay-scrim backdrop-blur-sm flex items-end md:items-center justify-center md:p-4"
           style={{ zIndex: 'var(--z-modal)' as unknown as number }}
-          onClick={onClose}
+          // Fecha só quando o gesto COMEÇA no próprio backdrop. Usar onClick
+          // fechava o dialog indevidamente: ao abrir um DropdownMenu modal (menu
+          // de ações das unidades) o Radix dispara um `click` sintético cujo
+          // alvo é este overlay, mesmo o pointerdown tendo ocorrido no botão
+          // dentro do Content — o modal da lista de estoque fechava sozinho.
+          // Casar pelo pointerdown no overlay ignora esse click fantasma.
+          onPointerDown={(e) => { if (e.target === e.currentTarget) onClose(); }}
         >
           <DialogPrimitive.Content
             asChild
             onClick={(e) => e.stopPropagation()}
-            onPointerDownOutside={(e) => {
-              if (interacaoPertenceASobreposicaoDoDialog(e)) e.preventDefault();
-            }}
-            onInteractOutside={(e) => {
-              if (interacaoPertenceASobreposicaoDoDialog(e)) e.preventDefault();
-            }}
+            onPointerDownOutside={(e) => { if (alvoEmCamadaAcima(e)) e.preventDefault(); }}
+            onFocusOutside={(e) => { if (alvoEmCamadaAcima(e)) e.preventDefault(); }}
+            onInteractOutside={(e) => { if (alvoEmCamadaAcima(e)) e.preventDefault(); }}
           >
             <motion.div
               initial={{ y: 16, opacity: 0, scale: 0.98 }}

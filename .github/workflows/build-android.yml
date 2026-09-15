@@ -37,6 +37,13 @@ jobs:
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
+        with:
+          # O default do action inclui o pacote legado `tools`, que o Google
+          # removeu do repositorio do SDK — sdkmanager falha com "Failed to
+          # find package 'tools'" e derruba o build inteiro. O Gradle baixa
+          # build-tools/platform por conta propria, entao so precisamos do
+          # platform-tools aqui.
+          packages: platform-tools
 
       - name: Install dependencies
         run: npm ci --no-audit --no-fund
