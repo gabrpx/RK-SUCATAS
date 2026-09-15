@@ -44,3 +44,7 @@ Entregar: resumo executivo; reprodução; causa raiz; severidade/prioridade; pro
 - [2026-09-15] Editar uma unidade deve atualizar o detalhe aberto imediatamente, sem exigir fechar e reabrir.
 - [2026-09-15] Fechar modal sobre uma tabela não pode propagar o clique para a linha que estava atrás nem deslocar a rolagem sem foco na origem.
 - [2026-09-15] Ficha individual precisa de uma visualização própria com todas as fotos, não apenas a foto de capa.
+
+## Prompt master — feedback imediato após adicionar unidade
+
+Ao implementar qualquer ação de estoque que crie ou altere uma unidade dentro de um detalhe já aberto, preserve o contexto atual e aplique a resposta persistida da API no estado local imediatamente. A nova unidade/ficha deve aparecer no mesmo modal, sem exigir fechar e reabrir. Exiba feedback de sucesso e destaque a pendência de preenchimento quando a unidade nascer em branco. Valide também loading, erro recuperável, contadores do cabeçalho, filtros ativos, rolagem e foco. O critério de aceite é: clicar em “Adicionar unidade” → a quantidade e a ficha nova aparecem no detalhe aberto após a resposta, sem navegação adicional.

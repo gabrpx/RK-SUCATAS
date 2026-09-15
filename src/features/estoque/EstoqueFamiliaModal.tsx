@@ -397,14 +397,18 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
       return;
     }
     aviso.sucesso('Unidade adicionada. Preencha a nova ficha para concluir.');
+    setLinhaAtual((atual) => atual.tipo === 'familia'
+      ? { ...atual, itens: atual.itens.map((it) => it.id === item.id ? result.data : it) }
+      : { ...atual, item: atual.item.id === item.id ? result.data : atual.item });
     onRefresh();
   }, [onRefresh]);
 
-  const handleRefreshDetalhe = useCallback((atualizacao?: { estoqueId: string; unidade?: EstoqueUnidade; removidaUnidadeId?: string }) => {
+  const handleRefreshDetalhe = useCallback((atualizacao?: { estoqueId: string; item?: Estoque; unidade?: EstoqueUnidade; removidaUnidadeId?: string }) => {
     if (atualizacao) {
       setLinhaAtual((atual) => {
         const atualizarItem = (item: Estoque): Estoque => {
           if (item.id !== atualizacao.estoqueId) return item;
+          if (atualizacao.item) return atualizacao.item;
           const unidades = item.unidades ?? [];
           const semRemovida = atualizacao.removidaUnidadeId
             ? unidades.filter((u) => u.id !== atualizacao.removidaUnidadeId)
