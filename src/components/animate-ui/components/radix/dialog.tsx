@@ -29,6 +29,17 @@ type DialogContentProps = {
   footerClassName?: string;
 };
 
+// Menus e visualizadores de foto são renderizados em portals fora do Content.
+// Sem esta exceção, o DismissableLayer do Radix os interpreta como clique
+// externo e fecha o diálogo que está por baixo antes de a ação ser concluída.
+function interacaoPertenceASobreposicaoDoDialog(event: {
+  target?: EventTarget | null;
+  detail?: { originalEvent?: { target?: EventTarget | null } };
+}) {
+  const alvoReal = (event.detail?.originalEvent?.target ?? event.target) as HTMLElement | null;
+  return Boolean(alvoReal?.closest?.('[data-photo-overlay], [data-slot="dropdown-menu-content"]'));
+}
+
 function DialogContent({ open, onClose, title, description, children, className }: DialogContentProps) {
   return (
     <DialogPrimitive.Root open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
@@ -38,7 +49,16 @@ function DialogContent({ open, onClose, title, description, children, className 
           style={{ zIndex: 'var(--z-modal)' as unknown as number }}
           onClick={onClose}
         >
-          <DialogPrimitive.Content asChild onClick={(e) => e.stopPropagation()}>
+          <DialogPrimitive.Content
+            asChild
+            onClick={(e) => e.stopPropagation()}
+            onPointerDownOutside={(e) => {
+              if (interacaoPertenceASobreposicaoDoDialog(e)) e.preventDefault();
+            }}
+            onInteractOutside={(e) => {
+              if (interacaoPertenceASobreposicaoDoDialog(e)) e.preventDefault();
+            }}
+          >
             <motion.div
               initial={{ y: 16, opacity: 0, scale: 0.98 }}
               animate={{ y: 0, opacity: 1, scale: 1 }}
