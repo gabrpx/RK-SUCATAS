@@ -1,7 +1,7 @@
 // Modal de família de peça — abre ao clicar numa linha-família ou numa linha
 // avulsa na tabela de Estoque. Mostra grupos modelo/ano com cards de unidade,
 // métricas agregadas no header e ações (Registrar unidade, Venda rápida, etc.).
-import { useState, useMemo, useCallback, type Key } from 'react';
+import { useState, useMemo, useCallback, useEffect, type Key } from 'react';
 import { Package, Search, ShoppingCart, Plus, Trash2, Pencil, Check, Move, AlertTriangle, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
@@ -85,6 +85,7 @@ interface UnidadeCardProps {
   selecionado: boolean;
   modoSelecao: boolean;
   onToggleSelecao: () => void;
+  onVerDetalhes: () => void;
   onEditar: () => void;
   onExcluir: () => void;
   onMarcarVendida: () => void;
@@ -93,6 +94,7 @@ interface UnidadeCardProps {
 function UnidadeCard({
   unidade, item, isMelhorEstado, isMelhorPreco, selecionado, modoSelecao,
   onToggleSelecao, onEditar, onExcluir, onMarcarVendida,
+  onVerDetalhes,
 }: UnidadeCardProps) {
   const foto = unidade.fotos[0] ?? null;
   const preco = unidade.valor ?? null;
@@ -109,7 +111,7 @@ function UnidadeCard({
         selecionado ? 'border-accent bg-accent-soft' : 'border-border-subtle hover:bg-surface-raised',
         vendida && 'opacity-60'
       )}
-      onClick={modoSelecao ? onToggleSelecao : undefined}
+      onClick={modoSelecao ? onToggleSelecao : onVerDetalhes}
     >
       {modoSelecao && (
         <div className={cn(
@@ -209,6 +211,7 @@ interface GrupoProps {
   selecionados: Set<string>;
   modoSelecao: boolean;
   onToggleSelecao: (id: string) => void;
+  onVerDetalhes: (u: EstoqueUnidade, item: Estoque) => void;
   onEditarUnidade: (u: EstoqueUnidade, item: Estoque) => void;
   onExcluirUnidade: (u: EstoqueUnidade, item: Estoque) => void;
   onMarcarVendida: (u: EstoqueUnidade, item: Estoque) => void;
@@ -216,7 +219,7 @@ interface GrupoProps {
 
 function GrupoModelo({
   grupo, busca, statusFiltro, avaFiltro, selecionados, modoSelecao,
-  onToggleSelecao, onEditarUnidade, onExcluirUnidade, onMarcarVendida,
+  onToggleSelecao, onVerDetalhes, onEditarUnidade, onExcluirUnidade, onMarcarVendida,
 }: GrupoProps) {
   const todasUnidades = grupo.itens.flatMap((item) =>
     (item.unidades ?? []).map((u) => ({ unidade: u, item }))
@@ -302,6 +305,7 @@ function GrupoModelo({
               selecionado={selecionados.has(unidade.id)}
               modoSelecao={modoSelecao}
               onToggleSelecao={() => onToggleSelecao(unidade.id)}
+              onVerDetalhes={() => onVerDetalhes(unidade, item)}
               onEditar={() => onEditarUnidade(unidade, item)}
               onExcluir={() => onExcluirUnidade(unidade, item)}
               onMarcarVendida={() => onMarcarVendida(unidade, item)}
@@ -323,8 +327,14 @@ export interface EstoqueFamiliaModalProps {
 }
 
 export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: EstoqueFamiliaModalProps) {
-  const itens = getItens(linha);
-  const titulo = getTitulo(linha);
+  // Mantém uma cópia viva enquanto o detalhe está aberto. O refresh global é
+  // assíncrono e a linha original da tabela não muda por referência; sem esta
+  // camada, o usuário salva e continua vendo os dados antigos até reabrir.
+  const [linhaAtual, setLinhaAtual] = useState(linha);
+  useEffect(() => setLinhaAtual(linha), [linha]);
+
+  const itens = getItens(linhaAtual);
+  const titulo = getTitulo(linhaAtual);
 
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'disponivel' | 'vendida'>('todos');
@@ -334,6 +344,7 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
   const [salvando, setSalvando] = useState(false);
   const [registrarAberto, setRegistrarAberto] = useState(false);
   const [editarUnidade, setEditarUnidade] = useState<{ u: EstoqueUnidade; item: Estoque } | null>(null);
+  const [fichaDetalhe, setFichaDetalhe] = useState<{ u: EstoqueUnidade; item: Estoque } | null>(null);
   // Mover selecionadas: null = não mostrando o seletor de destino
   const [moverDestinoAberto, setMoverDestinoAberto] = useState(false);
   const [movendoPara, setMovendoPara] = useState<string>(''); // fichaDestinoId
@@ -362,6 +373,34 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
     setEditarUnidade({ u, item });
   }, []);
 
+  const handleVerDetalhes = useCallback((u: EstoqueUnidade, item: Estoque) => {
+    setFichaDetalhe({ u, item });
+  }, []);
+
+  const handleRefreshDetalhe = useCallback((atualizacao?: { estoqueId: string; unidade?: EstoqueUnidade; removidaUnidadeId?: string }) => {
+    if (atualizacao) {
+      setLinhaAtual((atual) => {
+        const atualizarItem = (item: Estoque): Estoque => {
+          if (item.id !== atualizacao.estoqueId) return item;
+          const unidades = item.unidades ?? [];
+          const semRemovida = atualizacao.removidaUnidadeId
+            ? unidades.filter((u) => u.id !== atualizacao.removidaUnidadeId)
+            : unidades;
+          const comAtualizada = atualizacao.unidade
+            ? semRemovida.some((u) => u.id === atualizacao.unidade!.id)
+              ? semRemovida.map((u) => u.id === atualizacao.unidade!.id ? atualizacao.unidade! : u)
+              : [...semRemovida, atualizacao.unidade]
+            : semRemovida;
+          return { ...item, unidades: comAtualizada };
+        };
+        return atual.tipo === 'familia'
+          ? { ...atual, itens: atual.itens.map(atualizarItem) }
+          : { ...atual, item: atualizarItem(atual.item) };
+      });
+    }
+    onRefresh();
+  }, [onRefresh]);
+
   const handleExcluirUnidade = useCallback(async (u: EstoqueUnidade, item: Estoque) => {
     if (!confirm(`Excluir unidade "${u.nome ?? 'Padrão'}"? Esta ação não pode ser desfeita.`)) return;
     const result = await estoqueApi.excluirUnidade(item.id, u.id);
@@ -370,8 +409,8 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
       return;
     }
     aviso.sucesso('Unidade excluída');
-    onRefresh();
-  }, [onRefresh]);
+    handleRefreshDetalhe({ estoqueId: item.id, removidaUnidadeId: u.id });
+  }, [handleRefreshDetalhe]);
 
   const handleMarcarVendida = useCallback((u: EstoqueUnidade, item: Estoque) => {
     aviso.atencao('Use o fluxo de Vendas para registrar a venda de uma unidade específica.');
@@ -610,6 +649,7 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
                         selecionados={selecionados}
                         modoSelecao={modoSelecao}
                         onToggleSelecao={toggleSelecao}
+                        onVerDetalhes={handleVerDetalhes}
                         onEditarUnidade={handleEditarUnidade}
                         onExcluirUnidade={handleExcluirUnidade}
                         onMarcarVendida={handleMarcarVendida}
@@ -668,7 +708,7 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
           linha={linha}
           open={registrarAberto}
           onClose={() => setRegistrarAberto(false)}
-          onRefresh={() => { setRegistrarAberto(false); onRefresh(); }}
+          onRefresh={() => { setRegistrarAberto(false); handleRefreshDetalhe(); }}
         />
       )}
 
@@ -678,9 +718,46 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
           linha={linha}
           open={!!editarUnidade}
           onClose={() => setEditarUnidade(null)}
-          onRefresh={() => { setEditarUnidade(null); onRefresh(); }}
+          onRefresh={(atualizacao) => { setEditarUnidade(null); handleRefreshDetalhe(atualizacao); }}
           unidadeParaEditar={editarUnidade.u}
         />
+      )}
+
+      {fichaDetalhe && (
+        <DialogContent
+          open={!!fichaDetalhe}
+          onClose={() => setFichaDetalhe(null)}
+          title="Detalhes da unidade"
+          description="Fotos e informações da ficha individual"
+          className="md:max-w-xl"
+        >
+          <DialogCloseButton />
+          <div className="px-5 pt-5 pb-3 border-b border-border-subtle">
+            <h2 className="text-base font-semibold text-text-primary">{fichaDetalhe.u.nome ?? 'Padrão'}</h2>
+            <p className="text-xs text-text-muted mt-0.5">{fichaDetalhe.item.codigo}</p>
+          </div>
+          <div className="px-5 py-4 overflow-y-auto" style={{ maxHeight: 'calc(88dvh - 180px)' }}>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+              {fichaDetalhe.u.fotos.length > 0 ? fichaDetalhe.u.fotos.map((foto, index) => (
+                <div key={`${foto}-${index}`} className="aspect-square rounded-control overflow-hidden border border-border-subtle bg-surface-inset">
+                  <ImageZoom src={foto} alt={`Foto ${index + 1} da unidade`} className="w-full h-full object-cover" triggerClassName="block w-full h-full" referrerPolicy="no-referrer" />
+                </div>
+              )) : (
+                <div className="col-span-full py-8 text-center text-sm text-text-muted">Nenhuma foto cadastrada</div>
+              )}
+            </div>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div><span className="block text-xs text-text-muted">Valor</span><span className="font-semibold text-text-primary">{fichaDetalhe.u.valor != null ? fmt(fichaDetalhe.u.valor) : fmt(fichaDetalhe.item.valor)}</span></div>
+              <div><span className="block text-xs text-text-muted">Condição</span><span className="font-medium text-text-primary">{fichaDetalhe.u.condicao_nota ? `Nota ${fichaDetalhe.u.condicao_nota}` : 'Herdada da ficha'}</span></div>
+              <div><span className="block text-xs text-text-muted">Status</span><span className="font-medium text-text-primary">{fichaDetalhe.u.vendida_em ? 'Vendida' : 'Disponível'}</span></div>
+              <div><span className="block text-xs text-text-muted">Avaria</span><span className="font-medium text-text-primary">{fichaDetalhe.u.avaria ? (fichaDetalhe.u.avaria_descricao || 'Sim') : 'Não'}</span></div>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 px-5 py-3 border-t border-border-subtle">
+            <Button variant="ghost" size="sm" onClick={() => setFichaDetalhe(null)}>Fechar</Button>
+            {!fichaDetalhe.u.vendida_em && <Button size="sm" onClick={() => { const atual = fichaDetalhe; setFichaDetalhe(null); handleEditarUnidade(atual.u, atual.item); }}><Pencil size={13} /> Editar</Button>}
+          </div>
+        </DialogContent>
       )}
     </DialogContent>
   );

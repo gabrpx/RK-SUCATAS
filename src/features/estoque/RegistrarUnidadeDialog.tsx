@@ -69,10 +69,12 @@ const FORM_INICIAL: FormPasso2 = {
   avariaDescricao: '',
 };
 
-function formDeEdicao(u: EstoqueUnidade): FormPasso2 {
+function formDeEdicao(u: EstoqueUnidade, valorHerdado: number | null | undefined): FormPasso2 {
   return {
     fotos: u.fotos,
-    preco: u.valor !== null ? String(u.valor) : '',
+    // Unidade sem valor próprio usa o valor da ficha-mãe como ponto de
+    // partida. O usuário ainda pode substituir esse valor antes de salvar.
+    preco: u.valor !== null ? String(u.valor) : (Number(valorHerdado) > 0 ? String(valorHerdado) : ''),
     condicaoNota: u.condicao_nota !== null ? String(u.condicao_nota) : '',
     nome: u.nome ?? '',
     avaria: u.avaria,
@@ -105,7 +107,7 @@ export interface RegistrarUnidadeDialogProps {
   linha: EstoqueLinha;
   open: boolean;
   onClose: () => void;
-  onRefresh: () => void;
+  onRefresh: (atualizacao?: { estoqueId: string; unidade?: EstoqueUnidade }) => void;
   /** Quando presente, o dialog abre no modo edição: pula o passo 1 e
    *  salva via PATCH diretamente na unidade informada. */
   unidadeParaEditar?: EstoqueUnidade;
@@ -123,7 +125,10 @@ export function RegistrarUnidadeDialog({ linha, open, onClose, onRefresh, unidad
   const [grupoSelecionado, setGrupoSelecionado] = useState<GrupoModeloFamilia | null>(grupos[0] ?? null);
   const [novoGrupo, setNovoGrupo] = useState(false);
   const [novoModeloId, setNovoModeloId] = useState('');
-  const [form, setForm] = useState<FormPasso2>(modoEdicao ? formDeEdicao(unidadeParaEditar!) : FORM_INICIAL);
+  const valorHerdado = unidadeParaEditar
+    ? getItensFromLinha(linha).find((item) => item.id === unidadeParaEditar.estoque_id)?.valor
+    : null;
+  const [form, setForm] = useState<FormPasso2>(modoEdicao ? formDeEdicao(unidadeParaEditar!, valorHerdado) : FORM_INICIAL);
   const [salvando, setSalvando] = useState(false);
   const [enviandoFoto, setEnviandoFoto] = useState(false);
   const [resumoCompressao, setResumoCompressao] = useState<string | null>(null);
@@ -210,7 +215,7 @@ export function RegistrarUnidadeDialog({ linha, open, onClose, onRefresh, unidad
           return;
         }
         aviso.sucesso('Unidade atualizada');
-        onRefresh();
+        onRefresh({ estoqueId: unidadeParaEditar!.estoque_id, unidade: resultPatch.data });
         handleFechar();
         return;
       }
