@@ -48,7 +48,7 @@ describe('UnidadeRow — dados herdados da variante', () => {
     expect(screen.queryByRole('img')).toBeNull();
   });
 
-  it('sem foto própria mas com foto legada na variante: exibe a foto herdada marcada como legada', () => {
+  it('sem foto própria mas com foto de referência na variante: continua sem imagem da unidade', () => {
     const variante = { imagens: ['legada.jpg'], valor: 350 } as Estoque;
     render(
       <UnidadeRow
@@ -62,8 +62,10 @@ describe('UnidadeRow — dados herdados da variante', () => {
       />
     );
 
-    expect(screen.getByRole('img', { name: /foto da unidade 1/i }).getAttribute('src')).toBe('legada.jpg');
-    expect(screen.getByText(/Foto legada/)).toBeTruthy();
+    expect(screen.queryByRole('img', { name: /foto da unidade 1/i })).toBeNull();
+    expect(screen.getByText(/Sem foto/)).toBeTruthy();
+    expect(screen.getByText(/Foto de referência/)).toBeTruthy();
+    expect(screen.getByText(/Ficha incompleta/)).toBeTruthy();
   });
 
   it('mostra a primeira foto própria e o total de fotos da unidade', () => {

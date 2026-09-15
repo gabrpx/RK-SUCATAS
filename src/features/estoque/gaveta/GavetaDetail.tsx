@@ -4,10 +4,18 @@
 // Task 13 — recebe o id da gaveta e a navegação de volta como props, sem
 // assumir router nenhum (mesmo padrão de GavetaList).
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ChevronLeft, Pencil, Plus, X } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronLeft, Pencil, Plus, X } from 'lucide-react';
 import { useData } from '../../../context/DataContext';
 import { cn } from '../../../utils';
 import { Button } from '../../../components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuRadioGroup,
+  DropdownMenuRadioItem,
+  DropdownMenuTrigger,
+} from '../../../components/animate-ui/components/radix/dropdown-menu';
 import { aviso } from '../../../components/ui/toast';
 import { useAtualizarGaveta, useGavetas, useMoverPecaGaveta } from './hooks';
 import { statsGaveta } from './gavetaEstoque';
@@ -41,6 +49,7 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
   const [adicionando, setAdicionando] = useState(false);
   const [editandoGaveta, setEditandoGaveta] = useState(false);
   const [ordenacao, setOrdenacao] = useState<CriterioOrdenacao>('nome');
+  const [menuOrdenacaoAberto, setMenuOrdenacaoAberto] = useState(false);
   const [filtrosRapidos, setFiltrosRapidos] = useState<Set<FiltroRapido>>(new Set());
 
   const itens = useMemo(
@@ -57,6 +66,7 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
     );
     return ordenarVariantes(filtrados, ordenacao);
   }, [itens, filtrosRapidos, ordenacao]);
+  const criterioSelecionado = CRITERIOS_ORDENACAO.find((criterio) => criterio.id === ordenacao) ?? CRITERIOS_ORDENACAO[0];
 
   const alternarFiltroRapido = (id: FiltroRapido) =>
     setFiltrosRapidos((prev) => {
@@ -207,19 +217,26 @@ export function GavetaDetail({ gavetaId, onVoltar }: GavetaDetailProps) {
       ) : (
         <>
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <label className="flex items-center gap-2 text-xs text-text-muted">
-              Ordenar por
-              <select
-                aria-label="Ordenar variantes"
-                value={ordenacao}
-                onChange={(e) => setOrdenacao(e.target.value as CriterioOrdenacao)}
-                className="h-9 rounded-control border border-border-default bg-surface-inset px-2 text-xs text-text-primary outline-none focus:ring-2 focus:ring-accent/50"
-              >
-                {CRITERIOS_ORDENACAO.map((c) => (
-                  <option key={c.id} value={c.id}>{c.nome}</option>
-                ))}
-              </select>
-            </label>
+            <div className="flex items-center gap-2 text-xs text-text-muted">
+              <span>Ordenar por</span>
+              <DropdownMenu open={menuOrdenacaoAberto} onOpenChange={setMenuOrdenacaoAberto}>
+                <DropdownMenuTrigger asChild>
+                  <Button type="button" variant="outline" size="sm" aria-label="Ordenar variantes">
+                    {criterioSelecionado.nome} <ChevronDown size={14} aria-hidden />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent open={menuOrdenacaoAberto} align="start" className="min-w-48">
+                  <DropdownMenuLabel>Ordenar variantes</DropdownMenuLabel>
+                  <DropdownMenuRadioGroup value={ordenacao} onValueChange={(valor) => setOrdenacao(valor as CriterioOrdenacao)}>
+                    {CRITERIOS_ORDENACAO.map((criterio) => (
+                      <DropdownMenuRadioItem key={criterio.id} value={criterio.id}>
+                        {criterio.nome}
+                      </DropdownMenuRadioItem>
+                    ))}
+                  </DropdownMenuRadioGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
           </div>
 
           <FiltrosRapidosChips ativos={filtrosRapidos} onAlternar={alternarFiltroRapido} />

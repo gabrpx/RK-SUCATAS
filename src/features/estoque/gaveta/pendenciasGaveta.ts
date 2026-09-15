@@ -11,7 +11,6 @@
 //     quantidade > fichas) já entram em ficha_pendente e NÃO são recontadas
 //     aqui, pra não inflar sem_foto/sem_preco com fantasmas.
 import type { Estoque, EstoqueUnidade } from '../types';
-import { valorDaUnidade } from '../valorEstoque';
 
 export type PendenciaGaveta =
   | 'sem_gaveta'
@@ -24,6 +23,18 @@ export type PendenciaGaveta =
 export interface ResumoPendencias {
   total: number;
   porTipo: Record<PendenciaGaveta, number>;
+}
+
+/** Uma ficha só fica operacionalmente completa com foto e preço próprios. */
+export function fichaEstaCompleta(unidade: EstoqueUnidade): boolean {
+  return (unidade.fotos?.length ?? 0) > 0 && Number(unidade.valor) > 0;
+}
+
+export function pendenciasObrigatoriasDaFicha(unidade: EstoqueUnidade): Array<'sem_foto' | 'sem_preco'> {
+  const pendencias: Array<'sem_foto' | 'sem_preco'> = [];
+  if ((unidade.fotos?.length ?? 0) === 0) pendencias.push('sem_foto');
+  if (!(Number(unidade.valor) > 0)) pendencias.push('sem_preco');
+  return pendencias;
 }
 
 // Ordem estável de exibição — mais acionável / mais grave primeiro.
@@ -67,8 +78,7 @@ export function pendenciasDaUnidade(
 
   if (unidade.avaria) pend.push('com_avaria');
 
-  const precoEfetivo = valorDaUnidade(unidade, Number(variante?.valor ?? 0) || 0);
-  if (!(precoEfetivo > 0)) pend.push('sem_preco');
+  if (!(Number(unidade.valor) > 0)) pend.push('sem_preco');
 
   return pend;
 }

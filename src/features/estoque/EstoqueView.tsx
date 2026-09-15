@@ -1249,7 +1249,7 @@ export function EstoqueView({
                                         transition={transicaoExpansao}
                                         className="overflow-hidden"
                                       >
-                                        <EstoqueItemExpandido item={linha.item} categorias={categorias} />
+                                        <EstoqueItemExpandido item={linha.item} categorias={categorias} onAtualizar={refreshData} />
                                       </motion.div>
                                     </TableCell>
                                   </TableRow>
@@ -1317,7 +1317,7 @@ export function EstoqueView({
                             {item && (
                             <ExpandableContent keepMounted={false} preset="fade">
                               <div className="mt-3">
-                                <EstoqueItemExpandido item={item} categorias={categorias} />
+                                <EstoqueItemExpandido item={item} categorias={categorias} onAtualizar={refreshData} />
                               </div>
                             </ExpandableContent>
                             )}

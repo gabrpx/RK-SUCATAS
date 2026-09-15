@@ -56,6 +56,7 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
   const [erro, setErro] = useState<string | null>(null);
 
   const precoValido = form.valor !== null && form.valor !== undefined && form.valor > 0;
+  const fotoValida = form.fotos.length > 0;
   const fotosCheias = form.fotos.length >= MAX_FOTOS;
 
   const enviarFotos = async (files: FileList) => {
@@ -79,7 +80,7 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
   };
 
   const salvar = async (continuar = false) => {
-    if (!precoValido) return;
+    if (!precoValido || !fotoValida) return;
     setSalvando(true);
     setErro(null);
     const payload: EstoqueUnidadeInput = {
@@ -190,7 +191,7 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
       )}
 
       <div>
-        <label className={labelClass}>Anexar fotos (opcional) — até {MAX_FOTOS} fotos</label>
+        <label className={labelClass}>Anexar ao menos uma foto própria — até {MAX_FOTOS} fotos</label>
 
         {form.fotos.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
@@ -251,7 +252,7 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
             size="mobile"
             className="flex-1 sm:h-9 sm:text-sm"
             onClick={() => salvar(false)}
-            disabled={!precoValido || salvando || enviandoFotos}
+            disabled={!precoValido || !fotoValida || salvando || enviandoFotos}
           >
             {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
           </Button>
@@ -266,7 +267,7 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
             size="mobile"
             className="w-full sm:h-9 sm:text-sm"
             onClick={() => salvar(true)}
-            disabled={!precoValido || salvando || enviandoFotos}
+            disabled={!precoValido || !fotoValida || salvando || enviandoFotos}
           >
             {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar e adicionar próxima unidade'}
           </Button>

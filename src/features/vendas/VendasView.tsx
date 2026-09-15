@@ -21,6 +21,7 @@ import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
 import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import { formaPagamentoEfetiva, saldoPorVenda } from '../fiado/metricas';
 import { valorRestanteEstimado, valorVendidoEmPartes } from './metricas';
+import { pendenciasObrigatoriasDaFicha } from '../estoque/gaveta/pendenciasGaveta';
 import type { Venda } from './types';
 import type { Estoque } from '../estoque/types';
 import type { Role } from '../../constants/roles';
@@ -336,6 +337,11 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   // Fichas ainda não vendidas do item selecionado — só essas podem ser
   // escolhidas na venda (ver migration_038).
   const fichasDisponiveis = useMemo(() => (itemSelecionado?.unidades ?? []).filter((u) => !u.vendida_em), [itemSelecionado]);
+  const unidadeSelecionada = useMemo(
+    () => fichasDisponiveis.find((unidade) => unidade.id === unidadeSelecionadaId) ?? null,
+    [fichasDisponiveis, unidadeSelecionadaId],
+  );
+  const pendenciasUnidadeSelecionada = unidadeSelecionada ? pendenciasObrigatoriasDaFicha(unidadeSelecionada) : [];
 
   const selecionarItem = (item: Estoque) => {
     setItemSelecionado(item);
@@ -555,15 +561,22 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
                   onClick={() => selecionarUnidade(u.id)}
                   className={cn('px-3 py-2 rounded-xl text-xs font-bold border transition-all', unidadeSelecionadaId === u.id ? 'bg-accent border-accent text-white' : 'border-border-default text-text-muted')}
                 >
-                  {u.nome || 'Sem nome'}
+                  {u.sku ? `SKU ${u.sku} · ` : ''}{u.nome || 'Sem nome'}
                   {u.avaria && ' · avaria'}
                 </button>
               ))}
             </div>
             {unidadeSelecionadaId && (
-              <p className="text-xs text-warning mt-2">
-                Vai vender exatamente esta ficha — ela sai marcada como vendida (com o histórico de foto/avaria preservado), sem precisar apagar nada na mão.
-              </p>
+              <>
+                <p className="text-xs text-warning mt-2">
+                  Vai vender exatamente esta ficha — ela sai marcada como vendida (com o histórico de foto/avaria preservado), sem precisar apagar nada na mão.
+                </p>
+                {pendenciasUnidadeSelecionada.length > 0 && (
+                  <p className="text-xs text-warning mt-1">
+                    Ficha incompleta: {pendenciasUnidadeSelecionada.map((pendencia) => pendencia === 'sem_foto' ? 'sem foto própria' : 'sem preço próprio').join(' · ')}. A venda continua permitida.
+                  </p>
+                )}
+              </>
             )}
           </div>
         )}

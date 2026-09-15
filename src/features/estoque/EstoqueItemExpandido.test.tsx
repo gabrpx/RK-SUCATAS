@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { EstoqueItemExpandido } from './EstoqueItemExpandido';
 import type { Estoque } from './types';
 import type { Categoria } from '../../types/catalog';
@@ -58,6 +58,7 @@ describe('EstoqueItemExpandido', () => {
   it('mostra "Nenhum anúncio vinculado" quando não há ML nem Facebook', () => {
     const item = criarItem({ id: 'a', nome: 'Peça sem anúncio' });
     render(<EstoqueItemExpandido item={item} categorias={[]} />);
+    fireEvent.click(screen.getByRole('tab', { name: /anúncios/i }));
     expect(screen.getByText('Nenhum anúncio vinculado.')).toBeTruthy();
   });
 
@@ -68,12 +69,37 @@ describe('EstoqueItemExpandido', () => {
       links_ml: [{ id: 'l1', estoque_id: 'a', url: 'https://ml/1', mlb_id: 'MLB1', criado_em: '', atualizado_em: '' }],
     });
     render(<EstoqueItemExpandido item={item} categorias={[]} />);
+    fireEvent.click(screen.getByRole('tab', { name: /anúncios/i }));
     expect(screen.getByText(/Mercado Livre/)).toBeTruthy();
   });
 
   it('mostra "Sem fotos" quando a peça não tem nenhuma imagem', () => {
     const item = criarItem({ id: 'a', nome: 'Peça sem foto', imagens: [] });
     render(<EstoqueItemExpandido item={item} categorias={[]} />);
-    expect(screen.getByText('Sem fotos')).toBeTruthy();
+    expect(screen.getByText('Sem fotos de referência')).toBeTruthy();
+  });
+
+  it('abre e permite editar uma ficha individual pela aba Unidades', () => {
+    const item = criarItem({
+      id: 'a',
+      nome: 'Mesa completa CG 125',
+      quantidade: 1,
+      unidades: [
+        {
+          id: 'u1', estoque_id: 'a', nome: null, avaria: false, avaria_descricao: null,
+          descricao: null, fotos: [], valor: null, condicao_nota: null, vendida_em: null,
+          criado_em: '', atualizado_em: '',
+        },
+      ],
+    });
+
+    render(<EstoqueItemExpandido item={item} categorias={[]} />);
+
+    fireEvent.click(screen.getByRole('tab', { name: /unidades/i }));
+    fireEvent.click(screen.getByRole('button', { name: /ver ficha da unidade 1/i }));
+    expect(screen.getByRole('heading', { name: /ficha da unidade 1/i })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /editar unidade/i }));
+    expect(screen.getByRole('heading', { name: /editar unidade/i })).toBeTruthy();
   });
 });

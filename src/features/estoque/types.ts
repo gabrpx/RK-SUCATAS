@@ -17,6 +17,8 @@ export type NotaCadastro = 'com_nota' | 'sem_nota';
 export interface EstoqueUnidade {
   id: string;
   estoque_id: string;
+  /** SKU global, único e permanente. Pode não existir em cache anterior à migration. */
+  sku?: number;
   /** Nome próprio desta unidade: "A amassada", "Sem bico injetor" */
   nome: string | null;
   avaria: boolean;

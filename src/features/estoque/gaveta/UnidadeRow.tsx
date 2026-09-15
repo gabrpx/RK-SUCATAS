@@ -29,7 +29,6 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
     unidade.avaria_descricao || unidade.valor != null || unidade.condicao_nota != null
   );
   const dadosHerdados = !dadosProprios;
-  const cadastroPendente = dadosProprios && !unidade.nome && unidade.fotos.length === 0;
   const nota = condicaoNotaDaUnidade(unidade, notaPadrao);
   const valor = valorDaUnidade(unidade, valorPadrao);
   const foto = unidade.fotos[0] ?? null;
@@ -38,9 +37,12 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
   const vendida = Boolean(unidade.vendida_em);
   const pendencias = vendida ? [] : pendenciasDaUnidade(unidade, variante);
   const fotoLegada = pendencias.includes('foto_legada');
-  const fotoEfetiva = foto ?? (fotoLegada ? variante?.imagens?.[0] ?? null : null);
+  const fotoEfetiva = foto;
+  const semFotoPropria = unidade.fotos.length === 0;
+  const semValorProprio = unidade.valor == null || unidade.valor <= 0;
+  const fichaIncompleta = !vendida && (semFotoPropria || semValorProprio);
 
-  const dotClasse = vendida ? 'bg-text-faint' : cadastroPendente || unidade.avaria ? 'bg-warning' : 'bg-positive';
+  const dotClasse = vendida ? 'bg-text-faint' : fichaIncompleta || unidade.avaria ? 'bg-warning' : 'bg-positive';
 
   return (
     <button
@@ -54,7 +56,7 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
       <div
         className={cn(
           'relative flex-none size-9 rounded-control overflow-hidden bg-surface-inset flex items-center justify-center',
-          (cadastroPendente || (dadosHerdados && !fotoEfetiva)) && 'border border-dashed border-warning/50 bg-transparent',
+          (fichaIncompleta || (dadosHerdados && !fotoEfetiva)) && 'border border-dashed border-warning/50 bg-transparent',
           fotoLegada && 'border border-dashed border-border-default'
         )}
       >
@@ -70,26 +72,26 @@ export function UnidadeRow({ unidade, numero, nomePadrao, valorPadrao, notaPadra
               </span>
             )}
           </>
-        ) : cadastroPendente ? (
+        ) : fichaIncompleta ? (
           <AlertTriangle size={14} className="text-warning" aria-hidden />
         ) : null}
       </div>
 
       <div className="flex-1 min-w-0">
         <p className="break-words text-sm font-semibold leading-snug text-text-primary [overflow-wrap:anywhere]">
-          #{numero} {nome ? `"${nome}"` : ''}
+          #{numero}{unidade.sku ? ` · SKU ${unidade.sku}` : ''} {nome ? `"${nome}"` : ''}
         </p>
         {vendida ? (
           <p className="text-xs leading-snug text-text-faint">Vendida</p>
-        ) : cadastroPendente ? (
+        ) : fichaIncompleta ? (
           <p className="flex items-start gap-1 text-xs leading-snug text-warning">
-            <AlertTriangle size={11} aria-hidden /> Sem nome e fotos
+            <AlertTriangle size={11} aria-hidden /> Ficha incompleta · {semFotoPropria ? 'Sem foto própria' : ''}{semFotoPropria && semValorProprio ? ' · ' : ''}{semValorProprio ? 'Sem valor próprio' : ''}{fotoLegada ? ' · Foto de referência' : ''}{unidade.fotos.length > 1 ? ` · ${unidade.fotos.length} fotos` : ''}
           </p>
         ) : (
           <p className="break-words text-xs leading-snug text-text-muted [overflow-wrap:anywhere]">
             {dadosHerdados ? 'Dados da variante' : `${nota != null ? `Nota ${nota} · ` : ''}${unidade.avaria ? 'Com avaria' : 'Sem avaria'}`}
             {unidade.fotos.length > 1 ? ` · ${unidade.fotos.length} fotos` : ''}
-            {fotoLegada ? ' · Foto legada' : unidade.fotos.length === 0 ? ' · Sem foto' : ''}
+            {fotoLegada ? ' · Sem foto própria · Foto de referência' : unidade.fotos.length === 0 ? ' · Sem foto' : ''}
             {pendencias.includes('sem_preco') ? ' · Sem preço' : ''}
           </p>
         )}

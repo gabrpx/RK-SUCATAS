@@ -78,10 +78,10 @@ describe('pendenciasDaUnidade', () => {
     expect(pendenciasDaUnidade(unidade({ avaria: true }), item())).toContain('com_avaria');
   });
 
-  it('marca sem_preco quando o preço efetivo (próprio ou herdado) é zero', () => {
+  it('marca sem_preco quando a ficha não possui preço próprio válido', () => {
     expect(pendenciasDaUnidade(unidade({ valor: 0 }), item({ valor: 100 }))).toContain('sem_preco');
     expect(pendenciasDaUnidade(unidade({ valor: null }), item({ valor: 0 }))).toContain('sem_preco');
-    expect(pendenciasDaUnidade(unidade({ valor: null }), item({ valor: 100 }))).not.toContain('sem_preco');
+    expect(pendenciasDaUnidade(unidade({ valor: null }), item({ valor: 100 }))).toContain('sem_preco');
   });
 });
 
