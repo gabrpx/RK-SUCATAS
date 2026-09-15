@@ -118,4 +118,17 @@ describe('EstoqueFamiliaModal', () => {
     expect(srcs.some((s) => s.includes('capa.jpg'))).toBe(true);
     expect(srcs.some((s) => s.includes('lateral.jpg'))).toBe(true);
   });
+
+  it('não usa foto ou valor da peça-pai como dados de uma ficha vazia', () => {
+    const item = mockItem({
+      id: 'a', quantidade: 1, valor: 400, imagens: ['https://example.com/referencia.jpg'],
+      unidades: [mockUnidade({ id: 'u1', fotos: [], valor: null })],
+    });
+    const linha: EstoqueLinha = { tipo: 'familia', id: 'familia-f1', familia, itens: [item] };
+    render(<EstoqueFamiliaModal linha={linha} open onClose={vi.fn()} onRefresh={vi.fn()} />);
+
+    expect(screen.getByText('Ficha incompleta')).toBeTruthy();
+    expect(screen.getByText('Sem valor próprio')).toBeTruthy();
+    expect(screen.getAllByTestId('image-zoom')).toHaveLength(1);
+  });
 });

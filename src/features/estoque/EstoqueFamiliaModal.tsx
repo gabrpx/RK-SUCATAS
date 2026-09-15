@@ -102,10 +102,11 @@ function UnidadeCard({
   onToggleSelecao, onEditar, onExcluir, onMarcarVendida,
 }: UnidadeCardProps) {
   const [menuAberto, setMenuAberto] = useState(false);
-  const foto = unidade.fotos[0] ?? item.imagens[0];
-  const preco = valorDaUnidade(unidade, item.valor);
+  const foto = unidade.fotos[0] ?? null;
+  const preco = unidade.valor ?? null;
   const nota = condicaoNotaDaUnidade(unidade, item.condicao_nota);
   const vendida = !!unidade.vendida_em;
+  const fichaIncompleta = !vendida && (!foto || !(Number(unidade.valor) > 0));
   const nome = unidade.nome ?? 'Padrão';
   const tempo = formatarTempoRelativoCurto(unidade.criado_em);
 
@@ -128,7 +129,10 @@ function UnidadeCard({
       )}
 
       {/* Foto — clicável para zoom em tela cheia */}
-      <div className="size-14 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset">
+      <div className={cn(
+        'size-14 rounded-control overflow-hidden shrink-0 flex items-center justify-center bg-surface-inset',
+        fichaIncompleta && 'border border-dashed border-warning/50 bg-transparent',
+      )}>
         {foto ? (
           <ImageZoom
             src={foto}
@@ -138,7 +142,7 @@ function UnidadeCard({
             referrerPolicy="no-referrer"
           />
         ) : (
-          <Package size={20} className="text-text-faint" />
+          fichaIncompleta ? <AlertTriangle size={20} className="text-warning" /> : <Package size={20} className="text-text-faint" />
         )}
       </div>
 
@@ -149,10 +153,10 @@ function UnidadeCard({
             <div className="flex items-center gap-1.5 flex-wrap">
               <span className="text-sm font-medium text-text-primary">{nome}</span>
               <CondicaoNotaBadge nota={nota} />
-              {isMelhorEstado && !vendida && (
+              {isMelhorEstado && !vendida && !fichaIncompleta && (
                 <StatusBadge tom="positive" texto="Melhor estado" />
               )}
-              {isMelhorPreco && !vendida && (
+              {isMelhorPreco && !vendida && !fichaIncompleta && (
                 <StatusBadge tom="accent" texto="Melhor preço" />
               )}
               {unidade.avaria && !vendida && (
@@ -161,6 +165,7 @@ function UnidadeCard({
                   Avaria
                 </span>
               )}
+              {fichaIncompleta && <StatusBadge tom="warning" texto="Ficha incompleta" />}
             </div>
             <p className="text-[11px] text-text-faint mt-0.5">
               {item.codigo}{tempo ? ` · ${tempo}` : ''}
@@ -204,7 +209,9 @@ function UnidadeCard({
         </div>
 
         <div className="flex items-center gap-2 mt-1.5">
-          <span className="text-sm font-semibold tabular-nums text-text-primary">{fmt(preco)}</span>
+          <span className={cn('text-sm font-semibold tabular-nums', preco ? 'text-text-primary' : 'text-warning')}>
+            {preco ? fmt(preco) : 'Sem valor próprio'}
+          </span>
           <StatusBadge
             tom={vendida ? 'neutral' : 'positive'}
             texto={vendida ? 'Vendida' : 'Disponível'}
