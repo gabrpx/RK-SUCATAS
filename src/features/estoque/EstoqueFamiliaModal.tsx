@@ -212,6 +212,7 @@ interface GrupoProps {
   modoSelecao: boolean;
   onToggleSelecao: (id: string) => void;
   onVerDetalhes: (u: EstoqueUnidade, item: Estoque) => void;
+  onAdicionarUnidade: (item: Estoque) => void;
   onEditarUnidade: (u: EstoqueUnidade, item: Estoque) => void;
   onExcluirUnidade: (u: EstoqueUnidade, item: Estoque) => void;
   onMarcarVendida: (u: EstoqueUnidade, item: Estoque) => void;
@@ -219,7 +220,7 @@ interface GrupoProps {
 
 function GrupoModelo({
   grupo, busca, statusFiltro, avaFiltro, selecionados, modoSelecao,
-  onToggleSelecao, onVerDetalhes, onEditarUnidade, onExcluirUnidade, onMarcarVendida,
+  onToggleSelecao, onVerDetalhes, onAdicionarUnidade, onEditarUnidade, onExcluirUnidade, onMarcarVendida,
 }: GrupoProps) {
   const todasUnidades = grupo.itens.flatMap((item) =>
     (item.unidades ?? []).map((u) => ({ unidade: u, item }))
@@ -266,6 +267,18 @@ function GrupoModelo({
       </AccordionTrigger>
       <AccordionContent className="px-0 pb-0">
         <div className="flex flex-col gap-2 pt-1 px-4 pb-3">
+          <div className="flex justify-end">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-7 px-2 text-[11px]"
+              onClick={() => onAdicionarUnidade(grupo.itens[0])}
+              title="Adicionar uma unidade a esta ficha"
+            >
+              <Plus size={12} /> Adicionar unidade
+            </Button>
+          </div>
           {/* Galeria de fotos das fichas — todas as imagens da ficha-mãe, não só a capa */}
           {grupo.itens.some((it) => it.imagens.length > 0) && (
             <div className="mb-1">
@@ -376,6 +389,16 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
   const handleVerDetalhes = useCallback((u: EstoqueUnidade, item: Estoque) => {
     setFichaDetalhe({ u, item });
   }, []);
+
+  const handleAdicionarUnidade = useCallback(async (item: Estoque) => {
+    const result = await estoqueApi.atualizar(item.id, { quantidade: Number(item.quantidade) + 1 });
+    if (!result.success) {
+      aviso.erro('Não foi possível adicionar a unidade', { descricao: result.error });
+      return;
+    }
+    aviso.sucesso('Unidade adicionada. Preencha a nova ficha para concluir.');
+    onRefresh();
+  }, [onRefresh]);
 
   const handleRefreshDetalhe = useCallback((atualizacao?: { estoqueId: string; unidade?: EstoqueUnidade; removidaUnidadeId?: string }) => {
     if (atualizacao) {
@@ -650,6 +673,7 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
                         modoSelecao={modoSelecao}
                         onToggleSelecao={toggleSelecao}
                         onVerDetalhes={handleVerDetalhes}
+                        onAdicionarUnidade={handleAdicionarUnidade}
                         onEditarUnidade={handleEditarUnidade}
                         onExcluirUnidade={handleExcluirUnidade}
                         onMarcarVendida={handleMarcarVendida}
