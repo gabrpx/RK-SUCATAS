@@ -173,11 +173,11 @@ function UnidadeCard({
           </div>
 
           {!modoSelecao && (
-            {/* Este menu vive dentro do Dialog da família. Mantê-lo modal faz o
-                Radix bloquear pointer-events no body inteiro, incluindo o
-                próprio Dialog pai, deixando a tela congelada em alguns
-                navegadores. O Dialog pai já é a camada modal; aqui precisamos
-                apenas de uma camada interativa empilhada. */}
+            /* Este menu vive dentro do Dialog da família. Mantê-lo modal faz o
+               Radix bloquear pointer-events no body inteiro, incluindo o
+               próprio Dialog pai, deixando a tela congelada em alguns
+               navegadores. O Dialog pai já é a camada modal; aqui precisamos
+               apenas de uma camada interativa empilhada. */}
             <DropdownMenu modal={false} open={menuAberto} onOpenChange={setMenuAberto}>
               <DropdownMenuTrigger asChild>
                 <button
