@@ -2,7 +2,7 @@
 // avulsa na tabela de Estoque. Mostra grupos modelo/ano com cards de unidade,
 // métricas agregadas no header e ações (Registrar unidade, Venda rápida, etc.).
 import { useState, useMemo, useCallback, type Key } from 'react';
-import { Package, Search, MoreVertical, ShoppingCart, Plus, Trash2, Pencil, Check, Move, AlertTriangle, ChevronDown } from 'lucide-react';
+import { Package, Search, ShoppingCart, Plus, Trash2, Pencil, Check, Move, AlertTriangle, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -29,13 +29,6 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from '../../components/animate-ui/components/radix/accordion';
-import {
-  DropdownMenu,
-  DropdownMenuTrigger,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-} from '../../components/animate-ui/components/radix/dropdown-menu';
 import { DialogContent, DialogCloseButton } from '../../components/animate-ui/components/radix/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContents, TabsContent } from '../../components/animate-ui/components/animate/tabs';
 import { RegistrarUnidadeDialog } from './RegistrarUnidadeDialog';
@@ -101,7 +94,6 @@ function UnidadeCard({
   unidade, item, isMelhorEstado, isMelhorPreco, selecionado, modoSelecao,
   onToggleSelecao, onEditar, onExcluir, onMarcarVendida,
 }: UnidadeCardProps) {
-  const [menuAberto, setMenuAberto] = useState(false);
   const foto = unidade.fotos[0] ?? null;
   const preco = unidade.valor ?? null;
   const nota = condicaoNotaDaUnidade(unidade, item.condicao_nota);
@@ -173,39 +165,22 @@ function UnidadeCard({
           </div>
 
           {!modoSelecao && (
-            <DropdownMenu modal={false} open={menuAberto} onOpenChange={setMenuAberto}>
-              <DropdownMenuTrigger asChild>
-                <button
-                  type="button"
-                  aria-label="Ações"
-                  className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised shrink-0"
-                  onPointerDown={(e) => e.stopPropagation()}
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical size={14} />
+            <div className="flex items-center gap-1 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
+              <button type="button" aria-label="Editar unidade" title="Editar unidade" onClick={onEditar}
+                className="inline-flex items-center gap-1 rounded-control px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent-soft">
+                <Pencil size={12} /> Editar
+              </button>
+              {!vendida && (
+                <button type="button" aria-label="Marcar como vendida" title="Marcar como vendida" onClick={onMarcarVendida}
+                  className="p-1.5 rounded-control text-text-faint hover:text-accent hover:bg-surface-raised">
+                  <ShoppingCart size={13} />
                 </button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent open={menuAberto} align="end">
-                <DropdownMenuItem onSelect={() => { setMenuAberto(false); onEditar(); }}>
-                  <Pencil size={13} />
-                  Editar unidade
-                </DropdownMenuItem>
-                {!vendida && (
-                  <DropdownMenuItem onSelect={() => { setMenuAberto(false); onMarcarVendida(); }}>
-                    <ShoppingCart size={13} />
-                    Marcar como vendida
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onSelect={() => { setMenuAberto(false); onExcluir(); }}
-                  className="text-danger focus:text-danger"
-                >
-                  <Trash2 size={13} />
-                  Excluir unidade
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              )}
+              <button type="button" aria-label="Excluir unidade" title="Excluir unidade" onClick={onExcluir}
+                className="p-1.5 rounded-control text-text-faint hover:text-danger hover:bg-danger-bg">
+                <Trash2 size={13} />
+              </button>
+            </div>
           )}
         </div>
 
