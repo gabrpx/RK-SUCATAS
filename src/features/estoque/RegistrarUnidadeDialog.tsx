@@ -4,10 +4,14 @@
 //   2. Preencher foto(s), preço, condição, nome, avaria
 // Modo criação: localiza unidade em branco via GET /:id/unidades → PATCH nela.
 // Modo edição: unidadeParaEditar presente, salta passo 1 e PATCH direto.
-import { useState, useCallback } from 'react';
-import { ChevronLeft, Plus, Loader2, AlertCircle } from 'lucide-react';
+import { useState, useCallback, type ReactNode } from 'react';
+import { ChevronLeft, Plus, Loader2, AlertCircle, TriangleAlert } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/Input';
+import { Select } from '../../components/ui/Select';
+import { Textarea } from '../../components/ui/Textarea';
+import { Checkbox } from '../../components/ui/checkbox';
 import { aviso } from '../../components/ui/toast';
 import { MotoCascadeSelect } from '../../components/MotoCascadeSelect';
 import { useCatalogos } from '../../hooks/useCatalogos';
@@ -75,6 +79,25 @@ function formDeEdicao(u: EstoqueUnidade): FormPasso2 {
     avariaDescricao: u.avaria_descricao ?? '',
   };
 }
+
+// Rótulo consistente para os campos do passo 2 — mesma tipografia dos
+// componentes base (Input/Select), com marcador de obrigatório opcional.
+function Field({ label, required, children }: { label: string; required?: boolean; children: ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <span className="text-xs font-medium text-text-secondary">
+        {label}
+        {required && <span className="text-danger"> *</span>}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+const CONDICAO_OPTIONS = [
+  { value: '', label: 'Herdar da ficha' },
+  ...Array.from({ length: 10 }, (_, i) => ({ value: String(i + 1), label: `Nota ${i + 1}` })),
+];
 
 // ─── Componente principal ────────────────────────────────────────────────────
 
@@ -364,12 +387,9 @@ export function RegistrarUnidadeDialog({ linha, open, onClose, onRefresh, unidad
         )}
 
         {passo === 2 && (
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-5">
             {/* Fotos via upload (nunca URL digitada) */}
-            <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">
-                Fotos {!modoEdicao && <span className="text-danger">*</span>}
-              </label>
+            <Field label="Fotos" required={!modoEdicao}>
               <EstoqueUploadFotos
                 imagens={form.fotos}
                 onRemoverImagem={(url) => setForm((f) => ({ ...f, fotos: f.fotos.filter((x) => x !== url) }))}
@@ -377,74 +397,72 @@ export function RegistrarUnidadeDialog({ linha, open, onClose, onRefresh, unidad
                 enviando={enviandoFoto}
                 resumoCompressao={resumoCompressao}
               />
-            </div>
+            </Field>
 
-            {/* Preço */}
-            <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">
-                Preço {!modoEdicao && <span className="text-danger">*</span>}
-                {modoEdicao && <span className="text-text-faint font-normal"> (vazio = herdar da ficha)</span>}
-              </label>
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm text-text-muted">R$</span>
-                <input
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  placeholder="0,00"
-                  value={form.preco}
-                  onChange={(e) => setForm((f) => ({ ...f, preco: e.target.value }))}
-                  className="w-full pl-9 pr-3 py-2 text-sm rounded-control border border-border-default bg-surface-inset text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-accent/50"
-                />
-              </div>
-            </div>
-
-            {/* Condição (nota 1-10) */}
-            <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Condição (1–10)</label>
-              <select
-                value={form.condicaoNota}
-                onChange={(e) => setForm((f) => ({ ...f, condicaoNota: e.target.value }))}
-                className="w-full px-3 py-2 text-sm rounded-control border border-border-default bg-surface-inset text-text-primary focus:outline-none focus:ring-2 focus:ring-accent/50"
-              >
-                <option value="">Herdar da ficha</option>
-                {Array.from({ length: 10 }, (_, i) => i + 1).map((n) => (
-                  <option key={n} value={n}>{n}</option>
-                ))}
-              </select>
-            </div>
-
-            {/* Nome */}
-            <div>
-              <label className="block text-xs font-medium text-text-secondary mb-1">Nome (opcional)</label>
-              <input
-                type="text"
-                placeholder="ex: A amassada, Com trinca..."
-                value={form.nome}
-                onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
-                className="w-full px-3 py-2 text-sm rounded-control border border-border-default bg-surface-inset text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-accent/50"
+            {/* Preço — campo-âncora da unidade (o valor manda no card). Maior que
+                os demais de propósito, seguindo a hierarquia número > label. */}
+            <Field label="Preço" required={!modoEdicao}>
+              <Input
+                size="lg"
+                inputMode="decimal"
+                placeholder="0,00"
+                value={form.preco}
+                onChange={(e) => setForm((f) => ({ ...f, preco: e.target.value }))}
+                iconLeft={<span className="text-sm font-medium text-text-muted">R$</span>}
+                className="text-lg font-semibold tabular-nums"
               />
+              {modoEdicao && <span className="text-2xs text-text-faint">Deixe vazio para herdar o preço da ficha.</span>}
+            </Field>
+
+            {/* Condição + Nome lado a lado no desktop, empilhados no mobile */}
+            <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+              <Field label="Condição">
+                <Select
+                  options={CONDICAO_OPTIONS}
+                  value={form.condicaoNota}
+                  onChange={(v) => setForm((f) => ({ ...f, condicaoNota: v }))}
+                  placeholder="Herdar da ficha"
+                />
+              </Field>
+
+              <Field label="Nome (opcional)">
+                <Input
+                  placeholder="ex: A amassada, Com trinca…"
+                  value={form.nome}
+                  onChange={(e) => setForm((f) => ({ ...f, nome: e.target.value }))}
+                />
+              </Field>
             </div>
 
-            {/* Avaria */}
-            <div>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="checkbox"
+            {/* Avaria — quando marcada, o bloco assume o tom warning (cor com
+                significado: sinaliza a unidade com dano). */}
+            <div
+              className={cn(
+                'rounded-control border transition-colors',
+                form.avaria ? 'border-warning/40 bg-warning-bg/40' : 'border-border-subtle'
+              )}
+            >
+              <label className="flex items-center gap-2.5 px-3 py-2.5 cursor-pointer">
+                <Checkbox
                   checked={form.avaria}
-                  onChange={(e) => setForm((f) => ({ ...f, avaria: e.target.checked }))}
-                  className="accent-warning"
+                  onCheckedChange={(c) => setForm((f) => ({ ...f, avaria: c === true }))}
+                  className={cn(form.avaria && 'data-[state=checked]:bg-warning data-[state=checked]:border-warning')}
                 />
-                <span className="text-sm text-text-primary">Tem avaria</span>
+                <span className="flex items-center gap-1.5 text-sm text-text-primary">
+                  <TriangleAlert size={14} className={form.avaria ? 'text-warning' : 'text-text-faint'} aria-hidden />
+                  Tem avaria
+                </span>
               </label>
               {form.avaria && (
-                <textarea
-                  rows={2}
-                  placeholder="Descreva a avaria..."
-                  value={form.avariaDescricao}
-                  onChange={(e) => setForm((f) => ({ ...f, avariaDescricao: e.target.value }))}
-                  className="mt-2 w-full px-3 py-2 text-sm rounded-control border border-border-default bg-surface-inset text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-accent/50 resize-none"
-                />
+                <div className="px-3 pb-3">
+                  <Textarea
+                    rows={2}
+                    autoResize
+                    placeholder="Descreva a avaria — onde está, gravidade, o que afeta…"
+                    value={form.avariaDescricao}
+                    onChange={(e) => setForm((f) => ({ ...f, avariaDescricao: e.target.value }))}
+                  />
+                </div>
               )}
             </div>
           </div>

@@ -18,6 +18,23 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.3',
+    data: '2026-09-15',
+    titulo: 'Editar unidade pela lista + ficha mais clara',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'No Estoque em modo Lista, abrir o menu de ações (⋮) de uma unidade não fecha mais o detalhe da peça — o menu abre normalmente e "Editar unidade" leva direto ao formulário para completar a ficha.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'O formulário de unidade ficou mais legível: o preço agora é o campo em destaque (com R$), condição e nome ficam lado a lado e "Tem avaria" acende em amarelo com o campo de descrição, deixando claro quando a peça tem dano.',
+      },
+    ],
+  },
+  {
     versao: '1.7.2',
     data: '2026-09-14',
     titulo: 'Nomes completos nas gavetas no celular',
