@@ -36,6 +36,7 @@ import {
   FileText,
   LogOut,
   Settings,
+  ListTodo,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
@@ -50,13 +51,15 @@ import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
+import { TasksView } from './features/tarefas/TasksView';
+import { TasksPreview } from './features/tarefas-preview/TasksPreview';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
 
 type DetailItem = Estoque | Venda;
-type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'configuracoes';
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'configuracoes'];
+type Tab = 'dashboard' | 'tarefas' | 'estoque' | 'vendas' | 'orcamentos' | 'caixa' | 'frete' | 'configuracoes';
+const VALID_TABS: Tab[] = ['dashboard', 'tarefas', 'estoque', 'vendas', 'orcamentos', 'caixa', 'frete', 'configuracoes'];
 
 function isVenda(item: DetailItem): item is Venda {
   return 'valor_total' in item;
@@ -336,9 +339,10 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout, theme }: { isOpen: boolea
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', tarefas: 'Tarefas', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', caixa: 'Caixa', frete: 'Frete', configuracoes: 'Configurações' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
+  const isTasksPreview = window.location.pathname === '/tarefas-preview';
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
     return VALID_TABS.includes(path) ? path : 'dashboard';
@@ -368,10 +372,11 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   }, []);
 
   useEffect(() => {
+    if (isTasksPreview) return;
     if (activeTab) window.history.pushState(null, '', `/${activeTab}`);
     window.scrollTo(0, 0);
     contentRef.current?.scrollTo(0, 0);
-  }, [activeTab]);
+  }, [activeTab, isTasksPreview]);
 
   useEffect(() => {
     localStorage.setItem('theme', theme);
@@ -400,6 +405,10 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     }
     return { edit: wrapEdit(estoqueActions?.edit, 'estoque'), delete: estoqueActions?.delete };
   }, [selectedDetailItem, estoqueActions, vendasActions, activeTab]);
+
+  if (isTasksPreview) {
+    return <TasksPreview />;
+  }
 
   return (
     <div className={cn('min-h-screen transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', theme === 'dark' ? 'bg-[radial-gradient(ellipse_at_top,_#1a1b1f,_#09090b)] text-zinc-100' : 'bg-zinc-50 text-zinc-900')}>
@@ -432,6 +441,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
           <nav className="flex-1 space-y-2">
             <SidebarItem icon={LayoutDashboard} label={isSidebarOpen ? 'Dashboard' : ''} active={activeTab === 'dashboard'} onClick={() => setActiveTab('dashboard')} theme={theme} />
+            <SidebarItem icon={ListTodo} label={isSidebarOpen ? 'Tarefas' : ''} active={activeTab === 'tarefas'} onClick={() => setActiveTab('tarefas')} theme={theme} />
             <SidebarItem icon={Package} label={isSidebarOpen ? 'Estoque' : ''} active={activeTab === 'estoque'} onClick={() => setActiveTab('estoque')} theme={theme} />
             <SidebarItem icon={ShoppingCart} label={isSidebarOpen ? 'Vendas' : ''} active={activeTab === 'vendas'} onClick={() => setActiveTab('vendas')} theme={theme} />
             <SidebarItem icon={Receipt} label={isSidebarOpen ? 'Orçamentos' : ''} active={activeTab === 'orcamentos'} onClick={() => setActiveTab('orcamentos')} theme={theme} />
@@ -466,6 +476,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
               {activeTab === 'dashboard' ? (
                 <DashboardView theme={theme} onSelectItem={setSelectedDetailItem} onTabChange={(tab) => setActiveTab(tab as Tab)} />
+              ) : activeTab === 'tarefas' ? (
+                <TasksView theme={theme} />
               ) : activeTab === 'estoque' ? (
                 <EstoqueView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setEstoqueActions} pendingEditItem={pendingEditItem} setPendingEditItem={setPendingEditItem} />
               ) : activeTab === 'vendas' ? (

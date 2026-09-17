@@ -7,6 +7,20 @@ description: Audita componentes, abas, telas e fluxos de aplicações como um us
 
 Conduza uma auditoria de experiência do usuário sem inventar problemas. Observe o produto pela perspectiva de quem precisa concluir uma tarefa, mas sustente cada conclusão em evidência verificável no código, na interface ou na execução.
 
+## Regra intrínseca de aprendizado
+
+Todo problema de UX/UI confirmado durante uma auditoria, implementação ou
+validação deve enriquecer esta skill antes do encerramento da tarefa. Converta
+o aprendizado em um critério curto, generalizável e verificável — não apenas
+em uma nota sobre a tela atual — e acrescente-o ao roteiro de validação quando
+for necessário reproduzi-lo. O agente deve então aplicar o novo critério à
+alteração em curso e registrar o antes/depois.
+
+Não adicione observações vagas, duplicadas ou dependentes de uma única
+copy/posição; registre a causa de experiência que previne a regressão em
+outros componentes. Se a evidência ainda for incerta, marque-a como hipótese
+de auditoria, não como regra obrigatória.
+
 ## Antes de auditar
 
 1. Leia as instruções de governança e a documentação relevante do projeto.
@@ -30,6 +44,137 @@ Percorra o fluxo como usuário, usando browser, automação de tela ou ambiente 
 - desktop, tablet e mobile; mouse, toque, teclado, foco, labels e leitor de tela;
 - feedback, validação, mensagens, progresso, consistência visual e número de cliques;
 - desempenho percebido e possíveis condições de concorrência.
+
+## Critérios obrigatórios para componentes interativos
+
+Ao auditar ou implementar uma interface operacional, verifique também:
+
+- **Controle nativo sem tratamento:** `select`, `alert`, `confirm`, `prompt`,
+  input de arquivo e outros controles do navegador não podem ser deixados com
+  aparência ou comportamento nativo quando o fluxo exige contexto, pessoas,
+  status ou uma decisão relevante. Reutilize um componente do projeto ou crie
+  uma superfície acessível e coerente com a tela; registre uma justificativa
+  explícita se o nativo for a escolha correta.
+- **Seleção de pessoas:** seletores de responsáveis devem comunicar identidade
+  com avatar/iniciais, nome, estado selecionado e foco de teclado. Um `<select>`
+  genérico não é suficiente para atribuir uma pessoa a uma etapa operacional.
+- **Coleções dinâmicas:** adicionar, remover, filtrar ou reordenar itens como
+  etapas de checklist deve ter transição local de entrada/saída e preservar
+  foco e contexto. A animação deve usar somente `opacity` e `transform`,
+  respeitar `prefers-reduced-motion` e nunca reanimar a tela inteira.
+- **Confirmações de perda ou impacto:** `window.alert`, `window.confirm` e
+  `window.prompt` são proibidos. Use um diálogo próprio com título, impacto
+  explicado, ação segura, ação destrutiva explicitamente nomeada, foco inicial
+  e comportamento de Escape/backdrop definido.
+- **Qualidade de acabamento:** nenhum componente deve permanecer apenas
+  funcional quando representa uma decisão operacional. Avalie densidade,
+  estados vazio/carregando/erro, foco, toque, animação e coerência com os
+  componentes da própria tela antes de concluir a auditoria.
+- **Menus, popovers e listas de opções:** a lista aberta deve permanecer
+  inteiramente utilizável dentro do viewport. Defina uma altura máxima
+  compatível com a janela, use rolagem interna quando necessário e preserve
+  início, fim e item ativo alcançáveis por mouse, toque e teclado. Não aceite
+  opções cortadas, ocultas atrás de outros elementos ou um menu que apenas
+  pareça rolável.
+- **Rolagem em overlays:** enquanto um modal, drawer, command palette ou
+  popover rolável estiver aberto, a rolagem deve pertencer ao elemento que tem
+  foco. Impedir scroll chaining para o documento de fundo em wheel, trackpad e
+  toque; quando o overlay for modal, bloquear a rolagem de fundo e restaurar
+  posição e foco de origem ao fechar. Validar que uma tentativa de chegar ao
+  fim da lista não move a página abaixo.
+- **Ciclo de vida de overlays:** modais, drawers, menus e popovers precisam
+  ter entrada e saída deliberadas. Use presença/exit para não desmontar a
+  superfície antes da animação terminar; anime apenas `opacity` e `transform`,
+  respeite `prefers-reduced-motion` e mantenha foco, backdrop e interação
+  bloqueados até o fechamento ser concluído. Não aceite fechamento abrupto ou
+  sensação de reload.
+- **Tamanho e conteúdo dinâmico:** quando uma ação adiciona ou remove uma
+  etapa, resultado ou grupo dentro de uma superfície, a altura e a posição dos
+  elementos vizinhos devem acompanhar por transição de layout local. Não aceite
+  salto seco de tamanho, corte transitório ou mudança que desloque a leitura
+  sem preservar o foco; ao atingir o limite do viewport, transfira a rolagem
+  para uma área interna com a mesma continuidade visual.
+- **Rolagem com affordance própria:** uma lista operacional que exige rolagem
+  deve comunicar isso por trilho e polegar visuais coerentes com a interface,
+  com contraste e área de arraste suficientes. Não dependa exclusivamente da
+  barra padrão do navegador, nem esconda a barra de modo que o usuário não
+  descubra os itens adicionais. A personalização não pode remover rolagem por
+  teclado, roda, trackpad ou toque.
+- **Dependências entre seletores:** quando um seletor depende de uma decisão
+  anterior — por exemplo, o responsável de uma etapa depende da equipe em
+  “Coordenar execução” — ele só pode exibir opções válidas no conjunto de
+  origem. Ao remover uma opção de origem, reconcilie valores dependentes de
+  forma visível e segura; nunca mantenha uma escolha invisível, obsoleta ou
+  impossível de selecionar novamente.
+- **Continuidade de foco após mutação:** ao adicionar uma etapa, resultado ou
+  campo, não basta transferir o foco de teclado. Depois que o layout local se
+  estabilizar, o contêiner rolável da própria superfície deve trazer o novo
+  elemento para uma zona visível e confortável de leitura, sem deslocar o
+  documento de fundo. Verifique especialmente expansões para baixo: o usuário
+  precisa perceber a consequência da ação no mesmo contexto visual, e não
+  procurar pelo item recém-criado.
+- **Navegação e filtros com semântica única:** não reutilize o mesmo conjunto
+  de rótulos para controles que governam contextos diferentes. Quando uma tela
+  tiver navegação global e filtros de uma fila local, diferencie-os por copy,
+  posição e escopo percebido; cada conjunto deve ter uma única fonte de estado
+  e uma consequência visível. Ao alternar contextos, preserve filtros, busca,
+  seleção e posição de rolagem que pertencem ao contexto de origem, salvo uma
+  ação explícita de redefinição.
+- **Hierarquia de ações em listas operacionais:** em cards repetidos, mantenha
+  visível apenas a ação imediata de maior frequência e uma ação de adiamento
+  quando ela fizer parte do fluxo. Edição, exclusão e ações raras devem viver
+  em um menu de contexto acessível por teclado, com confirmação própria para
+  ações destrutivas. Quatro ou mais CTAs concorrentes por linha reduzem a
+  escaneabilidade e aumentam o risco de toque acidental.
+- **Integridade de contexto em detalhes:** drawers, modais, checklists,
+  histórico e orientações precisam derivar do item atualmente selecionado. Ao
+  abrir dois registros diferentes em sequência, confirme título, setor,
+  prazo, justificativa e próximos passos do mesmo `id`; nunca reutilize dados
+  de exemplo ou conteúdo residual de outro registro. Uma divergência visual
+  entre card e detalhe é risco de execução e deve ser tratada como defeito de
+  dados/contexto, não apenas de composição.
+- **Urgência temporal acionável:** quando a prioridade de um item depende de
+  prazo, um contador estático não é suficiente. Exiba um cronômetro vivo para
+  o item operacional mais urgente, com estado restante/atrasado inequívoco,
+  atualização sem saltos e anúncio acessível; ações como adiar devem mostrar
+  o novo horário antes de serem confirmadas.
+- **Feedback de conclusão reconhecível:** concluir um item não pode trocar
+  apenas copy ou cor. Preserve o card por tempo suficiente para uma transição
+  local de sucesso — por exemplo, borda verde animada — e só então aplique o
+  estado concluído ou sua saída do filtro, sem reanimar a lista inteira.
+- **CTA orientado pelo contexto ativo:** uma ação global deve usar a entidade
+  da aba atual. Ao trocar de tarefas para lembretes, tanto o rótulo quanto o
+  gatilho precisam mudar para a criação correspondente, com a mesma fonte de
+  estado usada pela ação local.
+- **Checklists acionáveis fora do detalhe:** se um card resume etapas de uma
+  tarefa, as caixas de seleção exibidas nele devem ser operáveis e atualizar a
+  mesma fonte de estado do drawer; não use um ícone que pareça checkbox mas
+  só seja interativo após abrir detalhes.
+- **Categorias sem conteúdo:** painéis de resumo não devem reservar espaço
+  para categorias com contagem zero. Filtre-as antes da renderização e use
+  entrada, saída e layout local animados para que criação ou remoção não cause
+  salto de altura nem quebre a leitura da página.
+- **Composer orientado à decisão:** campos sem consequência para a ação atual
+  devem ser removidos do formulário em vez de ocupar espaço. Prioridade,
+  recorrência e demais escolhas que alteram o comportamento operacional devem
+  usar opções personalizadas com nome, estado selecionado e breve consequência
+  da escolha; um grupo de chips sem explicação torna a criação incompleta.
+
+### Roteiro mínimo para overlays
+
+Para cada overlay relevante, reproduza e registre: abrir por mouse e teclado;
+percorrer o primeiro, um intermediário e o último item; rolar até os dois
+limites com roda/trackpad ou toque; confirmar que o fundo não se move; fechar
+por ação segura, Escape e backdrop conforme a regra; e confirmar o retorno de
+foco ao gatilho. Em viewport baixo e mobile, confirme também que o overlay se
+reposiciona ou limita sua altura sem cortar opções.
+
+Em fluxos com campos dependentes, altere a seleção de origem, abra todos os
+seletores dependentes e confirme que só aparecem opções válidas. Em coleções
+dinâmicas, adicione e remova um item observando a transição de tamanho do
+container, a preservação de foco e a barra de rolagem quando o limite da tela
+for atingido. Após adicionar, confirme que a área rolável do overlay acompanha
+o novo item e o mantém visível sem mover a página por trás.
 
 Se não houver ambiente executável, faça uma auditoria estática cuidadosa e declare essa limitação. Não apresente hipótese como comportamento observado.
 
@@ -103,6 +248,9 @@ Inclua impacto, frequência, risco e esforço estimado quando puder sustentá-lo
 ### 5. Alterações realizadas
 
 Se houver autorização para corrigir, liste arquivos, problema, comportamento antes/depois e testes executados. Se não houve alteração, declare isso.
+Inclua também os critérios novos adicionados à skill a partir dos problemas
+confirmados nesta tarefa, ou declare explicitamente que não houve aprendizado
+novo a registrar.
 
 ### 6. Pendências e riscos
 

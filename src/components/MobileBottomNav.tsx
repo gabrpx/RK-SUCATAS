@@ -7,7 +7,8 @@ import {
   Truck,
   Settings,
   MoreHorizontal,
-  X
+  X,
+  ListTodo
 } from 'lucide-react';
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
@@ -21,6 +22,7 @@ function cn(...inputs: ClassValue[]) {
 export const MobileBottomNav = ({ activeTab, setActiveTab, theme, userRole, isMoreOpen, setIsMoreOpen }: any) => {
   const allItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Início', roles: ['admin', 'gerente'] },
+    { id: 'tarefas', icon: ListTodo, label: 'Tarefas', roles: ['admin', 'gerente'] },
     { id: 'estoque', icon: Package, label: 'Estoque', roles: ['admin', 'gerente'] },
     { id: 'vendas', icon: ShoppingCart, label: 'Vendas', roles: ['admin', 'gerente'] },
     { id: 'caixa', icon: Wallet, label: 'Caixa', roles: ['admin', 'gerente'] },
