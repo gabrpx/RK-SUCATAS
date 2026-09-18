@@ -1745,7 +1745,7 @@ export function TasksPreview({
             </div>
             <div className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1.5fr)_360px]">
               <section className="space-y-6">
-                <div data-preview-reveal className="hidden">
+                {focusTask && <div data-preview-reveal className="hidden">
                   <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
                     <div className="flex items-center gap-2">
                       <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-blue-700">
@@ -1827,7 +1827,7 @@ export function TasksPreview({
                       </Button>
                     </div>
                   </div>
-                </div>
+                </div>}
                 <div
                   data-preview-reveal
                   className="rounded-xl border border-slate-200 bg-white p-5 sm:p-6"
