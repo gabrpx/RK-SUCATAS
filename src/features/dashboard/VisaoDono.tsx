@@ -625,9 +625,14 @@ export function VisaoDono({ estoque, vendas, caixa, orcamentos, clientes, fiadoR
                   <span className="text-sm text-text-secondary">
                     <span className="text-text-primary font-medium">{tarefasResumo.pendentesTotal}</span> pendente(s)
                   </span>
-                  <span className="text-sm text-text-secondary">
-                    <span className="text-text-primary font-medium">{tarefasResumo.geral}</span> geral · <span className="text-text-primary font-medium">{tarefasResumo.visita}</span> visita
-                  </span>
+                  {(tarefasResumo.geral > 0 || tarefasResumo.visita > 0) && (
+                    <span className="text-sm text-text-secondary">
+                      {[
+                        tarefasResumo.geral > 0 && <><span className="text-text-primary font-medium">{tarefasResumo.geral}</span> geral</>,
+                        tarefasResumo.visita > 0 && <><span className="text-text-primary font-medium">{tarefasResumo.visita}</span> visita</>,
+                      ].filter(Boolean).map((el, i) => <span key={i}>{i > 0 && ' · '}{el}</span>)}
+                    </span>
+                  )}
                 </div>
                 <button
                   type="button"

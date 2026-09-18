@@ -12,6 +12,8 @@ import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../../components/ui/dropdown-menu';
 import { SeletorCliente } from '../clientes/SeletorCliente';
+import { DatePicker } from '../../components/ui/DatePicker';
+import { TimePicker } from '../../components/ui/TimePicker';
 import { LembretesView } from '../lembretes/LembretesView';
 import { TarefaCards } from './TarefaCards';
 import { useTarefas } from './useTarefas';
@@ -171,7 +173,7 @@ function VisaoResponsavel({
           renderAcaoRapida={botaoConcluir}
           renderAcoes={(t) => botaoConcluir(t)}
           onContatoSalvo={refetch}
-          podeMarcarItens={() => true}
+          podeMarcarItens={(t) => souParticipante(t, meuId)}
           meuId={meuId}
         />
       )}
@@ -623,7 +625,7 @@ function VisaoCriador({
           renderMenu={menuTarefa}
           renderAcoes={renderAcoesTarefa}
           onContatoSalvo={refetch}
-          podeMarcarItens={() => true}
+          podeMarcarItens={(t) => isAdmin || souParticipante(t, meuId)}
           podeReordenar={podeEditar}
           mostrarResponsavel
           meuId={meuId}
@@ -733,10 +735,28 @@ function VisaoCriador({
               </button>
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={labelClass}>Prazo</label>
-              <input type="datetime-local" value={form.prazo || ''} onChange={(e) => setForm((f) => ({ ...f, prazo: e.target.value }))} className={inputClass} />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <DatePicker
+                label="Data do prazo"
+                value={form.prazo ? new Date(form.prazo) : null}
+                onChange={(d) => {
+                  if (!d) return setForm((f) => ({ ...f, prazo: '' }));
+                  const prev = form.prazo ? new Date(form.prazo) : null;
+                  const h = prev ? String(prev.getHours()).padStart(2, '0') : '23';
+                  const m = prev ? String(prev.getMinutes()).padStart(2, '0') : '59';
+                  const pad = (n: number) => String(n).padStart(2, '0');
+                  setForm((f) => ({ ...f, prazo: `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${h}:${m}` }));
+                }}
+              />
+              <TimePicker
+                label="Horário"
+                value={form.prazo ? form.prazo.slice(11, 16) : ''}
+                onChange={(time) => {
+                  if (!form.prazo) return;
+                  setForm((f) => ({ ...f, prazo: f.prazo ? f.prazo.slice(0, 11) + time : '' }));
+                }}
+              />
             </div>
             <div>
               <label className={labelClass}>Prioridade</label>
