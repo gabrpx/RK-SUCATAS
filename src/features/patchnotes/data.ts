@@ -18,6 +18,45 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.5',
+    data: '2026-09-18',
+    titulo: 'Tarefas: filtros de lembretes responsivos',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Os filtros de Lembretes agora quebram linha em telas estreitas, eliminando a barra de rolagem horizontal e mantendo a identidade visual laranja do sistema.',
+      },
+    ],
+  },
+  {
+    versao: '1.7.4',
+    data: '2026-09-17',
+    titulo: 'Tarefas: checklist, permissões e prazo',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Os itens do checklist no card recolhido agora aparecem como texto puro (com bullet), sem os ícones de checkbox que confundiam com elementos interativos. A barra de progresso continua visível.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Checkboxes do checklist agora respeitam a designação: só o responsável da tarefa (ou admin) pode marcar itens. Quem não tem permissão vê os checkboxes desabilitados e acinzentados.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Na Visão do Dono, categorias de tarefa (geral/visita) sem nenhuma tarefa pendente não aparecem mais — só exibe a métrica quando há pelo menos uma tarefa daquele tipo.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'O campo de prazo no modal de criação/edição de tarefa agora usa os componentes DatePicker e TimePicker do sistema, com calendário e input de horário separados, em vez do input nativo do navegador.',
+      },
+    ],
+  },
+  {
     versao: '1.7.3',
     data: '2026-09-15',
     titulo: 'Editar unidade pela lista + ficha mais clara',

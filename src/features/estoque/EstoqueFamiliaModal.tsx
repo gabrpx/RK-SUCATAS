@@ -173,7 +173,12 @@ function UnidadeCard({
           </div>
 
           {!modoSelecao && (
-            <DropdownMenu open={menuAberto} onOpenChange={setMenuAberto}>
+            // modal={false}: sem isso, o DropdownMenu modal do Radix desabilita
+            // os pointer-events "fora" dele ao abrir e joga o CONTEUDO do
+            // dialog-pai (EstoqueFamiliaModal) para pointer-events:none — a tela
+            // congela e o toque seguinte cai no overlay e fecha o modal. Menu
+            // dentro de dialog nao precisa de modalidade propria.
+            <DropdownMenu open={menuAberto} onOpenChange={setMenuAberto} modal={false}>
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"

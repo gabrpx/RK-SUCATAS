@@ -145,7 +145,7 @@ function ItemChecklistArrastavel({
         onClick={onToggle}
         className={cn(
           'flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition-colors',
-          podeMarcar ? 'hover:bg-surface-inset cursor-pointer' : 'cursor-default',
+          podeMarcar ? 'hover:bg-surface-inset cursor-pointer' : 'cursor-default opacity-60',
         )}
       >
         <span className={cn(
@@ -561,13 +561,11 @@ export function TarefaCards({ tarefas, renderAcoes, renderAcaoRapida, renderMenu
                     <ul className="mt-2 space-y-1">
                       {tarefa.itens.slice(1, 4).map((it) => (
                         <li key={it.id} className="flex items-center gap-1.5 text-xs text-text-faint">
-                          <span className={cn('flex size-3.5 shrink-0 items-center justify-center rounded-[4px] border', it.concluido ? 'border-positive bg-positive text-white' : 'border-border-default')}>
-                            {it.concluido && <Check size={9} />}
-                          </span>
+                          <span className="text-text-faint shrink-0">•</span>
                           <span className={cn('truncate', it.concluido && 'line-through opacity-60')}>{it.texto}</span>
                         </li>
                       ))}
-                      {tarefa.itens.length > 4 && <li className="text-xs text-text-faint pl-5">+{tarefa.itens.length - 4} item(ns)</li>}
+                      {tarefa.itens.length > 4 && <li className="text-xs text-text-faint pl-3.5">+{tarefa.itens.length - 4} item(ns)</li>}
                     </ul>
                   )}
                 </div>

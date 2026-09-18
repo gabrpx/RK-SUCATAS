@@ -174,7 +174,7 @@ export function LembretesView() {
         </Button>
       </div>
 
-      <div className="flex items-center gap-2">
+      <div className="flex max-w-full flex-wrap items-center gap-2">
         {(['pendente', 'concluido', 'todos'] as const).map((s) => (
           <button
             key={s}
