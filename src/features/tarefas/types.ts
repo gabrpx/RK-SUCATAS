@@ -53,6 +53,10 @@ export interface Tarefa {
   atribuido_para: string;
   criado_por: string;
   status: TarefaStatus;
+  pausada?: boolean;
+  pausada_em?: string | null;
+  pausada_por?: string | null;
+  pausa_motivo?: string | null;
   prioridade: TarefaPrioridade;
   tipo: TarefaTipo;
   cliente_id: string | null;

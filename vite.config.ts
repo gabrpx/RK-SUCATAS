@@ -27,9 +27,17 @@ export default defineConfig(() => {
       },
     },
     server: {
+      // O novo sistema usa uma porta própria para não ser confundido com o
+      // preview legado, que historicamente roda em 4173.
+      port: Number(process.env.VITE_PORT || 3001),
+      strictPort: true,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+    },
+    preview: {
+      port: Number(process.env.VITE_PREVIEW_PORT || 3001),
+      strictPort: true,
     },
     test: {
       // Worktrees de outros agentes ficam dentro do repositório, mas não fazem

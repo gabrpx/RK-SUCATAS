@@ -18,6 +18,18 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.6',
+    data: '2026-09-18',
+    titulo: 'Tarefas: enquadramento responsivo do modal',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'A tela de Tarefas agora contém o conteúdo horizontalmente em mobile e desktop; o modal de criação mantém a rolagem vertical sem poder ser arrastado para os lados.',
+      },
+    ],
+  },
+  {
     versao: '1.7.5',
     data: '2026-09-18',
     titulo: 'Tarefas: filtros de lembretes responsivos',

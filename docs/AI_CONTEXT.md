@@ -18,6 +18,18 @@ Nenhum agente deve presumir que a tarefa começou ou terminou na sua própria se
 - Integrações: Melhor Envio; mobile: Capacitor/Android.
 - Node: `>=22`.
 
+## Identidade dos checkouts e portas
+
+O checkout descrito por este documento é o novo sistema e deve ser tratado como a única fonte de verdade para a aplicação atual:
+
+| Item | Novo sistema | Projeto legado |
+| --- | --- | --- |
+| Caminho | `D:\NOVO SISTEMA ATUALIZADO\SISTEMA CLAUDE` | `D:\SISTEMA CLAUDE` |
+| Identidade funcional | Abas `Clientes`, `Vendas`, `Caixa` e nova `Tarefas` | Aplicação/preview anterior |
+| Preview local | `http://127.0.0.1:3001/tarefas` | `http://127.0.0.1:4173` |
+
+`4173` não deve ser usado para validar o novo sistema. Em especial, `/tarefas-preview` servido nessa porta pode mostrar o projeto legado. Antes de iniciar um servidor ou interpretar uma captura do navegador, execute `Get-Location`, confirme o caminho canônico e rode `scripts/verify-new-project.ps1`. A identificação persistente e os procedimentos estão em `PROJECT_IDENTITY.md`.
+
 | Objetivo | Comando |
 | --- | --- |
 | Desenvolvimento | `npm run dev` |

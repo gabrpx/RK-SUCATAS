@@ -1,5 +1,5 @@
 param(
-  [string]$EnvFile = (Join-Path $PSScriptRoot '..\..\..\.env'),
+  [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'),
   [int]$Port = 3001
 )
 
@@ -17,7 +17,10 @@ $env:PORT = [string]$Port
 $env:NODE_ENV = 'development'
 $env:VITE_CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) 'rk-sucatas-vite-preview'
 
-Write-Host "Iniciando o preview novo em http://127.0.0.1:$Port/estoque"
+Write-Host "PROJETO: RK Sucatas — NOVO SISTEMA"
+Write-Host "DIRETORIO: $worktreeRoot"
+Write-Host "Iniciando o preview novo em http://127.0.0.1:$Port/tarefas"
+Write-Host "A porta 4173 pertence ao projeto legado e não deve ser usada para validar este checkout."
 Write-Host "Arquivo de ambiente carregado de forma privada: $envPath"
 
 $projectNode = Join-Path $worktreeRoot 'node_modules\node\bin\node.exe'

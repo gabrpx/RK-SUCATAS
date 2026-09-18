@@ -619,7 +619,7 @@ export function TaskComposer({
       initial={shouldReduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-      className="fixed inset-0 z-[220] overflow-y-auto overscroll-contain bg-slate-950/35 p-0 backdrop-blur-sm [scrollbar-color:rgb(96_165_250)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-blue-400 [&::-webkit-scrollbar-track]:bg-transparent sm:p-6"
+      className="fixed inset-0 z-[220] overflow-x-hidden overflow-y-auto overscroll-contain bg-slate-950/35 p-0 backdrop-blur-sm [scrollbar-color:rgb(96_165_250)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-blue-400 [&::-webkit-scrollbar-track]:bg-transparent sm:p-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
@@ -640,10 +640,10 @@ export function TaskComposer({
           default: { type: "spring", stiffness: 360, damping: 32, mass: 0.72 },
           layout: { type: "spring", stiffness: 380, damping: 32, mass: 0.72 },
         }}
-        className="mx-auto min-h-[100dvh] w-full max-w-[1120px] overflow-visible rounded-none border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.26)] sm:my-2 sm:min-h-0 sm:rounded-xl sm:border"
+        className="mx-auto min-h-[100dvh] min-w-0 w-full max-w-[1120px] overflow-x-hidden rounded-none border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.26)] sm:my-2 sm:min-h-0 sm:rounded-xl sm:border"
       >
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-7 sm:py-4">
-          <div>
+        <header className="sticky top-0 z-20 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-7 sm:py-4">
+          <div className="min-w-0">
             <Label>Nova tarefa · turno ativo</Label>
             <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-900 sm:text-2xl">
               Preparar execução operacional
@@ -664,8 +664,8 @@ export function TaskComposer({
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_330px]">
-          <div className="space-y-7 p-5 sm:p-7">
+        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_330px]">
+          <div className="min-w-0 space-y-7 p-5 sm:p-7">
             <FormSection
               eyebrow="01 · Definir tarefa"
               title="O que precisa ser feito?"
@@ -902,7 +902,7 @@ export function TaskComposer({
             </FormSection>
           </div>
 
-          <aside className="border-t border-slate-200 bg-slate-50/70 p-5 sm:p-7 lg:border-l lg:border-t-0">
+          <aside className="min-w-0 border-t border-slate-200 bg-slate-50/70 p-5 sm:p-7 lg:border-l lg:border-t-0">
             <div className="lg:sticky lg:top-5">
               <Label>04 · Revisar e criar</Label>
               <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
@@ -962,7 +962,7 @@ export function TaskComposer({
           </aside>
         </div>
 
-        <footer className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:py-4">
+        <footer className="sticky bottom-0 z-20 flex min-w-0 flex-wrap items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:py-4">
           <span className="mr-auto hidden font-mono text-[10px] text-slate-400 sm:inline">
             ⌘↵ criar tarefa
           </span>

@@ -39,6 +39,8 @@ export interface PreviewTask {
   category: PreviewTaskCategory;
   priority: PreviewTaskPriority;
   status: PreviewTaskStatus;
+  paused?: boolean;
+  pauseReason?: string;
   dueLabel: string;
   estimateMinutes: number;
   checklist: PreviewChecklistItem[];
@@ -116,8 +118,8 @@ export function createPreviewTask(input: PreviewTaskCreateInput): PreviewTask {
 export function getPreviewSummary(tasks: PreviewTask[]) {
   return tasks.reduce(
     (summary, task) => {
-      if (task.status !== "concluida") summary.open += 1;
-      if (task.status === "em-andamento") summary.inProgress += 1;
+      if (task.status !== "concluida" && !task.paused) summary.open += 1;
+      if (task.status === "em-andamento" && !task.paused) summary.inProgress += 1;
       summary.totalChecklistItems += task.checklist.length;
       summary.completedChecklistItems += task.checklist.filter(
         (item) => item.completed
@@ -169,9 +171,9 @@ export function filterPreviewTasksByPrimaryTab(
 ) {
   if (tab === "turno") return tasks;
   if (tab === "abertas")
-    return tasks.filter((task) => task.status !== "concluida");
+    return tasks.filter((task) => task.status !== "concluida" && !task.paused);
   if (tab === "pendencias")
-    return tasks.filter((task) => task.status === "aguardando");
+    return tasks.filter((task) => task.status === "aguardando" && !task.paused);
   return tasks.filter((task) => task.status === "concluida");
 }
 
@@ -218,9 +220,9 @@ export function filterPreviewTasksByQueueFilter(
   filter: PreviewQueueFilter
 ) {
   if (filter === "abertas")
-    return tasks.filter((task) => task.status !== "concluida");
+    return tasks.filter((task) => task.status !== "concluida" && !task.paused);
   if (filter === "pendencias")
-    return tasks.filter((task) => task.status === "aguardando");
+    return tasks.filter((task) => task.status === "aguardando" && !task.paused);
   if (filter === "grupo") return tasks.filter(isCollaborativePreviewTask);
   return tasks;
 }
