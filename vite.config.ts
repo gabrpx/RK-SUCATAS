@@ -43,7 +43,7 @@ export default defineConfig(() => {
       // Worktrees de outros agentes ficam dentro do repositório, mas não fazem
       // parte da suíte deste checkout. Sem este filtro o Vitest executa os
       // mesmos testes várias vezes e mistura dependências/estado entre árvores.
-      exclude: ['**/node_modules/**', '**/.worktrees/**', '**/dist/**'],
+      exclude: ['**/node_modules/**', '**/.worktrees/**', '**/.claude/worktrees/**', '**/dist/**'],
       // A suíte de UI pode ficar mais lenta quando todos os arquivos rodam em
       // paralelo; isso evita falso negativo sem mascarar travas reais.
       testTimeout: 10000,

@@ -125,14 +125,7 @@ function makeInitialDraft(owner = "ryan"): ComposerDraft {
     priority: "normal",
     operatorIds: [owner],
     dueTime: "17:30",
-    checklist: [
-      { id: "initial-1", label: "Conferir condição da peça", owner },
-      {
-        id: "initial-2",
-        label: "Registrar localização no estoque",
-        owner,
-      },
-    ],
+    checklist: [],
   };
 }
 

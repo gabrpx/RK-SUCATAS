@@ -31,8 +31,6 @@ import { motion, AnimatePresence } from 'motion/react';
 import { cn } from './utils';
 import { DataProvider, useData } from './context/DataContext';
 import { GlobalSearch } from './components/GlobalSearch';
-import { MobileBottomNav } from './components/MobileBottomNav';
-import { DashboardSidebar } from './components/DashboardSidebar';
 import { TasksNavigationDock } from './components/TasksNavigationDock';
 import { Modal } from './components/ui/Modal';
 import { Button } from './components/ui/button';
@@ -543,11 +541,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const [estoqueActions, setEstoqueActions] = useState<{ edit: (item: Estoque) => void; delete: (id: string) => void } | null>(null);
   const [vendasActions, setVendasActions] = useState<{ edit: (item: Venda) => void; delete: (id: string) => void } | null>(null);
 
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isSearchOpen, setIsSearchOpen] = useState(false);
-  const [isMoreMenuOpen, setIsMoreMenuOpen] = useState(false);
   const [isLogoutModalOpen, setIsLogoutModalOpen] = useState(false);
-  const isTasksRedesign = activeTab === 'tarefas';
 
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -597,25 +592,14 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       data-project-label="RK Sucatas · NOVO SISTEMA"
       className={cn('min-h-[100dvh] transition-colors duration-300 flex font-sans w-full relative overflow-x-hidden', 'bg-[radial-gradient(ellipse_at_top,_var(--color-surface-raised),_var(--color-surface-page))] text-text-primary')}
     >
-      {!isTasksRedesign && (
-        <DashboardSidebar
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          isOpen={isSidebarOpen}
-          onToggle={() => setIsSidebarOpen((v) => !v)}
-          onLogoutClick={() => setIsLogoutModalOpen(true)}
-        />
-      )}
-
       {/* Main Content */}
       <main className={cn(
-        'flex-1 flex flex-col min-w-0 transition-all duration-300',
-        !isTasksRedesign && 'pb-nav-safe md:pb-0',
-        !isTasksRedesign && (isSidebarOpen ? 'md:ml-[260px]' : 'md:ml-[68px]'),
+        'flex min-w-0 flex-1 flex-col transition-all duration-300',
+        activeTab !== 'tarefas' && 'pb-[calc(5.75rem+env(safe-area-inset-bottom))]',
       )}>
         {/* No mobile o título da view já aparece grande dentro de cada tela;
             este header só existe pra desktop, pra não duplicar o nome no topo. */}
-        {!isTasksRedesign && (
+        {activeTab !== 'tarefas' && (
           <header className={cn('min-h-16 border-b backdrop-blur-md hidden md:flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-surface-inset/40 border-border-default/50')}>
             <div className="flex items-center gap-2 md:gap-4">
               <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-text-primary')}>{TAB_LABELS[activeTab]}</h2>
@@ -625,9 +609,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
         <div
           ref={contentRef}
-          className={isTasksRedesign
+          className={activeTab === 'tarefas'
             ? 'min-h-[100dvh] w-full min-w-0 overflow-x-hidden'
-            : 'p-4 md:p-6 pt-[calc(env(safe-area-inset-top)+1rem)] md:pt-6 pb-32 md:pb-6 overflow-y-auto flex-1'}
+            : 'flex-1 overflow-y-auto overflow-x-hidden p-4 pt-[calc(env(safe-area-inset-top)+1rem)] md:p-6 md:pt-6'}
         >
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
@@ -694,19 +678,13 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         </div>
       </main>
 
-      {!isTasksRedesign && (
-        <MobileBottomNav activeTab={activeTab} setActiveTab={setActiveTab} isMoreOpen={isMoreMenuOpen} setIsMoreOpen={setIsMoreMenuOpen} onLogoutClick={() => setIsLogoutModalOpen(true)} />
-      )}
+      <TasksNavigationDock
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        onLogoutClick={() => setIsLogoutModalOpen(true)}
+      />
 
-      {isTasksRedesign && (
-        <TasksNavigationDock
-          activeTab={activeTab}
-          onTabChange={setActiveTab}
-          onLogoutClick={() => setIsLogoutModalOpen(true)}
-        />
-      )}
-
-      {!isTasksRedesign && !isMoreMenuOpen && (
+      {activeTab !== 'tarefas' && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
           {/* O Dashboard já oferece busca no cabeçalho e precisa manter a área
               de leitura livre no mobile; os FABs continuam disponíveis nas
