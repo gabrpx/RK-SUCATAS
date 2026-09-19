@@ -25,6 +25,7 @@ import { XAxis } from "@/src/components/charts/x-axis";
 import { Button } from "@/src/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "./PreviewTabs";
 import { cn } from "@/src/utils";
+import { useTaskOverlayScrollLock } from "./useTaskOverlayScrollLock";
 import {
   filterReminders,
   getMostUrgentReminder,
@@ -66,9 +67,6 @@ function useOverlayInteraction(
     if (!open) return;
 
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key === "Escape") onCloseRef.current();
     };
@@ -78,10 +76,11 @@ function useOverlayInteraction(
 
     return () => {
       window.removeEventListener("keydown", onKeyDown);
-      document.body.style.overflow = previousOverflow;
       previousFocus?.focus();
     };
   }, [initialFocusRef, open]);
+
+  useTaskOverlayScrollLock(open);
 }
 
 function useHorizontalOverflow(

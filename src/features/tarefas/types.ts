@@ -99,6 +99,7 @@ export interface TarefaUpdateInput {
   descricao?: string | null;
   prazo?: string | null;
   atribuido_para?: string;
+  participantes_ids?: string[];
   cliente_id?: string | null;
   prioridade?: TarefaPrioridade;
   tipo?: TarefaTipo;

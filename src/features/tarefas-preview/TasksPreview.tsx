@@ -25,6 +25,7 @@ import { Grid } from "@/src/components/charts/grid";
 import { ChartTooltip } from "@/src/components/charts/tooltip";
 import { XAxis } from "@/src/components/charts/x-axis";
 import { Button } from "@/src/components/ui/button";
+import { useConfirm } from "@/src/components/ui/hooks/useConfirm";
 import { Tabs, TabsList, TabsTrigger } from "./PreviewTabs";
 import { cn } from "@/src/utils";
 import {
@@ -36,15 +37,17 @@ import {
   getPreviewTaskDeadline,
   getPreviewTaskExecutionSummary,
   getPreviewSummary,
+  startPreviewTask,
   type PreviewTask,
   type PreviewTaskCategory,
   type PreviewTaskPriority,
   type PreviewTaskStatus,
 } from "./taskPreviewModel";
-import { TaskComposer, demoOperators, type DemoOperator } from "./TaskComposer";
+import { TaskComposer, demoOperators, type DemoOperator, type TaskComposerInput } from "./TaskComposer";
 import { initialReminders as demoInitialReminders, RemindersPanel } from "./RemindersPanel";
 import type { Reminder } from "./reminderModel";
 import { TasksNavigationDock } from "../../components/TasksNavigationDock";
+import { useTaskOverlayScrollLock } from "./useTaskOverlayScrollLock";
 import type { Tab } from "../../constants/navigation";
 
 type PreviewScreen = "turno" | "abertas";
@@ -53,20 +56,13 @@ type QueueFilter = "todas" | "abertas" | "pendencias" | "grupo";
 type WorkspaceTab = "turno" | "lembretes";
 
 type TaskPreviewCallbacks = {
-  onCreateTask?: (input: {
-    title: string;
-    category: PreviewTaskCategory;
-    priority: PreviewTaskPriority;
-    operatorIds: string[];
-    instructions: string;
-    checklistLabels: string[];
-    checklistOwners: string[];
-    dueTime: string;
-  }) => Promise<PreviewTask | null> | PreviewTask | null;
+  onCreateTask?: (input: TaskComposerInput) => Promise<PreviewTask | null> | PreviewTask | null;
   onToggleChecklist?: (taskId: string, checklistId: string) => Promise<PreviewTask | null> | PreviewTask | null;
   onAdvanceTask?: (task: PreviewTask, nextStatus: PreviewTaskStatus) => Promise<PreviewTask | null> | PreviewTask | null;
   onPauseTask?: (taskId: string, reason: string) => Promise<PreviewTask | null> | PreviewTask | null;
   onResumeTask?: (taskId: string) => Promise<PreviewTask | null> | PreviewTask | null;
+  onUpdateTask?: (taskId: string, input: TaskComposerInput) => Promise<PreviewTask | null> | PreviewTask | null;
+  onDeleteTask?: (taskId: string) => Promise<void> | void;
   onRemindersChange?: (previous: Reminder[], next: Reminder[]) => void | Promise<void>;
 };
 
@@ -760,6 +756,8 @@ function TaskInspector({
   onAdvanceStatus,
   onPauseTask,
   onResumeTask,
+  onEdit,
+  onDelete,
 }: {
   task: PreviewTask | null;
   onClose: () => void;
@@ -767,7 +765,10 @@ function TaskInspector({
   onAdvanceStatus: (taskId: string) => void;
   onPauseTask?: (taskId: string, reason: string) => Promise<void>;
   onResumeTask?: (taskId: string) => Promise<void>;
+  onEdit?: () => void;
+  onDelete?: () => Promise<void> | void;
 }) {
+  useTaskOverlayScrollLock(Boolean(task));
   const [pauseFormOpen, setPauseFormOpen] = useState(false);
   const [pauseReason, setPauseReason] = useState("");
   const [pauseSubmitting, setPauseSubmitting] = useState(false);
@@ -838,12 +839,25 @@ function TaskInspector({
               <Pause size={13} /> Pausar
             </button>
           ) : null}
-          <button
-            type="button"
-            className="rounded border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            Editar
-          </button>
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            >
+              Editar
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              aria-label="Excluir tarefa"
+              onClick={() => void onDelete()}
+              className="grid size-8 place-items-center rounded-md border border-rose-100 bg-white text-rose-500 shadow-sm transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+            >
+              <X size={15} />
+            </button>
+          )}
           <button
             onClick={onClose}
             aria-label="Fechar detalhes"
@@ -896,25 +910,41 @@ function TaskInspector({
         </p>
 
         {task.paused && (
-          <div className="mt-5 rounded-lg border border-orange-200 bg-orange-50 px-3.5 py-3 text-sm text-orange-900">
-            <div className="flex items-center gap-2 font-semibold"><Pause size={14} /> Tarefa pausada</div>
-            <p className="mt-1 text-xs leading-relaxed text-orange-800">{task.pauseReason || "Sem motivo informado."}</p>
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-amber-950 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+                <Pause size={14} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">Execução pausada</p>
+                <p className="mt-1 text-sm leading-relaxed text-amber-900">{task.pauseReason || "Sem motivo informado."}</p>
+              </div>
+            </div>
           </div>
         )}
 
         {pauseFormOpen && !task.paused && onPauseTask && (
-          <section className="mt-5 rounded-lg border border-orange-200 bg-orange-50 p-3.5">
-            <SurfaceLabel>Motivo da pausa</SurfaceLabel>
+          <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <SurfaceLabel>Motivo da pausa</SurfaceLabel>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">Registre o bloqueio para a equipe retomar com contexto.</p>
+              </div>
+              <Pause size={15} className="mt-0.5 shrink-0 text-amber-700" />
+            </div>
             <textarea
+              aria-label="Motivo da pausa"
+              maxLength={240}
               value={pauseReason}
               onChange={(event) => setPauseReason(event.target.value)}
               placeholder="Ex.: montagem da XRE pausada por falta de peças"
               rows={3}
-              className="mt-2 w-full resize-y rounded-md border border-orange-200 bg-white px-3 py-2 text-sm text-slate-800 outline-none placeholder:text-slate-400 focus:border-orange-400 focus:ring-2 focus:ring-orange-100"
+              className="mt-3 w-full resize-y rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 transition-shadow focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
             />
             <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
-              {pauseError && <p className="mr-auto text-xs text-rose-700">{pauseError}</p>}
-              <button type="button" onClick={() => setPauseFormOpen(false)} className="rounded border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 hover:bg-slate-50">Cancelar</button>
+              <span className="mr-auto text-[10px] font-mono text-amber-700">{pauseReason.length}/240</span>
+              {pauseError && <p role="alert" className="mr-auto text-xs text-rose-700">{pauseError}</p>}
+              <button type="button" onClick={() => setPauseFormOpen(false)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50">Cancelar</button>
               <button
                 type="button"
                 disabled={pauseSubmitting || !pauseReason.trim()}
@@ -929,7 +959,7 @@ function TaskInspector({
                     setPauseSubmitting(false);
                   }
                 }}
-                className="inline-flex items-center gap-1.5 rounded bg-orange-600 px-3 py-2 text-xs font-semibold text-white hover:bg-orange-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Pause size={13} /> Confirmar pausa
               </button>
@@ -1463,11 +1493,14 @@ export function TasksPreview({
   onAdvanceTask,
   onPauseTask,
   onResumeTask,
+  onUpdateTask,
+  onDeleteTask,
   onRemindersChange,
   errorMessage,
   loading = false,
   integrated = false,
 }: TasksPreviewProps) {
+  const confirm = useConfirm();
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("turno");
   const [activeReminderCount, setActiveReminderCount] = useState(5);
   const [reminderComposerOpen, setReminderComposerOpen] = useState(false);
@@ -1480,6 +1513,7 @@ export function TasksPreview({
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<PreviewTask | null>(null);
+  const [editingTask, setEditingTask] = useState<PreviewTask | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("todas");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
@@ -1582,6 +1616,10 @@ export function TasksPreview({
   const advanceTaskStatus = async (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId);
     if (!task || task.paused) return;
+    if (task.status === "aguardando") {
+      setTasks((current) => current.map((item) => item.id === taskId ? startPreviewTask(item) : item));
+      return;
+    }
     const nextStatus = getNextPreviewTaskStatus(task.status);
     const updated = await onAdvanceTask?.(task, nextStatus);
     if (updated) {
@@ -1629,16 +1667,7 @@ export function TasksPreview({
     setSelectedTask(task);
   };
 
-  const createTask = async (input: {
-    title: string;
-    category: PreviewTaskCategory;
-    priority: PreviewTaskPriority;
-    operatorIds: string[];
-    instructions: string;
-    checklistLabels: string[];
-    checklistOwners: string[];
-    dueTime: string;
-  }) => {
+  const createTask = async (input: TaskComposerInput) => {
     const task = onCreateTask
       ? await onCreateTask(input)
       : createPreviewTask({ id: `tk-${Date.now()}`, ...input });
@@ -1647,6 +1676,47 @@ export function TasksPreview({
     setIsComposerOpen(false);
     setActivePrimaryTab("abertas");
     setScreen("turno");
+  };
+
+  const updateTask = async (input: TaskComposerInput) => {
+    if (!editingTask) return;
+    const updated = onUpdateTask
+      ? await onUpdateTask(editingTask.id, input)
+      : createPreviewTask({ id: editingTask.id, ...input });
+    if (!updated) return;
+    setTasks((current) => current.map((task) => task.id === updated.id ? updated : task));
+    setEditingTask(null);
+    setSelectedTask(updated);
+  };
+
+  const editTask = (task: PreviewTask) => {
+    setSelectedTask(null);
+    setEditingTask(task);
+    setIsComposerOpen(true);
+  };
+
+  const requestDeleteTask = async (task: PreviewTask) => {
+    const confirmed = await confirm({
+      title: "Excluir tarefa?",
+      description: `“${task.title}” será removida definitivamente e não poderá ser recuperada.`,
+      confirmLabel: "Excluir tarefa",
+      cancelLabel: "Manter tarefa",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await onDeleteTask?.(task.id);
+      setTasks((current) => current.filter((item) => item.id !== task.id));
+      setSelectedTask(null);
+      setEditingTask(null);
+    } catch (error: unknown) {
+      setActionError(error instanceof Error ? error.message : "Não foi possível excluir a tarefa");
+    }
+  };
+
+  const closeComposer = () => {
+    setIsComposerOpen(false);
+    setEditingTask(null);
   };
 
   const updateReminders = (updater: Reminder[] | ((current: Reminder[]) => Reminder[])) => {
@@ -1715,7 +1785,13 @@ export function TasksPreview({
           <Button
             variant="default"
             size="sm"
-            onClick={() => workspaceTab === "lembretes" ? setReminderComposerOpen(true) : setIsComposerOpen(true)}
+            onClick={() => {
+              if (workspaceTab === "lembretes") setReminderComposerOpen(true);
+              else {
+                setEditingTask(null);
+                setIsComposerOpen(true);
+              }
+            }}
             aria-label={workspaceTab === "lembretes" ? "Novo lembrete" : "Nova tarefa"}
             className="size-11 shrink-0 rounded-lg bg-blue-600 text-white hover:bg-blue-700 sm:h-9 sm:w-[154px] sm:rounded-md"
           >
@@ -2237,6 +2313,8 @@ export function TasksPreview({
             onAdvanceStatus={advanceTaskStatus}
             onPauseTask={onPauseTask ? pauseTask : undefined}
             onResumeTask={onResumeTask ? resumeTask : undefined}
+            onEdit={onUpdateTask || !integrated ? () => editTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
+            onDelete={onDeleteTask || !integrated ? () => requestDeleteTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
           />
         </>
       )}
@@ -2252,8 +2330,10 @@ export function TasksPreview({
       )}
       <TaskComposer
         open={isComposerOpen}
-        onClose={() => setIsComposerOpen(false)}
+        onClose={closeComposer}
         onCreate={createTask}
+        onUpdate={updateTask}
+        initialTask={editingTask}
         operators={operators}
       />
       {!integrated && (

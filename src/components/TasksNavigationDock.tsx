@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
 import { LogOut, MoreHorizontal, X } from 'lucide-react';
-import { AnimatePresence, motion, useMotionValue, useSpring, useTransform } from 'motion/react';
+import { AnimatePresence, motion } from 'motion/react';
 import { NAV_ITEMS } from '../constants/navigation';
 import type { NavItem, Tab } from '../constants/navigation';
 import { usePermissao } from '../hooks/usePermissao';
@@ -26,25 +26,14 @@ const MOBILE_MAIN_IDS = ['dashboard', 'tarefas', 'vendas', 'caixa'] as const;
 
 function DockIcon({
   item,
-  mouseX,
   onTooltipShow,
   onTooltipHide,
 }: {
   item: DockItem;
-  mouseX: ReturnType<typeof useMotionValue<number>>;
   onTooltipShow: (label: string, target: HTMLButtonElement) => void;
   onTooltipHide: () => void;
 }) {
   const ref = useRef<HTMLButtonElement>(null);
-  const distance = useTransform(mouseX, (value) => {
-    if (value === Infinity || !ref.current) return 0;
-    const bounds = ref.current.getBoundingClientRect();
-    return value - (bounds.left + bounds.width / 2);
-  });
-  const size = useSpring(
-    useTransform(distance, [-150, -90, -45, 0, 45, 90, 150], [42, 44, 48, 58, 48, 44, 42]),
-    { stiffness: 360, damping: 28, mass: 0.45 },
-  );
 
   const handlePointerEnter = (event: ReactPointerEvent<HTMLButtonElement>) => {
     // Touch devices do not have a hover state; aria-label remains available
@@ -59,14 +48,17 @@ function DockIcon({
       aria-label={item.label}
       title={item.label}
       onClick={item.onClick}
+      onPointerDown={(event) => {
+        if (event.pointerType === 'touch') onTooltipHide();
+      }}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={onTooltipHide}
-      onFocus={(event) => onTooltipShow(item.label, event.currentTarget)}
+      onFocus={(event) => {
+        if (event.currentTarget.matches(':focus-visible')) onTooltipShow(item.label, event.currentTarget);
+      }}
       onBlur={onTooltipHide}
-      style={{ width: size, height: size }}
-      whileTap={{ scale: 0.9 }}
       className={cn(
-        'group relative grid shrink-0 place-items-center rounded-2xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+        'group relative grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:size-11',
         item.active
           ? 'border-blue-200 bg-blue-600 text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)]'
           : 'border-slate-200 bg-white/90 text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
@@ -87,14 +79,19 @@ function PlainDockButton({ item, onTooltipShow, onTooltipHide }: {
       type="button"
       aria-label={item.label}
       onClick={item.onClick}
+      onPointerDown={(event) => {
+        if (event.pointerType === 'touch') onTooltipHide();
+      }}
       onPointerEnter={(event) => {
         if (event.pointerType !== 'touch') onTooltipShow(item.label, event.currentTarget);
       }}
       onPointerLeave={onTooltipHide}
-      onFocus={(event) => onTooltipShow(item.label, event.currentTarget)}
+      onFocus={(event) => {
+        if (event.currentTarget.matches(':focus-visible')) onTooltipShow(item.label, event.currentTarget);
+      }}
       onBlur={onTooltipHide}
       className={cn(
-        'grid h-11 min-w-11 shrink-0 place-items-center rounded-2xl border px-2 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2',
+        'grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:size-11',
         item.active
           ? 'border-blue-200 bg-blue-600 text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)]'
           : 'border-slate-200 bg-white/90 text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
@@ -115,7 +112,6 @@ export function TasksNavigationDock({
   onLogoutClick: () => void;
 }) {
   const { pode } = usePermissao();
-  const mouseX = useMotionValue(Infinity);
   const [mobileMoreOpen, setMobileMoreOpen] = useState(false);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const allowedItems = useMemo(() => NAV_ITEMS.filter((item) => pode(`${item.id}.ver`)), [pode]);
@@ -166,11 +162,7 @@ export function TasksNavigationDock({
     <>
       <nav
         aria-label="Navegação principal"
-        onMouseMove={(event) => mouseX.set(event.clientX)}
-        onMouseLeave={() => {
-          mouseX.set(Infinity);
-          setTooltip(null);
-        }}
+        onMouseLeave={() => setTooltip(null)}
         className="pointer-events-none fixed inset-x-2 bottom-[max(0.65rem,env(safe-area-inset-bottom))] z-[120] flex justify-center"
       >
         <div
@@ -178,13 +170,13 @@ export function TasksNavigationDock({
           className="pointer-events-auto hidden max-w-[calc(100vw-1rem)] items-end gap-1 overflow-x-auto overscroll-x-contain rounded-[1.35rem] border border-slate-200/90 bg-white/80 p-1.5 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex sm:gap-1.5 sm:p-2"
         >
           {items.map((item) => (
-            <DockIcon key={item.id} item={item} mouseX={mouseX} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
+            <DockIcon key={item.id} item={item} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
           ))}
         </div>
 
-        <div data-testid="tasks-navigation-mobile" className="pointer-events-auto flex items-end gap-1 rounded-[1.35rem] border border-slate-200/90 bg-white/85 p-1.5 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl lg:hidden sm:gap-1.5 sm:p-2">
+        <div data-testid="tasks-navigation-mobile" className="pointer-events-auto flex items-end gap-1.5 rounded-[1.35rem] border border-slate-200/90 bg-white/85 p-2 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl lg:hidden">
           {mobileMainItems.map((item) => (
-            <DockIcon key={item.id} item={item} mouseX={mouseX} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
+            <DockIcon key={item.id} item={item} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
           ))}
           <PlainDockButton
             item={{

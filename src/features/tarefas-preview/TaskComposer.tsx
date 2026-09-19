@@ -20,9 +20,11 @@ import {
 import { createPortal } from "react-dom";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils";
+import { useTaskOverlayScrollLock } from "./useTaskOverlayScrollLock";
 import type {
   PreviewTaskCategory,
   PreviewTaskPriority,
+  PreviewTask,
 } from "./taskPreviewModel";
 
 export type DemoOperator = {
@@ -117,6 +119,18 @@ type ComposerDraft = {
   checklist: ChecklistDraft[];
 };
 
+export type TaskComposerInput = {
+  title: string;
+  category: PreviewTaskCategory;
+  priority: PreviewTaskPriority;
+  operatorIds: string[];
+  instructions: string;
+  checklistLabels: string[];
+  checklistOwners: string[];
+  checklistItems: Array<{ id?: string; label: string; owner: string }>;
+  dueTime: string;
+};
+
 function makeInitialDraft(owner = "ryan"): ComposerDraft {
   return {
     title: "",
@@ -126,6 +140,29 @@ function makeInitialDraft(owner = "ryan"): ComposerDraft {
     operatorIds: [owner],
     dueTime: "17:30",
     checklist: [],
+  };
+}
+
+function dueTimeFromTask(task: PreviewTask) {
+  const match = task.dueLabel.match(/(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : "17:30";
+}
+
+function makeDraftFromTask(task: PreviewTask, operators: DemoOperator[]): ComposerDraft {
+  const operatorIds = task.operatorIds?.length ? task.operatorIds : [operators[0]?.id ?? "ryan"];
+  const fallbackOwner = operatorIds[0];
+  return {
+    title: task.title,
+    instructions: task.instructions ?? "",
+    category: task.category,
+    priority: task.priority,
+    operatorIds,
+    dueTime: dueTimeFromTask(task),
+    checklist: task.checklist.map((item) => ({
+      id: item.id,
+      label: item.label,
+      owner: operatorIds.includes(item.owner) ? item.owner : fallbackOwner,
+    })),
   };
 }
 
@@ -427,48 +464,36 @@ export function TaskComposer({
   open,
   onClose,
   onCreate,
+  onUpdate,
+  initialTask,
   operators = demoOperators,
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (input: {
-    title: string;
-    category: PreviewTaskCategory;
-    priority: PreviewTaskPriority;
-    operatorIds: string[];
-    instructions: string;
-    checklistLabels: string[];
-    checklistOwners: string[];
-    dueTime: string;
-  }) => void;
+  onCreate: (input: TaskComposerInput) => void | Promise<void>;
+  onUpdate?: (input: TaskComposerInput) => void | Promise<void>;
+  initialTask?: PreviewTask | null;
   operators?: DemoOperator[];
 }) {
   const [draft, setDraft] = useState<ComposerDraft>(makeInitialDraft);
   const [isDirty, setIsDirty] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [checklistFocusId, setChecklistFocusId] = useState<string | null>(null);
-  const [shouldLockScroll, setShouldLockScroll] = useState(open);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
   const dialogScrollRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
 
+  useTaskOverlayScrollLock(open);
+
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement | null;
-    setShouldLockScroll(true);
-    setDraft(makeInitialDraft(operators[0]?.id));
+    setDraft(initialTask ? makeDraftFromTask(initialTask, operators) : makeInitialDraft(operators[0]?.id));
     setIsDirty(false);
     setIsDiscardDialogOpen(false);
-  }, [open]);
-
-  useEffect(() => {
-    if (!shouldLockScroll) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [shouldLockScroll]);
+    setSubmitError(null);
+  }, [open, initialTask, operators]);
 
   useEffect(() => {
     if (!checklistFocusId) return;
@@ -527,6 +552,7 @@ export function TaskComposer({
   const updateDraft = (update: (current: ComposerDraft) => ComposerDraft) => {
     setDraft(update);
     setIsDirty(true);
+    setSubmitError(null);
   };
   const requestClose = () => {
     if (isDirty) {
@@ -582,9 +608,9 @@ export function TaskComposer({
     }));
     setChecklistFocusId(id);
   };
-  const submit = () => {
+  const submit = async () => {
     if (!draft.title.trim()) return;
-    onCreate({
+    const input: TaskComposerInput = {
       title: draft.title,
       category: draft.category,
       priority: draft.priority,
@@ -592,15 +618,23 @@ export function TaskComposer({
       instructions: draft.instructions,
       checklistLabels: draft.checklist.map((item) => item.label),
       checklistOwners: draft.checklist.map((item) => item.owner),
+      checklistItems: draft.checklist.map((item) => ({ id: item.id, label: item.label, owner: item.owner })),
       dueTime: draft.dueTime,
-    });
+    };
+    const handler = initialTask ? onUpdate : onCreate;
+    if (!handler) return;
+    try {
+      await handler(input);
+      setSubmitError(null);
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : "Não foi possível salvar a tarefa");
+    }
   };
 
   return (
     <AnimatePresence
       initial={false}
       onExitComplete={() => {
-        setShouldLockScroll(false);
         previousFocusRef.current?.focus?.();
       }}
     >
@@ -608,7 +642,7 @@ export function TaskComposer({
       ref={dialogScrollRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Criar tarefa operacional"
+       aria-label={initialTask ? "Editar tarefa operacional" : "Criar tarefa operacional"}
       initial={shouldReduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={shouldReduceMotion ? undefined : { opacity: 0 }}
@@ -637,9 +671,9 @@ export function TaskComposer({
       >
         <header className="sticky top-0 z-20 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-7 sm:py-4">
           <div className="min-w-0">
-            <Label>Nova tarefa · turno ativo</Label>
+            <Label>{initialTask ? "Editar tarefa · turno ativo" : "Nova tarefa · turno ativo"}</Label>
             <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-900 sm:text-2xl">
-              Preparar execução operacional
+              {initialTask ? "Ajustar execução operacional" : "Preparar execução operacional"}
             </h2>
           </div>
           <div className="flex items-center gap-3">
@@ -969,10 +1003,10 @@ export function TaskComposer({
             </button>
           </ActionTooltip>
           <ActionTooltip
-            label={
+             label={
               draft.title.trim()
-                ? "Cria a tarefa e a envia para a fila do turno."
-                : "Informe o título operacional para criar a tarefa."
+                ? initialTask ? "Salva as alterações da tarefa." : "Cria a tarefa e a envia para a fila do turno."
+                : initialTask ? "Informe o título operacional para salvar as alterações." : "Informe o título operacional para criar a tarefa."
             }
           >
             <Button
@@ -980,9 +1014,10 @@ export function TaskComposer({
               disabled={!draft.title.trim()}
               className="h-11 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Plus size={16} /> Criar tarefa <ChevronRight size={15} />
+              {initialTask ? <Check size={16} /> : <Plus size={16} />} {initialTask ? "Salvar alterações" : "Criar tarefa"} <ChevronRight size={15} />
             </Button>
           </ActionTooltip>
+          {submitError && <p role="alert" className="order-first w-full text-xs font-medium text-rose-700 sm:order-none sm:w-auto">{submitError}</p>}
         </footer>
       </motion.form>
       <DiscardChangesDialog

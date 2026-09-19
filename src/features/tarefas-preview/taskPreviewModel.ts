@@ -211,6 +211,11 @@ export function getNextPreviewTaskStatus(
   return "aguardando";
 }
 
+export function startPreviewTask(task: PreviewTask): PreviewTask {
+  if (task.status !== "aguardando") return task;
+  return { ...task, status: "em-andamento" };
+}
+
 export function isCollaborativePreviewTask(task: PreviewTask) {
   return (task.operatorIds?.length ?? 0) > 1;
 }

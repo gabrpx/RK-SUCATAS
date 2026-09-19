@@ -346,6 +346,26 @@ export function tarefasRouter(supabase: SupabaseClient) {
       // Título vazio vira null (não persistimos string vazia).
       if (payload.titulo === '') payload.titulo = null;
 
+      const participantesInformados = Array.isArray(req.body?.participantes_ids);
+      const participantesIds = participantesInformados
+        ? Array.from(new Set(req.body.participantes_ids.map((id: unknown) => String(id)).filter(Boolean)))
+        : undefined;
+      if (participantesInformados) {
+        if (!participantesIds?.length) {
+          return res.status(400).json({ success: false, error: 'Selecione pelo menos um responsável' });
+        }
+        const { data: candidatos, error: erroCandidatos } = await supabase
+          .from('usuarios').select('id, roles, permissoes, ativo').in('id', participantesIds);
+        if (erroCandidatos) throw erroCandidatos;
+        const porId = new Map((candidatos ?? []).map((u: any) => [u.id, u]));
+        for (const id of participantesIds) {
+          if (!responsavelValido(porId.get(id) ?? null, id === req.usuario!.id)) {
+            return res.status(400).json({ success: false, error: ERRO_RESPONSAVEL_INVALIDO });
+          }
+        }
+        payload.atribuido_para = participantesIds[0];
+      }
+
       if (payload.atribuido_para !== undefined) {
         const { data: responsavel } = await supabase.from('usuarios').select('id, roles, permissoes, ativo').eq('id', payload.atribuido_para).maybeSingle();
         if (!responsavelValido(responsavel, payload.atribuido_para === req.usuario!.id)) {
@@ -424,6 +444,17 @@ export function tarefasRouter(supabase: SupabaseClient) {
           const linhas = desejadas.map((url, i) => ({ tarefa_id: req.params.id, url, ordem: i }));
           const { error: erroImagens } = await supabase.from('tarefa_imagens').insert(linhas);
           if (erroImagens) throw erroImagens;
+        }
+      }
+
+      if (participantesInformados && participantesIds) {
+        const { error: erroRemocao } = await supabase.from('tarefa_participantes').delete().eq('tarefa_id', req.params.id);
+        if (erroRemocao) throw erroRemocao;
+        if (participantesIds.length > 1) {
+          const { error: erroParticipantes } = await supabase.from('tarefa_participantes').insert(
+            participantesIds.map((usuario_id) => ({ tarefa_id: req.params.id, usuario_id }))
+          );
+          if (erroParticipantes) throw erroParticipantes;
         }
       }
 

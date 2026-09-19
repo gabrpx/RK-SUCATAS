@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import type { TasksPreviewProps } from '../tarefas-preview/TasksPreview';
+import type { TaskComposerInput } from '../tarefas-preview/TaskComposer';
 import type { PreviewTask, PreviewTaskCategory, PreviewTaskPriority } from '../tarefas-preview/taskPreviewModel';
 import type { Reminder } from '../tarefas-preview/reminderModel';
 import type { Tarefa, UsuarioResumo as TarefaUsuario } from './types';
@@ -218,6 +219,31 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview }: Integr
     return mapUpdatedTask(taskId, tarefasApi.despausar(taskId));
   }, [canEdit, mapUpdatedTask]);
 
+  const onUpdateTask = useCallback(async (taskId: string, input: TaskComposerInput) => {
+    if (!canEdit) return null;
+    const response = await tarefasApi.atualizar(taskId, {
+      titulo: input.title,
+      descricao: input.instructions || null,
+      prazo: dataParaPrazo(input.dueTime),
+      atribuido_para: input.operatorIds[0] || localStorage.getItem('user_id') || '',
+      participantes_ids: input.operatorIds,
+      prioridade: input.priority === 'alta' || input.priority === 'critica' ? 'alta' : input.priority === 'baixa' ? 'baixa' : 'media',
+      tipo: input.category === 'despacho' ? 'visita' : 'geral',
+      itens: input.checklistItems.filter((item) => item.label.trim()).map((item) => ({ id: item.id, texto: item.label })),
+    });
+    if (!response.success) throw new Error(response.error || 'Não foi possível editar a tarefa');
+    tarefas.setTarefas((current) => current.map((item) => item.id === taskId ? response.data : item));
+    return tarefaParaPreview(response.data);
+  }, [canEdit, tarefas]);
+
+  const canDelete = pode('tarefas.excluir');
+  const onDeleteTask = useCallback(async (taskId: string) => {
+    if (!canDelete) throw new Error('Você não tem permissão para excluir tarefas');
+    const response = await tarefasApi.excluir(taskId);
+    if (!response.success) throw new Error(response.error || 'Não foi possível excluir a tarefa');
+    tarefas.setTarefas((current) => current.filter((item) => item.id !== taskId));
+  }, [canDelete, tarefas]);
+
   const onRemindersChange = useCallback(async (previous: Reminder[], next: Reminder[]) => {
     const previousById = new Map(previous.map((item) => [item.id, item]));
     const nextById = new Map(next.map((item) => [item.id, item]));
@@ -256,6 +282,8 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview }: Integr
       onAdvanceTask={onAdvanceTask}
       onPauseTask={canEdit ? onPauseTask : undefined}
       onResumeTask={canEdit ? onResumeTask : undefined}
+      onUpdateTask={canEdit ? onUpdateTask : undefined}
+      onDeleteTask={canDelete ? onDeleteTask : undefined}
       onRemindersChange={onRemindersChange}
       errorMessage={tarefas.error || lembretes.error || possibleOperatorsError}
       loading={tarefas.loading || lembretes.loading || possibleOperatorsLoading}
