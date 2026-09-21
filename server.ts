@@ -23,6 +23,8 @@ import { vendasRouter } from './src/server/routes/vendas.js';
 import { orcamentosRouter } from './src/server/routes/orcamentos.js';
 import { caixaRouter } from './src/server/routes/caixa.js';
 import { uploadRouter } from './src/server/routes/upload.js';
+import { tarefasRouter } from './src/server/routes/tarefas.js';
+import { lembretesRouter } from './src/server/routes/lembretes.js';
 
 dotenv.config();
 
@@ -144,6 +146,22 @@ async function startServer() {
   app.use('/api/orcamentos', orcamentosRouter(supabase));
   app.use('/api/caixa', caixaRouter(supabase));
   app.use('/api/upload', uploadRouter());
+  app.get('/api/usuarios/responsaveis-tarefa', async (_req, res) => {
+    try {
+      const { data, error } = await supabase
+        .from('usuarios')
+        .select('id, nome_exibicao')
+        .eq('ativo', true)
+        .order('nome_exibicao', { ascending: true });
+      if (error) throw error;
+      res.json({ success: true, data: data ?? [] });
+    } catch (error: any) {
+      console.error('Erro ao listar responsáveis de tarefas:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+  app.use('/api/tarefas', tarefasRouter(supabase));
+  app.use('/api/lembretes', lembretesRouter(supabase));
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {

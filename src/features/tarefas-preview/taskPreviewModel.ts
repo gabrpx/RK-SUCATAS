@@ -12,6 +12,18 @@ export type PreviewPrimaryTab =
   | "pendencias"
   | "concluidas";
 
+/**
+ * Navegação global da tela. Tem semântica única e é a ÚNICA fonte de estado do
+ * contexto ativo (inclusive do CTA contextual do cabeçalho).
+ */
+export type PreviewWorkspaceTab = PreviewPrimaryTab | "lembretes";
+
+/**
+ * Filtros locais da fila prioritária. Não competem com a navegação global:
+ * só existem dentro de "Meu turno" e só recortam a fila.
+ */
+export type PreviewQueueFilter = "todas" | "abertas" | "pendencias" | "grupo";
+
 export interface PreviewChecklistItem {
   id: string;
   label: string;
@@ -195,6 +207,49 @@ export function getNextPreviewTaskStatus(
   if (status === "aguardando") return "em-andamento";
   if (status === "em-andamento") return "concluida";
   return "aguardando";
+}
+
+export function isCollaborativePreviewTask(task: PreviewTask) {
+  return (task.operatorIds?.length ?? 0) > 1;
+}
+
+export function filterPreviewTasksByQueueFilter(
+  tasks: PreviewTask[],
+  filter: PreviewQueueFilter
+) {
+  if (filter === "abertas")
+    return tasks.filter((task) => task.status !== "concluida");
+  if (filter === "pendencias")
+    return tasks.filter((task) => task.status === "aguardando");
+  if (filter === "grupo") return tasks.filter(isCollaborativePreviewTask);
+  return tasks;
+}
+
+export function getPreviewQueueCounts(
+  tasks: PreviewTask[]
+): Record<PreviewQueueFilter, number> {
+  return {
+    todas: tasks.length,
+    abertas: filterPreviewTasksByQueueFilter(tasks, "abertas").length,
+    pendencias: filterPreviewTasksByQueueFilter(tasks, "pendencias").length,
+    grupo: filterPreviewTasksByQueueFilter(tasks, "grupo").length,
+  };
+}
+
+/**
+ * Entidade que o CTA global deve criar no contexto ativo. Rótulo, ícone e
+ * gatilho do cabeçalho derivam daqui para nunca divergirem da aba aberta.
+ */
+export function getPreviewWorkspaceEntity(
+  tab: PreviewWorkspaceTab
+): "tarefa" | "lembrete" {
+  return tab === "lembretes" ? "lembrete" : "tarefa";
+}
+
+export function getPreviewWorkspaceCreateLabel(tab: PreviewWorkspaceTab) {
+  return getPreviewWorkspaceEntity(tab) === "lembrete"
+    ? "Novo lembrete"
+    : "Nova tarefa";
 }
 
 export function filterPreviewTasks(

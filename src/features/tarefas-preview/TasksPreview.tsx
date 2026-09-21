@@ -17,7 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Area, AreaChart } from "@/src/components/charts/area-chart";
 import { Grid } from "@/src/components/charts/grid";
 import { ChartTooltip } from "@/src/components/charts/tooltip";
@@ -43,8 +43,8 @@ import {
   type PreviewTaskPriority,
   type PreviewTaskStatus,
 } from "./taskPreviewModel";
-import { TaskComposer, demoOperators } from "./TaskComposer";
-import { initialReminders, RemindersPanel } from "./RemindersPanel";
+import { TaskComposer, demoOperators, type DemoOperator } from "./TaskComposer";
+import { initialReminders as demoInitialReminders, RemindersPanel } from "./RemindersPanel";
 import type { Reminder } from "./reminderModel";
 
 type PreviewScreen = "turno" | "abertas";
@@ -52,7 +52,34 @@ type PreviewFilter = "todas" | PreviewTaskStatus;
 type QueueFilter = "todas" | "abertas" | "pendencias" | "grupo";
 type WorkspaceTab = "turno" | "lembretes";
 
-const initialTasks: PreviewTask[] = [
+type TaskPreviewCallbacks = {
+  onCreateTask?: (input: {
+    title: string;
+    category: PreviewTaskCategory;
+    priority: PreviewTaskPriority;
+    operatorIds: string[];
+    instructions: string;
+    checklistLabels: string[];
+    checklistOwners: string[];
+    dueTime: string;
+  }) => Promise<PreviewTask | null> | PreviewTask | null;
+  onToggleChecklist?: (taskId: string, checklistId: string) => Promise<PreviewTask | null> | PreviewTask | null;
+  onAdvanceTask?: (task: PreviewTask, nextStatus: PreviewTaskStatus) => Promise<PreviewTask | null> | PreviewTask | null;
+  onRemindersChange?: (previous: Reminder[], next: Reminder[]) => void | Promise<void>;
+};
+
+export type TasksPreviewProps = TaskPreviewCallbacks & {
+  initialTasks?: PreviewTask[];
+  initialReminders?: Reminder[];
+  operators?: DemoOperator[];
+  errorMessage?: string | null;
+  loading?: boolean;
+  integrated?: boolean;
+};
+
+const PreviewOperatorsContext = createContext<DemoOperator[]>(demoOperators);
+
+const demoInitialTasks: PreviewTask[] = [
   {
     id: "tk-760",
     title: "Conferir medidas do par de mesas ADV 160",
@@ -275,8 +302,9 @@ function EmployeeIcon({
   operatorId?: string;
   size?: number;
 }) {
+  const operators = useContext(PreviewOperatorsContext);
   const operator =
-    demoOperators.find((item) => item.id === operatorId) ?? demoOperators[0];
+    operators.find((item) => item.id === operatorId) ?? operators[0] ?? demoOperators[0];
   return (
     <span
       title={operator.name}
@@ -302,8 +330,9 @@ function EmployeeIdentity({
   size?: number;
   className?: string;
 }) {
+  const operators = useContext(PreviewOperatorsContext);
   const operator =
-    demoOperators.find((item) => item.id === operatorId) ?? demoOperators[0];
+    operators.find((item) => item.id === operatorId) ?? operators[0] ?? demoOperators[0];
   return (
     <span
       className={cn(
@@ -353,76 +382,158 @@ function TurnMetricStrip({
     },
   ];
 
+  const scrollRef = useRef<HTMLElement | null>(null);
+  const [scrollState, setScrollState] = useState({
+    isScrollable: false,
+    canScrollLeft: false,
+    canScrollRight: false,
+  });
+
+  const updateScrollState = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    const scrollable = scrollWidth > clientWidth + 2;
+    const maxScroll = scrollWidth - clientWidth;
+    setScrollState({
+      isScrollable: scrollable,
+      canScrollLeft: scrollLeft > 2,
+      canScrollRight: scrollLeft < maxScroll - 2,
+    });
+  };
+
+  useEffect(() => {
+    updateScrollState();
+    window.addEventListener("resize", updateScrollState);
+    return () => window.removeEventListener("resize", updateScrollState);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Mouse wheel geralmente só envia deltaY (rolagem vertical). Convertemos
+  // esse gesto em rolagem horizontal da faixa enquanto houver cards a
+  // revelar; ao atingir o início ou o fim, devolvemos o evento para a
+  // página rolar normalmente. Precisa ser um listener nativo não-passivo
+  // (React registra onWheel como passive por padrão e ignora preventDefault).
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const handleWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const { scrollLeft, scrollWidth, clientWidth } = el;
+      const maxScroll = scrollWidth - clientWidth;
+      if (maxScroll <= 1) return;
+      const atStart = scrollLeft <= 0;
+      const atEnd = scrollLeft >= maxScroll - 1;
+      if ((event.deltaY < 0 && atStart) || (event.deltaY > 0 && atEnd)) return;
+      event.preventDefault();
+      el.scrollLeft += event.deltaY;
+    };
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    return () => el.removeEventListener("wheel", handleWheel);
+  }, []);
+
   return (
-    <section aria-label="Resumo do turno" className="mt-6 overflow-x-auto">
-      <div className="grid min-w-[920px] grid-cols-4 gap-3">
-        {metrics.map((metric, index) => (
-          <div
-            key={metric.label}
-            className={cn(
-              "min-h-[132px] rounded-lg border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
-              metric.tone === "amber" && "border-amber-200",
-              metric.tone === "emerald" && "border-slate-200",
-              metric.tone === "blue" && "border-slate-200"
-            )}
-          >
-            <div className="flex items-center justify-between">
-              <SurfaceLabel>{metric.label}</SurfaceLabel>
-              {index < 3 && (
-                <span
-                  className={cn(
-                    "size-1.5 rounded-full",
-                    metric.tone === "emerald" && "bg-emerald-500",
-                    metric.tone === "amber" && "bg-amber-500",
-                    metric.tone === "blue" && "bg-blue-500"
-                  )}
-                  aria-hidden="true"
-                />
-              )}
-              {index === 3 && (
-                <span className="font-mono text-[10px] font-semibold text-blue-700">
-                  ANDAMENTO: 80%
-                </span>
-              )}
-            </div>
-            <div className="mt-3 flex items-baseline gap-2">
-              <p className="text-[28px] font-semibold leading-none tracking-[-0.05em] text-slate-900">
-                {metric.value}
-              </p>
-              {metric.suffix && (
-                <span className="font-mono text-[11px] text-slate-500">
-                  {metric.suffix}
-                </span>
-              )}
-            </div>
-            {index === 3 ? (
-              <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
-                <div className="h-full w-[78%] rounded-full bg-blue-600" />
-              </div>
-            ) : (
-              <p
+    <div className="mt-6">
+      <div className="relative">
+        <section
+          ref={scrollRef}
+          onScroll={updateScrollState}
+          aria-label="Resumo do turno"
+          className="no-scrollbar snap-x snap-mandatory overflow-x-auto scroll-smooth"
+        >
+          <div className="grid min-w-[920px] grid-cols-4 gap-3">
+            {metrics.map((metric, index) => (
+              <div
+                key={metric.label}
                 className={cn(
-                  "mt-3 text-[11px] leading-snug",
-                  metric.tone === "emerald" && "text-emerald-700",
-                  metric.tone === "amber" && "text-amber-700",
-                  metric.tone === "blue" && "text-slate-500"
+                  "min-h-[132px] snap-start rounded-lg border bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)]",
+                  metric.tone === "amber" && "border-amber-200",
+                  metric.tone === "emerald" && "border-slate-200",
+                  metric.tone === "blue" && "border-slate-200"
                 )}
               >
-                <span
-                  className={cn(
-                    "mr-1 inline-block size-1.5 rounded-full",
-                    metric.tone === "emerald" && "bg-emerald-500",
-                    metric.tone === "amber" && "bg-amber-500",
-                    metric.tone === "blue" && "bg-blue-500"
+                <div className="flex items-center justify-between">
+                  <SurfaceLabel>{metric.label}</SurfaceLabel>
+                  {index < 3 && (
+                    <span
+                      className={cn(
+                        "size-1.5 rounded-full",
+                        metric.tone === "emerald" && "bg-emerald-500",
+                        metric.tone === "amber" && "bg-amber-500",
+                        metric.tone === "blue" && "bg-blue-500"
+                      )}
+                      aria-hidden="true"
+                    />
                   )}
-                />
-                {metric.detail}
-              </p>
-            )}
+                  {index === 3 && (
+                    <span className="font-mono text-[10px] font-semibold text-blue-700">
+                      ANDAMENTO: 80%
+                    </span>
+                  )}
+                </div>
+                <div className="mt-3 flex items-baseline gap-2">
+                  <p className="text-[28px] font-semibold leading-none tracking-[-0.05em] text-slate-900">
+                    {metric.value}
+                  </p>
+                  {metric.suffix && (
+                    <span className="font-mono text-[11px] text-slate-500">
+                      {metric.suffix}
+                    </span>
+                  )}
+                </div>
+                {index === 3 ? (
+                  <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                    <div className="h-full w-[78%] rounded-full bg-blue-600" />
+                  </div>
+                ) : (
+                  <p
+                    className={cn(
+                      "mt-3 text-[11px] leading-snug",
+                      metric.tone === "emerald" && "text-emerald-700",
+                      metric.tone === "amber" && "text-amber-700",
+                      metric.tone === "blue" && "text-slate-500"
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "mr-1 inline-block size-1.5 rounded-full",
+                        metric.tone === "emerald" && "bg-emerald-500",
+                        metric.tone === "amber" && "bg-amber-500",
+                        metric.tone === "blue" && "bg-blue-500"
+                      )}
+                    />
+                    {metric.detail}
+                  </p>
+                )}
+              </div>
+            ))}
           </div>
-        ))}
+        </section>
+        {scrollState.isScrollable && (
+          <>
+            <div
+              aria-hidden="true"
+              className={cn(
+                "pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-[#f8fafc] to-transparent transition-opacity duration-200",
+                scrollState.canScrollLeft ? "opacity-100" : "opacity-0"
+              )}
+            />
+            <div
+              aria-hidden="true"
+              className={cn(
+                "pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-[#f8fafc] to-transparent transition-opacity duration-200",
+                scrollState.canScrollRight ? "opacity-100" : "opacity-0"
+              )}
+            />
+          </>
+        )}
       </div>
-    </section>
+      {scrollState.isScrollable && (
+        <span className="sr-only">
+          Arraste para o lado para ver mais indicadores do turno.
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -665,12 +776,12 @@ function TaskInspector({
   return (
     <motion.aside
       aria-label="Detalhes da tarefa"
-      className="fixed inset-y-0 right-0 z-[180] flex w-full max-w-[760px] flex-col border-l border-slate-200 bg-[#f8fafc] shadow-[-24px_0_70px_rgba(15,23,42,0.16)]"
+      className="fixed inset-x-0 bottom-0 top-[max(1rem,env(safe-area-inset-top))] z-[180] flex w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-[#f8fafc] shadow-[0_-16px_60px_rgba(15,23,42,0.22)] sm:inset-y-0 sm:left-auto sm:right-0 sm:top-0 sm:max-w-[760px] sm:rounded-none sm:border-y-0 sm:border-r-0 sm:border-l"
       initial={{ opacity: 0, x: 32 }}
       animate={{ opacity: 1, x: 0 }}
       transition={{ type: "spring", stiffness: 340, damping: 32, mass: 0.75 }}
     >
-      <header className="flex items-center justify-between border-b border-slate-200 bg-white px-5 py-3.5 sm:px-7">
+      <header className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3 sm:px-7 sm:py-3.5">
         <div>
           <SurfaceLabel>Execução da tarefa</SurfaceLabel>
           <p className="mt-1 font-mono text-[10px] text-slate-500">
@@ -702,7 +813,7 @@ function TaskInspector({
           </button>
         </div>
       </header>
-      <div className="flex-1 overflow-y-auto px-5 py-6 sm:px-7 sm:py-8">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-5 sm:px-7 sm:py-8">
         <p className="font-mono text-[10px] font-medium uppercase tracking-[0.14em] text-slate-400">
           Tarefas &gt; {task.area} &gt; execução
         </p>
@@ -861,7 +972,7 @@ function TaskInspector({
           </div>
         </section>
       </div>
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-white px-5 py-3.5 sm:px-7">
+      <footer className="flex flex-col gap-3 border-t border-slate-200 bg-white px-4 py-3 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] sm:flex-row sm:items-center sm:justify-between sm:px-7 sm:py-3.5">
         <div className="min-w-0">
           <SurfaceLabel>Próxima ação</SurfaceLabel>
           <p className="mt-1 text-xs text-slate-600">
@@ -872,7 +983,7 @@ function TaskInspector({
         </div>
         <Button
           onClick={() => onAdvanceStatus(task.id)}
-          className="rounded-md bg-blue-600 text-white hover:bg-blue-700"
+          className="h-11 w-full rounded-md bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
         >
           <Check size={15} /> {execution.primaryAction}
         </Button>
@@ -885,22 +996,34 @@ function QueueTaskRows({
   tasks,
   onOpen,
   onToggleChecklist,
+  reduceMotion,
 }: {
   tasks: PreviewTask[];
   onOpen: (task: PreviewTask) => void;
   onToggleChecklist: (taskId: string, checklistId: string) => void;
+  reduceMotion: boolean;
 }) {
   return (
     <div className="space-y-3">
+      <AnimatePresence initial={false} mode="popLayout">
       {tasks.map((task) => (
-        <article
+        <motion.article
           key={task.id}
+          layout={reduceMotion ? false : "position"}
+          initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={reduceMotion ? undefined : { opacity: 0, y: -6 }}
+          transition={
+            reduceMotion
+              ? { duration: 0 }
+              : { type: "spring", stiffness: 360, damping: 30, bounce: 0 }
+          }
           className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5"
         >
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-1.5">
             <span
               className={cn(
-                "rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase",
+                "rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]",
                 categoryStyle[task.category]
               )}
             >
@@ -908,30 +1031,36 @@ function QueueTaskRows({
             </span>
             <span
               className={cn(
-                "rounded border px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase",
+                "rounded border px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em]",
                 priorityStyle[task.priority]
               )}
             >
-              Prioridade {task.priority}
+              {task.priority}
             </span>
             {task.operatorIds && task.operatorIds.length > 1 && (
-              <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 font-mono text-[10px] font-bold uppercase text-blue-700">
+              <span className="rounded border border-blue-200 bg-blue-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-blue-700">
                 Em grupo
               </span>
             )}
-            <span className="ml-auto inline-flex items-center gap-1 font-mono text-[10px] text-slate-500">
+            <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
               <Clock3 size={12} className="text-slate-400" /> {task.dueLabel}
             </span>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
+          <div className="mt-3 flex items-start justify-between gap-3">
             <div className="min-w-0 flex-1">
-              <h3 className="text-base font-semibold tracking-tight text-slate-900">
+              <button
+                type="button"
+                onClick={() => onOpen(task)}
+                className="block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+              >
+              <h3 className="text-[17px] font-semibold leading-snug tracking-[-0.02em] text-slate-900 transition-colors hover:text-blue-700">
                 {task.title}
               </h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
                 {task.instructions}
               </p>
+              </button>
             </div>
             {(task.operatorIds?.length ?? 0) > 1 ? (
               <div
@@ -955,13 +1084,13 @@ function QueueTaskRows({
             )}
           </div>
 
-          {(task.operatorIds?.length ?? 0) > 1 ? (
-            <div className="mt-4 rounded-lg bg-slate-50 px-3 py-2.5">
+          {task.checklist.length > 0 && (
+            <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2.5">
               <div className="flex items-center justify-between gap-3 text-[11px]">
                 <span className="font-medium text-slate-600">
                   Progresso do checklist
                 </span>
-                <span className="font-mono text-slate-500">
+                <span className="tabular-nums text-slate-500">
                   {progress(task).completed} de {progress(task).total}{" "}
                   concluídas
                 </span>
@@ -972,59 +1101,38 @@ function QueueTaskRows({
                   style={{ width: `${progress(task).percentage}%` }}
                 />
               </div>
-              <div className="mt-3 space-y-1.5">
-                {task.checklist.slice(0, 3).map((item) => (
-                  <label
-                    key={item.id}
-                    className="flex cursor-pointer items-center gap-2 rounded-md border border-slate-100 bg-white px-2.5 py-2 transition-colors hover:border-blue-100 hover:bg-blue-50/40"
-                  >
-                    <input type="checkbox" checked={item.completed} onChange={() => onToggleChecklist(task.id, item.id)} className="size-3.5 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500" />
-                    <span
-                      className={cn(
-                        "min-w-0 flex-1 truncate text-[11px] text-slate-600",
-                        item.completed && "text-slate-400 line-through"
-                      )}
-                    >
-                      {item.label}
+              {(() => {
+                const nextItem =
+                  task.checklist.find((item) => !item.completed) ??
+                  task.checklist[task.checklist.length - 1];
+
+                return (
+                  <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-2 rounded-md border border-slate-100 bg-white px-2.5 py-2 transition-colors hover:border-blue-100 hover:bg-blue-50/40">
+                    <input
+                      type="checkbox"
+                      checked={nextItem.completed}
+                      onChange={() => onToggleChecklist(task.id, nextItem.id)}
+                      className="size-4 shrink-0 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className={cn("min-w-0 flex-1 text-xs leading-snug text-slate-700", nextItem.completed && "text-slate-400 line-through")}>
+                      {nextItem.label}
                     </span>
-                    <EmployeeIcon operatorId={item.owner} size={8} />
-                    <span
-                      className={cn(
-                        "text-[10px] font-medium",
-                        item.completed ? "text-emerald-700" : "text-slate-500"
-                      )}
-                    >
-                      {item.completed ? "Concluída" : "Pendente"}
-                    </span>
+                    <EmployeeIcon operatorId={nextItem.owner} size={8} />
                   </label>
-                ))}
-              </div>
+                );
+              })()}
             </div>
-          ) : (
-            <p className="mt-4 text-xs font-medium text-slate-500">
-              {task.status === "em-andamento"
-                ? "Em andamento"
-                : task.status === "concluida"
-                ? "Concluída"
-                : "Pendente"}
-              <span className="px-1.5 text-slate-300">•</span>
-              Atribuída a{" "}
-              {demoOperators.find(
-                (operator) => operator.id === task.operatorIds?.[0]
-              )?.name ?? "Operador"}
-            </p>
           )}
 
-          <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3">
-            <span className="font-mono text-[10px] text-slate-400">
-              {(task.operatorIds?.length ?? 0) > 1
-                ? `Checklist: ${progress(task).total} subtarefas`
-                : `${task.estimateMinutes} min previstos`}
+          <div className="mt-4 flex items-center justify-between gap-3 border-t border-slate-100 pt-3">
+            <span className="text-[11px] text-slate-400">
+              {task.estimateMinutes} min previstos
             </span>
             <button
+              type="button"
               onClick={() => onOpen(task)}
               className={cn(
-                "inline-flex min-h-7 items-center justify-center rounded px-2.5 text-[11px] font-semibold transition active:translate-y-px",
+                "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-xs font-semibold transition active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                 task.status === "em-andamento"
                   ? "bg-blue-600 text-white shadow-[0_1px_2px_rgba(37,99,235,0.3)] hover:bg-blue-700"
                   : "border border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -1033,8 +1141,9 @@ function QueueTaskRows({
               {task.status === "em-andamento" ? "Foco" : "Abrir"}
             </button>
           </div>
-        </article>
+        </motion.article>
       ))}
+      </AnimatePresence>
     </div>
   );
 }
@@ -1249,13 +1358,24 @@ function TaskBoard({
   );
 }
 
-export function TasksPreview() {
+export function TasksPreview({
+  initialTasks,
+  initialReminders,
+  operators = demoOperators,
+  onCreateTask,
+  onToggleChecklist,
+  onAdvanceTask,
+  onRemindersChange,
+  errorMessage,
+  loading = false,
+  integrated = false,
+}: TasksPreviewProps) {
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("turno");
   const [activeReminderCount, setActiveReminderCount] = useState(5);
   const [reminderComposerOpen, setReminderComposerOpen] = useState(false);
-  const [reminders, setReminders] = useState<Reminder[]>(initialReminders);
+  const [reminders, setReminders] = useState<Reminder[]>(initialReminders ?? demoInitialReminders);
   const [screen, setScreen] = useState<PreviewScreen>("turno");
-  const [tasks, setTasks] = useState<PreviewTask[]>(initialTasks);
+  const [tasks, setTasks] = useState<PreviewTask[]>(initialTasks ?? demoInitialTasks);
   const [filter, setFilter] = useState<PreviewFilter>("todas");
   const [activePrimaryTab, setActivePrimaryTab] =
     useState<PrimaryTaskTab>("turno");
@@ -1266,6 +1386,14 @@ export function TasksPreview() {
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("todas");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialTasks) setTasks(initialTasks);
+  }, [initialTasks]);
+
+  useEffect(() => {
+    if (initialReminders) setReminders(initialReminders);
+  }, [initialReminders]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1333,41 +1461,42 @@ export function TasksPreview() {
     setScreen("turno");
     setFilter("todas");
   };
-  const toggleChecklist = (taskId: string, checklistId: string) =>
-    setTasks((current) =>
-      current.map((task) =>
-        task.id !== taskId
-          ? task
-          : {
-              ...task,
-              checklist: task.checklist.map((item) =>
-                item.id === checklistId
-                  ? {
-                      ...item,
-                      completed: !item.completed,
-                      completedAt: !item.completed ? "agora" : undefined,
-                    }
-                  : item
-              ),
-            }
-      )
-    );
+  const toggleChecklist = async (taskId: string, checklistId: string) => {
+    const updated = await onToggleChecklist?.(taskId, checklistId);
+    if (updated) {
+      setTasks((current) => current.map((task) => task.id === updated.id ? updated : task));
+      return;
+    }
+    if (onToggleChecklist) return;
+    setTasks((current) => current.map((task) => task.id !== taskId ? task : {
+      ...task,
+      checklist: task.checklist.map((item) => item.id === checklistId ? {
+        ...item,
+        completed: !item.completed,
+        ...(item.completed ? {} : { completedAt: "agora" }),
+      } : item),
+    }));
+  };
 
-  const advanceTaskStatus = (taskId: string) =>
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === taskId
-          ? { ...task, status: getNextPreviewTaskStatus(task.status) }
-          : task
-      )
-    );
+  const advanceTaskStatus = async (taskId: string) => {
+    const task = tasks.find((item) => item.id === taskId);
+    if (!task) return;
+    const nextStatus = getNextPreviewTaskStatus(task.status);
+    const updated = await onAdvanceTask?.(task, nextStatus);
+    if (updated) {
+      setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));
+      return;
+    }
+    if (onAdvanceTask) return;
+    setTasks((current) => current.map((item) => item.id === taskId ? { ...item, status: nextStatus } : item));
+  };
 
   const openTask = (task: PreviewTask) => {
     setSearchOpen(false);
     setSelectedTask(task);
   };
 
-  const createTask = (input: {
+  const createTask = async (input: {
     title: string;
     category: PreviewTaskCategory;
     priority: PreviewTaskPriority;
@@ -1377,20 +1506,30 @@ export function TasksPreview() {
     checklistOwners: string[];
     dueTime: string;
   }) => {
-    const task = createPreviewTask({ id: `tk-${Date.now()}`, ...input });
+    const task = onCreateTask
+      ? await onCreateTask(input)
+      : createPreviewTask({ id: `tk-${Date.now()}`, ...input });
+    if (!task) return;
     setTasks((current) => [task, ...current]);
     setIsComposerOpen(false);
     setActivePrimaryTab("abertas");
     setScreen("turno");
   };
 
+  const updateReminders = (updater: Reminder[] | ((current: Reminder[]) => Reminder[])) => {
+    const next = typeof updater === "function" ? updater(reminders) : updater;
+    setReminders(next);
+    void onRemindersChange?.(reminders, next);
+  };
+
   return (
-    <div
-      ref={rootRef}
-      className="min-h-screen bg-[#f8fafc] font-[Geist,Inter,ui-sans-serif,system-ui] text-slate-900"
-    >
-      <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-[1440px] items-center gap-4 px-4 py-3 sm:px-6">
+    <PreviewOperatorsContext.Provider value={operators}>
+      <div
+        ref={rootRef}
+        className="tasks-preview-theme min-h-screen bg-[#f8fafc] font-[Geist,Inter,ui-sans-serif,system-ui] text-slate-900"
+      >
+      <header className="sticky top-0 z-[60] border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
+        <div className="mx-auto flex max-w-[1440px] items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="grid size-7 place-items-center rounded bg-blue-600 text-[10px] font-black text-white">
               RK
@@ -1399,8 +1538,8 @@ export function TasksPreview() {
               <p className="truncate text-sm font-semibold tracking-tight">
                 RK Sucatas
               </p>
-              <p className="font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
-                Torre de operações · prévia
+              <p className="truncate font-mono text-[9px] uppercase tracking-[0.12em] text-slate-400">
+                Torre de operações · {integrated ? "sistema integrado" : "prévia"}
               </p>
             </div>
           </div>
@@ -1429,7 +1568,8 @@ export function TasksPreview() {
           </div>
           <button
             onClick={() => setSearchOpen(true)}
-            className="ml-auto flex items-center gap-2 rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-500 hover:border-blue-300 hover:bg-blue-50 sm:ml-0"
+            aria-label="Buscar tarefa ou lembrete"
+            className="ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-blue-300 hover:bg-blue-50 sm:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"
           >
             <Search size={15} />
             <span className="hidden sm:inline">Buscar</span>
@@ -1441,39 +1581,64 @@ export function TasksPreview() {
             variant="default"
             size="sm"
             onClick={() => workspaceTab === "lembretes" ? setReminderComposerOpen(true) : setIsComposerOpen(true)}
-            className="rounded-md bg-blue-600 text-white hover:bg-blue-700"
+            aria-label={workspaceTab === "lembretes" ? "Novo lembrete" : "Nova tarefa"}
+            className="size-11 shrink-0 rounded-lg bg-blue-600 text-white hover:bg-blue-700 sm:h-9 sm:w-[154px] sm:rounded-md"
           >
-            <Plus size={15} />{" "}
-            <span className="hidden sm:inline">{workspaceTab === "lembretes" ? "Novo lembrete" : "Nova tarefa"}</span>
+            <Plus size={15} />
+            <AnimatePresence initial={false} mode="popLayout">
+              <motion.span
+                key={workspaceTab}
+                initial={prefersReducedMotion ? false : { opacity: 0, y: 4 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={prefersReducedMotion ? undefined : { opacity: 0, y: -4 }}
+                transition={{ duration: prefersReducedMotion ? 0 : 0.16 }}
+                className="hidden sm:inline"
+              >
+                {workspaceTab === "lembretes" ? "Novo lembrete" : "Nova tarefa"}
+              </motion.span>
+            </AnimatePresence>
           </Button>
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1440px] px-4 py-7 sm:px-6 lg:py-10">
+      <main className="mx-auto max-w-[1440px] px-3 pb-[calc(4rem_+_env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-7 lg:py-10">
         <style>{'[aria-label="Alternar tela"] { display: none; }'}</style>
         <div
           data-preview-reveal
           className="flex flex-col gap-5 border-b border-slate-200 pb-0 lg:flex-row lg:items-end lg:justify-between"
         >
-          <div className="pb-5">
+          <motion.div layout={!prefersReducedMotion} className="pb-5">
             <SurfaceLabel>
               Operação do galpão · estoque, organização, limpeza e despacho
             </SurfaceLabel>
             <h1 className="mt-2 text-3xl font-semibold tracking-[-0.045em] text-slate-950 sm:text-4xl">
-              {workspaceTab === "turno"
-                ? "Painel de operações do turno"
-                : "Central de lembretes e alertas"}
+              <AnimatePresence initial={false} mode="popLayout">
+                <motion.span
+                  key={workspaceTab}
+                  initial={prefersReducedMotion ? false : { opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={prefersReducedMotion ? undefined : { opacity: 0, y: -6 }}
+                  transition={{ duration: prefersReducedMotion ? 0 : 0.2 }}
+                  className="block"
+                >
+                  {workspaceTab === "turno"
+                    ? "Painel de operações do turno"
+                    : "Central de lembretes e alertas"}
+                </motion.span>
+              </AnimatePresence>
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate-500">
-              Uma prévia interativa separada da tela atual de tarefas.
+              {integrated
+                ? "Fila operacional conectada às tarefas, responsáveis e lembretes persistidos."
+                : "Uma prévia interativa separada da tela atual de tarefas."}
             </p>
-          </div>
-          <div className="flex w-full justify-end pb-5 lg:w-auto">
+          </motion.div>
+          <div className="-mx-3 flex w-[calc(100%+1.5rem)] overflow-x-auto px-3 pb-5 sm:mx-0 sm:w-full sm:justify-end sm:px-0 lg:w-auto">
             <Tabs
               value={workspaceTab}
               onValueChange={(value) => setWorkspaceTab(value as WorkspaceTab)}
             >
-              <TabsList className="bg-slate-50">
+              <TabsList className="max-w-full shrink-0 bg-slate-50">
                 <TabsTrigger value="turno" className="text-sm">
                   Meu turno <span className="ml-1 text-[11px] text-slate-400">{summary.open}</span>
                 </TabsTrigger>
@@ -1572,7 +1737,7 @@ export function TasksPreview() {
             transition={{ type: "spring", stiffness: 340, damping: 31, bounce: 0 }}
           >
         {workspaceTab === "lembretes" ? (
-          <RemindersPanel reminders={reminders} onRemindersChange={setReminders} onActiveCountChange={setActiveReminderCount} composerOpen={reminderComposerOpen} onComposerOpenChange={setReminderComposerOpen} />
+          <RemindersPanel reminders={reminders} onRemindersChange={updateReminders} onActiveCountChange={setActiveReminderCount} composerOpen={reminderComposerOpen} onComposerOpenChange={setReminderComposerOpen} />
         ) : (
           <>
         {screen === "abertas" && <OpenScreenInsights tasks={tasks} />}
@@ -1684,7 +1849,7 @@ export function TasksPreview() {
                           Fila prioritária de trabalho
                         </h2>
                       </div>
-                      <TabsList>
+                      <TabsList className="max-w-full overflow-x-auto bg-slate-50">
                         {(
                           [
                             ["todas", `Todas (${tasks.length})`],
@@ -1714,27 +1879,18 @@ export function TasksPreview() {
                       </TabsList>
                     </div>
                     <div className="mt-4">
-                      <AnimatePresence initial={false} mode="wait">
-                        <motion.div
-                          key={queueFilter}
-                          role="tabpanel"
-                          initial={{ opacity: 0, y: 6 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -4 }}
-                          transition={{
-                            type: "spring",
-                            stiffness: 340,
-                            damping: 30,
-                            bounce: 0,
-                          }}
-                        >
+                      <motion.div
+                        role="tabpanel"
+                        layout
+                        transition={{ type: "spring", stiffness: 340, damping: 30, bounce: 0 }}
+                      >
                           <QueueTaskRows
                             tasks={queueTasks}
                             onOpen={setSelectedTask}
                             onToggleChecklist={toggleChecklist}
+                            reduceMotion={prefersReducedMotion}
                           />
-                        </motion.div>
-                      </AnimatePresence>
+                      </motion.div>
                     </div>
                   </Tabs>
                 </div>
@@ -1792,14 +1948,14 @@ export function TasksPreview() {
                     <div>
                       <SurfaceLabel>Equipe no turno</SurfaceLabel>
                       <h2 className="mt-1 text-lg font-semibold">
-                        5 contas demonstrativas
+                        {operators.length} contas ativas
                       </h2>
                     </div>
                     <UsersRound size={18} className="text-blue-600" />
                   </div>
                   <div className="mt-4 rounded-lg border border-slate-100 bg-slate-50 p-3">
                     <div className="flex flex-wrap justify-between gap-2">
-                      {demoOperators.map((operator) => (
+                      {operators.map((operator) => (
                         <EmployeeIdentity
                           key={operator.id}
                           operatorId={operator.id}
@@ -1947,11 +2103,23 @@ export function TasksPreview() {
           />
         </>
       )}
+      {errorMessage && (
+        <div role="alert" className="fixed bottom-4 left-1/2 z-[240] -translate-x-1/2 rounded-lg border border-rose-200 bg-white px-4 py-3 text-sm text-rose-700 shadow-lg">
+          {errorMessage}
+        </div>
+      )}
+      {loading && (
+        <div className="fixed inset-0 z-[240] grid place-items-center bg-white/70 backdrop-blur-sm" role="status" aria-live="polite">
+          <div className="rounded-lg border border-slate-200 bg-white px-5 py-4 text-sm font-medium text-slate-700 shadow-lg">Carregando tarefas…</div>
+        </div>
+      )}
       <TaskComposer
         open={isComposerOpen}
         onClose={() => setIsComposerOpen(false)}
         onCreate={createTask}
+        operators={operators}
       />
-    </div>
+      </div>
+    </PreviewOperatorsContext.Provider>
   );
 }

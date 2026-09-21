@@ -51,8 +51,8 @@ import { CaixaView } from './features/caixa/CaixaView';
 import { FreteView } from './features/frete/FreteView';
 import { DashboardView } from './features/dashboard/DashboardView';
 import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
-import { TasksView } from './features/tarefas/TasksView';
 import { TasksPreview } from './features/tarefas-preview/TasksPreview';
+import { RealTasksView } from './features/tarefas/RealTasksView';
 import { NotaCadastroBadge } from './components/NotaCadastroBadge';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
@@ -477,7 +477,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               {activeTab === 'dashboard' ? (
                 <DashboardView theme={theme} onSelectItem={setSelectedDetailItem} onTabChange={(tab) => setActiveTab(tab as Tab)} />
               ) : activeTab === 'tarefas' ? (
-                <TasksView theme={theme} />
+                <RealTasksView />
               ) : activeTab === 'estoque' ? (
                 <EstoqueView theme={theme} onSelectItem={setSelectedDetailItem} onRegisterActions={setEstoqueActions} pendingEditItem={pendingEditItem} setPendingEditItem={setPendingEditItem} />
               ) : activeTab === 'vendas' ? (

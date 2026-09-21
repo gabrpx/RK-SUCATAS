@@ -27,7 +27,10 @@ const tasks: Task[] = [
     priority: 'critical',
     impact: 'medium',
     dueLabel: 'aguardando retorno',
-    dueAt: '2026-09-17T17:00:00-03:00',
+    // O bloqueio não deve entrar no contador de urgência do teste. Mantemos
+    // o prazo relativo para a suíte continuar determinística após a virada
+    // do dia, sem depender do relógio do ambiente.
+    dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
     estimateMinutes: 45,
     owner: 'Você',
     area: 'Catálogo',

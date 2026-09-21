@@ -117,20 +117,20 @@ type ComposerDraft = {
   checklist: ChecklistDraft[];
 };
 
-function makeInitialDraft(): ComposerDraft {
+function makeInitialDraft(owner = "ryan"): ComposerDraft {
   return {
     title: "",
     instructions: "",
     category: "estoque",
     priority: "normal",
-    operatorIds: ["ryan"],
+    operatorIds: [owner],
     dueTime: "17:30",
     checklist: [
-      { id: "initial-1", label: "Conferir condição da peça", owner: "ryan" },
+      { id: "initial-1", label: "Conferir condição da peça", owner },
       {
         id: "initial-2",
         label: "Registrar localização no estoque",
-        owner: "ryan",
+        owner,
       },
     ],
   };
@@ -434,6 +434,7 @@ export function TaskComposer({
   open,
   onClose,
   onCreate,
+  operators = demoOperators,
 }: {
   open: boolean;
   onClose: () => void;
@@ -447,6 +448,7 @@ export function TaskComposer({
     checklistOwners: string[];
     dueTime: string;
   }) => void;
+  operators?: DemoOperator[];
 }) {
   const [draft, setDraft] = useState<ComposerDraft>(makeInitialDraft);
   const [isDirty, setIsDirty] = useState(false);
@@ -461,7 +463,7 @@ export function TaskComposer({
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement | null;
     setShouldLockScroll(true);
-    setDraft(makeInitialDraft());
+    setDraft(makeInitialDraft(operators[0]?.id));
     setIsDirty(false);
     setIsDiscardDialogOpen(false);
   }, [open]);
@@ -521,10 +523,10 @@ export function TaskComposer({
 
   const selectedOperators = useMemo(
     () =>
-      demoOperators.filter((operator) =>
+      operators.filter((operator) =>
         draft.operatorIds.includes(operator.id)
       ),
-    [draft.operatorIds]
+    [draft.operatorIds, operators]
   );
   const deadline =
     draft.category === "despacho" ? "Hoje, 16:30" : `Hoje, ${draft.dueTime}`;
@@ -617,7 +619,7 @@ export function TaskComposer({
       initial={shouldReduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-      className="fixed inset-0 z-[220] overflow-y-auto overscroll-contain bg-slate-950/35 p-3 backdrop-blur-sm [scrollbar-color:rgb(96_165_250)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-blue-400 [&::-webkit-scrollbar-track]:bg-transparent sm:p-6"
+      className="fixed inset-0 z-[220] overflow-y-auto overscroll-contain bg-slate-950/35 p-0 backdrop-blur-sm [scrollbar-color:rgb(96_165_250)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-blue-400 [&::-webkit-scrollbar-track]:bg-transparent sm:p-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
@@ -638,9 +640,9 @@ export function TaskComposer({
           default: { type: "spring", stiffness: 360, damping: 32, mass: 0.72 },
           layout: { type: "spring", stiffness: 380, damping: 32, mass: 0.72 },
         }}
-        className="mx-auto my-2 w-full max-w-[1120px] overflow-visible rounded-xl border border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.26)]"
+        className="mx-auto min-h-[100dvh] w-full max-w-[1120px] overflow-visible rounded-none border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.26)] sm:my-2 sm:min-h-0 sm:rounded-xl sm:border"
       >
-        <header className="flex items-center justify-between gap-4 border-b border-slate-200 px-5 py-4 sm:px-7">
+        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-7 sm:py-4">
           <div>
             <Label>Nova tarefa · turno ativo</Label>
             <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-900 sm:text-2xl">
@@ -653,9 +655,9 @@ export function TaskComposer({
             </kbd>
             <button
               type="button"
-              aria-label="Fechar modal"
+              aria-label="Fechar criação de tarefa"
               onClick={requestClose}
-              className="rounded border border-slate-200 p-2 text-slate-500 hover:bg-slate-50"
+              className="grid size-11 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <X size={17} />
             </button>
@@ -704,7 +706,7 @@ export function TaskComposer({
                   }
                   placeholder="Explique cuidados, ponto de conferência ou risco antes da conclusão."
                   rows={3}
-                  className="mt-2 w-full resize-y rounded-md border border-slate-300 px-3 py-2.5 text-sm leading-relaxed text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100"
+                    className="mt-2 w-full resize-y rounded-md border border-slate-300 px-3 py-2.5 text-base leading-relaxed text-slate-700 outline-none placeholder:text-slate-400 focus:border-blue-500 focus:ring-2 focus:ring-blue-100 sm:text-sm"
                 />
               </label>
               <div className="mt-5">
@@ -720,7 +722,7 @@ export function TaskComposer({
                         }
                         aria-pressed={draft.category === category}
                         className={cn(
-                          "rounded-md border px-3 py-2 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                          "min-h-11 rounded-md border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                           draft.category === category
                             ? "border-blue-600 bg-blue-600 text-white"
                             : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50"
@@ -791,7 +793,7 @@ export function TaskComposer({
                             dueTime: event.target.value,
                           }))
                         }
-                        className="mt-1.5 block w-full rounded border border-slate-300 bg-white px-2 py-1.5 text-sm outline-none focus:border-blue-500"
+                        className="mt-1.5 block h-11 w-full rounded border border-slate-300 bg-white px-2 text-base outline-none focus:border-blue-500 sm:text-sm"
                       />
                     </label>
                   )}
@@ -803,7 +805,7 @@ export function TaskComposer({
                   <UserPlus size={15} className="text-blue-600" />
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  {demoOperators.map((operator) => (
+                  {operators.map((operator) => (
                     <button
                       key={operator.id}
                       type="button"
@@ -868,7 +870,7 @@ export function TaskComposer({
                           }))
                         }
                         placeholder="Descreva a etapa"
-                        className="min-w-0 bg-transparent text-sm text-slate-700 outline-none placeholder:text-slate-400"
+                        className="min-h-11 min-w-0 bg-transparent text-base text-slate-700 outline-none placeholder:text-slate-400 sm:text-sm"
                       />
                       <ChecklistOwnerPicker ownerId={item.owner} operators={selectedOperators} onChange={(owner) => setChecklistOwner(item.id, owner)} />
                       <button
@@ -882,7 +884,7 @@ export function TaskComposer({
                             ),
                           }))
                         }
-                        className="justify-self-end rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-rose-600"
+                        className="grid size-11 place-items-center justify-self-end rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         <X size={15} />
                       </button>
@@ -893,7 +895,7 @@ export function TaskComposer({
               <button
                 type="button"
                 onClick={addChecklistStep}
-                className="mt-4 inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 hover:bg-blue-100"
+                className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <Plus size={14} /> Adicionar etapa
               </button>
@@ -960,7 +962,7 @@ export function TaskComposer({
           </aside>
         </div>
 
-        <footer className="flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-5 py-4 sm:px-7">
+        <footer className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:py-4">
           <span className="mr-auto hidden font-mono text-[10px] text-slate-400 sm:inline">
             ⌘↵ criar tarefa
           </span>
@@ -968,7 +970,7 @@ export function TaskComposer({
             <button
               type="button"
               onClick={requestClose}
-              className="rounded-md px-3 py-2 text-sm text-slate-500 hover:bg-white"
+              className="h-11 rounded-md px-3 text-sm text-slate-500 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Descartar
             </button>
@@ -983,7 +985,7 @@ export function TaskComposer({
             <Button
               type="submit"
               disabled={!draft.title.trim()}
-              className="rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="h-11 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Plus size={16} /> Criar tarefa <ChevronRight size={15} />
             </Button>

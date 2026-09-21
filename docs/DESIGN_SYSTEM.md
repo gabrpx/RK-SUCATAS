@@ -29,6 +29,32 @@ risco ou atraso. A informação deve ser densa, mas escaneável.
 6. **DotMatrix:** indicador pontual de sincronização ou criticidade; nunca como
    ornamento repetido em listas.
 
+## Mobile-first (decisão adotada em `tarefas-preview`)
+
+Superfícies operacionais são projetadas primeiro em 320–430 px e ampliadas para
+tablet e desktop, nunca o contrário.
+
+- Nenhuma superfície principal exige rolagem horizontal. Só listas
+  explicitamente horizontais — abas e chips de filtro — rolam, sempre com o item
+  ativo trazido para o viewport e sem barra cortando o conteúdo.
+- Alvo de toque mínimo de 44 × 44 px, inclusive caixas de seleção: o `input`
+  fica visualmente pequeno, mas o rótulo entrega a área. Campos de texto usam
+  16 px em telas estreitas para não provocar zoom no iOS.
+- Detalhes, criação e confirmações viram folha (sheet) de altura quase total no
+  mobile: cabeçalho fixo, conteúdo com rolagem interna e rodapé de ação acima da
+  safe area. Em `sm+` a mesma superfície vira drawer lateral ou diálogo
+  centrado.
+- Cabeçalho e rodapés respeitam `env(safe-area-inset-top/bottom)`.
+- Ordem da página segue a decisão do usuário: o que ele executa vem antes do que
+  apenas explica o estado. Resumos, gráficos e históricos ficam depois da fila e
+  podem usar divulgação progressiva com controle explícito.
+- Um único botão de acento preenchido por tela. Quando o rótulo do CTA é
+  ocultado por breakpoint, o `aria-label` mantém o nome — e muda junto com o
+  contexto ativo.
+- Trocar um filtro local anima apenas os itens afetados; o container não é
+  re-chaveado nem remontado, e a posição de rolagem do contexto é preservada ao
+  alternar abas.
+
 ## Regras de incorporação
 
 - Não criar do zero primitives de dropdown, dialog, tabs, tooltip, menu, drawer

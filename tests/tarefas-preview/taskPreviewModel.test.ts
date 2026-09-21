@@ -3,12 +3,17 @@ import assert from "node:assert/strict";
 import {
   createPreviewTask,
   filterPreviewTasksByPrimaryTab,
+  filterPreviewTasksByQueueFilter,
   filterPreviewTasks,
   getPreviewCategoryBreakdown,
+  getPreviewQueueCounts,
   getPreviewTaskDeadline,
   getPreviewTaskExecutionSummary,
+  getPreviewWorkspaceCreateLabel,
+  getPreviewWorkspaceEntity,
   getNextPreviewTaskStatus,
   getPreviewSummary,
+  isCollaborativePreviewTask,
   type PreviewTask,
 } from "../../src/features/tarefas-preview/taskPreviewModel.ts";
 
@@ -163,6 +168,58 @@ test("resume colaboração e próxima ação da tarefa para a superfície de exe
   });
   assert.equal(individual.isCollaborative, false);
   assert.equal(individual.primaryAction, "Iniciar tarefa");
+});
+
+test("separa os filtros locais da fila da navegação global", () => {
+  const queueTasks: PreviewTask[] = [
+    ...tasks,
+    {
+      ...tasks[0],
+      id: "grupo-1",
+      status: "concluida",
+      operatorIds: ["kaua", "ryan"],
+    },
+  ];
+
+  assert.deepEqual(
+    filterPreviewTasksByQueueFilter(queueTasks, "todas").map((task) => task.id),
+    ["estoque-1", "estoque-1", "grupo-1"]
+  );
+  assert.equal(filterPreviewTasksByQueueFilter(queueTasks, "abertas").length, 2);
+  assert.equal(
+    filterPreviewTasksByQueueFilter(queueTasks, "pendencias").length,
+    1
+  );
+  assert.deepEqual(
+    filterPreviewTasksByQueueFilter(queueTasks, "grupo").map((task) => task.id),
+    ["grupo-1"]
+  );
+  assert.deepEqual(getPreviewQueueCounts(queueTasks), {
+    todas: 3,
+    abertas: 2,
+    pendencias: 1,
+    grupo: 1,
+  });
+});
+
+test("reconhece tarefa colaborativa apenas com mais de um responsável", () => {
+  assert.equal(isCollaborativePreviewTask(tasks[0]), false);
+  assert.equal(
+    isCollaborativePreviewTask({ ...tasks[0], operatorIds: ["kaua"] }),
+    false
+  );
+  assert.equal(
+    isCollaborativePreviewTask({ ...tasks[0], operatorIds: ["kaua", "ryan"] }),
+    true
+  );
+});
+
+test("o CTA global deriva a entidade da aba ativa", () => {
+  assert.equal(getPreviewWorkspaceEntity("turno"), "tarefa");
+  assert.equal(getPreviewWorkspaceEntity("concluidas"), "tarefa");
+  assert.equal(getPreviewWorkspaceEntity("lembretes"), "lembrete");
+  assert.equal(getPreviewWorkspaceCreateLabel("pendencias"), "Nova tarefa");
+  assert.equal(getPreviewWorkspaceCreateLabel("lembretes"), "Novo lembrete");
 });
 
 test("avança o status da tarefa no fluxo interativo do preview", () => {

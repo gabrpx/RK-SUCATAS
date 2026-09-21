@@ -88,6 +88,66 @@ export function getMostUrgentReminder(reminders: Reminder[]) {
   })[0] ?? null;
 }
 
+/** Presets de "quando lembrar" oferecidos na criação (sem dropdown nativo). */
+export type ReminderSchedulePreset = "30min" | "1h" | "3h" | "amanha";
+
+export const reminderSchedulePresets: Array<{
+  id: ReminderSchedulePreset;
+  label: string;
+  note: string;
+  minutes: number;
+}> = [
+  { id: "30min", label: "Em 30 min", note: "Próxima meia hora", minutes: 30 },
+  { id: "1h", label: "Em 1 hora", note: "Ainda neste turno", minutes: 60 },
+  { id: "3h", label: "Em 3 horas", note: "Fim do turno", minutes: 180 },
+  { id: "amanha", label: "Amanhã", note: "Abertura do próximo turno", minutes: 24 * 60 },
+];
+
+export function formatReminderClock(timestamp: number) {
+  return new Date(timestamp).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+export function getReminderSchedule(
+  preset: ReminderSchedulePreset,
+  now: number
+): { dueAt: number; dueLabel: string } {
+  const option =
+    reminderSchedulePresets.find((item) => item.id === preset) ??
+    reminderSchedulePresets[0];
+  const dueAt = now + option.minutes * 60 * 1000;
+
+  return {
+    dueAt,
+    dueLabel:
+      preset === "amanha"
+        ? `Amanhã às ${formatReminderClock(dueAt)}`
+        : `Hoje às ${formatReminderClock(dueAt)} · ${option.label.toLocaleLowerCase("pt-BR")}`,
+  };
+}
+
+/**
+ * Alvo de um adiamento. A confirmação precisa mostrar o novo horário ANTES de
+ * aplicar, por isso o cálculo é puro e reaproveitado pelo diálogo e pela ação.
+ */
+export function getReminderSnoozeTarget(
+  reminder: Reminder,
+  now: number,
+  minutes = 30
+): { dueAt: number; dueLabel: string; clock: string } {
+  const base = Math.max(reminder.dueAt, now);
+  const dueAt = base + minutes * 60 * 1000;
+  const clock = formatReminderClock(dueAt);
+
+  return { dueAt, clock, dueLabel: `Adiado · hoje às ${clock}` };
+}
+
+export function countActiveReminders(reminders: Reminder[]) {
+  return reminders.filter((reminder) => reminder.status === "ativo").length;
+}
+
 export function getReminderCountdown(reminder: Reminder | null, now: number) {
   if (!reminder) return { state: "vazio" as const, totalSeconds: 0 };
 

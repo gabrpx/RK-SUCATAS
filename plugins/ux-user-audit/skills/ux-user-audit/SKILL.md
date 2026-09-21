@@ -146,6 +146,12 @@ Ao auditar ou implementar uma interface operacional, verifique também:
   da aba atual. Ao trocar de tarefas para lembretes, tanto o rótulo quanto o
   gatilho precisam mudar para a criação correspondente, com a mesma fonte de
   estado usada pela ação local.
+- **Continuidade contextual no cabeçalho:** quando uma aba troca o título,
+  texto explicativo ou CTA do cabeçalho, preserve a geometria do cabeçalho e
+  faça a copy entrar/sair por transição local. Reserve a largura do CTA para a
+  maior variação prevista, anime o texto sem deslocar controles vizinhos e
+  respeite `prefers-reduced-motion`; nunca aceite troca seca de rótulo ou
+  reposicionamento perceptível do header.
 - **Checklists acionáveis fora do detalhe:** se um card resume etapas de uma
   tarefa, as caixas de seleção exibidas nele devem ser operáveis e atualizar a
   mesma fonte de estado do drawer; não use um ícone que pareça checkbox mas
@@ -154,6 +160,61 @@ Ao auditar ou implementar uma interface operacional, verifique também:
   para categorias com contagem zero. Filtre-as antes da renderização e use
   entrada, saída e layout local animados para que criação ou remoção não cause
   salto de altura nem quebre a leitura da página.
+- **Superfície oculta por CSS em vez de removida:** nenhum controle pode ser
+  neutralizado com `display: none` injetado, `hidden` ou opacidade enquanto
+  continua montado e mantendo estado. Uma navegação ou seção que não faz mais
+  parte do fluxo deve ser removida junto com o estado que ela governa; um
+  contexto que ainda existe precisa de rótulo, foco e consequência visíveis.
+  Dois conjuntos de controles governando o mesmo contexto é defeito, não
+  redundância.
+- **Fonte única para estado derivado:** contadores, totais e resumos exibidos
+  em um contexto devem ser calculados a partir da mesma coleção que a lista
+  renderiza, não espelhados em outro `state` sincronizado por efeito. Um número
+  que pode divergir da lista que ele resume é defeito de dados.
+- **Densidade sem rolagem horizontal:** painéis de resumo, tabelas de métricas
+  e faixas de indicadores não podem depender de largura mínima fixa nem de
+  rolagem lateral do conteúdo principal para serem lidos. Em 320 px o conteúdo
+  reflui em menos colunas; só listas explicitamente horizontais (abas, chips de
+  filtro) rolam, e sempre com affordance e item ativo alcançável.
+- **Exceção aprovada de rolagem horizontal:** se o usuário decidir
+  explicitamente manter rolagem horizontal em uma superfície principal (ex.:
+  `TurnMetricStrip` em `tarefas-preview`, aprovado em 17/09/2026 para preservar
+  4 cards lado a lado no mobile), a implementação é obrigatória, não opcional:
+  esconder a barra nativa reutilizando a classe global `.no-scrollbar` (não
+  duplicar a solução); adicionar fade real nas duas bordas que só aparece
+  quando há conteúdo naquela direção (`pointer-events-none`, `aria-hidden`);
+  converter a rolagem vertical do mouse (`deltaY`) em rolagem horizontal da
+  faixa enquanto houver conteúdo a revelar, liberando o evento para a página
+  assim que o início/fim é atingido — exige `addEventListener("wheel", ...,
+  { passive: false })` em `useEffect`, pois o `onWheel` do React é passivo por
+  padrão e ignora `preventDefault`; e manter um texto `sr-only` explicando a
+  rolagem para leitor de tela. O usuário pediu explicitamente (17/09/2026) para
+  não deixar nenhum indicador visual de trilho/polegar abaixo dos cards nessa
+  tela — o fade mais o wheel horizontal substituem essa affordance aqui; não
+  reintroduza a barra customizada sem nova decisão do usuário. Trate cada
+  exceção como aprovação pontual daquele componente específico, não como
+  precedente automático para dispensar a regra de "sem rolagem horizontal" em
+  outras superfícies principais.
+- **Ergonomia de toque e formulário no mobile:** todo alvo interativo tem ao
+  menos 44 × 44 px de área efetiva, inclusive caixas de seleção — um checkbox
+  de 14 px só é aceitável dentro de um rótulo que entregue a área mínima. Campos
+  de texto usam no mínimo 16 px em telas estreitas para não provocar zoom
+  involuntário, e a ação de salvar permanece alcançável com o teclado virtual
+  aberto, acima da safe area.
+- **Rótulo acessível quando a ação é comprimida:** se o texto de um botão é
+  ocultado por breakpoint, ícone ou truncamento, a ação precisa manter nome
+  acessível equivalente (`aria-label` ou texto para leitor de tela) que mude
+  junto com o contexto ativo. Um botão que vira só um ícone sem nome não é uma
+  ação visível.
+- **Filtro de lista anima os itens, não o container:** trocar um filtro local
+  deve animar entrada, saída e reposicionamento apenas dos itens afetados. Não
+  reanime, remonte ou re-chaveie o container inteiro: isso produz sensação de
+  recarregamento, perde a posição de rolagem e esconde qual item mudou.
+- **Hierarquia mobile por ordem de decisão:** em telas estreitas, o conteúdo
+  sobre o qual o usuário age vem antes do conteúdo que apenas explica o estado.
+  Resumos, gráficos e históricos ficam depois da fila de trabalho e podem usar
+  divulgação progressiva com controle explícito — nunca sumir. Um painel lateral
+  de apoio não pode empurrar a ação principal para fora da primeira tela.
 - **Composer orientado à decisão:** campos sem consequência para a ação atual
   devem ser removidos do formulário em vez de ocupar espaço. Prioridade,
   recorrência e demais escolhas que alteram o comportamento operacional devem
