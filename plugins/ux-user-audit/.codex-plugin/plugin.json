@@ -1,0 +1,18 @@
+{
+  "name": "ux-user-audit",
+  "version": "0.1.0",
+  "description": "Audita componentes, telas e fluxos pelo ponto de vista de um usuário real, com evidências e backlog priorizado.",
+  "author": {
+    "name": "Local developer"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Ux User Audit",
+    "shortDescription": "Audite UX com evidências reais.",
+    "longDescription": "Conduz auditorias estáticas ou executáveis de experiência do usuário, classificando bugs, acessibilidade, estados, responsividade, qualidade e riscos de dados.",
+    "developerName": "Local developer",
+    "category": "Productivity",
+    "capabilities": ["Analysis", "Interactive", "Read"],
+    "defaultPrompt": "Audite este fluxo como um usuário real e entregue o relatório completo."
+  }
+}

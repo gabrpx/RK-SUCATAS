@@ -19,7 +19,6 @@ export interface UsuarioLogado {
   roles: string[];
   permissoes: Permissoes;
 }
-
 export interface AuthenticatedRequest extends Request {
   usuario?: UsuarioLogado;
 }
