@@ -28,7 +28,7 @@ export function Reveal({ children, delay = 0, stagger, className }: RevealProps)
             key={i}
             variants={{
               hidden: { opacity: 0, y: 16, filter: 'blur(8px)' },
-              show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.7, ease: EASE_STANDARD as unknown as number[] } },
+              show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { duration: 0.7, ease: EASE_STANDARD as any } },
             }}
           >
             {child}
@@ -43,7 +43,7 @@ export function Reveal({ children, delay = 0, stagger, className }: RevealProps)
       className={cn(className)}
       initial={{ opacity: 0, y: 16, filter: 'blur(8px)' }}
       animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-      transition={{ duration: 0.7, delay, ease: EASE_STANDARD as unknown as number[] }}
+      transition={{ duration: 0.7, delay, ease: EASE_STANDARD as any }}
     >
       {children}
     </motion.div>

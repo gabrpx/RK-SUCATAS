@@ -21,7 +21,7 @@ interface EstoqueBuscaSugestoesProps {
 
 export function EstoqueBuscaSugestoes({ value, onChange, sugestoes, onSelecionar, placeholder }: EstoqueBuscaSugestoesProps) {
   const [focado, setFocado] = useState(false);
-  const blurTimeout = useRef<ReturnType<typeof setTimeout>>();
+  const blurTimeout = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   // Índice navegado pelo teclado. -1 = nenhum: quem digita e aperta Enter sem
   // ter descido pra lista continua fazendo a busca normal, sem selecionar item.
   const [ativo, setAtivo] = useState(-1);

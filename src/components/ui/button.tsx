@@ -9,6 +9,8 @@ import {
 } from "@/src/components/animate-ui/primitives/buttons/ripple"
 import { Magnetic } from "@/src/components/animate-ui/primitives/effects/magnetic"
 
+const RippleButtonCompat = RippleButton as React.ComponentType<any>
+
 // outline/ghost usam bg-surface-raised/text-text-primary em vez do
 // hover:bg-accent padrão do shadcn: "accent" aqui colidiria com o token de
 // marca (ver comentário em theme.css). dark: removido — o app não tem modo
@@ -69,7 +71,7 @@ function Button({
   if (variant === "accent-cta" && !asChild) {
     return (
       <Magnetic strength={0.15} disableOnTouch>
-        <RippleButton
+        <RippleButtonCompat
           data-slot="button"
           data-variant={variant}
           data-size={size}
@@ -78,7 +80,7 @@ function Button({
         >
           {children}
           <RippleButtonRipples color="var(--text-primary)" />
-        </RippleButton>
+        </RippleButtonCompat>
       </Magnetic>
     )
   }

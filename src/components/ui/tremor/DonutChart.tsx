@@ -9,6 +9,8 @@ import { Pie, PieChart as ReChartsDonutChart, ResponsiveContainer, Sector, Toolt
 import { AvailableChartColors, type AvailableChartColorsKeys, constructCategoryColors, getColorClassName } from './chartColors';
 import { cx } from './cx';
 
+const PieCompat = Pie as React.ComponentType<any>;
+
 const sumNumericArray = (arr: number[]): number => arr.reduce((sum, num) => sum + num, 0);
 
 const parseData = (data: Record<string, any>[], categoryColors: Map<string, AvailableChartColorsKeys>, category: string) =>
@@ -163,7 +165,7 @@ const DonutChart = React.forwardRef<HTMLDivElement, DonutChartProps>(
                 {parsedLabelInput}
               </text>
             )}
-            <Pie
+            <PieCompat
               className={cx('stroke-surface-card [&_.recharts-pie-sector]:outline-hidden', onValueChange ? 'cursor-pointer' : 'cursor-default')}
               data={parseData(data, categoryColors, category)}
               cx="50%"

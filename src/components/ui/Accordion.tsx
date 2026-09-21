@@ -12,7 +12,7 @@ interface AccordionProps {
 }
 
 export function Accordion({ items, type = 'single', defaultValue }: AccordionProps) {
-  const Root = A.Root as React.ComponentType<Record<string, unknown>>;
+  const Root = A.Root as unknown as React.ComponentType<Record<string, unknown>>;
   return (
     <Root
       type={type}

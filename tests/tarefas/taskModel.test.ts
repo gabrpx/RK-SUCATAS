@@ -1,4 +1,4 @@
-import test from 'node:test';
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { getTaskSummary, sortTasksByFocus, type Task } from '../../src/features/tarefas/taskModel.ts';
 

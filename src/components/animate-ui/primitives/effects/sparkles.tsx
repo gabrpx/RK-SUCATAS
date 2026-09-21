@@ -428,7 +428,7 @@ const SparklesCoreInner = (props: ParticlesProps) => {
               },
             },
             detectRetina: true,
-          }}
+          } as any}
         />
       )}
     </motion.div>

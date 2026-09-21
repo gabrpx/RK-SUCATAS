@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import { test } from "vitest";
 import { getHorizontalOverflowState } from "../../src/features/tarefas-preview/previewOverflowModel.ts";
 
 test("não mostra fades quando a faixa cabe inteira", () => {

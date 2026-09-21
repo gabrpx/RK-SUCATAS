@@ -73,9 +73,9 @@ function DialogContent({ open, onClose, title, description, children, className 
           <DialogPrimitive.Content
             asChild
             onClick={(e) => e.stopPropagation()}
-            onPointerDownOutside={(e) => { if (alvoEmCamadaAcima(e)) e.preventDefault(); }}
+            onPointerDownOutside={(e) => { if (alvoEmCamadaAcima(e) || interacaoPertenceASobreposicaoDoDialog(e)) e.preventDefault(); }}
             onFocusOutside={(e) => { if (alvoEmCamadaAcima(e)) e.preventDefault(); }}
-            onInteractOutside={(e) => { if (alvoEmCamadaAcima(e)) e.preventDefault(); }}
+            onInteractOutside={(e) => { if (alvoEmCamadaAcima(e) || interacaoPertenceASobreposicaoDoDialog(e)) e.preventDefault(); }}
           >
             <motion.div
               initial={{ y: 16, opacity: 0, scale: 0.98 }}
