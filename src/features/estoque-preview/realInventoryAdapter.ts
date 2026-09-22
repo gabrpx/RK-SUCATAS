@@ -1,5 +1,5 @@
 import type { Categoria } from "../../types/catalog";
-import type { Estoque, EstoqueUnidade } from "../estoque/types";
+import type { Estoque, EstoqueLocal, EstoqueLocalCategoria, EstoqueReserva, EstoqueUnidade } from "../estoque/types";
 import type { EstoquePreviewState, GrauUnidade, PecaEstoque, UnidadeEstoque } from "./inventoryPreviewModel";
 
 type ApiCategoria = Pick<Categoria, "id" | "nome" | "parent_id" | "ordem">;
@@ -32,23 +32,34 @@ function nomeCategoria(item: Estoque, categorias: ApiCategoria[]): { id: string;
   return { id: item.categoria_id ?? "categoria-sem-categoria", nome: "Sem categoria" };
 }
 
-function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number): UnidadeEstoque {
+function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number, locais: Map<string, EstoqueLocal>, reservas: Map<string, EstoqueReserva>): UnidadeEstoque {
   const sku = unidade.sku == null ? `${item.codigo}-${String(indice + 1).padStart(2, "0")}` : String(unidade.sku);
   // A foto geral do cadastro legado descreve o tipo da peça, não esta peça
   // física. Exibi-la em todas as unidades cria uma falsa impressão de que
   // cada uma já foi fotografada e conferida individualmente.
   const fotoUrl = unidade.fotos?.[0] ?? null;
+  const reserva = reservas.get(unidade.id);
   return {
     id: unidade.id,
+    individualizada: true,
     pecaId: item.id,
     codigoLegado: item.codigo,
     sku,
     grau: grauDaNota(unidade.condicao_nota ?? item.condicao_nota),
     preco: unidade.valor ?? item.valor ?? null,
     fotoUrl,
-    origem: null,
-    endereco: null,
-    estado: unidade.vendida_em ? "arquivada" : "organizar",
+    origem: unidade.origem_identificacao ?? null,
+    endereco: unidade.endereco_id ? locais.get(unidade.endereco_id)?.codigo ?? null : null,
+    organizadaEm: unidade.organizada_em ?? null,
+    vendidaEm: unidade.vendida_em ?? null,
+    estado: unidade.vendida_em || unidade.arquivada_em ? "arquivada" : reserva ? "reservada" : unidade.endereco_id ? "disponivel" : "organizar",
+    reservaId: reserva?.id,
+    reservadaAte: reserva?.reservada_ate,
+    reservadaPara: reserva ? reserva.cliente?.nome ?? reserva.responsavel : undefined,
+    reservaClienteId: reserva?.cliente_id ?? null,
+    reservaTelefone: reserva?.cliente?.telefone ?? null,
+    arquivadaEm: unidade.arquivada_em ?? undefined,
+    motivoArquivamento: unidade.motivo_arquivamento ?? undefined,
     detalhes: [unidade.nome, unidade.descricao, unidade.avaria_descricao].filter(Boolean).join(" · ") || null,
   };
 }
@@ -56,6 +67,7 @@ function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number): Un
 function unidadeVirtual(item: Estoque, indice: number): UnidadeEstoque {
   return {
     id: `${item.id}-virtual-${indice + 1}`,
+    individualizada: false,
     pecaId: item.id,
     codigoLegado: item.codigo,
     sku: `${item.codigo}-${String(indice + 1).padStart(2, "0")}`,
@@ -69,7 +81,7 @@ function unidadeVirtual(item: Estoque, indice: number): UnidadeEstoque {
   };
 }
 
-export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiCategoria[]): EstoquePreviewState {
+export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiCategoria[], locaisDisponiveis: EstoqueLocal[] = [], vinculos: EstoqueLocalCategoria[] = [], reservasDisponiveis: EstoqueReserva[] = []): EstoquePreviewState {
   // Todas as categorias ficam disponíveis mesmo quando ainda não têm item
   // vinculado. Isso deixa as seções prontas para preencher sem reclassificar
   // o estoque legado antes da implantação física.
@@ -78,6 +90,8 @@ export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiC
   );
   const pecas: PecaEstoque[] = [];
   const unidades: UnidadeEstoque[] = [];
+  const locais = new Map(locaisDisponiveis.map((local) => [local.id, local]));
+  const reservas = new Map(reservasDisponiveis.map((reserva) => [reserva.unidade_id, reserva]));
 
   for (const item of itens.filter((estoque) => estoque.ativo !== false)) {
     const categoria = nomeCategoria(item, categoriasDisponiveis);
@@ -95,13 +109,18 @@ export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiC
     });
 
     const fichas = item.unidades ?? [];
-    const fichasAtivas = fichas.filter((unidade) => !unidade.vendida_em);
-    unidades.push(...fichas.map((unidade, indice) => unidadeReal(item, unidade, indice)));
+    const fichasAtivas = fichas.filter((unidade) => !unidade.vendida_em && !unidade.arquivada_em);
+    unidades.push(...fichas.map((unidade, indice) => unidadeReal(item, unidade, indice, locais, reservas)));
     const quantidadeRepresentada = Math.max(0, item.quantidade - fichasAtivas.length);
     for (let indice = 0; indice < quantidadeRepresentada; indice += 1) {
       unidades.push(unidadeVirtual(item, fichasAtivas.length + indice));
     }
   }
 
-  return { categorias: [...categorias.values()], pecas, unidades, categoriasPorSecao: {} };
+  const categoriasPorSecao: Record<string, string[]> = {};
+  for (const vinculo of vinculos) {
+    const codigo = locais.get(vinculo.local_id)?.codigo;
+    if (codigo) categoriasPorSecao[codigo] = [...(categoriasPorSecao[codigo] ?? []), vinculo.categoria_id];
+  }
+  return { categorias: [...categorias.values()], pecas, unidades, categoriasPorSecao, locais: locaisDisponiveis };
 }

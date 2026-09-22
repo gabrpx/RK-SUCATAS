@@ -4,9 +4,13 @@ import {
   arquivarUnidade,
   buscarPecas,
   criarEstoqueDemo,
+  diasRestantesReserva,
   editarUnidade,
   getMetricas,
   getSecoesDaPrateleira,
+  liberarReservaUnidade,
+  podeReservar,
+  reservarUnidade,
   restaurarUnidade,
 } from "./inventoryPreviewModel";
 
@@ -19,7 +23,7 @@ describe("inventoryPreviewModel", () => {
       "Escapamentos",
       "Embreagem",
     ]);
-    expect(estoque.pecas).toHaveLength(8);
+    expect(estoque.pecas).toHaveLength(9);
     expect(
       estoque.unidades
         .filter((unidade) => unidade.codigoLegado === "RK-792")
@@ -52,8 +56,12 @@ describe("inventoryPreviewModel", () => {
     expect(metricas.totalAtivas).toBe(10);
     expect(metricas.reservadas).toBe(1);
     expect(metricas.paraOrganizar).toBe(1);
+    expect(metricas.semEstoque).toBe(1);
+    expect(metricas.valorEmEstoque).toBe(2279.4);
+    expect(buscarPecas(estoque, "").find((item) => item.peca.codigoLegado === "RK-825")?.unidades).toHaveLength(0);
     expect(secoes).toHaveLength(8);
     expect(secoes[0]?.categoria?.nome).toBe("Rabeta");
+    expect(secoes[0]?.categorias.map((categoria) => categoria.nome)).toEqual(["Rabeta"]);
     expect(secoes[0]?.unidades).toHaveLength(4);
     expect(secoes[1]?.unidades).toHaveLength(0);
   });
@@ -119,5 +127,35 @@ describe("inventoryPreviewModel", () => {
     const restaurado = restaurarUnidade(arquivado, "unidade-rk-810-01");
     expect(getMetricas(restaurado).totalAtivas).toBe(10);
     expect(getMetricas(restaurado).arquivadas).toBe(0);
+  });
+
+  it("reserva para cliente cadastrado e libera devolvendo o estado físico", () => {
+    const estoque = criarEstoqueDemo();
+    const alvo = estoque.unidades.find((item) => item.estado === "disponivel")!;
+    const reservado = reservarUnidade(estoque, alvo.id, { clienteId: "cli-1", nome: " Maria ", telefone: "(83) 9", reservadaAte: "2026-09-29T21:00:00.000Z" });
+    const unidade = reservado.unidades.find((item) => item.id === alvo.id)!;
+    expect(unidade).toMatchObject({ estado: "reservada", reservadaPara: "Maria", reservaClienteId: "cli-1", reservaTelefone: "(83) 9" });
+    expect(podeReservar(unidade)).toBe(false);
+    const liberado = liberarReservaUnidade(reservado, alvo.id).unidades.find((item) => item.id === alvo.id)!;
+    expect(liberado.estado).toBe(alvo.endereco ? "disponivel" : "organizar");
+    expect(liberado.reservaClienteId).toBeUndefined();
+    expect(liberado.reservadaPara).toBeUndefined();
+  });
+
+  it("não reserva unidade arquivada nem quantidade sem ficha", () => {
+    const estoque = criarEstoqueDemo();
+    const alvo = estoque.unidades[0];
+    const arquivado = arquivarUnidade(estoque, alvo.id, "teste");
+    const tentativa = reservarUnidade(arquivado, alvo.id, { clienteId: null, nome: "João", reservadaAte: "2026-09-29T21:00:00.000Z" });
+    expect(tentativa.unidades.find((item) => item.id === alvo.id)!.estado).toBe("arquivada");
+    expect(podeReservar({ ...alvo, individualizada: false })).toBe(false);
+  });
+
+  it("conta dias de calendário até o vencimento da reserva", () => {
+    const agora = new Date(2026, 8, 22, 17, 40);
+    expect(diasRestantesReserva(new Date(2026, 8, 29, 18, 0).toISOString(), agora)).toBe(7);
+    expect(diasRestantesReserva(new Date(2026, 8, 22, 18, 0).toISOString(), agora)).toBe(0);
+    expect(diasRestantesReserva(new Date(2026, 8, 20, 18, 0).toISOString(), agora)).toBe(0);
+    expect(diasRestantesReserva("data inválida", agora)).toBe(0);
   });
 });

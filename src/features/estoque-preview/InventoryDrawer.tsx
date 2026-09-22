@@ -10,7 +10,7 @@ interface InventoryDrawerProps {
   children: React.ReactNode;
 }
 
-const lightInventoryTokens = {
+export const lightInventoryTokens = {
   "--surface-page": "#f7f9fc",
   "--surface-card": "#ffffff",
   "--surface-raised": "#f8fafc",
@@ -40,7 +40,7 @@ export function InventoryDrawer({ isOpen, onClose, title, children }: InventoryD
     <AnimatePresence>
       {isOpen && <DialogPrimitive.Portal forceMount>
         <DialogPrimitive.Overlay asChild forceMount>
-          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="fixed inset-0 z-[90] bg-slate-900/25 backdrop-blur-[1px]" />
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="fixed inset-0 z-[90] bg-slate-500/25 backdrop-blur-[1px]" />
         </DialogPrimitive.Overlay>
         <DialogPrimitive.Content asChild forceMount>
           <motion.aside initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 28, stiffness: 280 }} style={lightInventoryTokens} className="fixed inset-y-0 right-0 z-[91] w-full max-w-[32rem] overflow-y-auto border-l border-slate-200 bg-white text-slate-900 shadow-2xl outline-none">

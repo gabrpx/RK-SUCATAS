@@ -37,6 +37,7 @@ describe("adaptarEstoqueReal", () => {
     expect(result.unidades.map((unit) => unit.sku)).toEqual(["RK-001-01", "RK-001-02"]);
     expect(result.unidades.every((unit) => unit.endereco === null)).toBe(true);
     expect(result.unidades[0].fotoUrl).toBeNull();
+    expect(result.unidades.every((unit) => unit.individualizada === false)).toBe(true);
     expect(result.unidades[0].origem).toBeNull();
     expect(result.categoriasPorSecao).toEqual({});
     expect(result.categorias.map((categoria) => categoria.nome)).toContain("Carenagem");
@@ -72,12 +73,27 @@ describe("adaptarEstoqueReal", () => {
         unidades_incompletas: [],
         unidades: [{ id: "unit-1", estoque_id: "item-2", sku: 77, nome: "Com detalhe", avaria: true, avaria_descricao: "Risco", descricao: null, fotos: [], valor: 250, condicao_nota: 4, vendida_em: null, criado_em: "2026-01-01", atualizado_em: "2026-01-01" }],
       }],
-      []
+      [], [], [], [{ id: "res-1", unidade_id: "unit-1", responsavel: "Cliente", reservada_ate: "2026-10-01T12:00:00Z", criada_em: "2026-09-22T12:00:00Z" }]
     );
 
     expect(result.unidades).toHaveLength(1);
-    expect(result.unidades[0]).toMatchObject({ id: "unit-1", sku: "77", preco: 250, grau: "C", estado: "organizar" });
+    expect(result.unidades[0]).toMatchObject({ id: "unit-1", sku: "77", preco: 250, grau: "C", estado: "reservada", individualizada: true, reservaId: "res-1", reservadaPara: "Cliente" });
     expect(result.unidades[0].detalhes).toContain("Com detalhe");
     expect(result.pecas[0].detalhes).toContain("Gaveta atual: Escapamentos");
+  });
+
+  it("mostra o nome do cliente cadastrado vinculado à reserva", () => {
+    const item = {
+      id: "item-3", codigo: "RK-003", nome: "Farol", categoria_id: null, categoria: null, modelo_moto_id: null, modelo_moto: null,
+      modelos_compativeis: [], condicao: "original", condicao_nota: 6, nota_cadastro: null, ano: null, valor: 90, quantidade: 1,
+      imagens: [], descricao: null, ativo: true, criado_em: "2026-01-01", atualizado_em: "2026-01-01", anuncio_ml_url: null,
+      anuncio_fb_url: null, componentes: null, unidades_incompletas: [],
+      unidades: [{ id: "unit-3", estoque_id: "item-3", sku: 5, nome: null, avaria: false, avaria_descricao: null, descricao: null, fotos: [], valor: null, condicao_nota: null, vendida_em: null, criado_em: "2026-01-01", atualizado_em: "2026-01-01" }],
+    } as unknown as Parameters<typeof adaptarEstoqueReal>[0][number];
+    const result = adaptarEstoqueReal([item], [], [], [], [{
+      id: "res-3", unidade_id: "unit-3", responsavel: "Nome antigo", reservada_ate: "2026-10-01T12:00:00Z", criada_em: "2026-09-22T12:00:00Z",
+      cliente_id: "cli-1", cliente: { id: "cli-1", nome: "Maria Cadastro", telefone: "(83) 99999-0000" },
+    }]);
+    expect(result.unidades[0]).toMatchObject({ estado: "reservada", reservadaPara: "Maria Cadastro", reservaClienteId: "cli-1", reservaTelefone: "(83) 99999-0000" });
   });
 });

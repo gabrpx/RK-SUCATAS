@@ -9,12 +9,13 @@ interface ComboboxProps {
   label?: string; helper?: string; error?: string; placeholder?: string;
   options: ComboboxOption[];
   value: string; onChange: (value: string) => void;
+  buttonRef?: React.Ref<HTMLButtonElement>;
   virtualizeThreshold?: number;
 }
 
 const WINDOW = 60;  // itens renderizados por vez quando threshold estourado
 
-export function Combobox({ label, helper, error, placeholder, options, value, onChange, virtualizeThreshold = 100 }: ComboboxProps) {
+export function Combobox({ label, helper, error, placeholder, options, value, onChange, buttonRef, virtualizeThreshold = 100 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [visible, setVisible] = React.useState(WINDOW);
@@ -40,11 +41,18 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
   const shown = shouldVirtualize ? filtered.slice(0, visible) : filtered;
 
   const current = options.find((o) => o.value === value);
+  const selectOption = (option: ComboboxOption) => {
+    onChange(option.value);
+    setOpen(false);
+    setQuery('');
+    setVisible(WINDOW);
+  };
 
   return (
     <div className="relative flex flex-col gap-1.5" ref={ref}>
       {label && <label id={labelId} className="text-xs font-medium text-text-secondary">{label}</label>}
       <button
+        ref={buttonRef}
         type="button"
         aria-haspopup="listbox"
         aria-expanded={open}
@@ -73,11 +81,12 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
               placeholder="Buscar…"
               value={query}
               onChange={(e) => { setQuery(e.target.value); setVisible(WINDOW); }}
+              onKeyDown={(e) => { if (e.key === 'Escape') { e.preventDefault(); setOpen(false); } }}
               className="w-full px-3 py-2 bg-transparent border-b border-border-subtle text-sm outline-none text-text-primary placeholder:text-text-faint"
             />
             <ul
               role="listbox"
-              className="max-h-60 overflow-y-auto py-1"
+              className="no-scrollbar max-h-60 overflow-y-auto py-1"
               onScroll={(e) => {
                 if (!shouldVirtualize) return;
                 const el = e.currentTarget;
@@ -91,7 +100,9 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
                   key={o.value}
                   role="option"
                   aria-selected={o.value === value}
-                  onClick={() => { onChange(o.value); setOpen(false); setQuery(''); setVisible(WINDOW); }}
+                  tabIndex={0}
+                  onClick={() => selectOption(o)}
+                  onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOption(o); } }}
                   className={cn(
                     'px-3 py-2 text-sm cursor-pointer hover:bg-surface-inset',
                     o.value === value ? 'text-accent font-medium' : 'text-text-secondary'

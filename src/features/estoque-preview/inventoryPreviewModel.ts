@@ -24,6 +24,8 @@ export interface PecaEstoque {
 
 export interface UnidadeEstoque {
   id: string;
+  /** False when this row only represents legacy quantity without a persisted unit ID. */
+  individualizada?: boolean;
   pecaId: string;
   codigoLegado: string;
   sku: string;
@@ -32,8 +34,15 @@ export interface UnidadeEstoque {
   fotoUrl: string | null;
   origem: string | null;
   endereco: string | null;
+  organizadaEm?: string | null;
+  vendidaEm?: string | null;
   estado: EstadoUnidade;
   reservadaAte?: string;
+  reservaId?: string;
+  reservadaPara?: string;
+  /** Cliente cadastrado vinculado à reserva (migration_067); ausente em reserva de balcão por nome livre. */
+  reservaClienteId?: string | null;
+  reservaTelefone?: string | null;
   percentualSinal?: number;
   arquivadaEm?: string;
   motivoArquivamento?: string;
@@ -44,7 +53,8 @@ export interface EstoquePreviewState {
   categorias: CategoriaEstoque[];
   pecas: PecaEstoque[];
   unidades: UnidadeEstoque[];
-  categoriasPorSecao: Record<string, string>;
+  categoriasPorSecao: Record<string, string[]>;
+  locais?: { id: string; codigo: string; deposito: string; zona: string; prateleira: string; secao: string; descricao: string | null; ativo: boolean }[];
 }
 
 export interface ResultadoBuscaEstoque {
@@ -54,10 +64,13 @@ export interface ResultadoBuscaEstoque {
 }
 
 export interface NovaUnidadeInput {
+  fotos?: File[];
   pecaId?: string;
   novaPeca?: {
     nome: string;
     categoriaId: string;
+    condicao?: "original" | "paralela";
+    notaCadastro?: "com_nota" | "sem_nota" | null;
     codigoLegado?: string;
     compatibilidades?: string[];
     detalhes?: string;
@@ -72,8 +85,17 @@ export interface NovaUnidadeInput {
 export interface SecaoPrateleira {
   endereco: string;
   categoria: CategoriaEstoque | null;
+  categorias: CategoriaEstoque[];
   unidades: UnidadeEstoque[];
 }
+
+export const enderecosPrateleira = Array.from({ length: 11 }, (_, prateleira) =>
+  Array.from({ length: 8 }, (_, secao) => {
+    const codigoPrateleira = `P${String(prateleira + 1).padStart(2, "0")}`;
+    const codigoSecao = `S${String(secao + 1).padStart(2, "0")}`;
+    return { value: `${codigoPrateleira}-${codigoSecao}`, label: `${codigoPrateleira}-${codigoSecao} · Prateleira ${prateleira + 1}, seção ${secao + 1}` };
+  })
+).flat();
 
 const categorias: CategoriaEstoque[] = [
   { id: "categoria-rabeta", nome: "Rabeta" },
@@ -82,6 +104,14 @@ const categorias: CategoriaEstoque[] = [
 ];
 
 const pecas: PecaEstoque[] = [
+  {
+    id: "peca-rk-825",
+    codigoLegado: "RK-825",
+    nome: "FAROL DIANTEIRO HONDA CG 160",
+    categoriaId: "categoria-embreagem",
+    compatibilidades: ["CG 160"],
+    detalhes: "Cadastro sem unidade física conferida.",
+  },
   {
     id: "peca-rk-810",
     codigoLegado: "RK-810",
@@ -194,9 +224,9 @@ export function criarEstoqueDemo(): EstoquePreviewState {
     })),
     unidades: unidades.map((item) => ({ ...item })),
     categoriasPorSecao: {
-      "P01-S01": "categoria-rabeta",
-      "P02-S01": "categoria-escapamentos",
-      "P03-S01": "categoria-embreagem",
+      "P01-S01": ["categoria-rabeta"],
+      "P02-S01": ["categoria-escapamentos"],
+      "P03-S01": ["categoria-embreagem"],
     },
   };
 }
@@ -225,7 +255,6 @@ export function buscarPecas(
         item.pecaId === peca.id &&
         (incluirArquivadas || item.estado !== "arquivada")
     );
-    if (!unidadesDaPeca.length && !incluirArquivadas) return [];
     const campos = [
       peca.nome,
       peca.codigoLegado,
@@ -254,6 +283,11 @@ export function getMetricas(estoque: EstoquePreviewState) {
     paraOrganizar: ativas.filter(
       (item) => item.estado === "organizar" || !item.endereco
     ).length,
+    valorEmEstoque: ativas.reduce((total, item) => total + (item.preco ?? 0), 0),
+    unidadesComPreco: ativas.filter((item) => item.preco != null && item.preco > 0).length,
+    valorDisponivel: ativas.filter((item) => item.estado === "disponivel").reduce((total, item) => total + (item.preco ?? 0), 0),
+    valorReservado: ativas.filter((item) => item.estado === "reservada").reduce((total, item) => total + (item.preco ?? 0), 0),
+    semEstoque: estoque.pecas.filter((peca) => !ativas.some((item) => item.pecaId === peca.id)).length,
     semFoto: ativas.filter((item) => !item.fotoUrl).length,
     arquivadas: estoque.unidades.filter((item) => item.estado === "arquivada")
       .length,
@@ -266,12 +300,12 @@ export function getSecoesDaPrateleira(
 ): SecaoPrateleira[] {
   return Array.from({ length: 8 }, (_, indice) => {
     const endereco = `${codigoPrateleira}-S${String(indice + 1).padStart(2, "0")}`;
-    const categoriaId = estoque.categoriasPorSecao[endereco];
+    const categoriaIds = estoque.categoriasPorSecao[endereco] ?? [];
+    const categorias = categoriaIds.flatMap((id) => estoque.categorias.filter((categoria) => categoria.id === id));
     return {
       endereco,
-      categoria:
-        estoque.categorias.find((categoria) => categoria.id === categoriaId) ??
-        null,
+      categoria: categorias[0] ?? null,
+      categorias,
       unidades: estoque.unidades.filter(
         (item) => item.estado !== "arquivada" && item.endereco === endereco
       ),
@@ -374,7 +408,23 @@ export function definirCategoriaDaSecao(
   categoriaId: string | null
 ): EstoquePreviewState {
   const categoriasPorSecao = { ...estoque.categoriasPorSecao };
-  if (categoriaId) categoriasPorSecao[endereco] = categoriaId;
+  if (categoriaId) categoriasPorSecao[endereco] = [categoriaId];
+  else delete categoriasPorSecao[endereco];
+  return { ...estoque, categoriasPorSecao };
+}
+
+export function alternarCategoriaDaSecao(
+  estoque: EstoquePreviewState,
+  endereco: string,
+  categoriaId: string
+): EstoquePreviewState {
+  if (!estoque.categorias.some((categoria) => categoria.id === categoriaId)) return estoque;
+  const atuais = estoque.categoriasPorSecao[endereco] ?? [];
+  const proximas = atuais.includes(categoriaId)
+    ? atuais.filter((id) => id !== categoriaId)
+    : [...atuais, categoriaId];
+  const categoriasPorSecao = { ...estoque.categoriasPorSecao };
+  if (proximas.length) categoriasPorSecao[endereco] = proximas;
   else delete categoriasPorSecao[endereco];
   return { ...estoque, categoriasPorSecao };
 }
@@ -413,6 +463,71 @@ export function restaurarUnidade(
         ...resto,
         estado: item.endereco ? "disponivel" : "organizar",
       };
+    }),
+  };
+}
+
+export interface ReservaUnidadeInput {
+  clienteId: string | null;
+  nome: string;
+  telefone?: string | null;
+  reservadaAte: string;
+}
+
+/** Dias de calendário até o vencimento (reserva feita hoje com 7 dias = 7, não 8 por causa das horas). */
+export function diasRestantesReserva(vencimentoIso: string, agora = new Date()) {
+  const vencimento = new Date(vencimentoIso);
+  if (Number.isNaN(vencimento.getTime())) return 0;
+  const inicio = new Date(agora.getFullYear(), agora.getMonth(), agora.getDate());
+  const fim = new Date(vencimento.getFullYear(), vencimento.getMonth(), vencimento.getDate());
+  return Math.max(0, Math.round((fim.getTime() - inicio.getTime()) / 86_400_000));
+}
+
+/** Prazo padrão de reserva combinado com a loja: 7 dias. */
+export const DIAS_RESERVA_PADRAO = 7;
+export const DIAS_RESERVA_MAXIMO = 30;
+
+export function podeReservar(unidade: UnidadeEstoque) {
+  return unidade.individualizada !== false && unidade.estado !== "arquivada" && unidade.estado !== "reservada" && !unidade.vendidaEm;
+}
+
+export function reservarUnidade(
+  estoque: EstoquePreviewState,
+  unidadeId: string,
+  reserva: ReservaUnidadeInput,
+  reservaId = `reserva-demo-${unidadeId}`
+): EstoquePreviewState {
+  return {
+    ...estoque,
+    unidades: estoque.unidades.map((item) =>
+      item.id === unidadeId && podeReservar(item)
+        ? {
+            ...item,
+            estado: "reservada",
+            reservaId,
+            reservadaAte: reserva.reservadaAte,
+            reservadaPara: reserva.nome.trim(),
+            reservaClienteId: reserva.clienteId,
+            reservaTelefone: reserva.telefone ?? null,
+          }
+        : item
+    ),
+  };
+}
+
+export function liberarReservaUnidade(
+  estoque: EstoquePreviewState,
+  unidadeId: string
+): EstoquePreviewState {
+  return {
+    ...estoque,
+    unidades: estoque.unidades.map((item) => {
+      if (item.id !== unidadeId || item.estado !== "reservada") return item;
+      const {
+        reservaId: _reservaId, reservadaAte: _ate, reservadaPara: _para,
+        reservaClienteId: _cliente, reservaTelefone: _telefone, percentualSinal: _sinal, ...resto
+      } = item;
+      return { ...resto, estado: item.endereco ? "disponivel" : "organizar" };
     }),
   };
 }

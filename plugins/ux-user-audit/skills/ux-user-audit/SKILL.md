@@ -49,6 +49,20 @@ Percorra o fluxo como usuário, usando browser, automação de tela ou ambiente 
 
 Ao auditar ou implementar uma interface operacional, verifique também:
 
+- **Rascunhos sob atualização assíncrona:** abra um formulário, digite dados sem
+  salvar e provoque um refetch, polling ou resposta atrasada da API. O rascunho
+  não pode sumir, voltar aos valores anteriores nem fechar o modal; compare
+  também mudanças de chave, permissão e desmontagem do componente pai. Se o
+  defeito só foi relatado, registre hipótese até reproduzir a sequência exata.
+- **Estado de cadastro entre aberturas:** ao cancelar ou fechar um cadastro,
+  reabra-o e confirme que nome, categoria, preço, fotos, erros e etapa foram
+  reiniciados. Se as opções vêm da API, não herde um ID demonstrativo ou que
+  já não pertence ao catálogo carregado; exija seleção válida e visível.
+- **Dados reais obsoletos:** após falha de revalidação, não mantenha rótulo de
+  “dados carregados” nem permita gravação baseada em estado antigo. Exiba
+  somente leitura, erro claro e retentativa; teste a transição de volta ao
+  estado operacional após reconexão.
+
 - **Controle nativo sem tratamento:** `select`, `alert`, `confirm`, `prompt`,
   input de arquivo e outros controles do navegador não podem ser deixados com
   aparência ou comportamento nativo quando o fluxo exige contexto, pessoas,
@@ -231,6 +245,76 @@ Ao auditar ou implementar uma interface operacional, verifique também:
   recorrência e demais escolhas que alteram o comportamento operacional devem
   usar opções personalizadas com nome, estado selecionado e breve consequência
   da escolha; um grupo de chips sem explicação torna a criação incompleta.
+ - **Conferência integral em compositores multi-etapas:** a etapa final de
+  revisão deve mostrar todos os campos persistidos que alteram classificação,
+  agrupamento, disponibilidade ou destino do registro — inclusive categoria,
+  endereço e vínculos — para que a pessoa possa corrigir a decisão antes de
+  salvar; um resumo que omite um desses campos é incompleto mesmo quando o
+   formulário mantém o valor corretamente no estado.
+ - **Faixa de métricas alinhada à referência visual:** cards de indicadores de
+   telas do mesmo produto devem compartilhar a mesma hierarquia de label, valor,
+   sufixo, sinal de estado, borda, sombra e espaçamento da experiência aprovada;
+   uma tela não deve criar um tratamento visual mais pesado sem decisão de
+   produto documentada.
+ - **Rolagem interna com continuidade perceptível:** listas longas podem usar
+   viewport próprio e carregamento incremental, mas devem ocultar a barra nativa
+   sem remover a acessibilidade, manter o foco/teclado, impedir scroll chaining
+   acidental e oferecer affordance de continuidade (fade, texto ou estado de
+   carregamento). A mesma regra vale para as visualizações equivalentes em cards
+   e lista.
+ - **Dropdown pesquisável no lugar de datalist em fluxos críticos:** seleções
+   que definem um vínculo operacional (peça existente, categoria ou destino)
+   devem usar o componente de dropdown compartilhado, com entrada/saída
+   animadas, seleção por teclado, Escape, estado selecionado e todas as opções
+   disponíveis; `datalist` nativo não é suficiente para garantir o mesmo
+   comportamento visual e acessível.
+ - **Valor financeiro com definição operacional:** um card de “valor em
+   estoque” deve derivar da mesma coleção de unidades ativas que a lista,
+   declarar como trata preços ausentes e não misturar itens arquivados,
+   reservados ou sem preço sem explicação visível.
+ - **Quantidade antes do detalhe:** catálogos agrupados devem exibir a
+   quantidade de unidades físicas no cabeçalho do grupo, usando “sem estoque”
+   e “0 unidades” para grupos vazios; não exigir abertura do detalhe para
+   descobrir disponibilidade básica.
+ - **Ruptura de estoque acionável:** grupos sem unidades devem permanecer
+   encontráveis quando fizerem parte do catálogo, receber destaque sem depender
+   apenas de cor e comunicar a consequência/ação seguinte (adicionar ou
+   vincular unidade), sem parecer um item disponível.
+ - **Endereço físico estruturado:** localização operacional deve ser escolhida
+   por opções válidas de prateleira/seção, com código curto e descrição humana
+   auxiliar; evite depender de texto livre para endereços que alimentam mapa,
+   organização e busca.
+ - **Prévia versus operação diária:** não classifique uma tela como pronta para
+   uso diário se criação, edição, arquivamento, reserva, endereço ou foto só
+   mudarem estado local. A interface deve declarar a limitação enquanto é
+   prévia; a versão operacional precisa de persistência, tratamento de falha,
+   recarga e atualização consistente de todas as vistas.
+ - **Métricas operacionais derivadas:** gráficos e contadores que prometem
+   orientar uma decisão diária precisam ser calculados de eventos persistidos,
+   ter período e definição explícitos e degradar honestamente quando não houver
+   dados. Dados fixos de demonstração não são métrica operacional.
+ - **Prateleiras escaláveis:** para galpões com muitas categorias, modele a
+   prateleira como endereço e zona pesquisáveis, separados da categoria. A
+   associação recomendada entre categoria e zona deve aceitar múltiplas
+   categorias, prioridade/capacidade e exceções; não imponha uma única
+   categoria por prateleira nem uma lista plana impossível de navegar.
+  - **Unidade física real:** uma unidade exibida como física precisa possuir um
+    identificador persistido ou ser claramente marcada como estimativa. Nunca
+    permita editar, reservar, arquivar ou contabilizar como ficha física um
+    placeholder criado apenas para representar uma quantidade legada.
+  - **Falha parcial de cadastro:** percorra upload → criação da peça → criação
+    ou atualização da ficha → atribuição de endereço. Para cada etapa, simule
+    falha e repetição: a UI deve dizer exatamente o que foi gravado, evitar
+    duplicidade no retry e prever limpeza de upload órfão. "Falhou" genérico
+    depois de uma escrita bem-sucedida é risco de dados.
+  - **Ação aparentemente disponível:** inspecione menu, drawer, atalhos e
+    estados alternativos para o mesmo comando. Se arquivar, restaurar ou mover
+    ainda não grava no servidor, não deixe um caminho secundário executá-lo
+    só no estado local nem abra confirmação de uma ação indisponível.
+  - **Linguagem compatível com o contrato real:** texto como "disponível",
+    "não ofertado", "sincronizado" ou "compatível" deve ser sustentado por
+    regra efetiva na API e nos consumidores. Uma fila visual não é bloqueio
+    de venda; uma referência livre de moto não é vínculo estruturado.
 
 ### Roteiro mínimo para overlays
 

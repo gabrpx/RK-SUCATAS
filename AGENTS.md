@@ -18,6 +18,16 @@ Principais áreas:
 - `supabase/` — schema e migrations SQL
 - `middleware/auth.ts` — JWT
 
+### Regra visual obrigatória
+
+- Nunca use o projeto/tela antiga com identidade visual preta e laranja e barra lateral como referência, base de comparação, alvo de navegação ou fonte de componentes para novas telas e auditorias.
+- A referência visual aprovada é a nova aba **Tarefas**, em modo claro, sem a barra lateral do projeto antigo, incluindo sua linguagem de cards, superfícies, espaçamento, tipografia, ações e interações.
+- Ao auditar ou implementar uma tela nova, confirme visualmente e no código que a comparação está sendo feita contra a nova experiência clara de Tarefas; se houver ambiguidade entre rotas/projetos, pare e registre a dúvida em vez de usar o projeto antigo como fallback.
+
+### Regra de aprendizado das auditorias
+
+- Todo achado confirmado em uma auditoria deve ser registrado antes do encerramento nos arquivos da skill local de auditoria, convertido em um critério curto, generalizável e verificável. Não basta relatar o problema apenas na resposta; aplique o novo critério à tarefa atual quando ele for pertinente e informe o registro realizado.
+
 ## Papéis e decisões
 
 ### Usuário

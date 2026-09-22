@@ -18,6 +18,23 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.5',
+    data: '2026-09-22',
+    titulo: 'Reserva de peça vinculada ao cliente',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Na ficha da unidade (prévia do novo estoque), o botão "Reservar" separa a peça para um cliente da base de clientes, com prazo de 1 a 30 dias (padrão 7). Cliente de balcão sem cadastro pode reservar só com o nome. A reserva mostra nome, telefone e dias restantes, e "Liberar reserva" devolve a peça para venda.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Excluir uma peça que já teve reserva (mesmo liberada) não dá mais erro, e cliente banido não consegue reservar. Requer a migration 067.',
+      },
+    ],
+  },
+  {
     versao: '1.7.4',
     data: '2026-09-21',
     titulo: 'Prévia interativa do novo estoque',

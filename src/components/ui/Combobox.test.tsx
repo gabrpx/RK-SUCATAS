@@ -45,6 +45,19 @@ describe('<Combobox>', () => {
     fireEvent.click(screen.getByText('Opção 2'));
     expect(onChange).toHaveBeenCalledWith('v2');
   });
+  it('fecha a lista com Escape e escolhe uma opção com teclado', () => {
+    const onChange = vi.fn();
+    render(<Combobox label="X" options={opts.slice(0, 5)} value="" onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button'));
+    const option = screen.getByRole('option', { name: 'Opção 2' });
+    option.focus();
+    fireEvent.keyDown(option, { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('v2');
+
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.keyDown(screen.getByPlaceholderText(/buscar/i), { key: 'Escape' });
+    expect(screen.queryByRole('option', { name: 'Opção 2' })).toBeNull();
+  });
   it('lista com > 100 itens renderiza sem travar (virtual)', () => {
     render(<Combobox label="X" options={opts} value="" onChange={() => {}} />);
     fireEvent.click(screen.getByRole('button'));

@@ -7,6 +7,7 @@ import { useMemo, useRef, useState } from 'react';
 import { Check, ChevronDown, X } from 'lucide-react';
 import { cn } from '../../utils';
 import { useData } from '../../context/DataContext';
+import type { Cliente } from './types';
 
 export interface SeletorClienteProps {
   clienteId: string | null;
@@ -15,10 +16,15 @@ export interface SeletorClienteProps {
   placeholder?: string;
   className?: string;
   disabled?: boolean;
+  // Lista explícita de clientes, para telas fora do DataProvider (ex.: a
+  // prévia de estoque). Sem ela, usa os clientes do contexto global.
+  clientes?: Cliente[];
+  ariaLabel?: string;
 }
 
-export function SeletorCliente({ clienteId, nome, onChange, placeholder = 'Nome do cliente (opcional)', className, disabled }: SeletorClienteProps) {
-  const { clientes } = useData();
+export function SeletorCliente({ clienteId, nome, onChange, placeholder = 'Nome do cliente (opcional)', className, disabled, clientes: clientesProp, ariaLabel }: SeletorClienteProps) {
+  const { clientes: clientesContexto } = useData();
+  const clientes = clientesProp ?? clientesContexto;
   const [aberto, setAberto] = useState(false);
   const fecharTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -59,6 +65,7 @@ export function SeletorCliente({ clienteId, nome, onChange, placeholder = 'Nome 
           fecharTimeout.current = setTimeout(() => setAberto(false), 150);
         }}
         placeholder={placeholder}
+        aria-label={ariaLabel}
         className={inputClass}
       />
       <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1.5">

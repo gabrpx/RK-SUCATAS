@@ -16,6 +16,12 @@ export type NotaCadastro = 'com_nota' | 'sem_nota';
 // um apelido ou um preço diferente, numa unidade sem defeito nenhum).
 export interface EstoqueUnidade {
   id: string;
+  /** Campos de organização física (migration_065). Ausentes em APIs antigas. */
+  endereco_id?: string | null;
+  origem_identificacao?: string | null;
+  arquivada_em?: string | null;
+  motivo_arquivamento?: string | null;
+  organizada_em?: string | null;
   estoque_id: string;
   /** SKU global, único e permanente. Pode não existir em cache anterior à migration. */
   sku?: number;
@@ -42,6 +48,42 @@ export interface EstoqueUnidade {
   vendida_em?: string | null;
   criado_em: string;
   atualizado_em: string;
+}
+
+export interface EstoqueLocal {
+  id: string;
+  codigo: string;
+  deposito: string;
+  zona: string;
+  prateleira: string;
+  secao: string;
+  descricao: string | null;
+  ativo: boolean;
+}
+
+export interface EstoqueLocalCategoria {
+  local_id: string;
+  categoria_id: string;
+  prioridade: number;
+}
+
+export interface EstoqueReserva {
+  id: string;
+  unidade_id: string;
+  // Nome exibido: nome livre digitado ou, com cliente vinculado, o nome do
+  // cadastro no momento da reserva.
+  responsavel: string;
+  reservada_ate: string;
+  criada_em: string;
+  // migration_067: vínculo opcional com a base de clientes.
+  cliente_id?: string | null;
+  cliente?: { id: string; nome: string; telefone: string | null } | null;
+}
+
+export interface EstoqueReservaInput {
+  clienteId: string | null;
+  responsavel: string;
+  reservadaAte: string;
 }
 
 export type EstoqueUnidadeInput = Pick<EstoqueUnidade, 'nome' | 'avaria' | 'avaria_descricao' | 'descricao' | 'fotos' | 'valor' | 'condicao_nota'>;

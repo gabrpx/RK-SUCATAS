@@ -19,6 +19,7 @@ import {
 import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { fotosEfetivasDaUnidade } from '../fotosUnidade.js';
+import { estoqueOrganizacaoRouter } from './estoqueOrganizacao.js';
 
 // Gates por permissão granular (ver src/constants/permissoes.ts). Leitura é
 // separada da escrita, e a escrita ainda se divide por ação: criar/editar
@@ -511,6 +512,7 @@ async function validarNotaCadastro(supabase: SupabaseClient, categoriaId: string
 
 export function estoqueRouter(supabase: SupabaseClient) {
   const router = Router();
+  router.use('/organizacao', estoqueOrganizacaoRouter(supabase));
 
   router.get('/', VER, async (_req, res) => {
     try {
@@ -758,31 +760,17 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   router.post('/:id/unidades', EDITAR, async (req, res) => {
     try {
-      const { data: item, error: erroItem } = await supabase.from('estoque').select('id, quantidade').eq('id', req.params.id).maybeSingle();
-      if (erroItem) throw erroItem;
-      if (!item) return res.status(404).json({ success: false, error: 'Peça não encontrada' });
-
-      // Não faz sentido ter mais fichas de unidade do que unidades físicas —
-      // seriam fichas de peças que não estão mais na loja.
-      const { count, error: erroContagem } = await supabase
-        .from('estoque_unidades')
-        .select('id', { count: 'exact', head: true })
-        .eq('estoque_id', req.params.id);
-      if (erroContagem) throw erroContagem;
-
-      if ((count ?? 0) >= item.quantidade) {
-        return res.status(400).json({
-          success: false,
-          error: `Esta peça tem ${item.quantidade} unidade(s) em estoque e já ${count} ficha(s) cadastrada(s). Aumente a quantidade ou revise as fichas existentes.`,
-        });
+      const payload = montarPayloadUnidade(req.body);
+      const { data, error } = await supabase.rpc('adicionar_unidade_estoque', {
+        p_estoque_id: req.params.id,
+        p_payload: payload,
+      });
+      if (error) {
+        if (['42883', 'PGRST202', 'PGRST205'].includes(error.code ?? '')) {
+          return res.status(503).json({ success: false, error: 'Atualize o banco com a migration de organização antes de cadastrar novas unidades.' });
+        }
+        throw error;
       }
-
-      const payload = { ...montarPayloadUnidade(req.body), estoque_id: req.params.id };
-      const { data, error } = await inserirOuAtualizarUnidade(
-        (p) => supabase.from('estoque_unidades').insert(p).select('*').single(),
-        payload
-      );
-      if (error) throw error;
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao criar unidade:', error);
