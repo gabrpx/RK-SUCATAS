@@ -55,6 +55,11 @@ Ao auditar ou implementar uma interface operacional, verifique também:
   status ou uma decisão relevante. Reutilize um componente do projeto ou crie
   uma superfície acessível e coerente com a tela; registre uma justificativa
   explícita se o nativo for a escolha correta.
+- **Linha operacional acionável:** quando uma linha, card ou resultado abre
+  detalhe, altera o contexto ou executa uma ação, ela precisa usar `button` ou
+  `a` (ou um componente que preserve sua semântica), com nome acessível, foco
+  visível e acionamento por teclado. Um `div` com `onClick` não pode ser a
+  superfície primária de uma ação operacional.
 - **Seleção de pessoas:** seletores de responsáveis devem comunicar identidade
   com avatar/iniciais, nome, estado selecionado e foco de teclado. Um `<select>`
   genérico não é suficiente para atribuir uma pessoa a uma etapa operacional.
@@ -171,6 +176,12 @@ Ao auditar ou implementar uma interface operacional, verifique também:
   em um contexto devem ser calculados a partir da mesma coleção que a lista
   renderiza, não espelhados em outro `state` sincronizado por efeito. Um número
   que pode divergir da lista que ele resume é defeito de dados.
+- **Consistência entre representações operacionais:** quando uma mesma entidade
+  aparece em catálogo, mapa, fila, contador ou histórico, todas essas vistas
+  devem derivar do mesmo identificador e da mesma fonte de estado. Uma mutação
+  de endereço, estado ou arquivamento precisa atualizar as representações
+  relacionadas no mesmo fluxo; uma vista que continua exibindo a cópia antiga
+  é defeito de dados/contexto, não apenas uma inconsistência visual.
 - **Densidade sem rolagem horizontal:** painéis de resumo, tabelas de métricas
   e faixas de indicadores não podem depender de largura mínima fixa nem de
   rolagem lateral do conteúdo principal para serem lidos. Em 320 px o conteúdo

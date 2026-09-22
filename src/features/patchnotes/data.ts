@@ -18,6 +18,18 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.4',
+    data: '2026-09-21',
+    titulo: 'Prévia interativa do novo estoque',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'A prévia isolada do novo método de estoque permite testar busca por peça ou moto, unidades físicas, reservas de 20% por 7 dias corridos e filas de organização sem consultar nem alterar o estoque real.',
+      },
+    ],
+  },
+  {
     versao: '1.7.3',
     data: '2026-09-15',
     titulo: 'Editar unidade pela lista + ficha mais clara',

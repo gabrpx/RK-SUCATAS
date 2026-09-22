@@ -30,6 +30,11 @@ export default defineConfig(() => {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+      // No preview local, encaminha a API ao Express. O navegador continua
+      // falando apenas com a API; a service role permanece no backend.
+      proxy: {
+        '/api': 'http://localhost:3000',
+      },
     },
     test: {
       // Worktrees de outros agentes ficam dentro do repositório, mas não fazem
