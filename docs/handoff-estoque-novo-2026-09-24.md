@@ -78,11 +78,9 @@ cópia mais antiga e divergente (sem a 069 e sem o visual de Tarefas).
 4. **Concluído:** `npm test` — 119 arquivos, 731 testes aprovados; builds
    frontend e API aprovados em diretório temporário. `npm run lint` continua
    com 18 erros de TypeScript existentes fora dos arquivos novos do módulo.
-5. **Pendente:** commit, integração com `main` e deploy. A branch local está
-   divergente de `main` (7 commits exclusivos da feature, 12 exclusivos de
-   `main` na última consulta), então revisar/resolver a integração antes de
-   publicar. Depois, confirmar a ligação do Render ao Supabase e validar a
-   tela no ambiente implantado.
+5. **Pendente:** concluir e publicar o merge local de `main` (já resolvido e
+   testado), abrir/mesclar PR e aguardar o deploy. Depois, confirmar a ligação
+   do Render ao Supabase e validar a tela no ambiente implantado.
 
 ### Arquivos relevantes
 - `src/features/estoque-preview/*` (módulo, testes incluídos)
@@ -107,7 +105,7 @@ cópia mais antiga e divergente (sem a 069 e sem o visual de Tarefas).
 - Identidade visual = tela Tarefas em modo claro, nunca preto com laranja.
 
 ### Testes executados (cópia do projeto novo, 24/09)
-- `npm test`: 119 arquivos, 731 testes, 0 falhas.
+- `npm test` após integrar `main`: 120 arquivos, 732 testes, 0 falhas.
 - `tsc --noEmit`: 18 erros, **todos pré-existentes** neste checkout (sparkles,
   Accordion, Reveal, button, tremor, ClientesView, EstoqueBuscaSugestoes,
   EstoqueView). Nenhum erro novo.
@@ -129,8 +127,8 @@ cópia mais antiga e divergente (sem a 069 e sem o visual de Tarefas).
   projeto; o novo estoque usa `/organizacao/pecas/:id/unidades`.
 
 ### Próximo passo recomendado
-Integrar a branch de trabalho com `main`, revisar o resultado e publicar/deployar.
-Após o deploy, confirmar no ambiente do app o cadastro de unidade com foto e os
-fluxos de reserva, venda e conferência. Os roteiros SQL já passaram no projeto
-Supabase conectado; falta confirmar que esse projeto é o banco apontado pelo
-Render antes de considerar o smoke test de produção fechado.
+Publicar o merge testado de `main` e aguardar o deploy. Depois, confirmar no
+ambiente do app o cadastro de unidade com foto e os fluxos de reserva, venda e
+conferência. Os roteiros SQL passaram no projeto Supabase conectado; falta
+confirmar que esse projeto é o banco apontado pelo Render para fechar o smoke
+test de produção.

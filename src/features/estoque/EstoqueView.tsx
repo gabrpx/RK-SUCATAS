@@ -235,6 +235,29 @@ export function EstoqueView({
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingItem, setEditingItem] = useState<Estoque | null>(null);
   const [familiaModalLinha, setFamiliaModalLinha] = useState<EstoqueLinha | null>(null);
+  // Impede que o mesmo clique usado para fechar o backdrop seja redisparado
+  // na linha que estava atrás do modal.
+  const ignorarProximoCliqueLinhaRef = useRef(false);
+  const linhaOrigemModalRef = useRef<string | null>(null);
+  const fecharFamiliaModal = useCallback(() => {
+    ignorarProximoCliqueLinhaRef.current = true;
+    window.setTimeout(() => { ignorarProximoCliqueLinhaRef.current = false; }, 0);
+    setFamiliaModalLinha(null);
+    const id = linhaOrigemModalRef.current;
+    if (id) {
+      window.requestAnimationFrame(() => {
+        const alvo = document.querySelector<HTMLElement>(`[data-estoque-row-id="${CSS.escape(id)}"]`);
+        if (!alvo) return;
+        alvo.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        alvo.focus({ preventScroll: true });
+      });
+    }
+  }, []);
+  const abrirFamiliaModal = useCallback((linha: EstoqueLinha) => {
+    if (ignorarProximoCliqueLinhaRef.current) return;
+    linhaOrigemModalRef.current = linha.id;
+    setFamiliaModalLinha(linha);
+  }, []);
   const [itemNaoAgrupadoDetalhe, setItemNaoAgrupadoDetalhe] = useState<Estoque | null>(null);
   const [fundirModalAberto, setFundirModalAberto] = useState(false);
   const [formData, setFormData] = useState<EstoqueInput>(EMPTY_FORM);
@@ -1225,7 +1248,9 @@ export function EstoqueView({
                           return (
                             <Fragment key={row.id}>
                               <TableRow
-                                onClick={() => setFamiliaModalLinha(linha)}
+                                data-estoque-row-id={linha.id}
+                                tabIndex={-1}
+                                onClick={() => abrirFamiliaModal(linha)}
                                 className={cn(
                                   'border-b border-border-subtle last:border-b-0 cursor-pointer',
                                   emAlerta ? 'border-l-2 border-l-warning' : 'border-l-2 border-l-transparent'
@@ -1277,9 +1302,11 @@ export function EstoqueView({
                         return (
                           <Expandable
                             key={row.id}
+                            data-estoque-row-id={linha.id}
+                            tabIndex={-1}
                             expanded={item ? expandidos.has(item.id) : false}
                             onToggle={item ? () => toggleExpandido(item.id) : undefined}
-                            onClick={() => setFamiliaModalLinha(linha)}
+                            onClick={() => abrirFamiliaModal(linha)}
                             className={cn('border-l-2 px-3 py-3 cursor-pointer', emAlerta ? 'border-l-warning' : 'border-l-transparent')}
                           >
                             <div className="flex items-start justify-between gap-2">
@@ -1952,7 +1979,7 @@ export function EstoqueView({
         <EstoqueFamiliaModal
           linha={familiaModalLinha}
           open={!!familiaModalLinha}
-          onClose={() => setFamiliaModalLinha(null)}
+          onClose={fecharFamiliaModal}
           onRefresh={refreshData}
         />
       )}

@@ -27,7 +27,7 @@ const DialogClose = DialogPrimitive.Close;
 // dialog e o fecha por trás — foi o que quebrava o menu de ações e o form de
 // editar unidade dentro do modal da lista de estoque. Mesmo padrão do Modal.tsx
 // (que já protegia o [data-photo-overlay] do visualizador de fotos).
-const SELETOR_CAMADA_ACIMA = '[data-radix-popper-content-wrapper],[role="dialog"],[role="menu"],[role="listbox"],[data-photo-overlay]';
+const SELETOR_CAMADA_ACIMA = '[data-radix-popper-content-wrapper],[role="dialog"],[role="menu"],[role="listbox"],[data-slot="dropdown-menu-content"],[data-photo-overlay]';
 
 function alvoEmCamadaAcima(e: { target: EventTarget | null; detail?: unknown }): boolean {
   const alvoReal = ((e as { detail?: { originalEvent?: { target?: EventTarget } } }).detail?.originalEvent?.target ?? e.target) as HTMLElement | null;
