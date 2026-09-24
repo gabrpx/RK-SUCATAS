@@ -1,5 +1,10 @@
 # Continuação — redesign da prévia de estoque
 
+> **MAIS RECENTE — 23/09/2026 (tarde):** leia primeiro
+> `docs/HANDOFF_CODEX_2026-09-23_AUDITORIA_ESTOQUE_PREVIEW.md` — correções da
+> auditoria Codex (P1/P2), sinal de 20% (migration 068 criada, NÃO aplicada),
+> histórico real e auditoria complementar. Depois o handoff abaixo.
+
 > **MAIS RECENTE — 23/09/2026:** leia primeiro `docs/HANDOFF_CODEX_2026-09-23.md`.
 > O trabalho está na branch `wip/estoque-reservas-cliente` (não na `main`).
 > A 066 foi aplicada na versão original; a 067 (correções + cliente na reserva)
@@ -53,9 +58,9 @@ Esta tela é uma **prévia**. Ela consulta dados reais para demonstração, mas 
 ### Cartões, unidades e imagem
 
 - Os cartões mostram **uma peça** e, internamente, suas **unidades físicas**.
-- Mais de 3 unidades usam trilho horizontal com scroll suave, sem barra visível e com fade na borda direita.
+- As unidades usam trilho horizontal sem barra visível; com mais de 2, há fade à direita. Roda vertical e setas do teclado percorrem o trilho, que mantém as unidades em ordem de Grau A a C.
 - Todas as ações clicáveis devem usar `cursor-pointer`, foco visível e feedback de hover.
-- `realInventoryAdapter.ts` não usa mais foto geral do item como fallback para a unidade. Só `unidade.fotos[0]` pode virar `fotoUrl`; ausência deve aparecer como “Sem foto”.
+- `realInventoryAdapter.ts` preserva todas as fotos de cada ficha e a primeira alimenta a miniatura da unidade. Ela não usa foto geral como miniatura; sem foto própria, o card mostra “Sem foto”. No drawer, a galeria prioriza as fotos da unidade e usa as fotos gerais da peça como fallback identificado.
 
 ### Criação e detalhe
 

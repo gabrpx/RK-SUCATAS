@@ -1,5 +1,6 @@
 import type { Categoria } from "../../types/catalog";
-import type { Estoque, EstoqueLocal, EstoqueLocalCategoria, EstoqueReserva, EstoqueUnidade } from "../estoque/types";
+import type { Estoque, EstoqueLocal, EstoqueLocalCategoria, EstoqueUnidade } from "../estoque/types";
+import type { ReservaComSinal } from "./organizacaoApi";
 import type { EstoquePreviewState, GrauUnidade, PecaEstoque, UnidadeEstoque } from "./inventoryPreviewModel";
 
 type ApiCategoria = Pick<Categoria, "id" | "nome" | "parent_id" | "ordem">;
@@ -32,12 +33,13 @@ function nomeCategoria(item: Estoque, categorias: ApiCategoria[]): { id: string;
   return { id: item.categoria_id ?? "categoria-sem-categoria", nome: "Sem categoria" };
 }
 
-function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number, locais: Map<string, EstoqueLocal>, reservas: Map<string, EstoqueReserva>): UnidadeEstoque {
+function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number, locais: Map<string, EstoqueLocal>, reservas: Map<string, ReservaComSinal>): UnidadeEstoque {
   const sku = unidade.sku == null ? `${item.codigo}-${String(indice + 1).padStart(2, "0")}` : String(unidade.sku);
   // A foto geral do cadastro legado descreve o tipo da peça, não esta peça
   // física. Exibi-la em todas as unidades cria uma falsa impressão de que
   // cada uma já foi fotografada e conferida individualmente.
-  const fotoUrl = unidade.fotos?.[0] ?? null;
+  const fotos = unidade.fotos ?? [];
+  const fotoUrl = fotos[0] ?? null;
   const reserva = reservas.get(unidade.id);
   return {
     id: unidade.id,
@@ -48,6 +50,7 @@ function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number, loc
     grau: grauDaNota(unidade.condicao_nota ?? item.condicao_nota),
     preco: unidade.valor ?? item.valor ?? null,
     fotoUrl,
+    fotos,
     origem: unidade.origem_identificacao ?? null,
     endereco: unidade.endereco_id ? locais.get(unidade.endereco_id)?.codigo ?? null : null,
     organizadaEm: unidade.organizada_em ?? null,
@@ -58,6 +61,8 @@ function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number, loc
     reservadaPara: reserva ? reserva.cliente?.nome ?? reserva.responsavel : undefined,
     reservaClienteId: reserva?.cliente_id ?? null,
     reservaTelefone: reserva?.cliente?.telefone ?? null,
+    reservaValorSinal: reserva?.valor_sinal ?? null,
+    reservadaEm: reserva?.criada_em,
     arquivadaEm: unidade.arquivada_em ?? undefined,
     motivoArquivamento: unidade.motivo_arquivamento ?? undefined,
     detalhes: [unidade.nome, unidade.descricao, unidade.avaria_descricao].filter(Boolean).join(" · ") || null,
@@ -81,7 +86,7 @@ function unidadeVirtual(item: Estoque, indice: number): UnidadeEstoque {
   };
 }
 
-export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiCategoria[], locaisDisponiveis: EstoqueLocal[] = [], vinculos: EstoqueLocalCategoria[] = [], reservasDisponiveis: EstoqueReserva[] = []): EstoquePreviewState {
+export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiCategoria[], locaisDisponiveis: EstoqueLocal[] = [], vinculos: EstoqueLocalCategoria[] = [], reservasDisponiveis: ReservaComSinal[] = []): EstoquePreviewState {
   // Todas as categorias ficam disponíveis mesmo quando ainda não têm item
   // vinculado. Isso deixa as seções prontas para preencher sem reclassificar
   // o estoque legado antes da implantação física.
@@ -103,6 +108,7 @@ export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiC
       categoriaId: categoria.id,
       compatibilidades: compatibilidadesDoItem(item),
       detalhes: detalhesDaPeca(item),
+      fotos: item.imagens ?? [],
       origemDado: "real",
       familiaNome: item.familia?.nome ?? null,
       gavetaNome: item.gaveta?.nome ?? null,
@@ -118,9 +124,12 @@ export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiC
   }
 
   const categoriasPorSecao: Record<string, string[]> = {};
+  const prioridadesPorSecao: Record<string, Record<string, number>> = {};
   for (const vinculo of vinculos) {
     const codigo = locais.get(vinculo.local_id)?.codigo;
-    if (codigo) categoriasPorSecao[codigo] = [...(categoriasPorSecao[codigo] ?? []), vinculo.categoria_id];
+    if (!codigo) continue;
+    categoriasPorSecao[codigo] = [...(categoriasPorSecao[codigo] ?? []), vinculo.categoria_id];
+    prioridadesPorSecao[codigo] = { ...(prioridadesPorSecao[codigo] ?? {}), [vinculo.categoria_id]: vinculo.prioridade ?? 1 };
   }
-  return { categorias: [...categorias.values()], pecas, unidades, categoriasPorSecao, locais: locaisDisponiveis };
+  return { categorias: [...categorias.values()], pecas, unidades, categoriasPorSecao, prioridadesPorSecao, locais: locaisDisponiveis };
 }

@@ -14,7 +14,7 @@ describe("EstoquePreview", () => {
       screen.getByRole("region", { name: "Resumo operacional do estoque" })
     ).toBeTruthy();
     expect(screen.getByText(/Rabeta · RK-810/)).toBeTruthy();
-    expect(screen.getByText("inclui quantidades legadas sem ficha")).toBeTruthy();
+    expect(screen.getByText(/inclui quantidades legadas sem ficha/)).toBeTruthy();
     expect(screen.getByText("Ritmo de organização")).toBeTruthy();
   });
 
@@ -79,7 +79,7 @@ describe("EstoquePreview", () => {
     expect(screen.getByRole("alert").textContent).toContain("Escolha a peça existente antes de continuar.");
   });
 
-  it("fecha o menu de ações com Escape", () => {
+  it("fecha o menu de ações com Escape", async () => {
     render(<EstoquePreview />);
 
     fireEvent.click(screen.getByRole("button", { name: /Ações de RK-810-01/i }));
@@ -87,7 +87,7 @@ describe("EstoquePreview", () => {
 
     fireEvent.keyDown(document, { key: "Escape" });
 
-    expect(screen.queryByRole("menuitem", { name: /Editar unidade/i })).toBeNull();
+    await waitFor(() => expect(screen.queryByRole("menuitem", { name: /Editar unidade/i })).toBeNull());
   });
 
   it("mostra a categoria escolhida na conferência final e move o foco para cada etapa", () => {
@@ -124,7 +124,7 @@ describe("EstoquePreview", () => {
     expect(screen.getAllByRole("tabpanel")).toHaveLength(4);
   });
 
-  it("busca por código legado e alterna para lista", () => {
+  it("busca por código legado e alterna para lista", async () => {
     render(<EstoquePreview />);
 
     fireEvent.change(screen.getByRole("searchbox", { name: /Buscar no estoque/i }), {
@@ -132,7 +132,7 @@ describe("EstoquePreview", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Visualização em lista" }));
 
-    expect(screen.getByText("ESCAPAMENTO HONDA CB TWISTER 250F")).toBeTruthy();
+    await waitFor(() => expect(screen.getAllByText("ESCAPAMENTO HONDA CB TWISTER 250F")).toHaveLength(1));
     expect(screen.getByRole("region", { name: "Lista de itens do estoque" })).toBeTruthy();
     expect(screen.queryByText("SUPORTE DE PLACA (RABETA) CG 150")).toBeNull();
   });
@@ -196,10 +196,10 @@ describe("EstoquePreview", () => {
     fireEvent.click(screen.getByRole("button", { name: /Confirmar arquivamento/i }));
     expect(screen.getByText(/Unidade arquivada/)).toBeTruthy();
 
-    fireEvent.click(screen.getByRole("tab", { name: /Arquivados/i }));
-    expect(screen.getByText("RK-810-01")).toBeTruthy();
+    fireEvent.click(await screen.findByRole("tab", { name: /Arquivados/i }));
+    expect(await screen.findByText("RK-810-01")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /Restaurar RK-810-01/i }));
-    expect(screen.getByText(/Unidade restaurada/)).toBeTruthy();
+    expect(await screen.findByText(/Unidade restaurada/)).toBeTruthy();
   });
 
   it("busca e designa várias categorias na mesma seção do mapa", () => {
@@ -217,20 +217,25 @@ describe("EstoquePreview", () => {
     expect(screen.getByRole("button", { name: "Remover Embreagem de P01-S02" })).toBeTruthy();
   });
 
-  it("reserva uma unidade para um cliente cadastrado e libera depois", async () => {
+  it("reserva uma unidade para um cliente cadastrado com sinal e libera depois", async () => {
     render(<EstoquePreview />);
     fireEvent.click(await screen.findByRole("button", { name: "Ver detalhes de RK-810-01" }));
     fireEvent.click(screen.getByRole("button", { name: /^Reservar$/ }));
 
+    const campoCliente = await screen.findByLabelText("Cliente da reserva");
     const confirmar = screen.getByRole("button", { name: /Confirmar reserva/ }) as HTMLButtonElement;
     expect(confirmar.disabled).toBe(true);
 
-    const campoCliente = screen.getByLabelText("Cliente da reserva");
     fireEvent.focus(campoCliente);
     fireEvent.change(campoCliente, { target: { value: "demonstração A" } });
     fireEvent.mouseDown(screen.getByRole("button", { name: /Cliente demonstração A/ }));
     expect(screen.getByText("Cliente cadastrado vinculado à reserva.")).toBeTruthy();
-    expect(screen.getByText(/^Vence em .*às 18h\.$/)).toBeTruthy();
+    expect(screen.getByText(/^Vence em .*\(7 × 24 h a partir de agora\)\.$/)).toBeTruthy();
+    // Sinal vem preenchido com 20% do preço; sem forma de pagamento não confirma.
+    expect((screen.getByLabelText("Valor do sinal") as HTMLInputElement).value).toBe("30,00");
+    expect(confirmar.disabled).toBe(true);
+    fireEvent.click(screen.getByRole("button", { name: /Forma de pagamento do sinal/ }));
+    fireEvent.click(screen.getByRole("option", { name: "PIX" }));
 
     fireEvent.click(screen.getByRole("button", { name: /Confirmar reserva/ }));
 
@@ -238,6 +243,7 @@ describe("EstoquePreview", () => {
     expect(reserva.textContent).toContain("Cliente demonstração A");
     expect(reserva.textContent).toContain("Cliente cadastrado");
     expect(reserva.textContent).toContain("(83) 90000-0001");
+    expect(reserva.textContent).toContain("Sinal de R$");
     expect(screen.queryByRole("button", { name: /^Reservar$/ })).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: /Liberar reserva/ }));
@@ -245,17 +251,80 @@ describe("EstoquePreview", () => {
     expect(screen.getByRole("button", { name: /^Reservar$/ })).toBeTruthy();
   });
 
-  it("aceita reserva de balcão só com o nome e bloqueia prazo inválido", async () => {
+  it("aceita reserva de balcão só com o nome, bloqueia prazo inválido e sinal abaixo de 20%", async () => {
     render(<EstoquePreview />);
     fireEvent.click(await screen.findByRole("button", { name: "Ver detalhes de RK-810-01" }));
     fireEvent.click(screen.getByRole("button", { name: /^Reservar$/ }));
-    fireEvent.change(screen.getByLabelText("Cliente da reserva"), { target: { value: "Pedro do balcão" } });
+    fireEvent.change(await screen.findByLabelText("Cliente da reserva"), { target: { value: "Pedro do balcão" } });
+    fireEvent.click(screen.getByRole("button", { name: /Forma de pagamento do sinal/ }));
+    fireEvent.click(screen.getByRole("option", { name: "DINHEIRO" }));
     fireEvent.change(screen.getByLabelText("Prazo da reserva em dias"), { target: { value: "45" } });
     expect((screen.getByRole("button", { name: /Confirmar reserva/ }) as HTMLButtonElement).disabled).toBe(true);
     fireEvent.change(screen.getByLabelText("Prazo da reserva em dias"), { target: { value: "3" } });
+    fireEvent.change(screen.getByLabelText("Valor do sinal"), { target: { value: "29,99" } });
+    expect((screen.getByRole("button", { name: /Confirmar reserva/ }) as HTMLButtonElement).disabled).toBe(true);
+    fireEvent.change(screen.getByLabelText("Valor do sinal"), { target: { value: "50" } });
     fireEvent.click(screen.getByRole("button", { name: /Confirmar reserva/ }));
     const reserva = await screen.findByRole("region", { name: "Reserva ativa" });
     expect(reserva.textContent).toContain("Pedro do balcão");
     expect(reserva.textContent).toContain("Sem cadastro de cliente");
+    expect(reserva.textContent).toMatch(/Sinal de R\$\s50,00/);
+  });
+
+  it("não oferece reserva para unidade sem preço e aponta para a edição", async () => {
+    render(<EstoquePreview />);
+    fireEvent.click(screen.getByRole("button", { name: /Ações de RK-810-01/i }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Editar unidade/i }));
+    fireEvent.change(await screen.findByLabelText("Preço da unidade"), { target: { value: "" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar alterações/i }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ver detalhes de RK-810-01" }));
+    expect(await screen.findByText(/Defina o preço antes de reservar/)).toBeTruthy();
+    expect(screen.queryByRole("button", { name: /^Reservar$/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "Definir preço" })).toBeTruthy();
+  });
+
+  it("mostra na aba Histórico os eventos registrados, com data e autoria", async () => {
+    render(<EstoquePreview />);
+    fireEvent.click(await screen.findByRole("button", { name: "Ver detalhes de RK-792-03" }));
+    fireEvent.click(screen.getByRole("tab", { name: /Histórico/ }));
+    expect(await screen.findByText("Linha do tempo registrada")).toBeTruthy();
+    expect(await screen.findByText("Reservada para Cliente demonstração A")).toBeTruthy();
+    expect(screen.getAllByText(/Sinal de R\$/).length).toBeGreaterThan(0);
+    expect(screen.getByText(/autor não registrado/)).toBeTruthy();
+    expect(screen.queryByText("Rastreabilidade preservada")).toBeNull();
+  });
+
+  it("separa localizadas de disponíveis nas métricas e não força rolagem horizontal", () => {
+    render(<EstoquePreview />);
+    const resumo = screen.getByRole("region", { name: "Resumo operacional do estoque" });
+    expect(resumo.textContent).toContain("Disponíveis");
+    expect(resumo.textContent).toContain("Localizadas");
+    expect(resumo.textContent).toContain("reservadas continuam no mesmo lugar");
+    expect(resumo.className).not.toMatch(/min-w-\[/);
+    expect(resumo.className).not.toContain("overflow-x-auto");
+    expect(document.querySelector(".font-mono")).toBeNull();
+  });
+
+  it("oferece Adicionar unidade como botão na lista quando a peça está sem estoque", async () => {
+    render(<EstoquePreview />);
+    fireEvent.change(screen.getByRole("searchbox", { name: /Buscar no estoque/i }), { target: { value: "RK-825" } });
+    fireEvent.click(screen.getByRole("button", { name: "Visualização em lista" }));
+    const adicionar = await screen.findAllByRole("button", { name: "Adicionar unidade a RK-825" });
+    fireEvent.click(adicionar[adicionar.length - 1]);
+    expect(await screen.findByRole("dialog", { name: "Nova peça e primeira unidade" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Peça existente.*FAROL DIANTEIRO/i })).toBeTruthy();
+  });
+
+  it("Escape fecha primeiro a lista do combobox e só depois o drawer", async () => {
+    render(<EstoquePreview />);
+    fireEvent.click(screen.getByRole("button", { name: "Nova peça" }));
+    fireEvent.click(screen.getByRole("button", { name: /Categoria Escolha uma categoria/i }));
+    const busca = screen.getByPlaceholderText("Buscar…");
+    fireEvent.keyDown(busca, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByPlaceholderText("Buscar…")).toBeNull());
+    expect(screen.getByRole("dialog", { name: "Nova peça e primeira unidade" })).toBeTruthy();
+    expect(document.activeElement).toBe(screen.getByRole("button", { name: /Categoria Escolha uma categoria/i }));
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: "Escape" });
+    await waitFor(() => expect(screen.queryByRole("dialog", { name: "Nova peça e primeira unidade" })).toBeNull());
   });
 });

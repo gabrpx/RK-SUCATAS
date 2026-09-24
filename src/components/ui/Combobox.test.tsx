@@ -83,4 +83,36 @@ describe('<Combobox>', () => {
     const btn = screen.getByRole('button');
     expect(btn.getAttribute('aria-labelledby')).toBeNull();
   });
+
+  it('navega pelas opções com setas e escolhe com Enter, sem depender de Tab', () => {
+    const onChange = vi.fn();
+    render(<Combobox label="X" options={opts.slice(0, 5)} value="" onChange={onChange} />);
+    fireEvent.click(screen.getByRole('button'));
+    // O mock de motion remonta o elemento a cada render: consulte de novo.
+    const busca = () => screen.getByRole('combobox');
+    fireEvent.keyDown(busca(), { key: 'ArrowDown' });
+    fireEvent.keyDown(busca(), { key: 'ArrowDown' });
+    expect(busca().getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Opção 2' }).id);
+    fireEvent.keyDown(busca(), { key: 'ArrowUp' });
+    fireEvent.keyDown(busca(), { key: 'Enter' });
+    expect(onChange).toHaveBeenCalledWith('v1');
+  });
+
+  it('Escape fecha só a lista, interrompe a propagação e devolve o foco ao campo', () => {
+    const escapeNoDocumento = vi.fn();
+    document.addEventListener('keydown', escapeNoDocumento, { capture: true });
+    render(<Combobox label="X" options={opts.slice(0, 5)} value="" onChange={() => {}} />);
+    fireEvent.click(screen.getByRole('button'));
+    fireEvent.keyDown(screen.getByRole('combobox'), { key: 'Escape' });
+    expect(screen.queryByRole('listbox')).toBeNull();
+    expect(escapeNoDocumento).not.toHaveBeenCalled();
+    expect(document.activeElement).toBe(screen.getByRole('button'));
+    document.removeEventListener('keydown', escapeNoDocumento, { capture: true });
+  });
+
+  it('abre com seta para baixo a partir do campo fechado', () => {
+    render(<Combobox label="X" options={opts.slice(0, 5)} value="v3" onChange={() => {}} />);
+    fireEvent.keyDown(screen.getByRole('button'), { key: 'ArrowDown' });
+    expect(screen.getByRole('combobox').getAttribute('aria-activedescendant')).toBe(screen.getByRole('option', { name: 'Opção 3' }).id);
+  });
 });

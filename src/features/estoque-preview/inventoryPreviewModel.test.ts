@@ -12,9 +12,27 @@ import {
   podeReservar,
   reservarUnidade,
   restaurarUnidade,
+  motivoBloqueioReserva,
+  ordenarUnidadesPorCondicao,
+  sinalMinimo,
+  vencimentoReserva,
 } from "./inventoryPreviewModel";
 
 describe("inventoryPreviewModel", () => {
+  it("ordena unidades de grau A até C e preserva a ordem dos empates", () => {
+    const unidades = criarEstoqueDemo().unidades.slice(0, 3).map((unidade, indice) => ({
+      ...unidade,
+      grau: (["C", "A", "A"] as const)[indice],
+    }));
+
+    expect(ordenarUnidadesPorCondicao(unidades).map((unidade) => unidade.id)).toEqual([
+      unidades[1].id,
+      unidades[2].id,
+      unidades[0].id,
+    ]);
+    expect(unidades[0].grau).toBe("C");
+  });
+
   it("converte os registros auditados em categorias e unidades individuais", () => {
     const estoque = criarEstoqueDemo();
 
@@ -22,6 +40,7 @@ describe("inventoryPreviewModel", () => {
       "Rabeta",
       "Escapamentos",
       "Embreagem",
+      "Iluminação",
     ]);
     expect(estoque.pecas).toHaveLength(9);
     expect(
@@ -132,9 +151,10 @@ describe("inventoryPreviewModel", () => {
   it("reserva para cliente cadastrado e libera devolvendo o estado físico", () => {
     const estoque = criarEstoqueDemo();
     const alvo = estoque.unidades.find((item) => item.estado === "disponivel")!;
-    const reservado = reservarUnidade(estoque, alvo.id, { clienteId: "cli-1", nome: " Maria ", telefone: "(83) 9", reservadaAte: "2026-09-29T21:00:00.000Z" });
+    const agora = Date.parse("2026-09-22T12:00:00Z");
+    const reservado = reservarUnidade(estoque, alvo.id, { clienteId: "cli-1", nome: " Maria ", telefone: "(83) 9", dias: 7, valorSinal: sinalMinimo(alvo.preco!), formaPagamentoId: "forma-pix" }, "reserva-1", agora);
     const unidade = reservado.unidades.find((item) => item.id === alvo.id)!;
-    expect(unidade).toMatchObject({ estado: "reservada", reservadaPara: "Maria", reservaClienteId: "cli-1", reservaTelefone: "(83) 9" });
+    expect(unidade).toMatchObject({ estado: "reservada", reservadaPara: "Maria", reservaClienteId: "cli-1", reservaTelefone: "(83) 9", reservaValorSinal: sinalMinimo(alvo.preco!), reservadaAte: "2026-09-29T12:00:00.000Z" });
     expect(podeReservar(unidade)).toBe(false);
     const liberado = liberarReservaUnidade(reservado, alvo.id).unidades.find((item) => item.id === alvo.id)!;
     expect(liberado.estado).toBe(alvo.endereco ? "disponivel" : "organizar");
@@ -146,7 +166,7 @@ describe("inventoryPreviewModel", () => {
     const estoque = criarEstoqueDemo();
     const alvo = estoque.unidades[0];
     const arquivado = arquivarUnidade(estoque, alvo.id, "teste");
-    const tentativa = reservarUnidade(arquivado, alvo.id, { clienteId: null, nome: "João", reservadaAte: "2026-09-29T21:00:00.000Z" });
+    const tentativa = reservarUnidade(arquivado, alvo.id, { clienteId: null, nome: "João", dias: 7, valorSinal: 100, formaPagamentoId: "forma-pix" });
     expect(tentativa.unidades.find((item) => item.id === alvo.id)!.estado).toBe("arquivada");
     expect(podeReservar({ ...alvo, individualizada: false })).toBe(false);
   });
@@ -157,5 +177,43 @@ describe("inventoryPreviewModel", () => {
     expect(diasRestantesReserva(new Date(2026, 8, 22, 18, 0).toISOString(), agora)).toBe(0);
     expect(diasRestantesReserva(new Date(2026, 8, 20, 18, 0).toISOString(), agora)).toBe(0);
     expect(diasRestantesReserva("data inválida", agora)).toBe(0);
+  });
+
+  it("exige sinal de 20% do preço e bloqueia unidade sem preço", () => {
+    const estoque = criarEstoqueDemo();
+    const alvo = estoque.unidades.find((item) => item.sku === "RK-810-01")!;
+    expect(sinalMinimo(150)).toBe(30);
+    expect(sinalMinimo(0.01)).toBe(0.01);
+    const abaixo = reservarUnidade(estoque, alvo.id, { clienteId: null, nome: "João", dias: 7, valorSinal: 29.99, formaPagamentoId: "forma-pix" });
+    expect(abaixo.unidades.find((item) => item.id === alvo.id)!.estado).not.toBe("reservada");
+    const acima = reservarUnidade(estoque, alvo.id, { clienteId: null, nome: "João", dias: 7, valorSinal: 150.01, formaPagamentoId: "forma-pix" });
+    expect(acima.unidades.find((item) => item.id === alvo.id)!.estado).not.toBe("reservada");
+    expect(motivoBloqueioReserva({ ...alvo, preco: null })).toContain("Defina o preço");
+    expect(motivoBloqueioReserva(alvo)).toBeNull();
+  });
+
+  it("calcula o vencimento como dias × 24 h, igual à API e ao banco", () => {
+    const agora = Date.parse("2026-09-22T10:15:00Z");
+    expect(vencimentoReserva(7, agora)).toBe("2026-09-29T10:15:00.000Z");
+    // No limite de 30 dias, 1 minuto de folga absorve diferença de relógio com o Postgres.
+    expect(Date.parse(vencimentoReserva(30, agora))).toBeLessThanOrEqual(agora + 30 * 86_400_000);
+    expect(Date.parse(vencimentoReserva(30, agora))).toBeGreaterThan(agora + 30 * 86_400_000 - 120_000);
+  });
+
+  it("conta localizadas separadamente de disponíveis: reservar não tira a peça do endereço", () => {
+    const estoque = criarEstoqueDemo();
+    const antes = getMetricas(estoque);
+    const alvo = estoque.unidades.find((item) => item.sku === "RK-810-01")!;
+    const reservado = reservarUnidade(estoque, alvo.id, { clienteId: null, nome: "João", dias: 7, valorSinal: 30, formaPagamentoId: "forma-pix" });
+    const depois = getMetricas(reservado);
+    expect(depois.localizadas).toBe(antes.localizadas);
+    expect(depois.disponiveis).toBe(antes.disponiveis - 1);
+    expect(depois.reservadas).toBe(antes.reservadas + 1);
+  });
+
+  it("mantém o farol RK-825 em uma categoria coerente", () => {
+    const estoque = criarEstoqueDemo();
+    const farol = estoque.pecas.find((peca) => peca.codigoLegado === "RK-825")!;
+    expect(estoque.categorias.find((categoria) => categoria.id === farol.categoriaId)?.nome).toBe("Iluminação");
   });
 });

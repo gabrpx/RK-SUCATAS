@@ -18,6 +18,43 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.6',
+    data: '2026-09-23',
+    titulo: 'Novo estoque: reserva com sinal, histórico real e correções da auditoria',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'Reservar uma unidade agora exige o sinal pago: no mínimo 20% do preço (pode ser mais, nunca acima do preço) e a forma de pagamento. Unidade sem preço não pode ser reservada e a ficha leva direto para "Definir preço". O prazo conta em blocos de 24 h (1 a 30 dias), a mesma regra no aplicativo, na API e no banco. Requer as migrations 067 e 068; sem elas a ficha avisa e nenhuma reserva é criada.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'A aba "Histórico" da unidade mostra a linha do tempo gravada no banco: cadastro, endereços, reservas com sinal, liberações, arquivamentos, restaurações e venda, com data e — depois da migration 068 — quem fez.',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Arquivar (com motivo obrigatório) e restaurar unidades passam a funcionar no estoque real. No Mapa físico dá para editar e desativar locais (bloqueado enquanto houver peças guardadas) e definir a prioridade de cada categoria recomendada.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Cartões do topo separam "Disponíveis" (pode vender) de "Localizadas" (tem endereço): reservar não tira mais a peça da contagem de localizadas. No celular os cartões se reorganizam sem rolagem lateral.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Listas de opções navegáveis por setas, Enter e Home/End; Escape fecha primeiro a lista e só depois a ficha. "Adicionar unidade" virou botão nas peças sem estoque. Usuários sem permissão de edição veem a tela em modo consulta.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Fotos enviadas num cadastro que falhou não são reenviadas na nova tentativa e são descartadas se o cadastro for abandonado. Avisos da tela agora dizem claramente que as alterações são gravadas no estoque real. Acabamento visual: cores e sombras do tema claro, alvos de toque de 44 px, animações de entrada/saída e sem fonte monoespaçada.',
+      },
+    ],
+  },
+  {
     versao: '1.7.5',
     data: '2026-09-22',
     titulo: 'Reserva de peça vinculada ao cliente',

@@ -179,6 +179,14 @@ Ao auditar ou implementar uma interface operacional, verifique também:
   para categorias com contagem zero. Filtre-as antes da renderização e use
   entrada, saída e layout local animados para que criação ou remoção não cause
   salto de altura nem quebre a leitura da página.
+- **Rota e deep link da tela auditada:** quando a tarefa nomear uma URL, abra-a
+  diretamente em uma sessão fria e após recarregar. Confirme que o roteador da
+  aplicação reconhece a rota e monta a tela; testes que renderizam o componente
+  isolado não provam que o usuário consegue chegar à funcionalidade.
+- **Grupos ARIA de rádio:** ao usar `role="radiogroup"`/`role="radio"`, confirme
+  um único ponto de tabulação, seleção por Espaço e navegação/seleção pelas
+  setas, mantendo `aria-checked` sincronizado. Botões com esses papéis sem o
+  comportamento de teclado esperado não formam um grupo acessível.
 - **Superfície oculta por CSS em vez de removida:** nenhum controle pode ser
   neutralizado com `display: none` injetado, `hidden` ou opacidade enquanto
   continua montado e mantendo estado. Uma navegação ou seção que não faz mais
@@ -315,6 +323,63 @@ Ao auditar ou implementar uma interface operacional, verifique também:
     "não ofertado", "sincronizado" ou "compatível" deve ser sustentado por
     regra efetiva na API e nos consumidores. Uma fila visual não é bloqueio
     de venda; uma referência livre de moto não é vínculo estruturado.
+  - **Capacidade dependente de migration:** quando uma ação ou campo exige
+    coluna, relacionamento ou assinatura de RPC introduzidos por migration,
+    verifique o estado de schema suportado pela implantação. Se a migration
+    ainda não estiver aplicada, esconda ou desabilite a ação dependente com
+    explicação; não deixe o usuário enviar uma operação que falhará no servidor.
+  - **Escape na camada superior:** com menu ou combobox aberto dentro de drawer
+    ou modal, Escape fecha primeiro a superfície interna e mantém a superfície
+    modal aberta. A tecla não pode fechar camadas sobrepostas de uma vez, e o
+    foco deve voltar ao controle que abriu a lista.
+  - **Disponibilidade separada de localização:** reservar uma unidade muda sua
+    disponibilidade para venda, mas não sua presença física no endereço. Métricas
+    de localização e de disponibilidade devem contar estados diferentes e
+    permanecer coerentes com a lista e o mapa após reservar/liberar.
+  - **Pré-condições de reserva:** se a regra operacional exige sinal ou outro
+    comprovante antes de reservar, o fluxo deve solicitar e persistir essa
+    confirmação antes de mostrar a unidade como reservada; nome e prazo não
+    comprovam recebimento. Compare também os limites de prazo na UI, API e banco
+    usando a mesma semântica de calendário/duração, inclusive no valor máximo.
+  - **Histórico baseado em eventos:** uma aba chamada histórico/rastreabilidade
+    deve mostrar eventos persistidos com data e autoria disponíveis. Estado atual
+    e próxima ação podem aparecer como resumo, mas não substituem o histórico.
+  - **CTA anunciado como ação:** texto como “Adicionar unidade” só deve parecer
+    uma ação quando for um controle operável por mouse e teclado. Se for apenas
+    uma orientação, use copy explicativa e aponte para o controle que inicia o
+    fluxo.
+  - **Coerência dos dados de demonstração:** fixtures visíveis precisam manter
+    categoria, nome, endereço e disponibilidade semanticamente compatíveis;
+    exemplos contraditórios ensinam uma regra operacional errada e invalidam a
+    avaliação da interface.
+  - **Ações alinhadas à permissão efetiva:** compare as permissões da API com
+    cada CTA exibido. Usuários sem permissão de escrita devem receber uma tela
+    de consulta coerente, em vez de ações habilitadas que só falham após o envio.
+
+  - **Item de grade sem `min-w-0`:** card dentro de CSS grid ou flex que
+    contém trilho horizontal, texto longo ou botão precisa de `min-w-0` (e
+    quebra de palavra no título). Em 320–375 px, confira se a borda direita do
+    card e o CTA interno continuam visíveis; `scrollWidth` do documento igual à
+    largura não prova que o conteúdo interno não foi cortado.
+  - **Tema local completo:** quando uma tela redefine tokens para um tema
+    diferente do global, ela precisa redefinir todos os tokens semânticos que
+    usa (positive, warning, negative, info, danger, sombras, scrim) e reaplicá-
+    los em portais (drawer, diálogo, popover). Verifique também que cada classe
+    utilitária de token existe de fato no `@theme` (ex.: `shadow-elevated-sm`
+    não gera CSS se só `--shadow-sm` estiver mapeado).
+  - **Rótulo e campo com pesos separados:** campos dentro de `<label>` com
+    `font-semibold` herdam o peso por `font: inherit`; defina `font-normal` no
+    campo e use o mesmo estilo de rótulo em inputs e dropdowns do formulário.
+  - **Ações assíncronas com estado próprio:** todo botão que grava (salvar,
+    reservar, liberar, restaurar, desativar) mostra carregamento, fica
+    desabilitado durante o envio e impede duplo envio; confirmações e toasts
+    têm entrada/saída animadas e o toast é anunciado em região `aria-live`.
+  - **Menu de contexto completo:** além de Escape, o menu fecha ao clicar fora,
+    devolve foco ao gatilho, anima entrada/saída e só lista ações permitidas
+    para o estado do item (sem "Editar" em registro vendido/arquivado).
+  - **Faixa de abas no mobile:** se as abas não cabem em 375 px, a faixa rola
+    com snap e indica visualmente que há mais abas (fade na borda), sem barra
+    nativa e com a aba ativa alcançável.
 
 ### Roteiro mínimo para overlays
 

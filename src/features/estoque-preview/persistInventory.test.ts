@@ -8,6 +8,10 @@ const { criarUnidade, organizarUnidade, criar, listarUnidades, atualizarUnidade 
   listarUnidades: vi.fn(), atualizarUnidade: vi.fn(),
 }));
 
+const { enviarFotoUnidade } = vi.hoisted(() => ({ enviarFotoUnidade: vi.fn() }));
+vi.mock('./organizacaoApi', () => ({ enviarFotoUnidade }));
+vi.mock('../../utils/comprimirImagem', () => ({ comprimirImagem: async (arquivo: File) => ({ arquivo }) }));
+
 vi.mock('../estoque/api', () => ({
   estoqueApi: { criarUnidade, organizarUnidade, criar, listarUnidades, atualizarUnidade },
   uploadImagemEstoque: vi.fn(),
@@ -52,5 +56,18 @@ describe('salvarUnidadeOperacional', () => {
     expect(resultado).toMatchObject({ completo: false, pecaId: 'peca-1', unidadeId: 'unidade-1' });
     expect(resultado.mensagem).toContain('Local inativo');
     expect(criarUnidade).toHaveBeenCalledTimes(1);
+  });
+
+  it('reaproveita a foto já enviada numa nova tentativa, sem subir cópia', async () => {
+    enviarFotoUnidade.mockResolvedValue({ success: true, url: 'https://x/estoque/1.jpg' });
+    criarUnidade.mockResolvedValueOnce({ success: false, error: 'Falha de rede' });
+    const foto = new File(['a'], 'a.jpg', { type: 'image/jpeg' });
+    const cache = new Map<File, string>();
+    await expect(salvarUnidadeOperacional({ ...entrada, fotos: [foto] }, [peca], [local], cache)).rejects.toThrow('Falha de rede');
+    expect(cache.get(foto)).toBe('https://x/estoque/1.jpg');
+    const resultado = await salvarUnidadeOperacional({ ...entrada, fotos: [foto] }, [peca], [local], cache);
+    expect(enviarFotoUnidade).toHaveBeenCalledTimes(1);
+    expect(criarUnidade).toHaveBeenLastCalledWith('peca-1', expect.objectContaining({ fotos: ['https://x/estoque/1.jpg'] }));
+    expect(resultado.fotosAnexadas).toBe(true);
   });
 });

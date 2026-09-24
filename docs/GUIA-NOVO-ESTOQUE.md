@@ -27,8 +27,24 @@ necessário preencher todas as prateleiras antes de começar.
 4. Se ela servir para o cliente, siga o atendimento ou a reserva.
 
 Não é preciso marcar uma peça como “separada” só porque ela foi mostrada no
-balcão. A reserva só existe quando o cliente deixa o sinal combinado: 20% por
-sete dias corridos. A ficha mostra que ela está reservada e quanto tempo falta.
+balcão. A reserva só existe quando o cliente deixa o sinal combinado.
+
+### Quando o cliente quer reservar
+
+1. Abra a ficha da unidade e clique em **Reservar**.
+2. Escolha o cliente cadastrado (ou digite o nome de quem está no balcão).
+3. Informe o **sinal pago**: o campo já vem com 20% do preço da unidade. Pode
+   ser mais que isso, nunca menos, e nunca acima do preço.
+4. Escolha a **forma de pagamento** do sinal (PIX, dinheiro etc.). Formas de
+   fiado não são aceitas: o sinal precisa ter sido pago.
+5. Confirme o prazo: 7 dias corridos por padrão, no máximo 30. O prazo conta
+   em blocos de 24 horas a partir do momento da reserva (a ficha mostra a data
+   e a hora exatas do vencimento).
+
+A unidade continua no mesmo endereço físico, mas fica bloqueada para venda
+até alguém clicar em **Liberar reserva** ou o prazo vencer. Unidade sem preço
+não pode ser reservada: defina o preço primeiro (a ficha mostra o atalho
+**Definir preço**). O sinal **não** é lançado no Caixa por esta tela.
 
 ### Quando chega uma peça nova ou uma peça solta
 
@@ -74,21 +90,39 @@ Ao abrir uma unidade, a ficha mostra:
 - preço, grau, origem e localização;
 - foto própria;
 - detalhes registrados;
-- histórico e próxima ação;
+- histórico: a linha do tempo gravada no banco (cadastro, endereços, reservas
+  com sinal, liberações, arquivamentos, restaurações e venda), com data e,
+  quando registrado, quem fez;
 - edição e arquivamento.
 
 Use **Editar unidade** quando mudou alguma informação daquela peça física. Use
 **Arquivar** somente quando ela realmente não faz mais parte do estoque ativo:
-o histórico continua disponível e a unidade pode ser restaurada se necessário.
+informe o motivo (obrigatório), o histórico continua disponível e a unidade
+pode ser restaurada na aba **Arquivados** / **Fora do ativo**. Unidade vendida
+ou arquivada é somente consulta: a ficha não oferece edição. Unidade reservada
+precisa ter a reserva liberada antes de ser arquivada.
+
+Quem não tem permissão de edição do estoque vê a mesma tela em modo consulta,
+sem os botões de cadastrar, editar, reservar ou arquivar.
 
 ## O que os cartões do topo mostram
 
-- **Estoque ativo:** todas as unidades físicas que ainda fazem parte do
-  estoque.
-- **Disponíveis:** unidades que podem ser oferecidas agora.
-- **Reservadas:** unidades com sinal de 20%; veja o prazo restante na ficha.
+- **Valor em estoque:** soma dos preços das unidades ativas (inclusive
+  reservadas); mostra quantas têm preço definido.
+- **Disponíveis:** unidades que podem ser vendidas agora (têm endereço e não
+  estão reservadas). O cartão também informa quantas estão reservadas com sinal.
+- **Localizadas:** unidades com endereço físico. Reservar **não** reduz esse
+  número, porque a peça continua no mesmo lugar.
 - **Para organizar:** unidades sem localização definitiva. Esta é a fila de
   trabalho para arrumar o galpão aos poucos.
+
+## Mapa físico
+
+No **Mapa físico** você cadastra os locais reais (depósito, zona, prateleira,
+seção), edita o código curto e a descrição, e designa as categorias
+recomendadas de cada local com prioridade (**Principal**, **Secundária** ou
+**Eventual**). Um local só pode ser **desativado** quando não houver nenhuma
+unidade guardada nele; desativados podem ser reativados depois.
 
 ## Regra mais importante
 
@@ -96,9 +130,20 @@ Comece pelo que você sabe e complete o resto depois. O sistema foi desenhado
 para receber o estoque antigo sem exigir que toda peça tenha moto doadora,
 preço, foto ou localização logo no primeiro dia.
 
-## Sobre a preview atual
+## Sobre esta tela (`/estoque-preview`)
 
-A tela `/estoque-preview` é um ambiente de validação. Quando ela mostra dados
-reais, qualquer cadastro, edição ou arquivamento feito ali vale apenas durante
-a sessão da preview; nada é gravado no sistema oficial. A rota oficial só deve
-receber esse fluxo depois da aprovação final e da integração persistente.
+A tela ainda usa o endereço `/estoque-preview`, mas **não é uma simulação**:
+quando o aviso azul “Você está no estoque real” aparece, todo cadastro,
+edição, endereço, reserva, arquivamento, restauração e mudança no mapa feito
+ali é **gravado no sistema** pela API, como nas outras telas.
+
+- Se o servidor não responder, a tela entra em **dados demonstrativos** (aviso
+  amarelo): nada é gravado e aparece o botão **Tentar conectar**.
+- Se os dados reais não puderem ser atualizados, a tela fica em **somente
+  leitura** até reconectar.
+- A reserva com sinal depende das migrations 067 e 068 no banco. Enquanto elas
+  não forem aplicadas, a ficha avisa e nenhuma reserva real é criada.
+
+O endereço definitivo (`/estoque`) só será trocado depois de uma auditoria
+completa em que Claude e Codex deem nota 10/10 ao novo módulo, com
+autorização do responsável.

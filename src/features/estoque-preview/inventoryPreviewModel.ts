@@ -20,6 +20,8 @@ export interface PecaEstoque {
   origemDado?: "demo" | "real";
   familiaNome?: string | null;
   gavetaNome?: string | null;
+  /** Fotos gerais do cadastro; servem como fallback visual no drawer. */
+  fotos?: string[];
 }
 
 export interface UnidadeEstoque {
@@ -32,6 +34,8 @@ export interface UnidadeEstoque {
   grau: GrauUnidade;
   preco: number | null;
   fotoUrl: string | null;
+  /** Todas as fotos próprias desta unidade; fotoUrl permanece como miniatura compatível. */
+  fotos?: string[];
   origem: string | null;
   endereco: string | null;
   organizadaEm?: string | null;
@@ -43,6 +47,9 @@ export interface UnidadeEstoque {
   /** Cliente cadastrado vinculado à reserva (migration_067); ausente em reserva de balcão por nome livre. */
   reservaClienteId?: string | null;
   reservaTelefone?: string | null;
+  /** Sinal pago na reserva (migration_068). Nulo em reservas anteriores à regra de 20%. */
+  reservaValorSinal?: number | null;
+  reservadaEm?: string;
   percentualSinal?: number;
   arquivadaEm?: string;
   motivoArquivamento?: string;
@@ -54,6 +61,8 @@ export interface EstoquePreviewState {
   pecas: PecaEstoque[];
   unidades: UnidadeEstoque[];
   categoriasPorSecao: Record<string, string[]>;
+  /** Prioridade (1 principal, 2 secundária, 3 eventual) de cada categoria por código de local. */
+  prioridadesPorSecao?: Record<string, Record<string, number>>;
   locais?: { id: string; codigo: string; deposito: string; zona: string; prateleira: string; secao: string; descricao: string | null; ativo: boolean }[];
 }
 
@@ -61,6 +70,13 @@ export interface ResultadoBuscaEstoque {
   peca: PecaEstoque;
   categoria: CategoriaEstoque;
   unidades: UnidadeEstoque[];
+}
+
+const ORDEM_GRAU: Record<GrauUnidade, number> = { A: 0, B: 1, C: 2 };
+
+/** Ordena por condição e mantém a ordem de origem nos empates. */
+export function ordenarUnidadesPorCondicao(unidades: UnidadeEstoque[]): UnidadeEstoque[] {
+  return [...unidades].sort((a, b) => ORDEM_GRAU[a.grau] - ORDEM_GRAU[b.grau]);
 }
 
 export interface NovaUnidadeInput {
@@ -101,6 +117,7 @@ const categorias: CategoriaEstoque[] = [
   { id: "categoria-rabeta", nome: "Rabeta" },
   { id: "categoria-escapamentos", nome: "Escapamentos" },
   { id: "categoria-embreagem", nome: "Embreagem" },
+  { id: "categoria-iluminacao", nome: "Iluminação" },
 ];
 
 const pecas: PecaEstoque[] = [
@@ -108,7 +125,7 @@ const pecas: PecaEstoque[] = [
     id: "peca-rk-825",
     codigoLegado: "RK-825",
     nome: "FAROL DIANTEIRO HONDA CG 160",
-    categoriaId: "categoria-embreagem",
+    categoriaId: "categoria-iluminacao",
     compatibilidades: ["CG 160"],
     detalhes: "Cadastro sem unidade física conferida.",
   },
@@ -205,6 +222,9 @@ const unidades: UnidadeEstoque[] = [
   {
     ...unidade("RK-792", 3, "peca-rk-792", 139.9, "P01-S01", "reservada"),
     reservadaAte: "2026-09-28T18:00:00.000Z",
+    reservadaPara: "Cliente demonstração A",
+    reservadaEm: "2026-09-21T18:00:00.000Z",
+    reservaValorSinal: 27.98,
     percentualSinal: 20,
   },
   unidade("RK-791", 1, "peca-rk-791", 139.9, null, "organizar"),
@@ -279,6 +299,8 @@ export function getMetricas(estoque: EstoquePreviewState) {
   return {
     totalAtivas: ativas.length,
     disponiveis: ativas.filter((item) => item.estado === "disponivel").length,
+    // Localização é física: uma unidade reservada continua no mesmo endereço.
+    localizadas: ativas.filter((item) => Boolean(item.endereco)).length,
     reservadas: ativas.filter((item) => item.estado === "reservada").length,
     paraOrganizar: ativas.filter(
       (item) => item.estado === "organizar" || !item.endereco
@@ -381,9 +403,14 @@ export function editarUnidade(
 ): EstoquePreviewState {
   return {
     ...estoque,
-    unidades: estoque.unidades.map((item) =>
-      item.id === unidadeId ? { ...item, ...alteracoes } : item
-    ),
+    unidades: estoque.unidades.map((item) => {
+      if (item.id !== unidadeId) return item;
+      const mudouEndereco = alteracoes.endereco !== undefined && alteracoes.endereco !== item.endereco;
+      const proximo = { ...item, ...alteracoes, ...(mudouEndereco && alteracoes.endereco ? { organizadaEm: new Date().toISOString() } : {}) };
+      // Estado segue o endereço, mas nunca desfaz reserva/arquivamento.
+      if (mudouEndereco && (item.estado === "disponivel" || item.estado === "organizar")) proximo.estado = proximo.endereco ? "disponivel" : "organizar";
+      return proximo;
+    }),
   };
 }
 
@@ -471,8 +498,40 @@ export interface ReservaUnidadeInput {
   clienteId: string | null;
   nome: string;
   telefone?: string | null;
-  reservadaAte: string;
+  /** Duração em dias corridos de 24 h (1 a 30), mesma regra da API e do banco. */
+  dias: number;
+  valorSinal: number;
+  formaPagamentoId: string;
 }
+
+/** Percentual mínimo do sinal exigido pela loja para reservar. */
+export const PERCENTUAL_SINAL_MINIMO = 20;
+
+export function sinalMinimo(preco: number) {
+  return Math.max(Math.round(preco * PERCENTUAL_SINAL_MINIMO) / 100, 0.01);
+}
+
+/**
+ * Vencimento = agora + dias × 24 h, idêntico ao cálculo da API
+ * (`vencimentoReserva` em estoqueOrganizacao.ts) e ao limite do banco
+ * (`now() + interval '30 days'`). No modo real a API é quem calcula; aqui
+ * serve para a prévia do formulário e para a demonstração.
+ */
+export function vencimentoReserva(dias: number, agora = Date.now()) {
+  return new Date(agora + dias * 86_400_000 - (dias === DIAS_RESERVA_MAXIMO ? 60_000 : 0)).toISOString();
+}
+
+/** Motivo pelo qual a unidade não pode ser reservada agora, ou null se pode. */
+export function motivoBloqueioReserva(unidade: UnidadeEstoque): string | null {
+  if (unidade.individualizada === false) return "Esta quantidade ainda não tem ficha física individual.";
+  if (unidade.vendidaEm) return "Unidade vendida.";
+  if (unidade.estado === "arquivada") return "Unidade arquivada.";
+  if (unidade.estado === "reservada") return "Unidade já reservada.";
+  if (unidade.preco == null || unidade.preco <= 0) return "Defina o preço antes de reservar: o sinal é de 20% do preço.";
+  return null;
+}
+
+export const DIAS_RESERVA_MAXIMO = 30;
 
 /** Dias de calendário até o vencimento (reserva feita hoje com 7 dias = 7, não 8 por causa das horas). */
 export function diasRestantesReserva(vencimentoIso: string, agora = new Date()) {
@@ -485,7 +544,6 @@ export function diasRestantesReserva(vencimentoIso: string, agora = new Date()) 
 
 /** Prazo padrão de reserva combinado com a loja: 7 dias. */
 export const DIAS_RESERVA_PADRAO = 7;
-export const DIAS_RESERVA_MAXIMO = 30;
 
 export function podeReservar(unidade: UnidadeEstoque) {
   return unidade.individualizada !== false && unidade.estado !== "arquivada" && unidade.estado !== "reservada" && !unidade.vendidaEm;
@@ -495,17 +553,20 @@ export function reservarUnidade(
   estoque: EstoquePreviewState,
   unidadeId: string,
   reserva: ReservaUnidadeInput,
-  reservaId = `reserva-demo-${unidadeId}`
+  reservaId = `reserva-demo-${unidadeId}`,
+  agora = Date.now()
 ): EstoquePreviewState {
   return {
     ...estoque,
     unidades: estoque.unidades.map((item) =>
-      item.id === unidadeId && podeReservar(item)
+      item.id === unidadeId && podeReservar(item) && !motivoBloqueioReserva(item) && item.preco != null && reserva.valorSinal >= sinalMinimo(item.preco) && reserva.valorSinal <= item.preco
         ? {
             ...item,
             estado: "reservada",
             reservaId,
-            reservadaAte: reserva.reservadaAte,
+            reservadaEm: new Date(agora).toISOString(),
+            reservaValorSinal: Math.round(reserva.valorSinal * 100) / 100,
+            reservadaAte: vencimentoReserva(reserva.dias, agora),
             reservadaPara: reserva.nome.trim(),
             reservaClienteId: reserva.clienteId,
             reservaTelefone: reserva.telefone ?? null,
@@ -525,9 +586,33 @@ export function liberarReservaUnidade(
       if (item.id !== unidadeId || item.estado !== "reservada") return item;
       const {
         reservaId: _reservaId, reservadaAte: _ate, reservadaPara: _para,
-        reservaClienteId: _cliente, reservaTelefone: _telefone, percentualSinal: _sinal, ...resto
+        reservaClienteId: _cliente, reservaTelefone: _telefone, percentualSinal: _sinal,
+        reservaValorSinal: _valorSinal, reservadaEm: _reservadaEm, ...resto
       } = item;
       return { ...resto, estado: item.endereco ? "disponivel" : "organizar" };
     }),
   };
+}
+
+export interface EventoLocal {
+  tipo: "cadastrada" | "endereco" | "reservada" | "reserva_liberada" | "reserva_vencida" | "arquivada" | "restaurada" | "vendida";
+  em: string;
+  titulo: string;
+  detalhe: string | null;
+  autor: string | null;
+}
+
+/**
+ * Linha do tempo da demonstração: usa apenas o que a própria sessão registrou
+ * (reserva, endereço, arquivamento). No modo real a linha do tempo vem da API.
+ */
+export function historicoDemonstracao(unidade: UnidadeEstoque): EventoLocal[] {
+  const eventos: EventoLocal[] = [];
+  if (unidade.organizadaEm && unidade.endereco) eventos.push({ tipo: "endereco", em: unidade.organizadaEm, titulo: `Guardada em ${unidade.endereco}`, detalhe: null, autor: null });
+  if (unidade.estado === "reservada" && unidade.reservadaEm) {
+    eventos.push({ tipo: "reservada", em: unidade.reservadaEm, titulo: `Reservada para ${unidade.reservadaPara ?? "cliente"}`, detalhe: unidade.reservaValorSinal != null ? `Sinal de ${unidade.reservaValorSinal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}` : null, autor: null });
+  }
+  if (unidade.arquivadaEm) eventos.push({ tipo: "arquivada", em: unidade.arquivadaEm, titulo: "Arquivada", detalhe: unidade.motivoArquivamento ?? null, autor: null });
+  if (unidade.vendidaEm) eventos.push({ tipo: "vendida", em: unidade.vendidaEm, titulo: "Vendida", detalhe: null, autor: null });
+  return eventos.sort((a, b) => Date.parse(b.em) - Date.parse(a.em));
 }

@@ -62,7 +62,7 @@ describe("adaptarEstoqueReal", () => {
         ano: null,
         valor: 300,
         quantidade: 1,
-        imagens: [],
+        imagens: ["https://example.com/produto.jpg"],
         descricao: null,
         ativo: true,
         criado_em: "2026-01-01",
@@ -71,7 +71,7 @@ describe("adaptarEstoqueReal", () => {
         anuncio_fb_url: null,
         componentes: null,
         unidades_incompletas: [],
-        unidades: [{ id: "unit-1", estoque_id: "item-2", sku: 77, nome: "Com detalhe", avaria: true, avaria_descricao: "Risco", descricao: null, fotos: [], valor: 250, condicao_nota: 4, vendida_em: null, criado_em: "2026-01-01", atualizado_em: "2026-01-01" }],
+        unidades: [{ id: "unit-1", estoque_id: "item-2", sku: 77, nome: "Com detalhe", avaria: true, avaria_descricao: "Risco", descricao: null, fotos: ["https://example.com/unidade-1.jpg", "https://example.com/unidade-2.jpg"], valor: 250, condicao_nota: 4, vendida_em: null, criado_em: "2026-01-01", atualizado_em: "2026-01-01" }],
       }],
       [], [], [], [{ id: "res-1", unidade_id: "unit-1", responsavel: "Cliente", reservada_ate: "2026-10-01T12:00:00Z", criada_em: "2026-09-22T12:00:00Z" }]
     );
@@ -79,6 +79,11 @@ describe("adaptarEstoqueReal", () => {
     expect(result.unidades).toHaveLength(1);
     expect(result.unidades[0]).toMatchObject({ id: "unit-1", sku: "77", preco: 250, grau: "C", estado: "reservada", individualizada: true, reservaId: "res-1", reservadaPara: "Cliente" });
     expect(result.unidades[0].detalhes).toContain("Com detalhe");
+    expect(result.unidades[0]).toMatchObject({
+      fotoUrl: "https://example.com/unidade-1.jpg",
+      fotos: ["https://example.com/unidade-1.jpg", "https://example.com/unidade-2.jpg"],
+    });
+    expect(result.pecas[0].fotos).toEqual(["https://example.com/produto.jpg"]);
     expect(result.pecas[0].detalhes).toContain("Gaveta atual: Escapamentos");
   });
 
