@@ -223,7 +223,7 @@ export function usuarioGerente(id: string, nome: string, ativo = true) {
   return { id, nome_exibicao: nome, ativo, roles: [], permissoes: { tarefas: { ver: true, criar: true } } };
 }
 export function usuarioSemPermissao(id: string, nome: string, ativo = true) {
-  return { id, nome_exibicao: nome, ativo, roles: [], permissoes: { tarefas: { ver: true } } };
+  return { id, nome_exibicao: nome, ativo, roles: [], permissoes: { tarefas: {} } };
 }
 
 export function criarReq(overrides: Record<string, any> = {}) {

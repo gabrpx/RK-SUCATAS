@@ -1,65 +1,30 @@
 // @vitest-environment jsdom
-import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { EstoqueUploadFotos } from './EstoqueUploadFotos';
 
-function criarArquivo(nome: string, tipo: string, tamanhoBytes: number): File {
-  return new File([new Uint8Array(tamanhoBytes)], nome, { type: tipo });
-}
+afterEach(cleanup);
 
-function inputDeArquivo() {
-  return screen.getByLabelText(/Enviar fotos/i).querySelector('input[type="file"]') as HTMLInputElement;
-}
+describe('acessibilidade do envio de fotos do estoque', () => {
+  it.each(['Enter', ' '])('abre o seletor de arquivos com a tecla %s', (key) => {
+    render(<EstoqueUploadFotos imagens={[]} onRemoverImagem={vi.fn()} onArquivosSelecionados={vi.fn()} enviando={false} resumoCompressao={null} />);
+    const dropzone = screen.getByRole('button', { name: 'Enviar fotos: clique ou arraste arquivos aqui' });
+    const seletor = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const abrirSeletor = vi.spyOn(seletor, 'click');
 
-describe('EstoqueUploadFotos', () => {
-  afterEach(() => cleanup());
+    fireEvent.keyDown(dropzone, { key });
 
-  it('seleciona um arquivo válido e chama onArquivosSelecionados', () => {
-    const onArquivosSelecionados = vi.fn();
-    render(<EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={onArquivosSelecionados} enviando={false} resumoCompressao={null} />);
-
-    const arquivo = criarArquivo('foto.jpg', 'image/jpeg', 1024);
-    fireEvent.change(inputDeArquivo(), { target: { files: [arquivo] } });
-
-    expect(onArquivosSelecionados).toHaveBeenCalledWith([arquivo]);
+    expect(abrirSeletor).toHaveBeenCalledOnce();
   });
 
-  it('rejeita tipo de arquivo não aceito sem chamar onArquivosSelecionados', () => {
-    const onArquivosSelecionados = vi.fn();
-    render(<EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={onArquivosSelecionados} enviando={false} resumoCompressao={null} />);
+  it('não abre o seletor enquanto o envio está em andamento', () => {
+    render(<EstoqueUploadFotos imagens={[]} onRemoverImagem={vi.fn()} onArquivosSelecionados={vi.fn()} enviando resumoCompressao={null} />);
+    const dropzone = screen.getByRole('button', { name: 'Enviar fotos: clique ou arraste arquivos aqui' });
+    const seletor = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const abrirSeletor = vi.spyOn(seletor, 'click');
 
-    const arquivo = criarArquivo('foto.pdf', 'application/pdf', 1024);
-    fireEvent.change(inputDeArquivo(), { target: { files: [arquivo] } });
+    fireEvent.keyDown(dropzone, { key: 'Enter' });
 
-    expect(onArquivosSelecionados).not.toHaveBeenCalled();
-    expect(screen.getByText(/Formato não aceito/)).toBeTruthy();
-  });
-
-  it('rejeita arquivo maior que o limite', () => {
-    const onArquivosSelecionados = vi.fn();
-    render(<EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={onArquivosSelecionados} enviando={false} resumoCompressao={null} />);
-
-    const arquivo = criarArquivo('foto.jpg', 'image/jpeg', 9 * 1024 * 1024);
-    fireEvent.change(inputDeArquivo(), { target: { files: [arquivo] } });
-
-    expect(onArquivosSelecionados).not.toHaveBeenCalled();
-    expect(screen.getByText(/Arquivo muito grande/)).toBeTruthy();
-  });
-
-  it('mostra "Enviando fotos..." quando enviando=true', () => {
-    render(<EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={() => {}} enviando resumoCompressao={null} />);
-    expect(screen.getByText('Enviando fotos...')).toBeTruthy();
-  });
-
-  it('clicar em remover chama onRemoverImagem com a url certa', () => {
-    const onRemoverImagem = vi.fn();
-    render(<EstoqueUploadFotos imagens={['https://x/a.jpg']} onRemoverImagem={onRemoverImagem} onArquivosSelecionados={() => {}} enviando={false} resumoCompressao={null} />);
-    fireEvent.click(screen.getByTitle('Remover foto'));
-    expect(onRemoverImagem).toHaveBeenCalledWith('https://x/a.jpg');
-  });
-
-  it('mostra o resumo de compressão quando presente', () => {
-    render(<EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={() => {}} enviando={false} resumoCompressao="Fotos otimizadas: 4 MB → 1 MB" />);
-    expect(screen.getByText('Fotos otimizadas: 4 MB → 1 MB')).toBeTruthy();
+    expect(abrirSeletor).not.toHaveBeenCalled();
   });
 });

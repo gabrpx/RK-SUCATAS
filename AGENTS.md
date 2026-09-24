@@ -18,6 +18,22 @@ Principais áreas:
 - `supabase/` — schema e migrations SQL
 - `middleware/auth.ts` — JWT
 
+## Identidade do projeto — regra obrigatória
+
+Este repositório é o **NOVO SISTEMA** RK Sucatas:
+
+- Caminho canônico: `D:\NOVO SISTEMA ATUALIZADO\SISTEMA CLAUDE`
+- Aplicação nova: contém as abas `Clientes`, `Vendas`, `Caixa` e a tela nova de `Tarefas`
+- Preview local canônico: `http://127.0.0.1:3001/tarefas` (ou a porta informada explicitamente pelo agente)
+
+O projeto legado é separado e não deve ser usado para implementar, validar ou servir alterações do novo sistema:
+
+- Caminho legado: `D:\SISTEMA CLAUDE`
+- Porta legada confirmada: `4173`
+- Rotas como `/tarefas-preview` nessa porta pertencem ao projeto antigo/preview legado e não são fonte de verdade para o novo sistema.
+
+Antes de alterar ou validar qualquer tela, confirme o diretório atual com `Get-Location` e o branch com `git status --short --branch`. Se o caminho não for o canônico acima, pare e corrija o diretório antes de continuar. Consulte também `PROJECT_IDENTITY.md` e use `scripts/verify-new-project.ps1` para uma checagem automática.
+
 ## Papéis e decisões
 
 ### Usuário

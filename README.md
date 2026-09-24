@@ -1,5 +1,7 @@
 # RK Sucatas
 
+> **Este é o NOVO SISTEMA.** O checkout canônico é `D:\NOVO SISTEMA ATUALIZADO\SISTEMA CLAUDE` e o preview local deve usar `http://127.0.0.1:3001`. O caminho `D:\SISTEMA CLAUDE` e a porta `4173` pertencem ao projeto legado. Consulte [PROJECT_IDENTITY.md](PROJECT_IDENTITY.md) antes de executar ou validar qualquer alteração.
+
 Sistema interno de controle de estoque, vendas, caixa e frete para a loja de
 peças de moto. Frontend em React + Vite + TypeScript + Tailwind, backend
 Express fino (autenticação de staff + proxy do Melhor Envio + CRUD Supabase).

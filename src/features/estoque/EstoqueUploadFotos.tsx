@@ -3,7 +3,7 @@
 // nunca reflete o upload de verdade) e aceitando vários arquivos de uma vez
 // (o original só aceitava 1). Ver nota "por que precisa de adaptação" na
 // Task 3 do plano de componentes animados do Estoque.
-import { type DragEvent, useCallback, useRef, useState } from 'react';
+import { type DragEvent, type KeyboardEvent, useCallback, useRef, useState } from 'react';
 import { AnimatePresence, motion } from 'motion/react';
 import { AlertTriangle, Camera, Loader2, UploadCloud, X } from 'lucide-react';
 import { cn } from '../../utils';
@@ -67,8 +67,15 @@ export function EstoqueUploadFotos({ imagens, onRemoverImagem, onArquivosSelecio
         onDragLeave={() => setArrastando(false)}
         onDrop={handleDrop}
         onClick={() => !enviando && inputRef.current?.click()}
+        onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            if (!enviando) inputRef.current?.click();
+          }
+        }}
         role="button"
         tabIndex={0}
+        aria-disabled={enviando}
         aria-label="Enviar fotos: clique ou arraste arquivos aqui"
         className={cn(
           'relative flex flex-col items-center justify-center gap-2 rounded-control border-2 border-dashed py-6 px-4 text-center transition-colors cursor-pointer',
@@ -87,6 +94,7 @@ export function EstoqueUploadFotos({ imagens, onRemoverImagem, onArquivosSelecio
           multiple
           accept={TIPOS_ACEITOS.join(',')}
           className="hidden"
+          onClick={(event) => event.stopPropagation()}
           onChange={(e) => {
             if (e.target.files?.length) validarEEnviar(Array.from(e.target.files));
             e.target.value = '';

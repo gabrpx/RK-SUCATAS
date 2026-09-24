@@ -61,6 +61,31 @@ describe('PATCH /:id/participantes/toggle', () => {
   });
 });
 
+describe('PATCH /:id edição de participantes', () => {
+  it('substitui os participantes ativos quando a tarefa em grupo é editada', async () => {
+    const fake = criarSupabaseFake([
+      usuarioGerente('admin-1', 'Admin'),
+      usuarioExecutor('u-bianca', 'Bianca'),
+      usuarioExecutor('u-carlos', 'Carlos'),
+      usuarioExecutor('u-diego', 'Diego'),
+    ]);
+    const router = tarefasRouter(fake as any);
+    const id = await criarTarefaComParticipantes(fake, router, ['u-bianca', 'u-carlos']);
+
+    const res = await dispatch(router, criarReq({
+      method: 'PATCH',
+      url: `/${id}`,
+      usuario: { id: 'admin-1', roles: ['admin'], permissoes: {} },
+      params: { id },
+      body: { titulo: 'Tarefa em grupo revisada', participantes_ids: ['u-diego'] },
+    }));
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.atribuido_para).toBe('u-diego');
+    expect(res.body.data.participantes).toEqual([]);
+  });
+});
+
 describe('PATCH /:id/finalizar', () => {
   beforeEach(() => vi.clearAllMocks());
 

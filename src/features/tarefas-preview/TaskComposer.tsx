@@ -20,9 +20,11 @@ import {
 import { createPortal } from "react-dom";
 import { Button } from "@/src/components/ui/button";
 import { cn } from "@/src/utils";
+import { useTaskOverlayScrollLock } from "./useTaskOverlayScrollLock";
 import type {
   PreviewTaskCategory,
   PreviewTaskPriority,
+  PreviewTask,
 } from "./taskPreviewModel";
 
 export type DemoOperator = {
@@ -117,6 +119,18 @@ type ComposerDraft = {
   checklist: ChecklistDraft[];
 };
 
+export type TaskComposerInput = {
+  title: string;
+  category: PreviewTaskCategory;
+  priority: PreviewTaskPriority;
+  operatorIds: string[];
+  instructions: string;
+  checklistLabels: string[];
+  checklistOwners: string[];
+  checklistItems: Array<{ id?: string; label: string; owner: string }>;
+  dueTime: string;
+};
+
 function makeInitialDraft(owner = "ryan"): ComposerDraft {
   return {
     title: "",
@@ -125,14 +139,30 @@ function makeInitialDraft(owner = "ryan"): ComposerDraft {
     priority: "normal",
     operatorIds: [owner],
     dueTime: "17:30",
-    checklist: [
-      { id: "initial-1", label: "Conferir condição da peça", owner },
-      {
-        id: "initial-2",
-        label: "Registrar localização no estoque",
-        owner,
-      },
-    ],
+    checklist: [],
+  };
+}
+
+function dueTimeFromTask(task: PreviewTask) {
+  const match = task.dueLabel.match(/(\d{1,2}):(\d{2})/);
+  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : "17:30";
+}
+
+function makeDraftFromTask(task: PreviewTask, operators: DemoOperator[]): ComposerDraft {
+  const operatorIds = task.operatorIds?.length ? task.operatorIds : [operators[0]?.id ?? "ryan"];
+  const fallbackOwner = operatorIds[0];
+  return {
+    title: task.title,
+    instructions: task.instructions ?? "",
+    category: task.category,
+    priority: task.priority,
+    operatorIds,
+    dueTime: dueTimeFromTask(task),
+    checklist: task.checklist.map((item) => ({
+      id: item.id,
+      label: item.label,
+      owner: operatorIds.includes(item.owner) ? item.owner : fallbackOwner,
+    })),
   };
 }
 
@@ -294,7 +324,7 @@ function ChecklistOwnerPicker({
         onKeyDown={(event) => {
           if (event.key === "Escape") close();
         }}
-        className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-xs text-slate-700 shadow-sm transition-colors hover:border-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="cursor-pointer flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-xs text-slate-700 shadow-sm transition-colors hover:border-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         <OperatorAvatar operator={selected} small />
         <span className="min-w-0 flex-1 truncate">{selected.name}</span>
@@ -408,7 +438,7 @@ function DiscardChangesDialog({
                   type="button"
                   autoFocus
                   onClick={onCancel}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="cursor-pointer rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Continuar editando
                 </button>
@@ -417,7 +447,7 @@ function DiscardChangesDialog({
                 <button
                   type="button"
                   onClick={onConfirm}
-                  className="rounded-md bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+                  className="cursor-pointer rounded-md bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700"
                 >
                   Descartar alterações
                 </button>
@@ -434,48 +464,43 @@ export function TaskComposer({
   open,
   onClose,
   onCreate,
+  onUpdate,
+  initialTask,
   operators = demoOperators,
 }: {
   open: boolean;
   onClose: () => void;
-  onCreate: (input: {
-    title: string;
-    category: PreviewTaskCategory;
-    priority: PreviewTaskPriority;
-    operatorIds: string[];
-    instructions: string;
-    checklistLabels: string[];
-    checklistOwners: string[];
-    dueTime: string;
-  }) => void;
+  onCreate: (input: TaskComposerInput) => void | Promise<void>;
+  onUpdate?: (input: TaskComposerInput) => void | Promise<void>;
+  initialTask?: PreviewTask | null;
   operators?: DemoOperator[];
 }) {
   const [draft, setDraft] = useState<ComposerDraft>(makeInitialDraft);
   const [isDirty, setIsDirty] = useState(false);
   const [isDiscardDialogOpen, setIsDiscardDialogOpen] = useState(false);
   const [checklistFocusId, setChecklistFocusId] = useState<string | null>(null);
-  const [shouldLockScroll, setShouldLockScroll] = useState(open);
+  const [submitError, setSubmitError] = useState<string | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  // Ref síncrono — evita que operators entre como dep do useEffect de init e
+  // resete o draft a cada poll de 20s enquanto o formulário estiver aberto.
+  const operatorsRef = useRef(operators);
+  operatorsRef.current = operators;
   const dialogScrollRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
+
+  useTaskOverlayScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement | null;
-    setShouldLockScroll(true);
-    setDraft(makeInitialDraft(operators[0]?.id));
+    setDraft(initialTask ? makeDraftFromTask(initialTask, operatorsRef.current) : makeInitialDraft(operatorsRef.current[0]?.id));
     setIsDirty(false);
     setIsDiscardDialogOpen(false);
-  }, [open]);
-
-  useEffect(() => {
-    if (!shouldLockScroll) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      document.body.style.overflow = previousOverflow;
-    };
-  }, [shouldLockScroll]);
+    setSubmitError(null);
+    // operators excluído intencionalmente via ref — não deve reseatar o draft
+    // quando a lista de operadores atualizar por poll enquanto o form estiver aberto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialTask]);
 
   useEffect(() => {
     if (!checklistFocusId) return;
@@ -534,6 +559,7 @@ export function TaskComposer({
   const updateDraft = (update: (current: ComposerDraft) => ComposerDraft) => {
     setDraft(update);
     setIsDirty(true);
+    setSubmitError(null);
   };
   const requestClose = () => {
     if (isDirty) {
@@ -589,9 +615,9 @@ export function TaskComposer({
     }));
     setChecklistFocusId(id);
   };
-  const submit = () => {
+  const submit = async () => {
     if (!draft.title.trim()) return;
-    onCreate({
+    const input: TaskComposerInput = {
       title: draft.title,
       category: draft.category,
       priority: draft.priority,
@@ -599,15 +625,23 @@ export function TaskComposer({
       instructions: draft.instructions,
       checklistLabels: draft.checklist.map((item) => item.label),
       checklistOwners: draft.checklist.map((item) => item.owner),
+      checklistItems: draft.checklist.map((item) => ({ id: item.id, label: item.label, owner: item.owner })),
       dueTime: draft.dueTime,
-    });
+    };
+    const handler = initialTask ? onUpdate : onCreate;
+    if (!handler) return;
+    try {
+      await handler(input);
+      setSubmitError(null);
+    } catch (error: unknown) {
+      setSubmitError(error instanceof Error ? error.message : "Não foi possível salvar a tarefa");
+    }
   };
 
   return (
     <AnimatePresence
       initial={false}
       onExitComplete={() => {
-        setShouldLockScroll(false);
         previousFocusRef.current?.focus?.();
       }}
     >
@@ -615,11 +649,11 @@ export function TaskComposer({
       ref={dialogScrollRef}
       role="dialog"
       aria-modal="true"
-      aria-label="Criar tarefa operacional"
+       aria-label={initialTask ? "Editar tarefa operacional" : "Criar tarefa operacional"}
       initial={shouldReduceMotion ? false : { opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={shouldReduceMotion ? undefined : { opacity: 0 }}
-      className="fixed inset-0 z-[220] overflow-y-auto overscroll-contain bg-slate-950/35 p-0 backdrop-blur-sm [scrollbar-color:rgb(96_165_250)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-blue-400 [&::-webkit-scrollbar-track]:bg-transparent sm:p-6"
+      className="fixed inset-0 z-[220] overflow-x-hidden overflow-y-auto overscroll-contain bg-slate-950/35 p-0 backdrop-blur-sm [scrollbar-color:rgb(96_165_250)_transparent] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-2 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-blue-400 [&::-webkit-scrollbar-track]:bg-transparent sm:p-6"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) requestClose();
       }}
@@ -640,13 +674,13 @@ export function TaskComposer({
           default: { type: "spring", stiffness: 360, damping: 32, mass: 0.72 },
           layout: { type: "spring", stiffness: 380, damping: 32, mass: 0.72 },
         }}
-        className="mx-auto min-h-[100dvh] w-full max-w-[1120px] overflow-visible rounded-none border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.26)] sm:my-2 sm:min-h-0 sm:rounded-xl sm:border"
+        className="mx-auto min-h-[100dvh] min-w-0 w-full max-w-[1120px] overflow-x-hidden rounded-none border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.26)] sm:my-2 sm:min-h-0 sm:rounded-xl sm:border"
       >
-        <header className="sticky top-0 z-20 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-7 sm:py-4">
-          <div>
-            <Label>Nova tarefa · turno ativo</Label>
+        <header className="sticky top-0 z-20 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-7 sm:py-4">
+          <div className="min-w-0">
+            <Label>{initialTask ? "Editar tarefa · turno ativo" : "Nova tarefa · turno ativo"}</Label>
             <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-900 sm:text-2xl">
-              Preparar execução operacional
+              {initialTask ? "Ajustar execução operacional" : "Preparar execução operacional"}
             </h2>
           </div>
           <div className="flex items-center gap-3">
@@ -657,15 +691,15 @@ export function TaskComposer({
               type="button"
               aria-label="Fechar criação de tarefa"
               onClick={requestClose}
-              className="grid size-11 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="cursor-pointer grid size-11 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <X size={17} />
             </button>
           </div>
         </header>
 
-        <div className="grid lg:grid-cols-[minmax(0,1fr)_330px]">
-          <div className="space-y-7 p-5 sm:p-7">
+        <div className="grid min-w-0 lg:grid-cols-[minmax(0,1fr)_330px]">
+          <div className="min-w-0 space-y-7 p-5 sm:p-7">
             <FormSection
               eyebrow="01 · Definir tarefa"
               title="O que precisa ser feito?"
@@ -722,7 +756,7 @@ export function TaskComposer({
                         }
                         aria-pressed={draft.category === category}
                         className={cn(
-                          "min-h-11 rounded-md border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                          "cursor-pointer min-h-11 rounded-md border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                           draft.category === category
                             ? "border-blue-600 bg-blue-600 text-white"
                             : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50"
@@ -756,7 +790,7 @@ export function TaskComposer({
                         }
                         aria-pressed={draft.priority === option.value}
                         className={cn(
-                          "rounded-md border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                          "cursor-pointer rounded-md border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                           draft.priority === option.value
                             ? `${option.className} ring-1 ring-current`
                             : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
@@ -812,7 +846,7 @@ export function TaskComposer({
                       aria-pressed={draft.operatorIds.includes(operator.id)}
                       onClick={() => toggleOperator(operator.id)}
                       className={cn(
-                        "flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                        "cursor-pointer flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                         draft.operatorIds.includes(operator.id)
                           ? "border-blue-200 bg-blue-50 text-blue-800"
                           : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
@@ -884,7 +918,7 @@ export function TaskComposer({
                             ),
                           }))
                         }
-                        className="grid size-11 place-items-center justify-self-end rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        className="cursor-pointer grid size-11 place-items-center justify-self-end rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         <X size={15} />
                       </button>
@@ -895,14 +929,14 @@ export function TaskComposer({
               <button
                 type="button"
                 onClick={addChecklistStep}
-                className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="cursor-pointer mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <Plus size={14} /> Adicionar etapa
               </button>
             </FormSection>
           </div>
 
-          <aside className="border-t border-slate-200 bg-slate-50/70 p-5 sm:p-7 lg:border-l lg:border-t-0">
+          <aside className="min-w-0 border-t border-slate-200 bg-slate-50/70 p-5 sm:p-7 lg:border-l lg:border-t-0">
             <div className="lg:sticky lg:top-5">
               <Label>04 · Revisar e criar</Label>
               <h3 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">
@@ -962,7 +996,7 @@ export function TaskComposer({
           </aside>
         </div>
 
-        <footer className="sticky bottom-0 z-20 flex flex-wrap items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:py-4">
+        <footer className="sticky bottom-0 z-20 flex min-w-0 flex-wrap items-center justify-end gap-3 border-t border-slate-200 bg-slate-50 px-4 pb-[calc(0.75rem_+_env(safe-area-inset-bottom))] pt-3 sm:px-7 sm:py-4">
           <span className="mr-auto hidden font-mono text-[10px] text-slate-400 sm:inline">
             ⌘↵ criar tarefa
           </span>
@@ -970,16 +1004,16 @@ export function TaskComposer({
             <button
               type="button"
               onClick={requestClose}
-              className="h-11 rounded-md px-3 text-sm text-slate-500 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="cursor-pointer h-11 rounded-md px-3 text-sm text-slate-500 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Descartar
             </button>
           </ActionTooltip>
           <ActionTooltip
-            label={
+             label={
               draft.title.trim()
-                ? "Cria a tarefa e a envia para a fila do turno."
-                : "Informe o título operacional para criar a tarefa."
+                ? initialTask ? "Salva as alterações da tarefa." : "Cria a tarefa e a envia para a fila do turno."
+                : initialTask ? "Informe o título operacional para salvar as alterações." : "Informe o título operacional para criar a tarefa."
             }
           >
             <Button
@@ -987,9 +1021,10 @@ export function TaskComposer({
               disabled={!draft.title.trim()}
               className="h-11 rounded-md bg-blue-600 text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              <Plus size={16} /> Criar tarefa <ChevronRight size={15} />
+              {initialTask ? <Check size={16} /> : <Plus size={16} />} {initialTask ? "Salvar alterações" : "Criar tarefa"} <ChevronRight size={15} />
             </Button>
           </ActionTooltip>
+          {submitError && <p role="alert" className="order-first w-full text-xs font-medium text-rose-700 sm:order-none sm:w-auto">{submitError}</p>}
         </footer>
       </motion.form>
       <DiscardChangesDialog

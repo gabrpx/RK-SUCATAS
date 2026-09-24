@@ -19,7 +19,9 @@ import {
 } from 'lucide-react';
 import { TAB_ROLES, type Role } from './roles';
 
-export type Tab = 'dashboard' | 'estoque' | 'vendas' | 'orcamentos' | 'clientes' | 'fiado' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas' | 'patchnotes' | 'notificacoes';
+// 'estoque-antigo' não entra na dock: é aberta pelo botão "Tela antiga" do novo
+// Estoque (ou pela URL) enquanto a tela antiga é aposentada.
+export type Tab = 'dashboard' | 'estoque' | 'estoque-antigo' | 'vendas' | 'orcamentos' | 'clientes' | 'fiado' | 'caixa' | 'frete' | 'mercadolivre' | 'configuracoes' | 'tarefas' | 'patchnotes' | 'notificacoes';
 
 export type NavGroup = 'estoque' | 'vendas' | 'gestao' | null;
 

@@ -1,8 +1,8 @@
 // Modal de família de peça — abre ao clicar numa linha-família ou numa linha
 // avulsa na tabela de Estoque. Mostra grupos modelo/ano com cards de unidade,
 // métricas agregadas no header e ações (Registrar unidade, Venda rápida, etc.).
-import { useState, useMemo, useCallback, useEffect, type Key } from 'react';
-import { Package, Search, ShoppingCart, Plus, Trash2, Pencil, Check, Move, AlertTriangle, ChevronDown } from 'lucide-react';
+import { useState, useMemo, useCallback, type Key } from 'react';
+import { Package, Search, MoreVertical, ShoppingCart, Plus, Trash2, Pencil, Check, Move, AlertTriangle, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
@@ -29,6 +29,13 @@ import {
   AccordionTrigger,
   AccordionContent,
 } from '../../components/animate-ui/components/radix/accordion';
+import {
+  DropdownMenu,
+  DropdownMenuTrigger,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+} from '../../components/animate-ui/components/radix/dropdown-menu';
 import { DialogContent, DialogCloseButton } from '../../components/animate-ui/components/radix/dialog';
 import { Tabs, TabsList, TabsTrigger, TabsContents, TabsContent } from '../../components/animate-ui/components/animate/tabs';
 import { RegistrarUnidadeDialog } from './RegistrarUnidadeDialog';
@@ -85,7 +92,6 @@ interface UnidadeCardProps {
   selecionado: boolean;
   modoSelecao: boolean;
   onToggleSelecao: () => void;
-  onVerDetalhes: () => void;
   onEditar: () => void;
   onExcluir: () => void;
   onMarcarVendida: () => void;
@@ -94,8 +100,8 @@ interface UnidadeCardProps {
 function UnidadeCard({
   unidade, item, isMelhorEstado, isMelhorPreco, selecionado, modoSelecao,
   onToggleSelecao, onEditar, onExcluir, onMarcarVendida,
-  onVerDetalhes,
 }: UnidadeCardProps) {
+  const [menuAberto, setMenuAberto] = useState(false);
   const foto = unidade.fotos[0] ?? null;
   const preco = unidade.valor ?? null;
   const nota = condicaoNotaDaUnidade(unidade, item.condicao_nota);
@@ -111,7 +117,7 @@ function UnidadeCard({
         selecionado ? 'border-accent bg-accent-soft' : 'border-border-subtle hover:bg-surface-raised',
         vendida && 'opacity-60'
       )}
-      onClick={modoSelecao ? onToggleSelecao : onVerDetalhes}
+      onClick={modoSelecao ? onToggleSelecao : undefined}
     >
       {modoSelecao && (
         <div className={cn(
@@ -167,22 +173,43 @@ function UnidadeCard({
           </div>
 
           {!modoSelecao && (
-            <div className="flex items-center gap-1 shrink-0" onPointerDown={(e) => e.stopPropagation()}>
-              <button type="button" aria-label="Editar unidade" title="Editar unidade" onClick={onEditar}
-                className="inline-flex items-center gap-1 rounded-control px-2 py-1 text-[11px] font-medium text-accent hover:bg-accent-soft">
-                <Pencil size={12} /> Editar
-              </button>
-              {!vendida && (
-                <button type="button" aria-label="Marcar como vendida" title="Marcar como vendida" onClick={onMarcarVendida}
-                  className="p-1.5 rounded-control text-text-faint hover:text-accent hover:bg-surface-raised">
-                  <ShoppingCart size={13} />
+            // modal={false}: sem isso, o DropdownMenu modal do Radix desabilita
+            // os pointer-events "fora" dele ao abrir e joga o CONTEUDO do
+            // dialog-pai (EstoqueFamiliaModal) para pointer-events:none — a tela
+            // congela e o toque seguinte cai no overlay e fecha o modal. Menu
+            // dentro de dialog nao precisa de modalidade propria.
+            <DropdownMenu open={menuAberto} onOpenChange={setMenuAberto} modal={false}>
+              <DropdownMenuTrigger asChild>
+                <button
+                  type="button"
+                  aria-label="Ações"
+                  className="p-1 rounded-control text-text-faint hover:text-text-secondary hover:bg-surface-raised shrink-0"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <MoreVertical size={14} />
                 </button>
-              )}
-              <button type="button" aria-label="Excluir unidade" title="Excluir unidade" onClick={onExcluir}
-                className="p-1.5 rounded-control text-text-faint hover:text-danger hover:bg-danger-bg">
-                <Trash2 size={13} />
-              </button>
-            </div>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent open={menuAberto} align="end">
+                <DropdownMenuItem onSelect={() => { setMenuAberto(false); onEditar(); }}>
+                  <Pencil size={13} />
+                  Editar unidade
+                </DropdownMenuItem>
+                {!vendida && (
+                  <DropdownMenuItem onSelect={() => { setMenuAberto(false); onMarcarVendida(); }}>
+                    <ShoppingCart size={13} />
+                    Marcar como vendida
+                  </DropdownMenuItem>
+                )}
+                <DropdownMenuSeparator />
+                <DropdownMenuItem
+                  onSelect={() => { setMenuAberto(false); onExcluir(); }}
+                  className="text-danger focus:text-danger"
+                >
+                  <Trash2 size={13} />
+                  Excluir unidade
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           )}
         </div>
 
@@ -211,8 +238,6 @@ interface GrupoProps {
   selecionados: Set<string>;
   modoSelecao: boolean;
   onToggleSelecao: (id: string) => void;
-  onVerDetalhes: (u: EstoqueUnidade, item: Estoque) => void;
-  onAdicionarUnidade: (item: Estoque) => void;
   onEditarUnidade: (u: EstoqueUnidade, item: Estoque) => void;
   onExcluirUnidade: (u: EstoqueUnidade, item: Estoque) => void;
   onMarcarVendida: (u: EstoqueUnidade, item: Estoque) => void;
@@ -220,7 +245,7 @@ interface GrupoProps {
 
 function GrupoModelo({
   grupo, busca, statusFiltro, avaFiltro, selecionados, modoSelecao,
-  onToggleSelecao, onVerDetalhes, onAdicionarUnidade, onEditarUnidade, onExcluirUnidade, onMarcarVendida,
+  onToggleSelecao, onEditarUnidade, onExcluirUnidade, onMarcarVendida,
 }: GrupoProps) {
   const todasUnidades = grupo.itens.flatMap((item) =>
     (item.unidades ?? []).map((u) => ({ unidade: u, item }))
@@ -267,18 +292,6 @@ function GrupoModelo({
       </AccordionTrigger>
       <AccordionContent className="px-0 pb-0">
         <div className="flex flex-col gap-2 pt-1 px-4 pb-3">
-          <div className="flex justify-end">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              className="h-7 px-2 text-[11px]"
-              onClick={() => onAdicionarUnidade(grupo.itens[0])}
-              title="Adicionar uma unidade a esta ficha"
-            >
-              <Plus size={12} /> Adicionar unidade
-            </Button>
-          </div>
           {/* Galeria de fotos das fichas — todas as imagens da ficha-mãe, não só a capa */}
           {grupo.itens.some((it) => it.imagens.length > 0) && (
             <div className="mb-1">
@@ -318,7 +331,6 @@ function GrupoModelo({
               selecionado={selecionados.has(unidade.id)}
               modoSelecao={modoSelecao}
               onToggleSelecao={() => onToggleSelecao(unidade.id)}
-              onVerDetalhes={() => onVerDetalhes(unidade, item)}
               onEditar={() => onEditarUnidade(unidade, item)}
               onExcluir={() => onExcluirUnidade(unidade, item)}
               onMarcarVendida={() => onMarcarVendida(unidade, item)}
@@ -340,14 +352,8 @@ export interface EstoqueFamiliaModalProps {
 }
 
 export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: EstoqueFamiliaModalProps) {
-  // Mantém uma cópia viva enquanto o detalhe está aberto. O refresh global é
-  // assíncrono e a linha original da tabela não muda por referência; sem esta
-  // camada, o usuário salva e continua vendo os dados antigos até reabrir.
-  const [linhaAtual, setLinhaAtual] = useState(linha);
-  useEffect(() => setLinhaAtual(linha), [linha]);
-
-  const itens = getItens(linhaAtual);
-  const titulo = getTitulo(linhaAtual);
+  const itens = getItens(linha);
+  const titulo = getTitulo(linha);
 
   const [busca, setBusca] = useState('');
   const [statusFiltro, setStatusFiltro] = useState<'todos' | 'disponivel' | 'vendida'>('todos');
@@ -357,7 +363,6 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
   const [salvando, setSalvando] = useState(false);
   const [registrarAberto, setRegistrarAberto] = useState(false);
   const [editarUnidade, setEditarUnidade] = useState<{ u: EstoqueUnidade; item: Estoque } | null>(null);
-  const [fichaDetalhe, setFichaDetalhe] = useState<{ u: EstoqueUnidade; item: Estoque } | null>(null);
   // Mover selecionadas: null = não mostrando o seletor de destino
   const [moverDestinoAberto, setMoverDestinoAberto] = useState(false);
   const [movendoPara, setMovendoPara] = useState<string>(''); // fichaDestinoId
@@ -386,48 +391,6 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
     setEditarUnidade({ u, item });
   }, []);
 
-  const handleVerDetalhes = useCallback((u: EstoqueUnidade, item: Estoque) => {
-    setFichaDetalhe({ u, item });
-  }, []);
-
-  const handleAdicionarUnidade = useCallback(async (item: Estoque) => {
-    const result = await estoqueApi.atualizar(item.id, { quantidade: Number(item.quantidade) + 1 });
-    if (!result.success) {
-      aviso.erro('Não foi possível adicionar a unidade', { descricao: result.error });
-      return;
-    }
-    aviso.sucesso('Unidade adicionada. Preencha a nova ficha para concluir.');
-    setLinhaAtual((atual) => atual.tipo === 'familia'
-      ? { ...atual, itens: atual.itens.map((it) => it.id === item.id ? result.data : it) }
-      : { ...atual, item: atual.item.id === item.id ? result.data : atual.item });
-    onRefresh();
-  }, [onRefresh]);
-
-  const handleRefreshDetalhe = useCallback((atualizacao?: { estoqueId: string; item?: Estoque; unidade?: EstoqueUnidade; removidaUnidadeId?: string }) => {
-    if (atualizacao) {
-      setLinhaAtual((atual) => {
-        const atualizarItem = (item: Estoque): Estoque => {
-          if (item.id !== atualizacao.estoqueId) return item;
-          if (atualizacao.item) return atualizacao.item;
-          const unidades = item.unidades ?? [];
-          const semRemovida = atualizacao.removidaUnidadeId
-            ? unidades.filter((u) => u.id !== atualizacao.removidaUnidadeId)
-            : unidades;
-          const comAtualizada = atualizacao.unidade
-            ? semRemovida.some((u) => u.id === atualizacao.unidade!.id)
-              ? semRemovida.map((u) => u.id === atualizacao.unidade!.id ? atualizacao.unidade! : u)
-              : [...semRemovida, atualizacao.unidade]
-            : semRemovida;
-          return { ...item, unidades: comAtualizada };
-        };
-        return atual.tipo === 'familia'
-          ? { ...atual, itens: atual.itens.map(atualizarItem) }
-          : { ...atual, item: atualizarItem(atual.item) };
-      });
-    }
-    onRefresh();
-  }, [onRefresh]);
-
   const handleExcluirUnidade = useCallback(async (u: EstoqueUnidade, item: Estoque) => {
     if (!confirm(`Excluir unidade "${u.nome ?? 'Padrão'}"? Esta ação não pode ser desfeita.`)) return;
     const result = await estoqueApi.excluirUnidade(item.id, u.id);
@@ -436,8 +399,8 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
       return;
     }
     aviso.sucesso('Unidade excluída');
-    handleRefreshDetalhe({ estoqueId: item.id, removidaUnidadeId: u.id });
-  }, [handleRefreshDetalhe]);
+    onRefresh();
+  }, [onRefresh]);
 
   const handleMarcarVendida = useCallback((u: EstoqueUnidade, item: Estoque) => {
     aviso.atencao('Use o fluxo de Vendas para registrar a venda de uma unidade específica.');
@@ -676,8 +639,6 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
                         selecionados={selecionados}
                         modoSelecao={modoSelecao}
                         onToggleSelecao={toggleSelecao}
-                        onVerDetalhes={handleVerDetalhes}
-                        onAdicionarUnidade={handleAdicionarUnidade}
                         onEditarUnidade={handleEditarUnidade}
                         onExcluirUnidade={handleExcluirUnidade}
                         onMarcarVendida={handleMarcarVendida}
@@ -736,7 +697,7 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
           linha={linha}
           open={registrarAberto}
           onClose={() => setRegistrarAberto(false)}
-          onRefresh={() => { setRegistrarAberto(false); handleRefreshDetalhe(); }}
+          onRefresh={() => { setRegistrarAberto(false); onRefresh(); }}
         />
       )}
 
@@ -746,46 +707,9 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
           linha={linha}
           open={!!editarUnidade}
           onClose={() => setEditarUnidade(null)}
-          onRefresh={(atualizacao) => { setEditarUnidade(null); handleRefreshDetalhe(atualizacao); }}
+          onRefresh={() => { setEditarUnidade(null); onRefresh(); }}
           unidadeParaEditar={editarUnidade.u}
         />
-      )}
-
-      {fichaDetalhe && (
-        <DialogContent
-          open={!!fichaDetalhe}
-          onClose={() => setFichaDetalhe(null)}
-          title="Detalhes da unidade"
-          description="Fotos e informações da ficha individual"
-          className="md:max-w-xl"
-        >
-          <DialogCloseButton />
-          <div className="px-5 pt-5 pb-3 border-b border-border-subtle">
-            <h2 className="text-base font-semibold text-text-primary">{fichaDetalhe.u.nome ?? 'Padrão'}</h2>
-            <p className="text-xs text-text-muted mt-0.5">{fichaDetalhe.item.codigo}</p>
-          </div>
-          <div className="px-5 py-4 overflow-y-auto" style={{ maxHeight: 'calc(88dvh - 180px)' }}>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-              {fichaDetalhe.u.fotos.length > 0 ? fichaDetalhe.u.fotos.map((foto, index) => (
-                <div key={`${foto}-${index}`} className="aspect-square rounded-control overflow-hidden border border-border-subtle bg-surface-inset">
-                  <ImageZoom src={foto} alt={`Foto ${index + 1} da unidade`} className="w-full h-full object-cover" triggerClassName="block w-full h-full" referrerPolicy="no-referrer" />
-                </div>
-              )) : (
-                <div className="col-span-full py-8 text-center text-sm text-text-muted">Nenhuma foto cadastrada</div>
-              )}
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-sm">
-              <div><span className="block text-xs text-text-muted">Valor</span><span className="font-semibold text-text-primary">{fichaDetalhe.u.valor != null ? fmt(fichaDetalhe.u.valor) : fmt(fichaDetalhe.item.valor)}</span></div>
-              <div><span className="block text-xs text-text-muted">Condição</span><span className="font-medium text-text-primary">{fichaDetalhe.u.condicao_nota ? `Nota ${fichaDetalhe.u.condicao_nota}` : 'Herdada da ficha'}</span></div>
-              <div><span className="block text-xs text-text-muted">Status</span><span className="font-medium text-text-primary">{fichaDetalhe.u.vendida_em ? 'Vendida' : 'Disponível'}</span></div>
-              <div><span className="block text-xs text-text-muted">Avaria</span><span className="font-medium text-text-primary">{fichaDetalhe.u.avaria ? (fichaDetalhe.u.avaria_descricao || 'Sim') : 'Não'}</span></div>
-            </div>
-          </div>
-          <div className="flex justify-end gap-2 px-5 py-3 border-t border-border-subtle">
-            <Button variant="ghost" size="sm" onClick={() => setFichaDetalhe(null)}>Fechar</Button>
-            {!fichaDetalhe.u.vendida_em && <Button size="sm" onClick={() => { const atual = fichaDetalhe; setFichaDetalhe(null); handleEditarUnidade(atual.u, atual.item); }}><Pencil size={13} /> Editar</Button>}
-          </div>
-        </DialogContent>
       )}
     </DialogContent>
   );

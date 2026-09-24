@@ -18,6 +18,94 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.9',
+    data: '2026-09-24',
+    titulo: 'Novo Estoque no lugar do antigo, com a cara da tela Tarefas',
+    itens: [
+      {
+        tipo: 'feature',
+        texto:
+          'A aba Estoque agora abre o novo módulo: busca por peça, unidades físicas com preço, foto, condição e endereço, fila "Organizar", mapa físico com prioridade de categorias, reservas com sinal de 20% e histórico da unidade. A tela antiga continua em "Tela antiga" (anúncios, famílias e gavetas).',
+      },
+      {
+        tipo: 'feature',
+        texto:
+          'Venda registrada sem escolher a unidade (balcão, orçamento, Mercado Livre) baixa sozinha a unidade livre mais antiga e aparece em "Conferências pendentes" para a equipe confirmar ou trocar pela que realmente saiu. Cancelar a venda devolve a mesma unidade. Fichas que sobraram de vendas antigas também aparecem para conferência e não contam como disponíveis. Requer a migration 069.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Editar uma unidade grava preço, condição, endereço e origem de uma vez (sem ficar pela metade) e registra quem alterou. Fotos enviadas e não usadas são apagadas sozinhas depois de 24 h.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Mesmo visual da tela Tarefas: cabeçalho claro, abas segmentadas, cartões e a nova dock. O atalho ⌘K/Ctrl+K leva direto à busca, o alerta de estoque baixo do Dashboard abre o catálogo já filtrado e a lista volta na mesma posição ao trocar de aba.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Sem conexão com o servidor, a tela mostra o erro e não exibe peças de demonstração, para ninguém vender com dado errado.',
+      },
+    ],
+  },
+  {
+    versao: '1.7.8',
+    data: '2026-09-22',
+    titulo: 'Tarefas: ordenação por prioridade e ajustes finais de cursor',
+    itens: [
+      {
+        tipo: 'melhoria',
+        texto:
+          'A fila de tarefas agora ordena por prioridade (crítica > alta > normal > baixa) com tarefas não concluídas sempre acima das concluídas, em vez de seguir a ordem alfabética de status vinda do banco.',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Adicionado cursor de ponteiro nos botões compartilhados do design system (componente Button e abas Todas/Abertas/Pendências/Tarefas em grupo), incluindo o botão "Nova tarefa".',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Corrigida a causa raiz da perda de progresso ao criar tarefa: o formulário resetava porque a lista de operadores entrava como dependência do efeito de inicialização do composer, disparando a cada atualização de 20s.',
+      },
+    ],
+  },
+  {
+    versao: '1.7.7',
+    data: '2026-09-22',
+    titulo: 'Tarefas: cursor e estabilidade do composer',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'Adicionado cursor de ponteiro em todos os elementos clicáveis da aba Tarefas (botões de ação, filtros, abas de navegação, busca, checklist e dropdowns do composer).',
+      },
+      {
+        tipo: 'fix',
+        texto:
+          'Corrigida perda de progresso ao criar uma tarefa: o poll automático de 20 segundos não sobrescreve mais a lista enquanto o formulário de nova tarefa estiver aberto.',
+      },
+      {
+        tipo: 'melhoria',
+        texto:
+          'Tarefas concluídas agora exibem visual verde (card, badge e título riscado), alinhando com o padrão dos lembretes concluídos.',
+      },
+    ],
+  },
+  {
+    versao: '1.7.6',
+    data: '2026-09-18',
+    titulo: 'Tarefas: enquadramento responsivo do modal',
+    itens: [
+      {
+        tipo: 'fix',
+        texto:
+          'A tela de Tarefas agora contém o conteúdo horizontalmente em mobile e desktop; o modal de criação mantém a rolagem vertical sem poder ser arrastado para os lados.',
+      },
+    ],
+  },
+  {
     versao: '1.7.5',
     data: '2026-09-18',
     titulo: 'Tarefas: filtros de lembretes responsivos',

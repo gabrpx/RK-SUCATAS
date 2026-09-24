@@ -34,6 +34,8 @@ export function montarParamsRegistrarVenda(
     p_componente: componenteFinal,
     p_cliente_id: params.cliente_id ?? null,
     p_nome_item: item.estoque_id ? null : item.nome_item,
+    // Desambigua a assinatura vigente de 13 parâmetros; null mantém o preço cheio.
+    p_valor_recebido: null,
   };
 }
 

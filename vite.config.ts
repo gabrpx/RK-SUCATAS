@@ -27,15 +27,23 @@ export default defineConfig(() => {
       },
     },
     server: {
+      // O novo sistema usa uma porta própria para não ser confundido com o
+      // preview legado, que historicamente roda em 4173.
+      port: Number(process.env.VITE_PORT || 3001),
+      strictPort: true,
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
+    },
+    preview: {
+      port: Number(process.env.VITE_PREVIEW_PORT || 3001),
+      strictPort: true,
     },
     test: {
       // Worktrees de outros agentes ficam dentro do repositório, mas não fazem
       // parte da suíte deste checkout. Sem este filtro o Vitest executa os
       // mesmos testes várias vezes e mistura dependências/estado entre árvores.
-      exclude: ['**/node_modules/**', '**/.worktrees/**', '**/dist/**'],
+      exclude: ['**/node_modules/**', '**/.worktrees/**', '**/.claude/worktrees/**', '**/dist/**'],
       // A suíte de UI pode ficar mais lenta quando todos os arquivos rodam em
       // paralelo; isso evita falso negativo sem mascarar travas reais.
       testTimeout: 10000,

@@ -39,6 +39,8 @@ export interface PreviewTask {
   category: PreviewTaskCategory;
   priority: PreviewTaskPriority;
   status: PreviewTaskStatus;
+  paused?: boolean;
+  pauseReason?: string;
   dueLabel: string;
   estimateMinutes: number;
   checklist: PreviewChecklistItem[];
@@ -116,8 +118,8 @@ export function createPreviewTask(input: PreviewTaskCreateInput): PreviewTask {
 export function getPreviewSummary(tasks: PreviewTask[]) {
   return tasks.reduce(
     (summary, task) => {
-      if (task.status !== "concluida") summary.open += 1;
-      if (task.status === "em-andamento") summary.inProgress += 1;
+      if (task.status !== "concluida" && !task.paused) summary.open += 1;
+      if (task.status === "em-andamento" && !task.paused) summary.inProgress += 1;
       summary.totalChecklistItems += task.checklist.length;
       summary.completedChecklistItems += task.checklist.filter(
         (item) => item.completed
@@ -163,15 +165,41 @@ export function getPreviewCategoryBreakdown(
   });
 }
 
+const PREVIEW_TASK_PRIORITY_WEIGHT: Record<PreviewTaskPriority, number> = {
+  critica: 0,
+  alta: 1,
+  normal: 2,
+  baixa: 3,
+};
+
+/**
+ * Ordena a fila: tarefas não concluídas sempre acima das concluídas e,
+ * dentro de cada grupo, prioridade mais alta primeiro (crítica > alta >
+ * normal > baixa). Sort estável — tarefas com mesmo status/prioridade
+ * mantêm a ordem original (as mais novas entram no topo do array via
+ * criação, então tendem a ficar acima dentro do próprio grupo).
+ */
+export function sortPreviewTasksForQueue(tasks: PreviewTask[]): PreviewTask[] {
+  return [...tasks].sort((a, b) => {
+    const statusWeightA = a.status === "concluida" ? 1 : 0;
+    const statusWeightB = b.status === "concluida" ? 1 : 0;
+    if (statusWeightA !== statusWeightB) return statusWeightA - statusWeightB;
+    return (
+      PREVIEW_TASK_PRIORITY_WEIGHT[a.priority] -
+      PREVIEW_TASK_PRIORITY_WEIGHT[b.priority]
+    );
+  });
+}
+
 export function filterPreviewTasksByPrimaryTab(
   tasks: PreviewTask[],
   tab: PreviewPrimaryTab
 ) {
   if (tab === "turno") return tasks;
   if (tab === "abertas")
-    return tasks.filter((task) => task.status !== "concluida");
+    return tasks.filter((task) => task.status !== "concluida" && !task.paused);
   if (tab === "pendencias")
-    return tasks.filter((task) => task.status === "aguardando");
+    return tasks.filter((task) => task.status === "aguardando" && !task.paused);
   return tasks.filter((task) => task.status === "concluida");
 }
 
@@ -209,6 +237,11 @@ export function getNextPreviewTaskStatus(
   return "aguardando";
 }
 
+export function startPreviewTask(task: PreviewTask): PreviewTask {
+  if (task.status !== "aguardando") return task;
+  return { ...task, status: "em-andamento" };
+}
+
 export function isCollaborativePreviewTask(task: PreviewTask) {
   return (task.operatorIds?.length ?? 0) > 1;
 }
@@ -218,9 +251,9 @@ export function filterPreviewTasksByQueueFilter(
   filter: PreviewQueueFilter
 ) {
   if (filter === "abertas")
-    return tasks.filter((task) => task.status !== "concluida");
+    return tasks.filter((task) => task.status !== "concluida" && !task.paused);
   if (filter === "pendencias")
-    return tasks.filter((task) => task.status === "aguardando");
+    return tasks.filter((task) => task.status === "aguardando" && !task.paused);
   if (filter === "grupo") return tasks.filter(isCollaborativePreviewTask);
   return tasks;
 }

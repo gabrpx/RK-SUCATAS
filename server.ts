@@ -221,14 +221,10 @@ async function startServer() {
   // Lista enxuta (id + nome) de quem pode receber tarefa, pro <select> de
   // responsável na tela de Tarefas — quem cria tarefa (tarefas.criar) precisa
   // disso, mas não tem acesso ao resto de /api/usuarios (admin-only). Inclui
-  // todo "executor de campo" (quem pode dar baixa mas NÃO gerencia tarefas —
-  // permissao tarefas.concluir sem tarefas.criar, o equivalente dos antigos
-  // mandados/mecanico), qualquer outro gerente/admin (tarefas.criar — ex: um
-  // admin designar tarefa pra outro admin) MAIS o próprio usuário logado, que
-  // pode se autoatribuir tarefa mesmo sem ser executor (ver responsavelValido
-  // em tarefas.ts). Filtra em JS por `permissoes` (não mais por cargo) pra
-  // pegar também os usuários criados já no modelo novo, sem papel
-  // mandados/mecanico.
+  // todo usuário ativo com acesso à tela de tarefas (tarefas.ver), MAIS o
+  // próprio usuário logado. Filtra em JS por `permissoes` (não por cargo) para
+  // incluir perfis criados no modelo novo e manter o contrato da API alinhado
+  // com a validação de responsável em tarefas.ts.
   app.get('/api/usuarios/responsaveis-tarefa', exigirPermissao('tarefas.criar'), async (req: AuthenticatedRequest, res) => {
     try {
       const { data, error } = await supabase
@@ -240,9 +236,7 @@ async function startServer() {
       const filtrados = (data ?? [])
         .filter((u: any) => {
           const admin = Array.isArray(u.roles) && u.roles.includes('admin');
-          const ehExecutor = pode(u.permissoes, admin, 'tarefas.concluir') && !pode(u.permissoes, admin, 'tarefas.criar');
-          const ehGerente = pode(u.permissoes, admin, 'tarefas.criar');
-          return ehExecutor || ehGerente || u.id === req.usuario!.id;
+          return pode(u.permissoes, admin, 'tarefas.ver') || u.id === req.usuario!.id;
         })
         .map((u: any) => ({ id: u.id, nome_exibicao: u.nome_exibicao }));
       res.json({ success: true, data: filtrados });

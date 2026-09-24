@@ -19,6 +19,7 @@ import {
 import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { fotosEfetivasDaUnidade } from '../fotosUnidade.js';
+import { estoqueOrganizacaoRouter } from './estoqueOrganizacao.js';
 
 // Gates por permissão granular (ver src/constants/permissoes.ts). Leitura é
 // separada da escrita, e a escrita ainda se divide por ação: criar/editar
@@ -511,6 +512,9 @@ async function validarNotaCadastro(supabase: SupabaseClient, categoriaId: string
 
 export function estoqueRouter(supabase: SupabaseClient) {
   const router = Router();
+  // Novo estoque: organização física, reservas com sinal, conferência de
+  // baixas e edição atômica da unidade. Montado antes de '/:id' de propósito.
+  router.use('/organizacao', estoqueOrganizacaoRouter(supabase));
 
   router.get('/', VER, async (_req, res) => {
     try {

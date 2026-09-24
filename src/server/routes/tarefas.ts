@@ -21,7 +21,7 @@ export const SELECT_COM_JOINS =
 
 const CAMPOS_EDITAVEIS = ['titulo', 'descricao', 'prazo', 'atribuido_para', 'cliente_id', 'prioridade', 'tipo'] as const;
 
-const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo que execute tarefas (ou você mesmo)';
+const ERRO_RESPONSAVEL_INVALIDO = 'Responsável precisa ser um usuário ativo com acesso às tarefas (ou você mesmo)';
 
 const PRIORIDADES_VALIDAS = ['baixa', 'media', 'alta'] as const;
 const TIPOS_VALIDOS = ['geral', 'visita'] as const;
@@ -65,24 +65,23 @@ export function derivarConclusao(
   return null;
 }
 
-// Quem gerencia tarefas (cria/atribui/vê todas) tem a permissão tarefas.criar —
-// o equivalente dos antigos admin/equipe. Um "executor de campo" (antigos
-// mandados/mecanico) pode dar baixa (tarefas.concluir) mas NÃO gerenciar, e por
-// isso só enxerga/conclui as próprias.
-function ehExecutorDeCampo(usuario: { roles: string[]; permissoes: any }): boolean {
-  const admin = Array.isArray(usuario.roles) && usuario.roles.includes('admin');
-  return pode(usuario.permissoes, admin, 'tarefas.concluir') && !pode(usuario.permissoes, admin, 'tarefas.criar');
-}
-
-// Quem gerencia tarefas pode se autoatribuir uma (ex: lembrete pessoal) mesmo
-// sem ser executor — só quem NÃO é o próprio usuário logado precisa ser um
-// executor de campo.
+// Qualquer usuário ativo com acesso à tela de tarefas pode receber uma tarefa.
+// Isso inclui executores, gestores e perfis operacionais que só têm
+// tarefas.ver. O próprio usuário continua podendo se autoatribuir para
+// preservar o fluxo de tarefas pessoais legado.
 export function responsavelValido(responsavel: { roles: string[]; permissoes: any; ativo: boolean } | null, souEuMesmo: boolean): boolean {
   if (!responsavel || !responsavel.ativo) return false;
   if (souEuMesmo) return true;
   const admin = Array.isArray(responsavel.roles) && responsavel.roles.includes('admin');
-  const ehGerente = pode(responsavel.permissoes, admin, 'tarefas.criar');
-  return ehExecutorDeCampo(responsavel) || ehGerente;
+  return pode(responsavel.permissoes, admin, 'tarefas.ver');
+}
+
+export function normalizarMotivoPausa(raw: unknown): string {
+  return String(raw ?? '').trim();
+}
+
+export function podePausarTarefa(status: 'pendente' | 'concluida'): boolean {
+  return status === 'pendente';
 }
 
 // Tarefa multi-participante (Fase 1, migration_060): o usuário conta como
@@ -347,6 +346,26 @@ export function tarefasRouter(supabase: SupabaseClient) {
       // Título vazio vira null (não persistimos string vazia).
       if (payload.titulo === '') payload.titulo = null;
 
+      const participantesInformados = Array.isArray(req.body?.participantes_ids);
+      const participantesIds = participantesInformados
+        ? Array.from(new Set(req.body.participantes_ids.map((id: unknown) => String(id)).filter(Boolean)))
+        : undefined;
+      if (participantesInformados) {
+        if (!participantesIds?.length) {
+          return res.status(400).json({ success: false, error: 'Selecione pelo menos um responsável' });
+        }
+        const { data: candidatos, error: erroCandidatos } = await supabase
+          .from('usuarios').select('id, roles, permissoes, ativo').in('id', participantesIds);
+        if (erroCandidatos) throw erroCandidatos;
+        const porId = new Map((candidatos ?? []).map((u: any) => [u.id, u]));
+        for (const id of participantesIds) {
+          if (!responsavelValido(porId.get(id) ?? null, id === req.usuario!.id)) {
+            return res.status(400).json({ success: false, error: ERRO_RESPONSAVEL_INVALIDO });
+          }
+        }
+        payload.atribuido_para = participantesIds[0];
+      }
+
       if (payload.atribuido_para !== undefined) {
         const { data: responsavel } = await supabase.from('usuarios').select('id, roles, permissoes, ativo').eq('id', payload.atribuido_para).maybeSingle();
         if (!responsavelValido(responsavel, payload.atribuido_para === req.usuario!.id)) {
@@ -428,10 +447,72 @@ export function tarefasRouter(supabase: SupabaseClient) {
         }
       }
 
+      if (participantesInformados && participantesIds) {
+        const { error: erroRemocao } = await supabase.from('tarefa_participantes').delete().eq('tarefa_id', req.params.id);
+        if (erroRemocao) throw erroRemocao;
+        if (participantesIds.length > 1) {
+          const { error: erroParticipantes } = await supabase.from('tarefa_participantes').insert(
+            participantesIds.map((usuario_id) => ({ tarefa_id: req.params.id, usuario_id }))
+          );
+          if (erroParticipantes) throw erroParticipantes;
+        }
+      }
+
       const data = await recalcularEDevolver(req.params.id);
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao atualizar tarefa:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id/pausar', async (req: AuthenticatedRequest, res) => {
+    try {
+      const tarefaEditavel = await carregarTarefaEditavel(req, res, 'tarefas.editar');
+      if (!tarefaEditavel) return;
+
+      const motivo = normalizarMotivoPausa(req.body?.motivo);
+      if (!motivo) return res.status(400).json({ success: false, error: 'Informe o motivo da pausa' });
+
+      const { data: atual, error: erroAtual } = await supabase
+        .from('tarefas')
+        .select('status')
+        .eq('id', req.params.id)
+        .single();
+      if (erroAtual) throw erroAtual;
+      if (!podePausarTarefa(atual.status as 'pendente' | 'concluida')) {
+        return res.status(400).json({ success: false, error: 'Tarefa concluída não pode ser pausada' });
+      }
+
+      const { data, error } = await supabase
+        .from('tarefas')
+        .update({ pausada: true, pausada_em: new Date().toISOString(), pausada_por: req.usuario!.id, pausa_motivo: motivo })
+        .eq('id', req.params.id)
+        .select(SELECT_COM_JOINS)
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data: comItensOrdenados(data) });
+    } catch (error: any) {
+      console.error('Erro ao pausar tarefa:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id/despausar', async (req: AuthenticatedRequest, res) => {
+    try {
+      const tarefaEditavel = await carregarTarefaEditavel(req, res, 'tarefas.editar');
+      if (!tarefaEditavel) return;
+
+      const { data, error } = await supabase
+        .from('tarefas')
+        .update({ pausada: false, pausada_em: null, pausada_por: null, pausa_motivo: null })
+        .eq('id', req.params.id)
+        .select(SELECT_COM_JOINS)
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data: comItensOrdenados(data) });
+    } catch (error: any) {
+      console.error('Erro ao retomar tarefa:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

@@ -11,6 +11,8 @@ import {
   Command,
   Filter,
   ListChecks,
+  Pause,
+  Play,
   Plus,
   Search,
   UsersRound,
@@ -23,6 +25,7 @@ import { Grid } from "@/src/components/charts/grid";
 import { ChartTooltip } from "@/src/components/charts/tooltip";
 import { XAxis } from "@/src/components/charts/x-axis";
 import { Button } from "@/src/components/ui/button";
+import { useConfirm } from "@/src/components/ui/hooks/useConfirm";
 import { Tabs, TabsList, TabsTrigger } from "./PreviewTabs";
 import { cn } from "@/src/utils";
 import {
@@ -34,14 +37,19 @@ import {
   getPreviewTaskDeadline,
   getPreviewTaskExecutionSummary,
   getPreviewSummary,
+  sortPreviewTasksForQueue,
+  startPreviewTask,
   type PreviewTask,
   type PreviewTaskCategory,
   type PreviewTaskPriority,
   type PreviewTaskStatus,
 } from "./taskPreviewModel";
-import { TaskComposer, demoOperators, type DemoOperator } from "./TaskComposer";
+import { TaskComposer, demoOperators, type DemoOperator, type TaskComposerInput } from "./TaskComposer";
 import { initialReminders as demoInitialReminders, RemindersPanel } from "./RemindersPanel";
 import type { Reminder } from "./reminderModel";
+import { TasksNavigationDock } from "../../components/TasksNavigationDock";
+import { useTaskOverlayScrollLock } from "./useTaskOverlayScrollLock";
+import type { Tab } from "../../constants/navigation";
 
 type PreviewScreen = "turno" | "abertas";
 type PreviewFilter = "todas" | PreviewTaskStatus;
@@ -49,18 +57,13 @@ type QueueFilter = "todas" | "abertas" | "pendencias" | "grupo";
 type WorkspaceTab = "turno" | "lembretes";
 
 type TaskPreviewCallbacks = {
-  onCreateTask?: (input: {
-    title: string;
-    category: PreviewTaskCategory;
-    priority: PreviewTaskPriority;
-    operatorIds: string[];
-    instructions: string;
-    checklistLabels: string[];
-    checklistOwners: string[];
-    dueTime: string;
-  }) => Promise<PreviewTask | null> | PreviewTask | null;
+  onCreateTask?: (input: TaskComposerInput) => Promise<PreviewTask | null> | PreviewTask | null;
   onToggleChecklist?: (taskId: string, checklistId: string) => Promise<PreviewTask | null> | PreviewTask | null;
   onAdvanceTask?: (task: PreviewTask, nextStatus: PreviewTaskStatus) => Promise<PreviewTask | null> | PreviewTask | null;
+  onPauseTask?: (taskId: string, reason: string) => Promise<PreviewTask | null> | PreviewTask | null;
+  onResumeTask?: (taskId: string) => Promise<PreviewTask | null> | PreviewTask | null;
+  onUpdateTask?: (taskId: string, input: TaskComposerInput) => Promise<PreviewTask | null> | PreviewTask | null;
+  onDeleteTask?: (taskId: string) => Promise<void> | void;
   onRemindersChange?: (previous: Reminder[], next: Reminder[]) => void | Promise<void>;
 };
 
@@ -254,7 +257,7 @@ const priorityStyle: Record<PreviewTaskPriority, string> = {
 const statusStyle: Record<PreviewTaskStatus, string> = {
   "em-andamento": "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
   aguardando: "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
-  concluida: "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
+  concluida: "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300",
 };
 
 const categoryLabel: Record<PreviewTaskCategory, string> = {
@@ -568,17 +571,17 @@ function TaskCard({
         <span
           className={cn(
             "rounded px-1.5 py-0.5 text-[10px] font-semibold",
-            statusStyle[task.status]
+            task.paused ? "bg-orange-50 text-orange-700 ring-1 ring-orange-200" : statusStyle[task.status]
           )}
         >
-          {task.status.replace("-", " ")}
+          {task.paused ? "pausada" : task.status.replace("-", " ")}
         </span>
         <span className="ml-auto font-mono text-[10px] text-slate-400">
           {task.area}
         </span>
       </div>
 
-      <button onClick={onOpen} className="mt-3 w-full text-left">
+      <button onClick={onOpen} className="mt-3 w-full cursor-pointer text-left">
         <h3 className="text-base font-semibold tracking-tight text-slate-900 hover:text-blue-700">
           {task.title}
         </h3>
@@ -696,7 +699,7 @@ function SearchDialog({
           <button
             aria-label="Fechar busca"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100"
+            className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100"
           >
             <X size={17} />
           </button>
@@ -710,7 +713,7 @@ function SearchDialog({
               <button
                 key={task.id}
                 onClick={() => onOpenTask(task)}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-blue-50"
+                className="cursor-pointer flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-blue-50"
               >
                 <span
                   className={cn(
@@ -752,12 +755,33 @@ function TaskInspector({
   onClose,
   onToggleChecklist,
   onAdvanceStatus,
+  onPauseTask,
+  onResumeTask,
+  onEdit,
+  onDelete,
 }: {
   task: PreviewTask | null;
   onClose: () => void;
   onToggleChecklist: (taskId: string, checklistId: string) => void;
   onAdvanceStatus: (taskId: string) => void;
+  onPauseTask?: (taskId: string, reason: string) => Promise<void>;
+  onResumeTask?: (taskId: string) => Promise<void>;
+  onEdit?: () => void;
+  onDelete?: () => Promise<void> | void;
 }) {
+  useTaskOverlayScrollLock(Boolean(task));
+  const [pauseFormOpen, setPauseFormOpen] = useState(false);
+  const [pauseReason, setPauseReason] = useState("");
+  const [pauseSubmitting, setPauseSubmitting] = useState(false);
+  const [pauseError, setPauseError] = useState<string | null>(null);
+
+  useEffect(() => {
+    setPauseFormOpen(false);
+    setPauseReason("");
+    setPauseSubmitting(false);
+    setPauseError(null);
+  }, [task?.id, task?.paused]);
+
   if (!task) return null;
   const taskProgress = progress(task);
   const execution = getPreviewTaskExecutionSummary(task);
@@ -788,22 +812,57 @@ function TaskInspector({
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="rounded border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            Pausar
-          </button>
-          <button
-            type="button"
-            className="rounded border border-slate-200 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
-          >
-            Editar
-          </button>
+          {task.paused && onResumeTask ? (
+            <button
+              type="button"
+              disabled={pauseSubmitting}
+              onClick={async () => {
+                setPauseSubmitting(true);
+                setPauseError(null);
+                try {
+                  await onResumeTask(task.id);
+                } catch (error: unknown) {
+                  setPauseError(error instanceof Error ? error.message : "Não foi possível retomar a tarefa");
+                } finally {
+                  setPauseSubmitting(false);
+                }
+              }}
+              className="cursor-pointer inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <Play size={13} /> Retomar
+            </button>
+          ) : !task.paused && task.status !== "concluida" && onPauseTask ? (
+            <button
+              type="button"
+              onClick={() => setPauseFormOpen((open) => !open)}
+              className="cursor-pointer inline-flex items-center gap-1.5 rounded border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100"
+            >
+              <Pause size={13} /> Pausar
+            </button>
+          ) : null}
+          {onEdit && (
+            <button
+              type="button"
+              onClick={onEdit}
+              className="cursor-pointer rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+            >
+              Editar
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              aria-label="Excluir tarefa"
+              onClick={() => void onDelete()}
+              className="cursor-pointer grid size-8 place-items-center rounded-md border border-rose-100 bg-white text-rose-500 shadow-sm transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+            >
+              <X size={15} />
+            </button>
+          )}
           <button
             onClick={onClose}
             aria-label="Fechar detalhes"
-            className="rounded border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
+            className="cursor-pointer rounded border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
           >
             <X size={16} />
           </button>
@@ -850,6 +909,64 @@ function TaskInspector({
           <span className="px-1 text-slate-300">•</span> setor responsável:{" "}
           {task.area}
         </p>
+
+        {task.paused && (
+          <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-amber-950 shadow-sm">
+            <div className="flex items-start gap-3">
+              <span className="grid size-8 shrink-0 place-items-center rounded-full bg-amber-100 text-amber-700 ring-1 ring-amber-200">
+                <Pause size={14} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.12em] text-amber-800">Execução pausada</p>
+                <p className="mt-1 text-sm leading-relaxed text-amber-900">{task.pauseReason || "Sem motivo informado."}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {pauseFormOpen && !task.paused && onPauseTask && (
+          <section className="mt-5 rounded-xl border border-amber-200 bg-amber-50/70 p-4 shadow-sm">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <SurfaceLabel>Motivo da pausa</SurfaceLabel>
+                <p className="mt-1 text-xs leading-relaxed text-amber-800">Registre o bloqueio para a equipe retomar com contexto.</p>
+              </div>
+              <Pause size={15} className="mt-0.5 shrink-0 text-amber-700" />
+            </div>
+            <textarea
+              aria-label="Motivo da pausa"
+              maxLength={240}
+              value={pauseReason}
+              onChange={(event) => setPauseReason(event.target.value)}
+              placeholder="Ex.: montagem da XRE pausada por falta de peças"
+              rows={3}
+              className="mt-3 w-full resize-y rounded-lg border border-amber-200 bg-white px-3 py-2.5 text-sm leading-relaxed text-slate-800 outline-none placeholder:text-slate-400 transition-shadow focus:border-amber-400 focus:ring-2 focus:ring-amber-100"
+            />
+            <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
+              <span className="mr-auto text-[10px] font-mono text-amber-700">{pauseReason.length}/240</span>
+              {pauseError && <p role="alert" className="mr-auto text-xs text-rose-700">{pauseError}</p>}
+              <button type="button" onClick={() => setPauseFormOpen(false)} className="cursor-pointer rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50">Cancelar</button>
+              <button
+                type="button"
+                disabled={pauseSubmitting || !pauseReason.trim()}
+                onClick={async () => {
+                  setPauseSubmitting(true);
+                  setPauseError(null);
+                  try {
+                    await onPauseTask(task.id, pauseReason.trim());
+                  } catch (error: unknown) {
+                    setPauseError(error instanceof Error ? error.message : "Não foi possível pausar a tarefa");
+                  } finally {
+                    setPauseSubmitting(false);
+                  }
+                }}
+                className="cursor-pointer inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <Pause size={13} /> Confirmar pausa
+              </button>
+            </div>
+          </section>
+        )}
 
         <section className="mt-7">
           <SurfaceLabel>Métricas de execução</SurfaceLabel>
@@ -977,12 +1094,16 @@ function TaskInspector({
               : "A execução está atribuída a uma pessoa."}
           </p>
         </div>
-        <Button
-          onClick={() => onAdvanceStatus(task.id)}
-          className="h-11 w-full rounded-md bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
-        >
-          <Check size={15} /> {execution.primaryAction}
-        </Button>
+        {task.paused ? (
+          <p className="text-xs font-medium text-orange-700">Retome a tarefa para continuar a execução.</p>
+        ) : (
+          <Button
+            onClick={() => onAdvanceStatus(task.id)}
+            className="h-11 w-full rounded-md bg-blue-600 text-white hover:bg-blue-700 sm:w-auto"
+          >
+            <Check size={15} /> {execution.primaryAction}
+          </Button>
+        )}
       </footer>
     </motion.aside>
   );
@@ -1014,7 +1135,12 @@ function QueueTaskRows({
               ? { duration: 0 }
               : { type: "spring", stiffness: 360, damping: 30, bounce: 0 }
           }
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5"
+          className={cn(
+            "rounded-xl border p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5",
+            task.status === "concluida"
+              ? "border-emerald-200 bg-emerald-50/40"
+              : "border-slate-200 bg-white"
+          )}
         >
           <div className="flex flex-wrap items-center gap-1.5">
             <span
@@ -1038,6 +1164,11 @@ function QueueTaskRows({
                 Em grupo
               </span>
             )}
+            {task.paused && (
+              <span className="rounded border border-orange-200 bg-orange-50 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-[0.04em] text-orange-700">
+                Pausada
+              </span>
+            )}
             <span className="ml-auto inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
               <Clock3 size={12} className="text-slate-400" /> {task.dueLabel}
             </span>
@@ -1048,14 +1179,19 @@ function QueueTaskRows({
               <button
                 type="button"
                 onClick={() => onOpen(task)}
-                className="block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                className="cursor-pointer block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
-              <h3 className="text-[17px] font-semibold leading-snug tracking-[-0.02em] text-slate-900 transition-colors hover:text-blue-700">
+              <h3 className={cn("text-[17px] font-semibold leading-snug tracking-[-0.02em] text-slate-900 transition-colors hover:text-blue-700", task.status === "concluida" && "line-through opacity-60")}>
                 {task.title}
               </h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
                 {task.instructions}
               </p>
+              {task.paused && task.pauseReason && (
+                <p className="mt-2 rounded-md border border-orange-100 bg-orange-50 px-2.5 py-2 text-xs text-orange-800">
+                  <strong>Pausa:</strong> {task.pauseReason}
+                </p>
+              )}
               </button>
             </div>
             {(task.operatorIds?.length ?? 0) > 1 ? (
@@ -1128,7 +1264,7 @@ function QueueTaskRows({
               type="button"
               onClick={() => onOpen(task)}
               className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-xs font-semibold transition active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                "cursor-pointer inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-xs font-semibold transition active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                 task.status === "em-andamento"
                   ? "bg-blue-600 text-white shadow-[0_1px_2px_rgba(37,99,235,0.3)] hover:bg-blue-700"
                   : "border border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -1361,11 +1497,16 @@ export function TasksPreview({
   onCreateTask,
   onToggleChecklist,
   onAdvanceTask,
+  onPauseTask,
+  onResumeTask,
+  onUpdateTask,
+  onDeleteTask,
   onRemindersChange,
   errorMessage,
   loading = false,
   integrated = false,
 }: TasksPreviewProps) {
+  const confirm = useConfirm();
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("turno");
   const [activeReminderCount, setActiveReminderCount] = useState(5);
   const [reminderComposerOpen, setReminderComposerOpen] = useState(false);
@@ -1378,13 +1519,20 @@ export function TasksPreview({
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<PreviewTask | null>(null);
+  const [editingTask, setEditingTask] = useState<PreviewTask | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  // Ref síncrono para não adicionar isComposerOpen como dep do useEffect abaixo
+  const composerOpenRef = useRef(false);
+  composerOpenRef.current = isComposerOpen;
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("todas");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (initialTasks) setTasks(initialTasks);
+    // Não sobrescreve tasks enquanto o composer estiver aberto — evita perda
+    // do progresso de criação de tarefa quando o poll de 20s retorna novos dados.
+    if (initialTasks && !composerOpenRef.current) setTasks(initialTasks);
   }, [initialTasks]);
 
   useEffect(() => {
@@ -1425,7 +1573,8 @@ export function TasksPreview({
       if (event.altKey && event.code === "Space") {
         event.preventDefault();
         const task =
-          tasks.find((item) => item.status === "em-andamento") ?? tasks[0];
+          tasks.find((item) => item.status === "em-andamento" && !item.paused) ??
+          tasks.find((item) => !item.paused) ?? tasks[0];
         if (task) setSelectedTask(task);
       }
     };
@@ -1435,23 +1584,24 @@ export function TasksPreview({
 
   const summary = useMemo(() => getPreviewSummary(tasks), [tasks]);
   const visibleTasks = useMemo(
-    () => filterPreviewTasksByPrimaryTab(tasks, activePrimaryTab),
+    () => sortPreviewTasksForQueue(filterPreviewTasksByPrimaryTab(tasks, activePrimaryTab)),
     [tasks, activePrimaryTab]
   );
   const queueTasks = useMemo(() => {
     if (queueFilter === "abertas") {
-      return tasks.filter((task) => task.status !== "concluida");
+      return sortPreviewTasksForQueue(tasks.filter((task) => task.status !== "concluida" && !task.paused));
     }
     if (queueFilter === "pendencias") {
-      return tasks.filter((task) => task.status === "aguardando");
+      return sortPreviewTasksForQueue(tasks.filter((task) => task.status === "aguardando" && !task.paused));
     }
     if (queueFilter === "grupo") {
-      return tasks.filter((task) => (task.operatorIds?.length ?? 0) > 1);
+      return sortPreviewTasksForQueue(tasks.filter((task) => (task.operatorIds?.length ?? 0) > 1));
     }
-    return tasks;
+    return sortPreviewTasksForQueue(tasks);
   }, [queueFilter, tasks]);
   const focusTask =
-    tasks.find((task) => task.status === "em-andamento") ?? tasks[0];
+    tasks.find((task) => task.status === "em-andamento" && !task.paused) ??
+    tasks.find((task) => !task.paused) ?? tasks[0];
   const setPrimaryTab = (value: PrimaryTaskTab) => {
     setActivePrimaryTab(value);
     setScreen("turno");
@@ -1476,7 +1626,11 @@ export function TasksPreview({
 
   const advanceTaskStatus = async (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId);
-    if (!task) return;
+    if (!task || task.paused) return;
+    if (task.status === "aguardando") {
+      setTasks((current) => current.map((item) => item.id === taskId ? startPreviewTask(item) : item));
+      return;
+    }
     const nextStatus = getNextPreviewTaskStatus(task.status);
     const updated = await onAdvanceTask?.(task, nextStatus);
     if (updated) {
@@ -1487,21 +1641,44 @@ export function TasksPreview({
     setTasks((current) => current.map((item) => item.id === taskId ? { ...item, status: nextStatus } : item));
   };
 
+  const pauseTask = async (taskId: string, reason: string) => {
+    setActionError(null);
+    try {
+      const updated = await onPauseTask?.(taskId, reason);
+      if (updated) {
+        setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));
+        return;
+      }
+      if (onPauseTask) return;
+      setTasks((current) => current.map((item) => item.id === taskId ? { ...item, paused: true, pauseReason: reason } : item));
+    } catch (error: unknown) {
+      setActionError(error instanceof Error ? error.message : "Não foi possível pausar a tarefa");
+      throw error;
+    }
+  };
+
+  const resumeTask = async (taskId: string) => {
+    setActionError(null);
+    try {
+      const updated = await onResumeTask?.(taskId);
+      if (updated) {
+        setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));
+        return;
+      }
+      if (onResumeTask) return;
+      setTasks((current) => current.map((item) => item.id === taskId ? { ...item, paused: false, pauseReason: undefined } : item));
+    } catch (error: unknown) {
+      setActionError(error instanceof Error ? error.message : "Não foi possível retomar a tarefa");
+      throw error;
+    }
+  };
+
   const openTask = (task: PreviewTask) => {
     setSearchOpen(false);
     setSelectedTask(task);
   };
 
-  const createTask = async (input: {
-    title: string;
-    category: PreviewTaskCategory;
-    priority: PreviewTaskPriority;
-    operatorIds: string[];
-    instructions: string;
-    checklistLabels: string[];
-    checklistOwners: string[];
-    dueTime: string;
-  }) => {
+  const createTask = async (input: TaskComposerInput) => {
     const task = onCreateTask
       ? await onCreateTask(input)
       : createPreviewTask({ id: `tk-${Date.now()}`, ...input });
@@ -1510,6 +1687,47 @@ export function TasksPreview({
     setIsComposerOpen(false);
     setActivePrimaryTab("abertas");
     setScreen("turno");
+  };
+
+  const updateTask = async (input: TaskComposerInput) => {
+    if (!editingTask) return;
+    const updated = onUpdateTask
+      ? await onUpdateTask(editingTask.id, input)
+      : createPreviewTask({ id: editingTask.id, ...input });
+    if (!updated) return;
+    setTasks((current) => current.map((task) => task.id === updated.id ? updated : task));
+    setEditingTask(null);
+    setSelectedTask(updated);
+  };
+
+  const editTask = (task: PreviewTask) => {
+    setSelectedTask(null);
+    setEditingTask(task);
+    setIsComposerOpen(true);
+  };
+
+  const requestDeleteTask = async (task: PreviewTask) => {
+    const confirmed = await confirm({
+      title: "Excluir tarefa?",
+      description: `“${task.title}” será removida definitivamente e não poderá ser recuperada.`,
+      confirmLabel: "Excluir tarefa",
+      cancelLabel: "Manter tarefa",
+      destructive: true,
+    });
+    if (!confirmed) return;
+    try {
+      await onDeleteTask?.(task.id);
+      setTasks((current) => current.filter((item) => item.id !== task.id));
+      setSelectedTask(null);
+      setEditingTask(null);
+    } catch (error: unknown) {
+      setActionError(error instanceof Error ? error.message : "Não foi possível excluir a tarefa");
+    }
+  };
+
+  const closeComposer = () => {
+    setIsComposerOpen(false);
+    setEditingTask(null);
   };
 
   const updateReminders = (updater: Reminder[] | ((current: Reminder[]) => Reminder[])) => {
@@ -1522,10 +1740,12 @@ export function TasksPreview({
     <PreviewOperatorsContext.Provider value={operators}>
       <div
         ref={rootRef}
-        className="tasks-preview-theme min-h-screen bg-[#f8fafc] font-[Geist,Inter,ui-sans-serif,system-ui] text-slate-900"
+        data-project="rk-sucatas-new"
+        data-project-label="RK Sucatas · NOVO SISTEMA"
+        className="tasks-preview-theme min-h-screen w-full min-w-0 overflow-x-hidden bg-[#f8fafc] font-[Geist,Inter,ui-sans-serif,system-ui] text-slate-900"
       >
       <header className="sticky top-0 z-[60] border-b border-slate-200 bg-white/95 pt-[env(safe-area-inset-top)] backdrop-blur">
-        <div className="mx-auto flex max-w-[1440px] items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
+        <div className="mx-auto flex min-w-0 max-w-[1440px] items-center gap-2 px-3 py-2.5 sm:gap-4 sm:px-6 sm:py-3">
           <div className="flex min-w-0 items-center gap-2">
             <div className="grid size-7 place-items-center rounded bg-blue-600 text-[10px] font-black text-white">
               RK
@@ -1565,7 +1785,7 @@ export function TasksPreview({
           <button
             onClick={() => setSearchOpen(true)}
             aria-label="Buscar tarefa ou lembrete"
-            className="ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-blue-300 hover:bg-blue-50 sm:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"
+            className="cursor-pointer ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-blue-300 hover:bg-blue-50 sm:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"
           >
             <Search size={15} />
             <span className="hidden sm:inline">Buscar</span>
@@ -1576,7 +1796,13 @@ export function TasksPreview({
           <Button
             variant="default"
             size="sm"
-            onClick={() => workspaceTab === "lembretes" ? setReminderComposerOpen(true) : setIsComposerOpen(true)}
+            onClick={() => {
+              if (workspaceTab === "lembretes") setReminderComposerOpen(true);
+              else {
+                setEditingTask(null);
+                setIsComposerOpen(true);
+              }
+            }}
             aria-label={workspaceTab === "lembretes" ? "Novo lembrete" : "Nova tarefa"}
             className="size-11 shrink-0 rounded-lg bg-blue-600 text-white hover:bg-blue-700 sm:h-9 sm:w-[154px] sm:rounded-md"
           >
@@ -1597,7 +1823,7 @@ export function TasksPreview({
         </div>
       </header>
 
-      <main className="mx-auto max-w-[1440px] px-3 pb-[calc(4rem_+_env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-7 lg:py-10">
+      <main className="mx-auto w-full min-w-0 max-w-[1440px] overflow-x-hidden px-3 pb-[calc(6rem_+_env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-7 lg:py-10">
         <style>{'[aria-label="Alternar tela"] { display: none; }'}</style>
         <div
           data-preview-reveal
@@ -1654,7 +1880,7 @@ export function TasksPreview({
                 setFilter("todas");
               }}
               className={cn(
-                "shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
+                "cursor-pointer shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
                 screen === "turno"
                   ? "border-blue-600 text-blue-700"
                   : "border-transparent text-slate-500 hover:text-slate-800"
@@ -2000,7 +2226,7 @@ export function TasksPreview({
                     key={id}
                     onClick={() => setFilter(id)}
                     className={cn(
-                      "shrink-0 rounded-md px-3 py-2 text-xs font-medium",
+                      "cursor-pointer shrink-0 rounded-md px-3 py-2 text-xs font-medium",
                       filter === id
                         ? "bg-slate-900 text-white"
                         : "text-slate-500 hover:bg-slate-50"
@@ -2087,7 +2313,7 @@ export function TasksPreview({
           <button
             aria-label="Fechar detalhes"
             onClick={() => setSelectedTask(null)}
-            className="fixed inset-0 z-[170] bg-slate-950/10"
+            className="cursor-pointer fixed inset-0 z-[170] bg-slate-950/10"
           />
           <TaskInspector
             task={
@@ -2096,12 +2322,16 @@ export function TasksPreview({
             onClose={() => setSelectedTask(null)}
             onToggleChecklist={toggleChecklist}
             onAdvanceStatus={advanceTaskStatus}
+            onPauseTask={onPauseTask ? pauseTask : undefined}
+            onResumeTask={onResumeTask ? resumeTask : undefined}
+            onEdit={onUpdateTask || !integrated ? () => editTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
+            onDelete={onDeleteTask || !integrated ? () => requestDeleteTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
           />
         </>
       )}
-      {errorMessage && (
+      {(errorMessage || actionError) && (
         <div role="alert" className="fixed bottom-4 left-1/2 z-[240] -translate-x-1/2 rounded-lg border border-rose-200 bg-white px-4 py-3 text-sm text-rose-700 shadow-lg">
-          {errorMessage}
+          {actionError || errorMessage}
         </div>
       )}
       {loading && (
@@ -2111,10 +2341,21 @@ export function TasksPreview({
       )}
       <TaskComposer
         open={isComposerOpen}
-        onClose={() => setIsComposerOpen(false)}
+        onClose={closeComposer}
         onCreate={createTask}
+        onUpdate={updateTask}
+        initialTask={editingTask}
         operators={operators}
       />
+      {!integrated && (
+        <TasksNavigationDock
+          activeTab="tarefas"
+          onTabChange={(tab: Tab) => {
+            window.location.assign(tab === "tarefas" ? "/tarefas-preview" : `/${tab}`);
+          }}
+          onLogoutClick={() => window.location.assign("/login")}
+        />
+      )}
       </div>
     </PreviewOperatorsContext.Provider>
   );

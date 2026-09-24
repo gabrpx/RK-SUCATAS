@@ -1,5 +1,5 @@
 param(
-  [string]$EnvFile = (Join-Path $PSScriptRoot '..\..\..\.env'),
+  [string]$EnvFile = (Join-Path $PSScriptRoot '..\.env'),
   [int]$Port = 3001
 )
 
@@ -17,26 +17,19 @@ $env:PORT = [string]$Port
 $env:NODE_ENV = 'development'
 $env:VITE_CACHE_DIR = Join-Path ([System.IO.Path]::GetTempPath()) 'rk-sucatas-vite-preview'
 
-Write-Host "Iniciando o preview novo em http://127.0.0.1:$Port/estoque"
+Write-Host "PROJETO: RK Sucatas — NOVO SISTEMA"
+Write-Host "DIRETORIO: $worktreeRoot"
+Write-Host "Iniciando o preview novo em http://127.0.0.1:$Port/tarefas"
+Write-Host "A porta 4173 pertence ao projeto legado e não deve ser usada para validar este checkout."
 Write-Host "Arquivo de ambiente carregado de forma privada: $envPath"
 
 $projectNode = Join-Path $worktreeRoot 'node_modules\node\bin\node.exe'
-$esbuildCli = Join-Path $worktreeRoot 'node_modules\esbuild\bin\esbuild'
-$serverBundle = Join-Path $worktreeRoot '.codex-preview-server.mjs'
+$tsxCli = Join-Path $worktreeRoot 'node_modules\tsx\dist\cli.mjs'
 
-if ((Test-Path -LiteralPath $projectNode) -and (Test-Path -LiteralPath $esbuildCli)) {
-  & $projectNode $esbuildCli 'server.ts' '--bundle' '--platform=node' '--format=esm' '--packages=external' "--outfile=$serverBundle"
-  if ($LASTEXITCODE -ne 0) { throw 'Não foi possível preparar o backend do preview.' }
-
-  try {
-    # O Node carrega o arquivo antes dos imports do backend, inclusive do
-    # cliente Supabase, que valida as variáveis durante a inicialização.
-    & $projectNode "--env-file=$envPath" $serverBundle
-  } finally {
-    if (Test-Path -LiteralPath $serverBundle) {
-      Remove-Item -LiteralPath $serverBundle -Force
-    }
-  }
+if ((Test-Path -LiteralPath $projectNode) -and (Test-Path -LiteralPath $tsxCli)) {
+  # Executar o TypeScript diretamente preserva a resolução de dependências
+  # pelo node_modules do checkout e evita bundles temporários bloqueados.
+  & $projectNode $tsxCli 'server.ts'
 } else {
   npm run dev
 }
