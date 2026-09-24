@@ -46,13 +46,16 @@ function DockIcon({
       ref={ref}
       type="button"
       aria-label={item.label}
-      title={item.label}
+      data-dock-tooltip-trigger
       onClick={item.onClick}
       onPointerDown={(event) => {
         if (event.pointerType === 'touch') onTooltipHide();
       }}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={onTooltipHide}
+      onPointerOut={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onTooltipHide();
+      }}
       onFocus={(event) => {
         if (event.currentTarget.matches(':focus-visible')) onTooltipShow(item.label, event.currentTarget);
       }}
@@ -78,6 +81,7 @@ function PlainDockButton({ item, onTooltipShow, onTooltipHide }: {
     <button
       type="button"
       aria-label={item.label}
+      data-dock-tooltip-trigger
       onClick={item.onClick}
       onPointerDown={(event) => {
         if (event.pointerType === 'touch') onTooltipHide();
@@ -86,6 +90,9 @@ function PlainDockButton({ item, onTooltipShow, onTooltipHide }: {
         if (event.pointerType !== 'touch') onTooltipShow(item.label, event.currentTarget);
       }}
       onPointerLeave={onTooltipHide}
+      onPointerOut={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onTooltipHide();
+      }}
       onFocus={(event) => {
         if (event.currentTarget.matches(':focus-visible')) onTooltipShow(item.label, event.currentTarget);
       }}
@@ -152,6 +159,23 @@ export function TasksNavigationDock({
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [mobileMoreOpen]);
 
+  useEffect(() => {
+    if (!tooltip) return;
+    const clearWhenOutside = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Element) || !target.closest("[data-dock-tooltip-trigger]")) setTooltip(null);
+    };
+    const clearOnWindowChange = () => setTooltip(null);
+    document.addEventListener("pointermove", clearWhenOutside);
+    window.addEventListener("blur", clearOnWindowChange);
+    window.addEventListener("scroll", clearOnWindowChange, true);
+    return () => {
+      document.removeEventListener("pointermove", clearWhenOutside);
+      window.removeEventListener("blur", clearOnWindowChange);
+      window.removeEventListener("scroll", clearOnWindowChange, true);
+    };
+  }, [tooltip]);
+
   const showTooltip = (label: string, target: HTMLButtonElement) => {
     const rect = target.getBoundingClientRect();
     const left = Math.min(Math.max(rect.left + rect.width / 2, 8), window.innerWidth - 8);
@@ -163,6 +187,7 @@ export function TasksNavigationDock({
       <nav
         aria-label="Navegação principal"
         onMouseLeave={() => setTooltip(null)}
+        onPointerLeave={() => setTooltip(null)}
         className="pointer-events-none fixed inset-x-2 bottom-[max(0.65rem,env(safe-area-inset-bottom))] z-[120] flex justify-center"
       >
         <div

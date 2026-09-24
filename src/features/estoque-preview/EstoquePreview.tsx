@@ -32,6 +32,7 @@ import { InventoryComposer } from "./InventoryComposer";
 import { InventoryDialog, InventoryTokensContext, lightInventoryTokens } from "./InventoryDrawer";
 import { InventoryConferencia, pecasComFichasSobrando } from "./InventoryConferencia";
 import { InventoryUnitDrawer, type HistoricoCarregado } from "./InventoryUnitDrawer";
+import { InventoryPieceSummaryDrawer } from "./InventoryPieceSummaryDrawer";
 import { InventoryMap } from "./InventoryMap";
 import { organizacaoApi, RECURSOS_DEMONSTRACAO, type BaixaPendente, type RecursosOrganizacao, type UnidadeFichaPayload } from "./organizacaoApi";
 import {
@@ -92,6 +93,7 @@ function podeEditarUnidade(unidade: UnidadeEstoque) {
 
 interface AcoesUnidade {
   onOpen: (unidade: UnidadeEstoque) => void;
+  onOpenSummary: (pecaId: string) => void;
   onEdit: (unidade: UnidadeEstoque) => void;
   onArchive: (unidade: UnidadeEstoque) => void;
   onAddUnit: (peca: PecaEstoque) => void;
@@ -133,7 +135,7 @@ function ActionMenu({ unidade, acoes }: { unidade: UnidadeEstoque; acoes: AcoesU
 function UnitRow({ unidade, acoes }: { unidade: UnidadeEstoque; acoes: AcoesUnidade }) {
   return <div className="relative flex min-h-36 w-[min(19rem,86vw)] shrink-0 snap-start flex-col rounded-control border border-border-default bg-surface-card p-3 shadow-sm transition hover:border-accent/35 hover:shadow-md">
     <div className="flex items-start gap-3">
-      <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{unidade.fotoUrl ? <img src={unidade.fotoUrl} alt={`Foto ${unidade.sku}`} className="h-full w-full object-cover" /> : "Sem foto"}</div>
+      <div className="grid aspect-[4/3] w-16 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{unidade.fotoUrl ? <img src={unidade.fotoUrl} alt={`Foto ${unidade.sku}`} className="size-full object-contain" /> : "Sem foto"}</div>
       <button type="button" aria-label={`Ver detalhes de ${unidade.sku}`} onClick={() => acoes.onOpen(unidade)} className="min-w-0 flex-1 cursor-pointer rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
         <p className="text-base font-semibold text-text-primary">{moeda(unidade.preco)}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5"><span className="text-xs font-semibold text-text-secondary">{unidade.sku}</span><span className="rounded-full bg-surface-inset px-2 py-0.5 text-[10px] font-semibold text-text-secondary">Grau {unidade.grau}</span></div>
@@ -153,20 +155,49 @@ function RupturaAviso({ peca, acoes, compacto = false }: { peca: PecaEstoque; ac
 }
 
 function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPecas>[number]; acoes: AcoesUnidade }) {
-  const temMaisUnidades = resultado.unidades.length > 3;
+  const unidadesRef = useRef<HTMLDivElement>(null);
+  const [fadeUnidades, setFadeUnidades] = useState({ esquerda: false, direita: false });
+  const temMaisUnidades = resultado.unidades.length > 2;
   const sobrandoNaPeca = resultado.peca.fichasExcedentes ?? 0;
   const quantidade = Math.max(0, resultado.unidades.length - sobrandoNaPeca);
   const semEstoque = resultado.unidades.length === 0;
   const semFicha = resultado.unidades.filter((unidade) => unidade.individualizada === false).length;
   const sobrando = resultado.peca.fichasExcedentes ?? 0;
+  useEffect(() => {
+    const faixa = unidadesRef.current;
+    if (!faixa) return;
+    const atualizar = () => {
+      const maximo = faixa.scrollWidth - faixa.clientWidth;
+      setFadeUnidades({ esquerda: faixa.scrollLeft > 2, direita: maximo > 2 && faixa.scrollLeft < maximo - 2 });
+    };
+    const rolarComRoda = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const podeRolar = event.deltaY < 0 ? faixa.scrollLeft > 0 : faixa.scrollLeft < faixa.scrollWidth - faixa.clientWidth;
+      if (!podeRolar) return;
+      event.preventDefault();
+      faixa.scrollLeft += event.deltaY;
+    };
+    atualizar();
+    faixa.addEventListener("wheel", rolarComRoda, { passive: false });
+    window.addEventListener("resize", atualizar);
+    return () => {
+      faixa.removeEventListener("wheel", rolarComRoda);
+      window.removeEventListener("resize", atualizar);
+    };
+  }, [resultado.unidades.length]);
   return <article className={`overflow-hidden rounded-card border bg-surface-card p-4 shadow-sm ${semEstoque ? "border-negative/40" : "border-border-default"}`}>
-    <div className="flex items-start justify-between gap-4">
-      <div className="min-w-0"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">{resultado.categoria.nome} · {resultado.peca.codigoLegado}</p><h3 className="mt-1 break-words text-base font-semibold text-text-primary">{resultado.peca.nome}</h3><p className="mt-1 text-xs text-text-muted">{resultado.peca.compatibilidades.join(" · ") || "Moto não informada"}</p></div>
+    <button type="button" aria-label={`Ver resumo de ${resultado.peca.nome} e de todas as suas ${resultado.unidades.length} unidades`} onClick={() => acoes.onOpenSummary(resultado.peca.id)} className="flex w-full cursor-pointer items-start justify-between gap-4 rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
+      <span className="min-w-0"><span className="block font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">{resultado.categoria.nome} · {resultado.peca.codigoLegado}</span><span className="mt-1 block break-words text-base font-semibold text-text-primary">{resultado.peca.nome}</span><span className="mt-1 block text-xs text-text-muted">{resultado.peca.compatibilidades.join(" · ") || "Moto não informada"}</span><span className="mt-2 block text-[11px] font-semibold text-accent-soft-fg">Ver resumo das unidades</span></span>
       <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${semEstoque ? "bg-negative-bg text-negative" : "bg-surface-inset text-text-secondary"}`}>{semEstoque ? "Sem estoque" : `${quantidade} ${quantidade === 1 ? "unidade" : "unidades"}${semFicha ? ` · ${semFicha} sem ficha` : ""}${sobrandoNaPeca ? ` · ${sobrandoNaPeca} a conferir` : ""}`}</span>
-    </div>
+    </button>
     <div className="relative mt-4">
-      <div aria-label={`Unidades de ${resultado.peca.codigoLegado}`} className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : resultado.unidades.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} />)}</div>
-      {temMaisUnidades && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-surface-card via-surface-card/85 to-transparent" />}
+      <div ref={unidadesRef} aria-label={`Unidades de ${resultado.peca.codigoLegado}`} onScroll={(event) => {
+        const faixa = event.currentTarget;
+        const maximo = faixa.scrollWidth - faixa.clientWidth;
+        setFadeUnidades({ esquerda: faixa.scrollLeft > 2, direita: maximo > 2 && faixa.scrollLeft < maximo - 2 });
+      }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : resultado.unidades.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} />)}</div>
+      {temMaisUnidades && fadeUnidades.esquerda && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-surface-card via-surface-card/85 to-transparent" />}
+      {temMaisUnidades && fadeUnidades.direita && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface-card via-surface-card/85 to-transparent" />}
     </div>
     {sobrando > 0 && acoes.onConferir && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-control border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-text-primary"><span><strong>{sobrando === 1 ? "1 ficha sobrando" : `${sobrando} fichas sobrando`}.</strong> Uma venda antiga não disse qual unidade saiu.</span><button type="button" onClick={acoes.onConferir} className={`${botaoSecundario} min-h-9`}><ClipboardCheck size={14} />Conferir</button></div>}
   </article>;
@@ -295,6 +326,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [composerAberto, setComposerAberto] = useState(false);
   const [pecaParaUnidade, setPecaParaUnidade] = useState<string | null>(null);
   const [unidadeDetalhando, setUnidadeDetalhando] = useState<UnidadeEstoque | null>(null);
+  const [pecaResumoId, setPecaResumoId] = useState<string | null>(null);
   const [unidadeEditando, setUnidadeEditando] = useState<UnidadeEstoque | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<UnidadeEstoque | null>(null);
   const [motivoArquivamento, setMotivoArquivamento] = useState("");
@@ -319,6 +351,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const podeCadastrar = conexaoPermiteGravar && podeCriar;
   const metricas = getMetricas(estoque);
   const todosResultados = useMemo(() => buscarPecas(estoque, busca), [estoque, busca]);
+  const resultadoResumo = useMemo(() => pecaResumoId ? buscarPecas(estoque, "").find((item) => item.peca.id === pecaResumoId) ?? null : null, [estoque, pecaResumoId]);
   const resultados = useMemo(() => soEstoqueBaixo ? filtrarEstoqueBaixo(todosResultados) : todosResultados, [todosResultados, soEstoqueBaixo]);
   const sobras = useMemo(() => pecasComFichasSobrando(estoque.pecas, estoque.unidades), [estoque]);
   const pendenciasConferencia = baixasPendentes.length + sobras.length;
@@ -582,6 +615,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
 
   const acoes: AcoesUnidade = {
     onOpen: setUnidadeDetalhando,
+    onOpenSummary: setPecaResumoId,
     onEdit: setUnidadeEditando,
     onArchive: abrirArquivamento,
     onAddUnit: (peca) => { setPecaParaUnidade(peca.id); setComposerAberto(true); },
@@ -679,6 +713,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(resultado.mensagem);
       return resultado;
     }} />
+    <InventoryPieceSummaryDrawer resultado={resultadoResumo} onClose={() => setPecaResumoId(null)} onOpenUnit={(unidade) => { setPecaResumoId(null); setUnidadeDetalhando(unidade); }} />
     <InventoryUnitDrawer unidade={unidadeAberta} peca={unidadeAberta ? pecaPorId(unidadeAberta.pecaId) : null} reservasHabilitadas={conexaoPermiteGravar} podeAlterar={podeAlterar} recursos={fonte === "real" ? recursos : RECURSOS_DEMONSTRACAO} clientes={fonte === "real" ? clientesReais : clientesDemo} formasPagamento={fonte === "real" ? formasReais : formasDemo} onReservar={reservar} onLiberarReserva={liberarReserva} carregarHistorico={carregarHistorico} abrirEmEdicao={Boolean(unidadeEditando)} operacional={fonte === "real"} podeArquivar={podeAlterar} enderecos={fonte === "real" ? enderecosReais : undefined} onFechar={() => { setUnidadeDetalhando(null); setUnidadeEditando(null); }} onSalvar={salvarEdicao} onArquivar={() => { const unidade = unidadeDetalhando ?? unidadeEditando; if (unidade) abrirArquivamento(unidade); setUnidadeDetalhando(null); setUnidadeEditando(null); }} />
     <InventoryDialog isOpen={Boolean(archiveTarget)} onClose={() => { if (!processando) setArchiveTarget(null); }} eyebrow="Arquivar unidade" title={archiveTarget ? `Retirar ${archiveTarget.sku} do ativo?` : "Arquivar unidade"} description="Ela sai dos resultados, do mapa e da quantidade da peça, mas o histórico permanece e ela pode ser restaurada na aba Arquivados."
       footer={<><button type="button" disabled={processando} onClick={() => setArchiveTarget(null)} className={`${buttonBase} text-text-secondary hover:bg-surface-inset`}>Cancelar</button><button type="button" disabled={processando || !motivoValido} onClick={() => void arquivar()} className={`${buttonBase} bg-danger text-white hover:opacity-90`}>{processando ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}Confirmar arquivamento</button></>}>

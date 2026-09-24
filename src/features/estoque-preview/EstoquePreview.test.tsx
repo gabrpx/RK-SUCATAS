@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import { EstoquePreview } from "./EstoquePreview";
 
@@ -30,6 +30,18 @@ describe("EstoquePreview", () => {
     ).toBeTruthy();
     expect(screen.getByText("Informações da unidade")).toBeTruthy();
     expect(screen.getByRole("tab", { name: "Histórico" })).toBeTruthy();
+  });
+
+  it("abre o resumo do grupo com todas as unidades e mantém a abertura da ficha individual", async () => {
+    render(<EstoquePreview />);
+
+    fireEvent.click(screen.getByRole("button", { name: /Ver resumo de SUPORTE DE PLACA \(RABETA\) CG 150 MIX/ }));
+    const lista = await screen.findByRole("list", { name: /Todas as unidades de SUPORTE DE PLACA/ });
+    expect(screen.getByRole("dialog", { name: "Unidades de RK-792" })).toBeTruthy();
+    expect(within(lista).getAllByRole("listitem")).toHaveLength(3);
+
+    fireEvent.click(within(within(lista).getAllByRole("listitem")[0]).getByRole("button", { name: /RK-792-01/ }));
+    expect(await screen.findByRole("dialog", { name: "Detalhes da unidade RK-792-01" })).toBeTruthy();
   });
 
   it("abre o drawer de criação com a primeira unidade", () => {

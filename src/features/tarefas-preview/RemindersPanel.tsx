@@ -366,7 +366,7 @@ function ReminderDrawer({
             aria-label="Detalhes do lembrete"
             tabIndex={-1}
             ref={drawerRef}
-            className="fixed inset-x-0 bottom-0 top-[max(1rem,env(safe-area-inset-top))] z-[180] flex w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-[#f8fafc] shadow-[0_-16px_60px_rgba(15,23,42,0.22)] sm:inset-y-0 sm:left-auto sm:right-0 sm:top-0 sm:max-w-[620px] sm:rounded-none sm:border-y-0 sm:border-r-0 sm:border-l"
+            className="fixed inset-x-0 bottom-0 top-[max(2.75rem,env(safe-area-inset-top))] z-[180] flex w-full flex-col overflow-hidden rounded-t-2xl border border-slate-200 bg-[#f8fafc] shadow-[0_-16px_60px_rgba(15,23,42,0.22)] sm:inset-y-0 sm:left-auto sm:right-0 sm:top-0 sm:max-w-[620px] sm:rounded-none sm:border-y-0 sm:border-r-0 sm:border-l"
             initial={reduceMotion ? false : { opacity: 0, x: 28 }}
             animate={{ opacity: 1, x: 0 }}
             exit={reduceMotion ? undefined : { opacity: 0, x: 28 }}

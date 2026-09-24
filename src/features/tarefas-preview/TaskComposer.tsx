@@ -676,7 +676,7 @@ export function TaskComposer({
         }}
         className="mx-auto min-h-[100dvh] min-w-0 w-full max-w-[1120px] overflow-x-hidden rounded-none border-slate-200 bg-white shadow-[0_28px_90px_rgba(15,23,42,0.26)] sm:my-2 sm:min-h-0 sm:rounded-xl sm:border"
       >
-        <header className="sticky top-0 z-20 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] sm:px-7 sm:py-4">
+        <header className="sticky top-0 z-20 flex min-w-0 items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 pb-3 pt-[max(2.75rem,calc(env(safe-area-inset-top)+0.75rem))] sm:px-7 sm:py-4">
           <div className="min-w-0">
             <Label>{initialTask ? "Editar tarefa · turno ativo" : "Nova tarefa · turno ativo"}</Label>
             <h2 className="mt-1 text-xl font-semibold tracking-[-0.03em] text-slate-900 sm:text-2xl">

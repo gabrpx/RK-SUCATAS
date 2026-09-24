@@ -54,4 +54,17 @@ describe('<TasksNavigationDock>', () => {
     expect(tooltip).toBeInTheDocument();
     expect(tooltip.closest('[data-dock-scroll-region]')).toBeNull();
   });
+
+  it('esconde o tooltip ao sair do botão e evita o tooltip nativo persistente do navegador', () => {
+    render(<TasksNavigationDock activeTab="tarefas" onTabChange={vi.fn()} onLogoutClick={vi.fn()} />);
+
+    const button = screen.getAllByRole('button', { name: 'Dashboard' })[0];
+    expect(button).not.toHaveAttribute('title');
+
+    fireEvent.pointerEnter(button, { pointerType: 'mouse' });
+    expect(screen.getByRole('tooltip', { name: 'Dashboard' })).toBeInTheDocument();
+
+    fireEvent.pointerMove(document.body, { pointerType: 'mouse' });
+    expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+  });
 });
