@@ -14,7 +14,11 @@ foto, condição e endereço, mapa físico, reservas com sinal, histórico, e
 consistência entre vendas e unidades físicas.
 
 ### Status (atualizado pelo Codex em 24/09/2026)
-Implementação e correções locais concluídas neste checkout; ainda sem commit.
+Implementação principal publicada em `main` e implantada no serviço Render
+`RK-SUCATAS` (commit `04a9485`, 24/09/2026). Um smoke test detectou que o
+bypass de login para loopback também era acionado atrás do proxy de produção;
+a API do estoque respondeu sem token. A correção local desativa o bypass em
+`NODE_ENV=production`, tem regressão automatizada e aguarda nova publicação.
 No único projeto Supabase conectado (`dfabkkffesulrmmtjzbx`, nome genérico
 "gabrpx's Project"), os objetos das migrations 065–069 estão presentes e os
 roteiros transacionais passaram (069: 34/34; 067/068: 47/47). A API de vendas
@@ -23,10 +27,10 @@ comuns, selecionando a assinatura atual de 13 argumentos entre overloads
 legados. O projeto não tem histórico formal de migrations disponível no
 Supabase; a confirmação é por estrutura/assinaturas efetivamente encontradas.
 
-Falta integrar esta branch divergente com `main`, publicar/deployar e fazer o
-smoke test no app implantado. O projeto Supabase é o único conectado e foi o
-alvo da validação autorizada em produção, mas o nome genérico não permite
-provar sozinho a identidade do banco configurado no Render.
+Falta publicar a correção de autenticação e confirmar que a API retorna 401
+sem token, além de testar o fluxo autenticado no app. O projeto Supabase é o
+único conectado e foi o alvo da validação autorizada em produção, mas o nome
+genérico não permite provar sozinho a identidade do banco configurado no Render.
 
 **Atenção à origem:** o módulo foi desenvolvido até 24/09 no checkout legado
 `D:\SISTEMA CLAUDE` (branch `wip/estoque-reservas-cliente`) por engano de
@@ -75,12 +79,12 @@ cópia mais antiga e divergente (sem a 069 e sem o visual de Tarefas).
 3. **Concluído:** preço opcional no cadastro; fotos aceitam `estoque.criar` ou
    `estoque.editar`; vendas e orçamentos passam `p_valor_recebido: null` para
    selecionar a RPC atual e manter o preço cheio.
-4. **Concluído:** `npm test` — 119 arquivos, 731 testes aprovados; builds
+4. **Concluído:** `npm test` — 121 arquivos, 734 testes aprovados; builds
    frontend e API aprovados em diretório temporário. `npm run lint` continua
    com 18 erros de TypeScript existentes fora dos arquivos novos do módulo.
-5. **Pendente:** concluir e publicar o merge local de `main` (já resolvido e
-   testado), abrir/mesclar PR e aguardar o deploy. Depois, confirmar a ligação
-   do Render ao Supabase e validar a tela no ambiente implantado.
+5. **Concluído:** integrar e publicar em `main`; o Render recebeu o commit
+   `04a9485`. **Pendente:** publicar a correção de autenticação, validar o
+   acesso sem token (esperado 401) e testar o fluxo autenticado no ambiente.
 
 ### Arquivos relevantes
 - `src/features/estoque-preview/*` (módulo, testes incluídos)
@@ -105,7 +109,8 @@ cópia mais antiga e divergente (sem a 069 e sem o visual de Tarefas).
 - Identidade visual = tela Tarefas em modo claro, nunca preto com laranja.
 
 ### Testes executados (cópia do projeto novo, 24/09)
-- `npm test` após integrar `main`: 120 arquivos, 732 testes, 0 falhas.
+- `npm test` após a correção local de autenticação: 121 arquivos, 734 testes,
+  0 falhas.
 - `tsc --noEmit`: 18 erros, **todos pré-existentes** neste checkout (sparkles,
   Accordion, Reveal, button, tremor, ClientesView, EstoqueBuscaSugestoes,
   EstoqueView). Nenhum erro novo.
@@ -127,8 +132,8 @@ cópia mais antiga e divergente (sem a 069 e sem o visual de Tarefas).
   projeto; o novo estoque usa `/organizacao/pecas/:id/unidades`.
 
 ### Próximo passo recomendado
-Publicar o merge testado de `main` e aguardar o deploy. Depois, confirmar no
-ambiente do app o cadastro de unidade com foto e os fluxos de reserva, venda e
-conferência. Os roteiros SQL passaram no projeto Supabase conectado; falta
-confirmar que esse projeto é o banco apontado pelo Render para fechar o smoke
-test de produção.
+Publicar a correção do bypass de autenticação. Depois, confirmar que a API
+retorna 401 sem token e testar no app autenticado o cadastro de unidade com
+foto e os fluxos de reserva, venda e conferência. Os roteiros SQL passaram no
+projeto Supabase conectado; falta confirmar que esse projeto é o banco apontado
+pelo Render para fechar o smoke test de produção.

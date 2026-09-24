@@ -24,11 +24,11 @@ export interface AuthenticatedRequest extends Request {
   usuario?: UsuarioLogado;
 }
 
-// Endereços de loopback (a própria máquina). Usamos req.socket.remoteAddress
-// (o endereço real da conexão TCP) em vez de req.ip — este último respeita o
-// header X-Forwarded-For (por causa do `trust proxy` em server.ts) e poderia,
-// em tese, ser forjado por quem está atrás do proxy. remoteAddress não dá
-// pra falsificar sem literalmente estar rodando na mesma máquina do servidor.
+// Endereços de loopback (a própria máquina). Em produção o bypass fica sempre
+// desligado: proxies de hospedagem podem conectar ao Node por loopback, então
+// remoteAddress não identifica com segurança uma chamada feita pelo usuário.
+// Fora de production, remoteAddress é preferível a req.ip, que respeita
+// X-Forwarded-For por causa do trust proxy do Express.
 const ENDERECOS_LOOPBACK = ['127.0.0.1', '::1', '::ffff:127.0.0.1'];
 
 export function autenticar(req: AuthenticatedRequest, res: Response, next: NextFunction) {
@@ -62,11 +62,9 @@ export function autenticar(req: AuthenticatedRequest, res: Response, next: NextF
     }
   }
 
-  // Sem token: acesso via localhost pula o login — conveniência de
-  // desenvolvimento local. Nunca dispara em produção real: um servidor
-  // exposto na internet nunca vê uma conexão com remoteAddress de loopback
-  // vinda de fora da própria máquina.
-  if (ENDERECOS_LOOPBACK.includes(req.socket.remoteAddress || '')) {
+  // Sem token, localhost pula o login só em desenvolvimento/testes. Em
+  // production, não confiar no loopback: o proxy do host pode usar esse salto.
+  if (process.env.NODE_ENV !== 'production' && ENDERECOS_LOOPBACK.includes(req.socket.remoteAddress || '')) {
     // Admin (super-usuário): permissoes vazio, mas `pode` sempre libera admin.
     req.usuario = { id: '00000000-0000-0000-0000-000000000000', username: 'localhost', roles: ['admin'], permissoes: {} };
     return next();
