@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { ImageZoom } from "../../components/ui/image-zoom";
 
 interface InventoryPhotoGalleryProps {
   fotos: string[];
@@ -27,8 +28,26 @@ export function InventoryPhotoGallery({ fotos, sku, origem }: InventoryPhotoGall
 
   useEffect(() => {
     atualizarIndice();
+    const elemento = trilho.current;
+    if (!elemento) return () => window.removeEventListener("resize", atualizarIndice);
+    // Usa listener nativo não-passivo para consumir a roda vertical e movê-la
+    // para o trilho horizontal; onWheel do React não bloqueia a página aqui.
+    const rolarHorizontalmente = (event: WheelEvent) => {
+      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      const maximo = elemento.scrollWidth - elemento.clientWidth;
+      if (maximo <= 1) return;
+      const noInicio = elemento.scrollLeft <= 1;
+      const noFim = elemento.scrollLeft >= maximo - 1;
+      if ((event.deltaY < 0 && noInicio) || (event.deltaY > 0 && noFim)) return;
+      event.preventDefault();
+      elemento.scrollLeft += event.deltaY;
+    };
+    elemento.addEventListener("wheel", rolarHorizontalmente, { passive: false });
     window.addEventListener("resize", atualizarIndice);
-    return () => window.removeEventListener("resize", atualizarIndice);
+    return () => {
+      elemento.removeEventListener("wheel", rolarHorizontalmente);
+      window.removeEventListener("resize", atualizarIndice);
+    };
   }, [fotos.length]);
 
   function irPara(indice: number) {
@@ -46,17 +65,6 @@ export function InventoryPhotoGallery({ fotos, sku, origem }: InventoryPhotoGall
       aria-label={titulo}
       tabIndex={0}
       onScroll={atualizarIndice}
-      onWheel={(event) => {
-        const elemento = event.currentTarget;
-        const maximo = elemento.scrollWidth - elemento.clientWidth;
-        const rolagemVertical = Math.abs(event.deltaY) > Math.abs(event.deltaX);
-        const noInicio = elemento.scrollLeft <= 1;
-        const noFim = elemento.scrollLeft >= maximo - 1;
-        if (rolagemVertical && maximo > 1 && !((event.deltaY < 0 && noInicio) || (event.deltaY > 0 && noFim))) {
-          event.preventDefault();
-          elemento.scrollLeft += event.deltaY;
-        }
-      }}
       onKeyDown={(event) => {
         if (event.key === "ArrowRight" || event.key === "ArrowLeft") {
           event.preventDefault();
@@ -65,7 +73,7 @@ export function InventoryPhotoGallery({ fotos, sku, origem }: InventoryPhotoGall
       }}
       className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
     >{fotos.map((foto, indice) => <div key={`${foto}-${indice}`} className="w-[86%] shrink-0 snap-start overflow-hidden rounded-control border border-border-default bg-surface-inset">
-        <div className="aspect-[4/3] w-full"><img src={foto} alt={`${titulo}, foto ${indice + 1}, unidade ${sku}`} className="h-full w-full object-contain" /></div>
+        <ImageZoom src={foto} alt={`${titulo}, foto ${indice + 1}, unidade ${sku}`} triggerClassName="block aspect-[4/3] w-full" className="h-full w-full object-contain" />
       </div>)}</div>
     {fade.esquerda && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-12 rounded-l-control bg-gradient-to-r from-surface-card/95 to-transparent" />}
     {fade.direita && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-12 rounded-r-control bg-gradient-to-l from-surface-card/95 to-transparent" />}
