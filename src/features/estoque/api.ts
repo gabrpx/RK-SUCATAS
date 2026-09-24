@@ -6,6 +6,9 @@ import type {
   EstoqueInput,
   EstoqueUnidade,
   EstoqueUnidadeInput,
+  EstoqueLocal,
+  EstoqueLocalCategoria,
+  EstoqueReserva,
   EstoqueFamilia,
   EstoqueFamiliaInput,
   EstoqueAnuncioMl,
@@ -27,6 +30,21 @@ interface ApiResult<T> {
 
 export const estoqueApi = {
   listar: () => api.get('/api/estoque') as Promise<ApiResult<Estoque[]>>,
+  // Organização física do novo estoque (rotas em src/server/routes/estoqueOrganizacao.ts).
+  liberarReserva: (reservaId: string) =>
+    api.post(`/api/estoque/organizacao/reservas/${reservaId}/liberar`, {}) as Promise<ApiResult<EstoqueReserva>>,
+  arquivarUnidadeOperacional: (unidadeId: string, motivo: string) =>
+    api.post(`/api/estoque/organizacao/unidades/${unidadeId}/arquivar`, { motivo }) as Promise<ApiResult<EstoqueUnidade>>,
+  restaurarUnidadeOperacional: (unidadeId: string) =>
+    api.post(`/api/estoque/organizacao/unidades/${unidadeId}/restaurar`, {}) as Promise<ApiResult<EstoqueUnidade>>,
+  criarLocal: (payload: Pick<EstoqueLocal, 'codigo' | 'deposito' | 'zona' | 'prateleira' | 'secao' | 'descricao'>) =>
+    api.post('/api/estoque/organizacao/locais', payload) as Promise<ApiResult<EstoqueLocal>>,
+  vincularCategoriaLocal: (localId: string, categoriaId: string) =>
+    api.post(`/api/estoque/organizacao/locais/${localId}/categorias/${categoriaId}`, {}) as Promise<ApiResult<EstoqueLocalCategoria>>,
+  desvincularCategoriaLocal: (localId: string, categoriaId: string) =>
+    api.delete(`/api/estoque/organizacao/locais/${localId}/categorias/${categoriaId}`) as Promise<ApiResult<null>>,
+  organizarUnidade: (unidadeId: string, payload: { endereco_id?: string | null; origem_identificacao?: string | null }) =>
+    api.patch(`/api/estoque/organizacao/unidades/${unidadeId}`, payload) as Promise<ApiResult<EstoqueUnidade>>,
   criar: (payload: EstoqueInput) => api.post('/api/estoque', payload) as Promise<ApiResult<Estoque>>,
   atualizar: (id: string, payload: Partial<EstoqueInput>) =>
     api.put(`/api/estoque/${id}`, payload) as Promise<ApiResult<Estoque>>,

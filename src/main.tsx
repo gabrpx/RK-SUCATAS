@@ -3,11 +3,14 @@ import {createRoot} from 'react-dom/client';
 import {Capacitor} from '@capacitor/core';
 import {CapacitorUpdater} from '@capgo/capacitor-updater';
 import App from './App.tsx';
+import { EstoquePreview } from './features/estoque-preview/EstoquePreview.tsx';
+import { ehRotaEstoquePreview } from './features/estoque-preview/previewRoute.ts';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    {/* /estoque-preview: o novo estoque isolado (validação visual e demonstração sem login). */}
+    {ehRotaEstoquePreview(window.location.pathname) ? <EstoquePreview /> : <App />}
   </StrictMode>,
 );
 

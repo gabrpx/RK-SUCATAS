@@ -11,7 +11,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useEffect, useMemo, useRef, memo } from 'react';
+import React, { useState, useEffect, useMemo, useRef, memo, useCallback } from 'react';
 import { Capacitor } from '@capacitor/core';
 import {
   Package,
@@ -36,6 +36,7 @@ import { Modal } from './components/ui/Modal';
 import { Button } from './components/ui/button';
 import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
+import { EstoquePreview } from './features/estoque-preview/EstoquePreview';
 import { VendasView } from './features/vendas/VendasView';
 import { OrcamentosView } from './features/orcamentos/OrcamentosView';
 import { ClientesView } from './features/clientes/ClientesView';
@@ -70,13 +71,27 @@ type DetailItem = Estoque | Venda;
 // 'fiado' saiu da navegação: virou sub-aba do Caixa. Não fica em VALID_TABS
 // pra a URL /fiado não abrir mais uma aba solta — os botões que iam pra lá
 // agora redirecionam pro Caixa na sub-aba de vendas fiado.
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes'];
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes', 'estoque-antigo'];
+
+// /estoque é o novo módulo (features/estoque-preview) desde 24/09/2026; a tela
+// antiga continua em /estoque-antigo para anúncios, famílias e gavetas. As
+// duas usam a mesma permissão de ver estoque.
+function permissaoDeVer(tab: Tab) {
+  return tab === 'estoque-antigo' ? 'estoque.ver' : `${tab}.ver`;
+}
+
+// Telas com casca própria no padrão da nova Tarefas (cabeçalho, fundo claro e
+// espaço para a dock): o app não desenha o cabeçalho escuro nem os botões
+// flutuantes por cima delas.
+function telaImersiva(tab: Tab) {
+  return tab === 'tarefas' || tab === 'estoque';
+}
 
 // Primeira aba que o usuário pode VER — usada como fallback quando a URL pede
 // uma aba que ele não tem permissão de ver. `dashboard` como último recurso
 // (nunca deveria acontecer: todo usuário vê ao menos patchnotes/notificacoes).
 function primeiraAbaPermitida(pode: (chave: string) => boolean): Tab {
-  return (VALID_TABS.find((tab) => pode(`${tab}.ver`)) ?? 'dashboard') as Tab;
+  return (VALID_TABS.find((tab) => pode(permissaoDeVer(tab))) ?? 'dashboard') as Tab;
 }
 
 function isVenda(item: DetailItem): item is Venda {
@@ -506,7 +521,7 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout }: { isOpen: boolean; onCl
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades', notificacoes: 'Notificações' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', 'estoque-antigo': 'Estoque · tela antiga', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades', notificacoes: 'Notificações' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
@@ -524,7 +539,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const [activeTab, setActiveTab] = useState<Tab>(() => {
     const path = window.location.pathname.replace('/', '') as Tab;
     const abaValida = VALID_TABS.includes(path);
-    if (abaValida && pode(`${path}.ver`)) return path;
+    if (abaValida && pode(permissaoDeVer(path))) return path;
     // Aba inexistente OU sem permissão de ver: cai na primeira aba que o
     // usuário pode ver, em vez de sempre tentar 'dashboard'.
     return primeiraAbaPermitida(pode);
@@ -568,13 +583,23 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     return () => window.removeEventListener('rk:ir-para-vendas', handler);
   }, []);
 
+  const abrirEstoqueAntigo = useCallback(() => setActiveTab('estoque-antigo'), []);
+  const filtroEstoqueBaixoAplicado = useCallback(() => setPendingEstoqueBaixo(false), []);
+  // As ações de editar/excluir peça vêm da tela antiga. Fora dela a referência
+  // apontaria para um componente desmontado: limpa, e o "Editar" do detalhe
+  // leva à tela antiga (wrapEdit abaixo).
+  useEffect(() => {
+    if (activeTab !== 'estoque-antigo') setEstoqueActions(null);
+  }, [activeTab]);
+  const imersiva = telaImersiva(activeTab);
+
   const itemActions = useMemo(() => {
     if (!selectedDetailItem) return { edit: undefined, delete: undefined };
 
     const wrapEdit = (originalEdit: any, tab: Tab) => (item: any) => {
       if (activeTab !== tab) {
         setActiveTab(tab);
-        if (tab === 'estoque') setPendingEditItem(item);
+        if (tab === 'estoque-antigo') setPendingEditItem(item);
       } else {
         originalEdit?.(item);
       }
@@ -583,7 +608,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     if (isVenda(selectedDetailItem)) {
       return { edit: undefined, delete: vendasActions?.delete };
     }
-    return { edit: wrapEdit(estoqueActions?.edit, 'estoque'), delete: estoqueActions?.delete };
+    // Edição completa da peça (anúncios, família, gaveta) continua na tela antiga.
+    return { edit: wrapEdit(estoqueActions?.edit, 'estoque-antigo'), delete: estoqueActions?.delete };
   }, [selectedDetailItem, estoqueActions, vendasActions, activeTab]);
 
   return (
@@ -595,11 +621,11 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       {/* Main Content */}
       <main className={cn(
         'flex min-w-0 flex-1 flex-col transition-all duration-300',
-        activeTab !== 'tarefas' && 'pb-[calc(5.75rem+env(safe-area-inset-bottom))]',
+        !imersiva && 'pb-[calc(5.75rem+env(safe-area-inset-bottom))]',
       )}>
         {/* No mobile o título da view já aparece grande dentro de cada tela;
             este header só existe pra desktop, pra não duplicar o nome no topo. */}
-        {activeTab !== 'tarefas' && (
+        {!imersiva && (
           <header className={cn('min-h-16 border-b backdrop-blur-md hidden md:flex items-center justify-between px-4 md:px-6 sticky top-0 z-[100] pt-safe', 'bg-surface-inset/40 border-border-default/50')}>
             <div className="flex items-center gap-2 md:gap-4">
               <h2 className={cn('text-base md:text-lg font-semibold capitalize', 'text-text-primary')}>{TAB_LABELS[activeTab]}</h2>
@@ -609,7 +635,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
         <div
           ref={contentRef}
-          className={activeTab === 'tarefas'
+          className={imersiva
             ? 'min-h-[100dvh] w-full min-w-0 overflow-x-hidden'
             : 'flex-1 overflow-y-auto overflow-x-hidden p-4 pt-[calc(env(safe-area-inset-top)+1rem)] md:p-6 md:pt-6'}
         >
@@ -638,15 +664,26 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   }}
                 />
               ) : activeTab === 'estoque' ? (
-                <EstoqueView
-                                   onSelectItem={setSelectedDetailItem}
-                  onRegisterActions={setEstoqueActions}
-                  pendingEditItem={pendingEditItem}
-                  setPendingEditItem={setPendingEditItem}
+                <EstoquePreview
+                  embutido
+                  onAbrirEstoqueAntigo={abrirEstoqueAntigo}
                   filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
-                  setFiltroEstoqueBaixoInicial={setPendingEstoqueBaixo}
-                  readOnly={!(pode('estoque.criar') || pode('estoque.editar') || pode('estoque.deletar') || pode('estoque.anunciar_ml') || pode('estoque.anunciar_shopee'))}
+                  onFiltroEstoqueBaixoAplicado={filtroEstoqueBaixoAplicado}
                 />
+              ) : activeTab === 'estoque-antigo' ? (
+                <div className="space-y-4">
+                  <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-default bg-surface-card px-4 py-3 text-sm text-text-secondary">
+                    <span><strong className="text-text-primary">Tela antiga do estoque.</strong> Use para anúncios, famílias e gavetas. Busca, unidades, endereços e reservas agora ficam no novo Estoque.</span>
+                    <button type="button" onClick={() => setActiveTab('estoque')} className="min-h-11 cursor-pointer rounded-control border border-border-default px-3 text-sm font-semibold text-text-primary transition hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">Voltar ao novo Estoque</button>
+                  </div>
+                  <EstoqueView
+                    onSelectItem={setSelectedDetailItem}
+                    onRegisterActions={setEstoqueActions}
+                    pendingEditItem={pendingEditItem}
+                    setPendingEditItem={setPendingEditItem}
+                    readOnly={!(pode('estoque.criar') || pode('estoque.editar') || pode('estoque.deletar') || pode('estoque.anunciar_ml') || pode('estoque.anunciar_shopee'))}
+                  />
+                </div>
               ) : activeTab === 'vendas' ? (
                 <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
               ) : activeTab === 'orcamentos' ? (
@@ -679,12 +716,12 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       </main>
 
       <TasksNavigationDock
-        activeTab={activeTab}
+        activeTab={activeTab === 'estoque-antigo' ? 'estoque' : activeTab}
         onTabChange={setActiveTab}
         onLogoutClick={() => setIsLogoutModalOpen(true)}
       />
 
-      {activeTab !== 'tarefas' && (
+      {!imersiva && (
         <div className="fixed bottom-24 md:bottom-8 right-6 z-[60] flex flex-col gap-3">
           {/* O Dashboard já oferece busca no cabeçalho e precisa manter a área
               de leitura livre no mobile; os FABs continuam disponíveis nas

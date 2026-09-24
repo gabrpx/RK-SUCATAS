@@ -165,6 +165,32 @@ export function getPreviewCategoryBreakdown(
   });
 }
 
+const PREVIEW_TASK_PRIORITY_WEIGHT: Record<PreviewTaskPriority, number> = {
+  critica: 0,
+  alta: 1,
+  normal: 2,
+  baixa: 3,
+};
+
+/**
+ * Ordena a fila: tarefas não concluídas sempre acima das concluídas e,
+ * dentro de cada grupo, prioridade mais alta primeiro (crítica > alta >
+ * normal > baixa). Sort estável — tarefas com mesmo status/prioridade
+ * mantêm a ordem original (as mais novas entram no topo do array via
+ * criação, então tendem a ficar acima dentro do próprio grupo).
+ */
+export function sortPreviewTasksForQueue(tasks: PreviewTask[]): PreviewTask[] {
+  return [...tasks].sort((a, b) => {
+    const statusWeightA = a.status === "concluida" ? 1 : 0;
+    const statusWeightB = b.status === "concluida" ? 1 : 0;
+    if (statusWeightA !== statusWeightB) return statusWeightA - statusWeightB;
+    return (
+      PREVIEW_TASK_PRIORITY_WEIGHT[a.priority] -
+      PREVIEW_TASK_PRIORITY_WEIGHT[b.priority]
+    );
+  });
+}
+
 export function filterPreviewTasksByPrimaryTab(
   tasks: PreviewTask[],
   tab: PreviewPrimaryTab

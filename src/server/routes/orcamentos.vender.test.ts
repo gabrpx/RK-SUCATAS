@@ -4,6 +4,12 @@ import { montarParamsRegistrarVenda } from './orcamentos';
 const PARAMS_BASE = { forma_pagamento_id: 'fp-1', cliente_nome: 'Cliente X', cliente_id: null, data: null };
 
 describe('montarParamsRegistrarVenda', () => {
+  it('seleciona explicitamente a assinatura vigente da RPC registrar_venda', () => {
+    const item = { id: 'i0', estoque_id: 'est-1', nome_item: 'Peça', quantidade: 1, valor_unitario: 50, componente: null };
+    const out = montarParamsRegistrarVenda(item, PARAMS_BASE);
+    expect(out.p_valor_recebido).toBeNull();
+  });
+
   it('item avulso (sem estoque_id) manda p_estoque_id null e p_nome_item preenchido', () => {
     const item = { id: 'i1', estoque_id: null, nome_item: 'Peça avulsa digitada', quantidade: 2, valor_unitario: 50, componente: null };
     const out = montarParamsRegistrarVenda(item, PARAMS_BASE);

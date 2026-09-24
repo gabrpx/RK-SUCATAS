@@ -59,6 +59,8 @@ export function vendasRouter(supabase: SupabaseClient) {
         p_cliente_id: cliente_id || null,
         p_unidade_id: unidade_id || null,
         p_nome_item: null,
+        // Seleciona a assinatura vigente de 13 parâmetros sem alterar o valor da venda.
+        p_valor_recebido: null,
       });
 
       if (error) throw error;

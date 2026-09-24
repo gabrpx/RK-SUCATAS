@@ -37,6 +37,7 @@ import {
   getPreviewTaskDeadline,
   getPreviewTaskExecutionSummary,
   getPreviewSummary,
+  sortPreviewTasksForQueue,
   startPreviewTask,
   type PreviewTask,
   type PreviewTaskCategory,
@@ -256,7 +257,7 @@ const priorityStyle: Record<PreviewTaskPriority, string> = {
 const statusStyle: Record<PreviewTaskStatus, string> = {
   "em-andamento": "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200",
   aguardando: "bg-amber-50 text-amber-800 ring-1 ring-amber-200",
-  concluida: "bg-slate-100 text-slate-500 ring-1 ring-slate-200",
+  concluida: "bg-emerald-100 text-emerald-800 ring-1 ring-emerald-300",
 };
 
 const categoryLabel: Record<PreviewTaskCategory, string> = {
@@ -580,7 +581,7 @@ function TaskCard({
         </span>
       </div>
 
-      <button onClick={onOpen} className="mt-3 w-full text-left">
+      <button onClick={onOpen} className="mt-3 w-full cursor-pointer text-left">
         <h3 className="text-base font-semibold tracking-tight text-slate-900 hover:text-blue-700">
           {task.title}
         </h3>
@@ -698,7 +699,7 @@ function SearchDialog({
           <button
             aria-label="Fechar busca"
             onClick={onClose}
-            className="rounded p-1 text-slate-400 hover:bg-slate-100"
+            className="cursor-pointer rounded p-1 text-slate-400 hover:bg-slate-100"
           >
             <X size={17} />
           </button>
@@ -712,7 +713,7 @@ function SearchDialog({
               <button
                 key={task.id}
                 onClick={() => onOpenTask(task)}
-                className="flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-blue-50"
+                className="cursor-pointer flex w-full items-center gap-3 rounded-lg px-3 py-3 text-left hover:bg-blue-50"
               >
                 <span
                   className={cn(
@@ -826,7 +827,7 @@ function TaskInspector({
                   setPauseSubmitting(false);
                 }
               }}
-              className="inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:opacity-50"
+              className="cursor-pointer inline-flex items-center gap-1.5 rounded border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700 hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <Play size={13} /> Retomar
             </button>
@@ -834,7 +835,7 @@ function TaskInspector({
             <button
               type="button"
               onClick={() => setPauseFormOpen((open) => !open)}
-              className="inline-flex items-center gap-1.5 rounded border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100"
+              className="cursor-pointer inline-flex items-center gap-1.5 rounded border border-orange-200 bg-orange-50 px-2.5 py-1.5 text-xs font-medium text-orange-700 hover:bg-orange-100"
             >
               <Pause size={13} /> Pausar
             </button>
@@ -843,7 +844,7 @@ function TaskInspector({
             <button
               type="button"
               onClick={onEdit}
-              className="rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+              className="cursor-pointer rounded-md border border-slate-200 bg-white px-2.5 py-1.5 text-xs font-medium text-slate-600 shadow-sm transition-colors hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
             >
               Editar
             </button>
@@ -853,7 +854,7 @@ function TaskInspector({
               type="button"
               aria-label="Excluir tarefa"
               onClick={() => void onDelete()}
-              className="grid size-8 place-items-center rounded-md border border-rose-100 bg-white text-rose-500 shadow-sm transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
+              className="cursor-pointer grid size-8 place-items-center rounded-md border border-rose-100 bg-white text-rose-500 shadow-sm transition-colors hover:bg-rose-50 hover:text-rose-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-400"
             >
               <X size={15} />
             </button>
@@ -861,7 +862,7 @@ function TaskInspector({
           <button
             onClick={onClose}
             aria-label="Fechar detalhes"
-            className="rounded border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
+            className="cursor-pointer rounded border border-slate-200 p-1.5 text-slate-500 hover:bg-slate-50"
           >
             <X size={16} />
           </button>
@@ -944,7 +945,7 @@ function TaskInspector({
             <div className="mt-2 flex flex-wrap items-center justify-end gap-2">
               <span className="mr-auto text-[10px] font-mono text-amber-700">{pauseReason.length}/240</span>
               {pauseError && <p role="alert" className="mr-auto text-xs text-rose-700">{pauseError}</p>}
-              <button type="button" onClick={() => setPauseFormOpen(false)} className="rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50">Cancelar</button>
+              <button type="button" onClick={() => setPauseFormOpen(false)} className="cursor-pointer rounded-md border border-slate-200 bg-white px-3 py-2 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-50">Cancelar</button>
               <button
                 type="button"
                 disabled={pauseSubmitting || !pauseReason.trim()}
@@ -959,7 +960,7 @@ function TaskInspector({
                     setPauseSubmitting(false);
                   }
                 }}
-                className="inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="cursor-pointer inline-flex items-center gap-1.5 rounded-md bg-amber-600 px-3 py-2 text-xs font-semibold text-white shadow-sm transition-colors hover:bg-amber-700 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <Pause size={13} /> Confirmar pausa
               </button>
@@ -1134,7 +1135,12 @@ function QueueTaskRows({
               ? { duration: 0 }
               : { type: "spring", stiffness: 360, damping: 30, bounce: 0 }
           }
-          className="rounded-xl border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5"
+          className={cn(
+            "rounded-xl border p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] sm:p-5",
+            task.status === "concluida"
+              ? "border-emerald-200 bg-emerald-50/40"
+              : "border-slate-200 bg-white"
+          )}
         >
           <div className="flex flex-wrap items-center gap-1.5">
             <span
@@ -1173,9 +1179,9 @@ function QueueTaskRows({
               <button
                 type="button"
                 onClick={() => onOpen(task)}
-                className="block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
+                className="cursor-pointer block w-full rounded-md text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2"
               >
-              <h3 className="text-[17px] font-semibold leading-snug tracking-[-0.02em] text-slate-900 transition-colors hover:text-blue-700">
+              <h3 className={cn("text-[17px] font-semibold leading-snug tracking-[-0.02em] text-slate-900 transition-colors hover:text-blue-700", task.status === "concluida" && "line-through opacity-60")}>
                 {task.title}
               </h3>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
@@ -1258,7 +1264,7 @@ function QueueTaskRows({
               type="button"
               onClick={() => onOpen(task)}
               className={cn(
-                "inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-xs font-semibold transition active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
+                "cursor-pointer inline-flex min-h-11 items-center justify-center rounded-lg px-3 text-xs font-semibold transition active:translate-y-px focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2",
                 task.status === "em-andamento"
                   ? "bg-blue-600 text-white shadow-[0_1px_2px_rgba(37,99,235,0.3)] hover:bg-blue-700"
                   : "border border-slate-200 bg-white text-slate-700 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
@@ -1515,13 +1521,18 @@ export function TasksPreview({
   const [selectedTask, setSelectedTask] = useState<PreviewTask | null>(null);
   const [editingTask, setEditingTask] = useState<PreviewTask | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
+  // Ref síncrono para não adicionar isComposerOpen como dep do useEffect abaixo
+  const composerOpenRef = useRef(false);
+  composerOpenRef.current = isComposerOpen;
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("todas");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (initialTasks) setTasks(initialTasks);
+    // Não sobrescreve tasks enquanto o composer estiver aberto — evita perda
+    // do progresso de criação de tarefa quando o poll de 20s retorna novos dados.
+    if (initialTasks && !composerOpenRef.current) setTasks(initialTasks);
   }, [initialTasks]);
 
   useEffect(() => {
@@ -1573,20 +1584,20 @@ export function TasksPreview({
 
   const summary = useMemo(() => getPreviewSummary(tasks), [tasks]);
   const visibleTasks = useMemo(
-    () => filterPreviewTasksByPrimaryTab(tasks, activePrimaryTab),
+    () => sortPreviewTasksForQueue(filterPreviewTasksByPrimaryTab(tasks, activePrimaryTab)),
     [tasks, activePrimaryTab]
   );
   const queueTasks = useMemo(() => {
     if (queueFilter === "abertas") {
-      return tasks.filter((task) => task.status !== "concluida" && !task.paused);
+      return sortPreviewTasksForQueue(tasks.filter((task) => task.status !== "concluida" && !task.paused));
     }
     if (queueFilter === "pendencias") {
-      return tasks.filter((task) => task.status === "aguardando" && !task.paused);
+      return sortPreviewTasksForQueue(tasks.filter((task) => task.status === "aguardando" && !task.paused));
     }
     if (queueFilter === "grupo") {
-      return tasks.filter((task) => (task.operatorIds?.length ?? 0) > 1);
+      return sortPreviewTasksForQueue(tasks.filter((task) => (task.operatorIds?.length ?? 0) > 1));
     }
-    return tasks;
+    return sortPreviewTasksForQueue(tasks);
   }, [queueFilter, tasks]);
   const focusTask =
     tasks.find((task) => task.status === "em-andamento" && !task.paused) ??
@@ -1774,7 +1785,7 @@ export function TasksPreview({
           <button
             onClick={() => setSearchOpen(true)}
             aria-label="Buscar tarefa ou lembrete"
-            className="ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-blue-300 hover:bg-blue-50 sm:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"
+            className="cursor-pointer ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:border-blue-300 hover:bg-blue-50 sm:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"
           >
             <Search size={15} />
             <span className="hidden sm:inline">Buscar</span>
@@ -1869,7 +1880,7 @@ export function TasksPreview({
                 setFilter("todas");
               }}
               className={cn(
-                "shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
+                "cursor-pointer shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
                 screen === "turno"
                   ? "border-blue-600 text-blue-700"
                   : "border-transparent text-slate-500 hover:text-slate-800"
@@ -2215,7 +2226,7 @@ export function TasksPreview({
                     key={id}
                     onClick={() => setFilter(id)}
                     className={cn(
-                      "shrink-0 rounded-md px-3 py-2 text-xs font-medium",
+                      "cursor-pointer shrink-0 rounded-md px-3 py-2 text-xs font-medium",
                       filter === id
                         ? "bg-slate-900 text-white"
                         : "text-slate-500 hover:bg-slate-50"
@@ -2302,7 +2313,7 @@ export function TasksPreview({
           <button
             aria-label="Fechar detalhes"
             onClick={() => setSelectedTask(null)}
-            className="fixed inset-0 z-[170] bg-slate-950/10"
+            className="cursor-pointer fixed inset-0 z-[170] bg-slate-950/10"
           />
           <TaskInspector
             task={

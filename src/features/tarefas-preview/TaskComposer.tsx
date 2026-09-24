@@ -324,7 +324,7 @@ function ChecklistOwnerPicker({
         onKeyDown={(event) => {
           if (event.key === "Escape") close();
         }}
-        className="flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-xs text-slate-700 shadow-sm transition-colors hover:border-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+        className="cursor-pointer flex w-full items-center gap-2 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-left text-xs text-slate-700 shadow-sm transition-colors hover:border-blue-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
       >
         <OperatorAvatar operator={selected} small />
         <span className="min-w-0 flex-1 truncate">{selected.name}</span>
@@ -438,7 +438,7 @@ function DiscardChangesDialog({
                   type="button"
                   autoFocus
                   onClick={onCancel}
-                  className="rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                  className="cursor-pointer rounded-md border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
                 >
                   Continuar editando
                 </button>
@@ -447,7 +447,7 @@ function DiscardChangesDialog({
                 <button
                   type="button"
                   onClick={onConfirm}
-                  className="rounded-md bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700"
+                  className="cursor-pointer rounded-md bg-rose-600 px-3 py-2 text-sm font-semibold text-white hover:bg-rose-700"
                 >
                   Descartar alterações
                 </button>
@@ -481,6 +481,10 @@ export function TaskComposer({
   const [checklistFocusId, setChecklistFocusId] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  // Ref síncrono — evita que operators entre como dep do useEffect de init e
+  // resete o draft a cada poll de 20s enquanto o formulário estiver aberto.
+  const operatorsRef = useRef(operators);
+  operatorsRef.current = operators;
   const dialogScrollRef = useRef<HTMLDivElement>(null);
   const shouldReduceMotion = useReducedMotion();
 
@@ -489,11 +493,14 @@ export function TaskComposer({
   useEffect(() => {
     if (!open) return;
     previousFocusRef.current = document.activeElement as HTMLElement | null;
-    setDraft(initialTask ? makeDraftFromTask(initialTask, operators) : makeInitialDraft(operators[0]?.id));
+    setDraft(initialTask ? makeDraftFromTask(initialTask, operatorsRef.current) : makeInitialDraft(operatorsRef.current[0]?.id));
     setIsDirty(false);
     setIsDiscardDialogOpen(false);
     setSubmitError(null);
-  }, [open, initialTask, operators]);
+    // operators excluído intencionalmente via ref — não deve reseatar o draft
+    // quando a lista de operadores atualizar por poll enquanto o form estiver aberto.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, initialTask]);
 
   useEffect(() => {
     if (!checklistFocusId) return;
@@ -684,7 +691,7 @@ export function TaskComposer({
               type="button"
               aria-label="Fechar criação de tarefa"
               onClick={requestClose}
-              className="grid size-11 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="cursor-pointer grid size-11 place-items-center rounded-lg border border-slate-200 text-slate-500 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               <X size={17} />
             </button>
@@ -749,7 +756,7 @@ export function TaskComposer({
                         }
                         aria-pressed={draft.category === category}
                         className={cn(
-                          "min-h-11 rounded-md border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                          "cursor-pointer min-h-11 rounded-md border px-3 text-xs font-semibold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                           draft.category === category
                             ? "border-blue-600 bg-blue-600 text-white"
                             : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:bg-blue-50"
@@ -783,7 +790,7 @@ export function TaskComposer({
                         }
                         aria-pressed={draft.priority === option.value}
                         className={cn(
-                          "rounded-md border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                          "cursor-pointer rounded-md border px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                           draft.priority === option.value
                             ? `${option.className} ring-1 ring-current`
                             : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
@@ -839,7 +846,7 @@ export function TaskComposer({
                       aria-pressed={draft.operatorIds.includes(operator.id)}
                       onClick={() => toggleOperator(operator.id)}
                       className={cn(
-                        "flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
+                        "cursor-pointer flex items-center gap-2 rounded-md border px-2 py-1.5 text-left text-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500",
                         draft.operatorIds.includes(operator.id)
                           ? "border-blue-200 bg-blue-50 text-blue-800"
                           : "border-slate-200 bg-white text-slate-500 hover:bg-slate-50"
@@ -911,7 +918,7 @@ export function TaskComposer({
                             ),
                           }))
                         }
-                        className="grid size-11 place-items-center justify-self-end rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        className="cursor-pointer grid size-11 place-items-center justify-self-end rounded-lg text-slate-400 hover:bg-slate-100 hover:text-rose-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         <X size={15} />
                       </button>
@@ -922,7 +929,7 @@ export function TaskComposer({
               <button
                 type="button"
                 onClick={addChecklistStep}
-                className="mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                className="cursor-pointer mt-4 inline-flex min-h-11 items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
               >
                 <Plus size={14} /> Adicionar etapa
               </button>
@@ -997,7 +1004,7 @@ export function TaskComposer({
             <button
               type="button"
               onClick={requestClose}
-              className="h-11 rounded-md px-3 text-sm text-slate-500 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="cursor-pointer h-11 rounded-md px-3 text-sm text-slate-500 hover:bg-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Descartar
             </button>

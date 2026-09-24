@@ -58,7 +58,7 @@ function DockIcon({
       }}
       onBlur={onTooltipHide}
       className={cn(
-        'group relative grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:size-11',
+        'cursor-pointer group relative grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:size-11',
         item.active
           ? 'border-blue-200 bg-blue-600 text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)]'
           : 'border-slate-200 bg-white/90 text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
@@ -91,7 +91,7 @@ function PlainDockButton({ item, onTooltipShow, onTooltipHide }: {
       }}
       onBlur={onTooltipHide}
       className={cn(
-        'grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:size-11',
+        'cursor-pointer grid size-10 shrink-0 place-items-center rounded-2xl border transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 lg:size-11',
         item.active
           ? 'border-blue-200 bg-blue-600 text-white shadow-[0_8px_20px_rgba(37,99,235,0.28)]'
           : 'border-slate-200 bg-white/90 text-slate-500 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
@@ -212,7 +212,7 @@ export function TasksNavigationDock({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileMoreOpen(false)}
-              className="pointer-events-auto fixed inset-0 z-[110] bg-slate-950/20 lg:hidden"
+              className="cursor-pointer pointer-events-auto fixed inset-0 z-[110] bg-slate-950/20 lg:hidden"
             />
             <motion.div
               role="dialog"
@@ -228,7 +228,7 @@ export function TasksNavigationDock({
                   <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">Navegação</p>
                   <h2 className="text-sm font-semibold text-slate-900">Mais opções</h2>
                 </div>
-                <button type="button" aria-label="Fechar mais opções" onClick={() => setMobileMoreOpen(false)} className="grid size-9 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
+                <button type="button" aria-label="Fechar mais opções" onClick={() => setMobileMoreOpen(false)} className="cursor-pointer grid size-9 place-items-center rounded-xl text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-900 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500">
                   <X size={18} />
                 </button>
               </div>
@@ -240,7 +240,7 @@ export function TasksNavigationDock({
                     aria-label={item.label}
                     onClick={item.onClick}
                     className={cn(
-                      'flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-center text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
+                      'cursor-pointer flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-center text-[11px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500',
                       item.active ? 'border-blue-200 bg-blue-50 text-blue-700' : 'border-slate-200 text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700',
                     )}
                   >
@@ -248,7 +248,7 @@ export function TasksNavigationDock({
                     <span>{item.label}</span>
                   </button>
                 ))}
-                <button type="button" aria-label="Sair" onClick={items[items.length - 1].onClick} className="flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-xl border border-rose-100 px-2 py-2 text-center text-[11px] font-medium text-rose-600 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">
+                <button type="button" aria-label="Sair" onClick={items[items.length - 1].onClick} className="cursor-pointer flex min-h-16 flex-col items-center justify-center gap-1.5 rounded-xl border border-rose-100 px-2 py-2 text-center text-[11px] font-medium text-rose-600 transition-colors hover:bg-rose-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500">
                   <LogOut size={18} />
                   <span>Sair</span>
                 </button>
