@@ -38,6 +38,7 @@ describe("adaptarEstoqueReal", () => {
     expect(result.unidades.every((unit) => unit.endereco === null)).toBe(true);
     expect(result.unidades[0].fotoUrl).toBeNull();
     expect(result.unidades.every((unit) => unit.individualizada === false)).toBe(true);
+    expect(result.pecas[0].fotos).toEqual(["https://example.com/capa.jpg"]);
     expect(result.unidades[0].origem).toBeNull();
     expect(result.categoriasPorSecao).toEqual({});
     expect(result.categorias.map((categoria) => categoria.nome)).toContain("Carenagem");
@@ -80,6 +81,23 @@ describe("adaptarEstoqueReal", () => {
     expect(result.unidades[0]).toMatchObject({ id: "unit-1", sku: "77", preco: 250, grau: "C", estado: "reservada", individualizada: true, reservaId: "res-1", reservadaPara: "Cliente" });
     expect(result.unidades[0].detalhes).toContain("Com detalhe");
     expect(result.pecas[0].detalhes).toContain("Gaveta atual: Escapamentos");
+  });
+
+  it("preserva todas as fotos cadastradas na ficha individual", () => {
+    const item = {
+      id: "item-fotos", codigo: "RK-FOTO", nome: "Carcaça", categoria_id: null, categoria: null,
+      modelo_moto_id: null, modelo_moto: null, modelos_compativeis: [], condicao: "original", condicao_nota: 7,
+      nota_cadastro: null, ano: null, valor: 120, quantidade: 1, imagens: ["produto.jpg"], descricao: null,
+      ativo: true, criado_em: "2026-01-01", atualizado_em: "2026-01-01", anuncio_ml_url: null,
+      anuncio_fb_url: null, componentes: null, unidades_incompletas: [],
+      unidades: [{ id: "unit-fotos", estoque_id: "item-fotos", sku: 1, nome: null, avaria: false,
+        avaria_descricao: null, descricao: null, fotos: ["unidade-1.jpg", "unidade-2.jpg"], valor: 120,
+        condicao_nota: 7, vendida_em: null, criado_em: "2026-01-01", atualizado_em: "2026-01-01" }],
+    } as unknown as Parameters<typeof adaptarEstoqueReal>[0][number];
+
+    const result = adaptarEstoqueReal([item], []);
+    expect(result.unidades[0]).toMatchObject({ fotoUrl: "unidade-1.jpg", fotos: ["unidade-1.jpg", "unidade-2.jpg"] });
+    expect(result.pecas[0].fotos).toEqual(["produto.jpg"]);
   });
 
   it("mostra o nome do cliente cadastrado vinculado à reserva", () => {

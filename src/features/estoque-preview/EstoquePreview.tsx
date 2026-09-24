@@ -47,6 +47,7 @@ import {
   getMetricas,
   historicoDemonstracao,
   liberarReservaUnidade,
+  ordenarUnidadesPorCondicao,
   reservarUnidade,
   restaurarUnidade,
   type EstoquePreviewState,
@@ -158,6 +159,7 @@ function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPe
   const unidadesRef = useRef<HTMLDivElement>(null);
   const [fadeUnidades, setFadeUnidades] = useState({ esquerda: false, direita: false });
   const temMaisUnidades = resultado.unidades.length > 2;
+  const unidadesOrdenadas = ordenarUnidadesPorCondicao(resultado.unidades);
   const sobrandoNaPeca = resultado.peca.fichasExcedentes ?? 0;
   const quantidade = Math.max(0, resultado.unidades.length - sobrandoNaPeca);
   const semEstoque = resultado.unidades.length === 0;
@@ -170,18 +172,9 @@ function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPe
       const maximo = faixa.scrollWidth - faixa.clientWidth;
       setFadeUnidades({ esquerda: faixa.scrollLeft > 2, direita: maximo > 2 && faixa.scrollLeft < maximo - 2 });
     };
-    const rolarComRoda = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
-      const podeRolar = event.deltaY < 0 ? faixa.scrollLeft > 0 : faixa.scrollLeft < faixa.scrollWidth - faixa.clientWidth;
-      if (!podeRolar) return;
-      event.preventDefault();
-      faixa.scrollLeft += event.deltaY;
-    };
     atualizar();
-    faixa.addEventListener("wheel", rolarComRoda, { passive: false });
     window.addEventListener("resize", atualizar);
     return () => {
-      faixa.removeEventListener("wheel", rolarComRoda);
       window.removeEventListener("resize", atualizar);
     };
   }, [resultado.unidades.length]);
@@ -191,11 +184,11 @@ function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPe
       <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${semEstoque ? "bg-negative-bg text-negative" : "bg-surface-inset text-text-secondary"}`}>{semEstoque ? "Sem estoque" : `${quantidade} ${quantidade === 1 ? "unidade" : "unidades"}${semFicha ? ` · ${semFicha} sem ficha` : ""}${sobrandoNaPeca ? ` · ${sobrandoNaPeca} a conferir` : ""}`}</span>
     </button>
     <div className="relative mt-4">
-      <div ref={unidadesRef} aria-label={`Unidades de ${resultado.peca.codigoLegado}`} onScroll={(event) => {
+      <div ref={unidadesRef} role="region" aria-label={`Unidades de ${resultado.peca.codigoLegado}`} tabIndex={0} onWheel={(event) => { const elemento = event.currentTarget; const maximo = elemento.scrollWidth - elemento.clientWidth; const inicio = elemento.scrollLeft <= 1; const fim = elemento.scrollLeft >= maximo - 1; if (Math.abs(event.deltaY) > Math.abs(event.deltaX) && maximo > 1 && !((event.deltaY < 0 && inicio) || (event.deltaY > 0 && fim))) { event.preventDefault(); elemento.scrollLeft += event.deltaY; } }} onKeyDown={(event) => { if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); event.currentTarget.scrollBy({ left: (event.key === "ArrowRight" ? 1 : -1) * event.currentTarget.clientWidth * 0.75, behavior: "smooth" }); } }} onScroll={(event) => {
         const faixa = event.currentTarget;
         const maximo = faixa.scrollWidth - faixa.clientWidth;
         setFadeUnidades({ esquerda: faixa.scrollLeft > 2, direita: maximo > 2 && faixa.scrollLeft < maximo - 2 });
-      }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : resultado.unidades.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} />)}</div>
+      }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : unidadesOrdenadas.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} />)}</div>
       {temMaisUnidades && fadeUnidades.esquerda && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-surface-card via-surface-card/85 to-transparent" />}
       {temMaisUnidades && fadeUnidades.direita && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface-card via-surface-card/85 to-transparent" />}
     </div>
