@@ -46,6 +46,7 @@ import {
   getMetricas,
   historicoDemonstracao,
   liberarReservaUnidade,
+  ordenarUnidadesPorCondicao,
   reservarUnidade,
   restaurarUnidade,
   type EstoquePreviewState,
@@ -133,7 +134,7 @@ function ActionMenu({ unidade, acoes }: { unidade: UnidadeEstoque; acoes: AcoesU
 function UnitRow({ unidade, acoes }: { unidade: UnidadeEstoque; acoes: AcoesUnidade }) {
   return <div className="relative flex min-h-36 w-[min(19rem,86vw)] shrink-0 snap-start flex-col rounded-control border border-border-default bg-surface-card p-3 shadow-sm transition hover:border-accent/35 hover:shadow-md">
     <div className="flex items-start gap-3">
-      <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{unidade.fotoUrl ? <img src={unidade.fotoUrl} alt={`Foto ${unidade.sku}`} className="h-full w-full object-cover" /> : "Sem foto"}</div>
+      <div className="grid h-11 w-11 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{unidade.fotoUrl ? <img src={unidade.fotoUrl} alt={`Foto ${unidade.sku}`} className="h-full w-full object-contain" /> : "Sem foto"}</div>
       <button type="button" aria-label={`Ver detalhes de ${unidade.sku}`} onClick={() => acoes.onOpen(unidade)} className="min-w-0 flex-1 cursor-pointer rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
         <p className="text-base font-semibold text-text-primary">{moeda(unidade.preco)}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5"><span className="text-xs font-semibold text-text-secondary">{unidade.sku}</span><span className="rounded-full bg-surface-inset px-2 py-0.5 text-[10px] font-semibold text-text-secondary">Grau {unidade.grau}</span></div>
@@ -153,7 +154,8 @@ function RupturaAviso({ peca, acoes, compacto = false }: { peca: PecaEstoque; ac
 }
 
 function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPecas>[number]; acoes: AcoesUnidade }) {
-  const temMaisUnidades = resultado.unidades.length > 3;
+  const temMaisUnidades = resultado.unidades.length > 2;
+  const unidadesOrdenadas = ordenarUnidadesPorCondicao(resultado.unidades);
   const sobrandoNaPeca = resultado.peca.fichasExcedentes ?? 0;
   const quantidade = Math.max(0, resultado.unidades.length - sobrandoNaPeca);
   const semEstoque = resultado.unidades.length === 0;
@@ -165,7 +167,7 @@ function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPe
       <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${semEstoque ? "bg-negative-bg text-negative" : "bg-surface-inset text-text-secondary"}`}>{semEstoque ? "Sem estoque" : `${quantidade} ${quantidade === 1 ? "unidade" : "unidades"}${semFicha ? ` · ${semFicha} sem ficha` : ""}${sobrandoNaPeca ? ` · ${sobrandoNaPeca} a conferir` : ""}`}</span>
     </div>
     <div className="relative mt-4">
-      <div aria-label={`Unidades de ${resultado.peca.codigoLegado}`} className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : resultado.unidades.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} />)}</div>
+      <div role="region" aria-label={`Unidades de ${resultado.peca.codigoLegado}`} tabIndex={0} onWheel={(event) => { const elemento = event.currentTarget; const maximo = elemento.scrollWidth - elemento.clientWidth; const inicio = elemento.scrollLeft <= 1; const fim = elemento.scrollLeft >= maximo - 1; if (Math.abs(event.deltaY) > Math.abs(event.deltaX) && maximo > 1 && !((event.deltaY < 0 && inicio) || (event.deltaY > 0 && fim))) { event.preventDefault(); elemento.scrollLeft += event.deltaY; } }} onKeyDown={(event) => { if (event.key === "ArrowRight" || event.key === "ArrowLeft") { event.preventDefault(); event.currentTarget.scrollBy({ left: (event.key === "ArrowRight" ? 1 : -1) * event.currentTarget.clientWidth * 0.75, behavior: "smooth" }); } }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : unidadesOrdenadas.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} />)}</div>
       {temMaisUnidades && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-14 bg-gradient-to-l from-surface-card via-surface-card/85 to-transparent" />}
     </div>
     {sobrando > 0 && acoes.onConferir && <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-control border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-text-primary"><span><strong>{sobrando === 1 ? "1 ficha sobrando" : `${sobrando} fichas sobrando`}.</strong> Uma venda antiga não disse qual unidade saiu.</span><button type="button" onClick={acoes.onConferir} className={`${botaoSecundario} min-h-9`}><ClipboardCheck size={14} />Conferir</button></div>}

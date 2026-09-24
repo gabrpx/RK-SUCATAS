@@ -38,7 +38,8 @@ function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number, loc
   // A foto geral do cadastro legado descreve o tipo da peça, não esta peça
   // física. Exibi-la em todas as unidades cria uma falsa impressão de que
   // cada uma já foi fotografada e conferida individualmente.
-  const fotoUrl = unidade.fotos?.[0] ?? null;
+  const fotos = unidade.fotos ?? [];
+  const fotoUrl = fotos[0] ?? null;
   const reserva = reservas.get(unidade.id);
   return {
     id: unidade.id,
@@ -49,6 +50,7 @@ function unidadeReal(item: Estoque, unidade: EstoqueUnidade, indice: number, loc
     grau: grauDaNota(unidade.condicao_nota ?? item.condicao_nota),
     preco: unidade.valor ?? item.valor ?? null,
     fotoUrl,
+    fotos,
     origem: unidade.origem_identificacao ?? null,
     endereco: unidade.endereco_id ? locais.get(unidade.endereco_id)?.codigo ?? null : null,
     organizadaEm: unidade.organizada_em ?? null,
@@ -108,6 +110,7 @@ export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiC
       categoriaId: categoria.id,
       compatibilidades: compatibilidadesDoItem(item),
       detalhes: detalhesDaPeca(item),
+      fotos: item.imagens ?? [],
       origemDado: "real",
       familiaNome: item.familia?.nome ?? null,
       gavetaNome: item.gaveta?.nome ?? null,

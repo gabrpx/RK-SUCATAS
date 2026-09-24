@@ -20,6 +20,8 @@ export interface PecaEstoque {
   origemDado?: "demo" | "real";
   familiaNome?: string | null;
   gavetaNome?: string | null;
+  /** Fotos gerais do cadastro; servem como fallback visual no drawer. */
+  fotos?: string[];
   /**
    * Fichas livres acima da quantidade da peça: sobra de vendas antigas feitas
    * sem escolher a unidade (antes da migration_069). Não sabemos qual saiu,
@@ -38,6 +40,8 @@ export interface UnidadeEstoque {
   grau: GrauUnidade;
   preco: number | null;
   fotoUrl: string | null;
+  /** Todas as fotos próprias; fotoUrl permanece como miniatura compatível. */
+  fotos?: string[];
   origem: string | null;
   endereco: string | null;
   organizadaEm?: string | null;
@@ -72,6 +76,13 @@ export interface ResultadoBuscaEstoque {
   peca: PecaEstoque;
   categoria: CategoriaEstoque;
   unidades: UnidadeEstoque[];
+}
+
+const ORDEM_GRAU: Record<GrauUnidade, number> = { A: 0, B: 1, C: 2 };
+
+/** Ordena por condição e mantém a ordem de origem em caso de empate. */
+export function ordenarUnidadesPorCondicao(unidades: UnidadeEstoque[]): UnidadeEstoque[] {
+  return [...unidades].sort((a, b) => ORDEM_GRAU[a.grau] - ORDEM_GRAU[b.grau]);
 }
 
 export interface NovaUnidadeInput {

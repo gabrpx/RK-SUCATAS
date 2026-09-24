@@ -10,6 +10,7 @@ import {
   getMetricas,
   getSecoesDaPrateleira,
   liberarReservaUnidade,
+  ordenarUnidadesPorCondicao,
   podeReservar,
   reservarUnidade,
   restaurarUnidade,
@@ -19,6 +20,13 @@ import {
 } from "./inventoryPreviewModel";
 
 describe("inventoryPreviewModel", () => {
+  it("ordena as unidades por grau A, B e C sem alterar a lista original", () => {
+    const unidades = criarEstoqueDemo().unidades;
+    const idsOriginais = unidades.map((unidade) => unidade.id);
+    const ordenadas = ordenarUnidadesPorCondicao(unidades);
+    expect(ordenadas.map((unidade) => unidade.grau)).toEqual([...ordenadas.map((unidade) => unidade.grau)].sort());
+    expect(unidades.map((unidade) => unidade.id)).toEqual(idsOriginais);
+  });
   it("converte os registros auditados em categorias e unidades individuais", () => {
     const estoque = criarEstoqueDemo();
 
