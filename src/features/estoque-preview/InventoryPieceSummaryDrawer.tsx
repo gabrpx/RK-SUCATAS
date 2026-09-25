@@ -67,16 +67,20 @@ export function InventoryPieceSummaryDrawer({
             }}
             className="max-h-[calc(100dvh-12rem)] space-y-2 overflow-y-auto overscroll-contain pr-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {unidadesOrdenadas.map((unidade) => (
-              <div key={unidade.id} role="listitem">
+            {unidadesOrdenadas.map((unidade) => {
+              const fotoPropria = unidade.fotos?.find(Boolean) ?? unidade.fotoUrl;
+              const foto = fotoPropria || resultado.peca.fotos?.find(Boolean);
+              const usandoFotoReferencia = !fotoPropria && Boolean(foto);
+              return <div key={unidade.id} role="listitem">
                 <button
                   type="button"
                   onClick={() => onOpenUnit(unidade)}
                   aria-label={`Abrir ${unidade.sku}, Grau ${unidade.grau}, ${formatarPreco(unidade.preco)}, ${status(unidade)}`}
                   className="flex min-h-24 w-full cursor-pointer items-center gap-3 rounded-control border border-border-default bg-surface-card p-3 text-left shadow-sm transition hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
                 >
-                <div className="grid w-20 aspect-[4/3] shrink-0 place-items-center overflow-hidden rounded-control border border-border-default bg-surface-inset text-center text-[10px] font-medium text-text-faint">
-                  {unidade.fotoUrl ? <img src={unidade.fotoUrl} alt={`Foto de ${unidade.sku}`} className="size-full object-contain" /> : "Sem foto"}
+                <div className="relative grid w-20 aspect-[4/3] shrink-0 place-items-center overflow-hidden rounded-control border border-border-default bg-surface-inset text-center text-[10px] font-medium text-text-faint">
+                  {foto ? <img src={foto} alt={usandoFotoReferencia ? `Foto de referência de ${unidade.sku}` : `Foto de ${unidade.sku}`} className="size-full object-contain" /> : "Sem foto"}
+                  {usandoFotoReferencia && <span title="Foto geral da peça, não uma foto própria da unidade" className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-surface-card/95 px-1 py-0.5 text-[8px] font-bold leading-none text-text-secondary shadow-sm">Ref.</span>}
                 </div>
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -88,8 +92,8 @@ export function InventoryPieceSummaryDrawer({
                   <span className="mt-1 block text-xs text-text-secondary">{status(unidade)}</span>
                 </span>
                 </button>
-              </div>
-            ))}
+              </div>;
+            })}
           </div>
           {fade.top && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 top-0 z-[1] h-8 bg-gradient-to-b from-surface-card via-surface-card/80 to-transparent" />}
           {fade.bottom && <div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 z-[1] h-8 bg-gradient-to-t from-surface-card via-surface-card/80 to-transparent" />}

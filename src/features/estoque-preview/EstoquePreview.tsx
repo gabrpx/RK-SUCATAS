@@ -134,10 +134,13 @@ function ActionMenu({ unidade, acoes }: { unidade: UnidadeEstoque; acoes: AcoesU
   </div>;
 }
 
-function UnitRow({ unidade, acoes }: { unidade: UnidadeEstoque; acoes: AcoesUnidade }) {
+function UnitRow({ unidade, acoes, fotoReferencia }: { unidade: UnidadeEstoque; acoes: AcoesUnidade; fotoReferencia?: string | null }) {
+  const fotoPropria = unidade.fotos?.find(Boolean) ?? unidade.fotoUrl;
+  const foto = fotoPropria || fotoReferencia || null;
+  const usandoFotoReferencia = !fotoPropria && Boolean(foto);
   return <div className="relative flex min-h-36 w-[min(19rem,86vw)] shrink-0 snap-start flex-col rounded-control border border-border-default bg-surface-card p-3 shadow-sm transition hover:border-accent/35 hover:shadow-md">
     <div className="flex items-start gap-3">
-      <div className="grid aspect-[4/3] w-16 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{unidade.fotoUrl ? <ImageZoom src={unidade.fotoUrl} alt={`Foto ${unidade.sku}`} triggerClassName="size-full overflow-hidden rounded-control" className="size-full object-contain" /> : "Sem foto"}</div>
+      <div className="relative grid aspect-[4/3] w-16 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{foto ? <ImageZoom src={foto} alt={usandoFotoReferencia ? `Foto de referência de ${unidade.sku}` : `Foto ${unidade.sku}`} triggerClassName="size-full overflow-hidden rounded-control" className="size-full object-contain" /> : "Sem foto"}{usandoFotoReferencia && <span title="Foto geral da peça, não uma foto própria da unidade" className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-surface-card/95 px-1 py-0.5 text-[8px] font-bold leading-none text-text-secondary shadow-sm">Ref.</span>}</div>
       <button type="button" aria-label={`Ver detalhes de ${unidade.sku}`} onClick={() => acoes.onOpen(unidade)} className="min-w-0 flex-1 cursor-pointer rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
         <p className="text-base font-semibold text-text-primary">{moeda(unidade.preco)}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5"><span className="text-xs font-semibold text-text-secondary">{unidade.sku}</span><span className="rounded-full bg-surface-inset px-2 py-0.5 text-[10px] font-semibold text-text-secondary">Grau {unidade.grau}</span></div>
@@ -203,7 +206,7 @@ function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPe
         const faixa = event.currentTarget;
         const maximo = faixa.scrollWidth - faixa.clientWidth;
         setFadeUnidades({ esquerda: faixa.scrollLeft > 2, direita: maximo > 2 && faixa.scrollLeft < maximo - 2 });
-      }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : unidadesOrdenadas.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} />)}</div>
+      }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : unidadesOrdenadas.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} fotoReferencia={resultado.peca.fotos?.find(Boolean)} />)}</div>
       {temMaisUnidades && fadeUnidades.esquerda && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-surface-card via-surface-card/85 to-transparent" />}
       {temMaisUnidades && fadeUnidades.direita && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface-card via-surface-card/85 to-transparent" />}
     </div>

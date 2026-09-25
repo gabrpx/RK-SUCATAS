@@ -33,14 +33,18 @@ export function InventoryPhotoGallery({ fotos, sku, origem }: InventoryPhotoGall
     // Usa listener nativo não-passivo para consumir a roda vertical e movê-la
     // para o trilho horizontal; onWheel do React não bloqueia a página aqui.
     const rolarHorizontalmente = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) <= Math.abs(event.deltaX)) return;
+      if (event.ctrlKey) return;
+      const delta = Math.abs(event.deltaX) >= Math.abs(event.deltaY) && event.deltaX !== 0
+        ? event.deltaX
+        : event.deltaY;
+      if (delta === 0) return;
       const maximo = elemento.scrollWidth - elemento.clientWidth;
       if (maximo <= 1) return;
       const noInicio = elemento.scrollLeft <= 1;
       const noFim = elemento.scrollLeft >= maximo - 1;
-      if ((event.deltaY < 0 && noInicio) || (event.deltaY > 0 && noFim)) return;
+      if ((delta < 0 && noInicio) || (delta > 0 && noFim)) return;
       event.preventDefault();
-      elemento.scrollLeft += event.deltaY;
+      elemento.scrollLeft += delta;
     };
     elemento.addEventListener("wheel", rolarHorizontalmente, { passive: false });
     window.addEventListener("resize", atualizarIndice);
