@@ -1,4 +1,4 @@
-import { Archive, BookmarkCheck, BookmarkX, Camera, CheckCircle2, History, Loader2, Pencil, Tag, UserRound } from "lucide-react";
+import { Archive, BookmarkCheck, BookmarkX, Camera, CheckCircle2, History, Loader2, Pencil, Tag, UserRound, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Tabs, TabsContent, TabsContents, TabsList, TabsTrigger } from "@/src/components/animate-ui/components/animate/tabs";
@@ -6,6 +6,7 @@ import { Combobox } from "@/src/components/ui/Combobox";
 import { InventoryDrawer } from "./InventoryDrawer";
 import { SeletorCliente } from "@/src/features/clientes/SeletorCliente";
 import { InventoryPhotoGallery } from "./InventoryPhotoGallery";
+import { EstoqueUploadFotos } from "@/src/features/estoque/EstoqueUploadFotos";
 import type { Cliente } from "@/src/features/clientes/types";
 import type { EventoHistorico, RecursosOrganizacao } from "./organizacaoApi";
 import {
@@ -25,7 +26,7 @@ interface InventoryUnitDrawerProps {
   unidade: UnidadeEstoque | null;
   peca: PecaEstoque | null;
   onFechar: () => void;
-  onSalvar: (alteracoes: Partial<Pick<UnidadeEstoque, "preco" | "grau" | "origem" | "endereco">>) => Promise<void> | void;
+  onSalvar: (alteracoes: UnidadeAlteracoes) => Promise<boolean | void> | boolean | void;
   onArquivar: () => void;
   abrirEmEdicao?: boolean;
   enderecos?: { value: string; label: string }[];
@@ -42,6 +43,11 @@ interface InventoryUnitDrawerProps {
   onReservar?: (reserva: ReservaUnidadeInput) => Promise<boolean> | boolean;
   onLiberarReserva?: () => Promise<boolean> | boolean;
   carregarHistorico?: (unidade: UnidadeEstoque) => Promise<HistoricoCarregado>;
+}
+
+export interface UnidadeAlteracoes extends Partial<Pick<UnidadeEstoque, "preco" | "grau" | "origem" | "endereco">> {
+  fotos?: string[];
+  fotosNovas?: File[];
 }
 
 type AbaDetalhe = "visao-geral" | "historico";
@@ -73,6 +79,10 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
   const [grau, setGrau] = useState<GrauUnidade>("B");
   const [origem, setOrigem] = useState("");
   const [endereco, setEndereco] = useState("");
+  const [fotosEdicao, setFotosEdicao] = useState<string[]>([]);
+  const [fotosNovas, setFotosNovas] = useState<File[]>([]);
+  const [fotosAlteradas, setFotosAlteradas] = useState(false);
+  const [erroFotos, setErroFotos] = useState<string | null>(null);
   const [clienteId, setClienteId] = useState<string | null>(null);
   const [clienteNome, setClienteNome] = useState("");
   const [diasReserva, setDiasReserva] = useState(String(DIAS_RESERVA_PADRAO));
@@ -85,6 +95,8 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
     setAba("visao-geral"); setModo(abrirEmEdicao && unidade?.individualizada !== false && unidade?.estado !== "arquivada" && !unidade?.vendidaEm ? "editar" : "detalhe");
     setPreco(unidade?.preco?.toString() ?? ""); setGrau(unidade?.grau ?? "B");
     setOrigem(unidade?.origem ?? ""); setEndereco(unidade?.endereco ?? "");
+    setFotosEdicao(unidade?.fotos?.filter(Boolean) ?? (unidade?.fotoUrl ? [unidade.fotoUrl] : []));
+    setFotosNovas([]); setFotosAlteradas(false); setErroFotos(null);
     setClienteId(null); setClienteNome(""); setDiasReserva(String(DIAS_RESERVA_PADRAO));
     setValorSinal(unidade?.preco ? textoMoeda(sinalMinimo(unidade.preco)) : ""); setFormaPagamentoId("");
     setEnviando(false); setHistorico({ estado: "ocioso" });
@@ -139,7 +151,16 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
   const salvar = async () => {
     if (precoInvalido || enviando) return;
     setEnviando(true);
-    try { await onSalvar({ preco: preco.trim() ? Number(preco) : null, grau, origem: origem.trim() || null, endereco: endereco.trim() || null }); }
+    try {
+      const resultado = await onSalvar({
+        preco: preco.trim() ? Number(preco) : null,
+        grau,
+        origem: origem.trim() || null,
+        endereco: endereco.trim() || null,
+        ...(fotosAlteradas ? { fotos: fotosEdicao, fotosNovas } : {}),
+      });
+      if (resultado !== false) { setFotosNovas([]); setFotosAlteradas(false); }
+    }
     finally { setEnviando(false); }
   };
 
@@ -179,6 +200,24 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
     </div>
     <label className="block text-sm font-semibold text-text-secondary">Origem <span className="font-normal text-text-faint">(opcional)</span><input className={inputClass} value={origem} onChange={(event) => setOrigem(event.target.value)} placeholder="Não identificada" /></label>
     <Combobox label="Prateleira e seção" placeholder="Para organizar depois" options={enderecos} value={endereco} onChange={setEndereco} size="lg" />
+    {operacional && <section className="space-y-3 rounded-control border border-border-default bg-surface-card p-4">
+      <div><p className="text-sm font-semibold text-text-secondary">Fotos desta unidade</p><p className="mt-1 text-xs text-text-muted">Adicione, remova ou substitua as fotos depois do cadastro. A foto geral da peça continua como referência.</p></div>
+      <EstoqueUploadFotos
+        imagens={fotosEdicao}
+        onRemoverImagem={(url) => { setFotosEdicao((atuais) => atuais.filter((foto) => foto !== url)); setFotosAlteradas(true); }}
+        onArquivosSelecionados={(arquivos) => {
+          if (fotosEdicao.length + fotosNovas.length + arquivos.length > 10) { setErroFotos("Cada unidade pode ter até 10 fotos."); return; }
+          setErroFotos(null);
+          setFotosNovas((atuais) => [...atuais, ...arquivos]);
+          setFotosAlteradas(true);
+        }}
+        enviando={enviando}
+        resumoCompressao={null}
+      />
+      {fotosNovas.length > 0 && <ul className="space-y-1 text-xs text-text-secondary">{fotosNovas.map((foto, indice) => <li key={`${foto.name}-${indice}`} className="flex items-center justify-between gap-3 rounded-control bg-surface-inset pl-3"><span className="truncate">{foto.name}</span><button type="button" aria-label={`Remover ${foto.name}`} disabled={enviando} onClick={() => setFotosNovas((atuais) => atuais.filter((_, i) => i !== indice))} className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-control px-3 font-semibold text-danger transition hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-50"><X size={14} />Remover</button></li>)}</ul>}
+      {erroFotos && <p role="alert" className="text-xs text-danger">{erroFotos}</p>}
+      {!fotosEdicao.length && !fotosNovas.length && (peca.fotos?.length ?? 0) > 0 && <p className="text-xs text-text-muted">Esta unidade ainda usa a foto geral da peça como referência.</p>}
+    </section>}
     <p className="rounded-control border border-accent/15 bg-accent-soft-bg/50 p-3 text-sm leading-5 text-text-secondary">Se a localização ficar vazia, a unidade vai para “Para organizar”. Origem desconhecida é uma informação válida.</p>
   </section>;
 

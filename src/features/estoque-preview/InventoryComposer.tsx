@@ -3,12 +3,15 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Combobox } from "@/src/components/ui/Combobox";
 import { InventoryDrawer } from "./InventoryDrawer";
 import { EstoqueUploadFotos } from "../estoque/EstoqueUploadFotos";
+import { formatarNomeModeloMoto } from "../motos/nomeModelo";
+import type { ModeloMoto } from "@/src/types/catalog";
 import { enderecosPrateleira, type CategoriaEstoque, type GrauUnidade, type NovaUnidadeInput, type PecaEstoque } from "./inventoryPreviewModel";
 
 interface InventoryComposerProps {
   aberto: boolean;
   categorias: CategoriaEstoque[];
   pecas: PecaEstoque[];
+  modelos?: ModeloMoto[];
   onFechar: () => void;
   onSalvar: (entrada: NovaUnidadeInput, cacheFotos: Map<File, string>) => Promise<void | { completo: boolean; mensagem: string; fotosAnexadas?: boolean }> | void;
   /** Descarta fotos enviadas que não chegaram a ser gravadas (cadastro abandonado). */
@@ -25,16 +28,48 @@ function normalizar(valor: string) {
   return valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").trim();
 }
 
-function saoSemelhantes(nome: string, peca: PecaEstoque) {
-  const consulta = normalizar(nome);
-  if (consulta.length < 3) return false;
-  const alvo = normalizar(peca.nome);
-  if (alvo.includes(consulta) || consulta.includes(alvo)) return true;
-  const palavras = consulta.split(/[^a-z0-9]+/).filter((palavra) => palavra.length >= 3);
-  return palavras.length > 0 && palavras.filter((palavra) => alvo.includes(palavra)).length >= Math.min(2, palavras.length);
+const PALAVRAS_IGNORADAS = new Set(["com", "das", "dos", "para", "pela", "pelo", "peca", "pecas", "pra", "uma", "uns", "moto"]);
+
+function palavrasDoNome(valor: string) {
+  return normalizar(valor).split(/[^a-z0-9]+/).filter((palavra) => palavra.length >= 3 && !PALAVRAS_IGNORADAS.has(palavra));
 }
 
-export function InventoryComposer({ aberto, categorias, pecas, onFechar, onSalvar, onDescartarFotos, enderecos = enderecosPrateleira, operacional = false, pecaInicialId = null }: InventoryComposerProps) {
+const MARCAS_MOTO = new Set(["dafra", "honda", "kasinski", "kawasaki", "shineray", "suzuki", "yamaha"]);
+
+function detectarMotoNoNome(nome: string, pecas: PecaEstoque[], modelos: ModeloMoto[]): string {
+  const tokensMoto = (valor: string) => normalizar(valor).split(/[^a-z0-9]+/).filter((palavra) => palavra.length >= 2 && !MARCAS_MOTO.has(palavra) && !/^(19|20)\d{2}$/.test(palavra));
+  const palavrasDigitadas = new Set(tokensMoto(nome));
+  if (!palavrasDigitadas.size) return "";
+
+  const referencias = [...new Set([...pecas.flatMap((peca) => peca.compatibilidades), ...modelos.map((modelo) => formatarNomeModeloMoto(modelo, modelos))])]
+    .map((referencia) => ({
+      referencia,
+      palavras: tokensMoto(referencia),
+    }))
+    .filter(({ palavras }) => palavras.length > 0 && palavras.every((palavra) => palavrasDigitadas.has(palavra)))
+    .sort((a, b) => b.palavras.length - a.palavras.length || b.referencia.length - a.referencia.length);
+
+  return referencias[0]?.referencia ?? "";
+}
+
+function pontuarSemelhanca(nome: string, peca: PecaEstoque): number | null {
+  const compatibilidadeTokens = new Set(peca.compatibilidades.flatMap(palavrasDoNome));
+  const palavrasConsulta = new Set(palavrasDoNome(nome).filter((palavra) => !compatibilidadeTokens.has(palavra)));
+  const palavrasPeca = new Set(palavrasDoNome(peca.nome).filter((palavra) => !compatibilidadeTokens.has(palavra)));
+  if (!palavrasConsulta.size || !palavrasPeca.size) return null;
+
+  const emComum = [...palavrasConsulta].filter((palavra) => palavrasPeca.has(palavra)).length;
+  // Uma moto pode contribuir com várias palavras para o nome legado. Exigimos
+  // que a sugestão coincida em até duas palavras do nome da peça, depois de
+  // retirar os tokens conhecidos da compatibilidade da moto.
+  const minimo = Math.min(2, palavrasConsulta.size, palavrasPeca.size);
+  if (emComum < minimo) return null;
+
+  const uniao = new Set([...palavrasConsulta, ...palavrasPeca]).size;
+  return emComum / uniao;
+}
+
+export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onFechar, onSalvar, onDescartarFotos, enderecos = enderecosPrateleira, operacional = false, pecaInicialId = null }: InventoryComposerProps) {
   const [etapa, setEtapa] = useState(0);
   const [modo, setModo] = useState<"nova" | "existente">("nova");
   const [pecaId, setPecaId] = useState("");
@@ -43,6 +78,7 @@ export function InventoryComposer({ aberto, categorias, pecas, onFechar, onSalva
   const [condicaoOrigem, setCondicaoOrigem] = useState<"original" | "paralela">("original");
   const [notaCadastro, setNotaCadastro] = useState<"com_nota" | "sem_nota" | "">("");
   const [compatibilidade, setCompatibilidade] = useState("");
+  const [compatibilidadeAutomatica, setCompatibilidadeAutomatica] = useState(true);
   const [preco, setPreco] = useState("");
   const [grau, setGrau] = useState<GrauUnidade>("B");
   const [origem, setOrigem] = useState("");
@@ -54,7 +90,14 @@ export function InventoryComposer({ aberto, categorias, pecas, onFechar, onSalva
   const [cadastroParcial, setCadastroParcial] = useState(false);
 
   const pecaEscolhida = pecas.find((peca) => peca.id === pecaId);
-  const semelhantes = useMemo(() => modo === "nova" ? pecas.filter((peca) => saoSemelhantes(nome, peca)).slice(0, 3) : [], [modo, nome, pecas]);
+  const semelhantes = useMemo(() => modo === "nova"
+    ? pecas
+      .map((peca) => ({ peca, score: pontuarSemelhanca(nome, peca) }))
+      .filter((item): item is { peca: PecaEstoque; score: number } => item.score !== null)
+      .sort((a, b) => b.score - a.score || Number(b.peca.categoriaId === categoriaId) - Number(a.peca.categoriaId === categoriaId))
+      .slice(0, 3)
+      .map(({ peca }) => peca)
+    : [], [modo, nome, pecas, categoriaId]);
   const enderecoNormalizado = endereco.trim() || null;
   const precoRef = useRef<HTMLInputElement>(null);
   const enderecoRef = useRef<HTMLButtonElement>(null);
@@ -86,6 +129,7 @@ export function InventoryComposer({ aberto, categorias, pecas, onFechar, onSalva
     setCondicaoOrigem("original");
     setNotaCadastro("");
     setCompatibilidade("");
+    setCompatibilidadeAutomatica(true);
     setPreco("");
     setGrau("B");
     setOrigem("");
@@ -172,11 +216,11 @@ export function InventoryComposer({ aberto, categorias, pecas, onFechar, onSalva
             </button>)}
           </div>
           {modo === "nova" ? <div className="space-y-3">
-            <label className="block text-sm font-semibold text-text-secondary">Nome da Peça<input aria-label="Nome da Peça" className={inputClass} value={nome} onChange={(e) => { setNome(e.target.value); setErroEtapa(null); }} placeholder="Ex.: suporte de placa CG 160" autoFocus /></label>
+            <label className="block text-sm font-semibold text-text-secondary">Nome da Peça<input aria-label="Nome da Peça" className={inputClass} value={nome} onChange={(e) => { const valor = e.target.value; setNome(valor); if (compatibilidadeAutomatica) setCompatibilidade(detectarMotoNoNome(valor, pecas, modelos)); setErroEtapa(null); }} placeholder="Ex.: suporte de placa CG 160" autoFocus /></label>
             {semelhantes.length > 0 && <section aria-live="polite" className="rounded-control border border-accent/25 bg-accent-soft-bg p-3"><p className="flex items-center gap-2 text-sm font-semibold text-accent-soft-fg"><Sparkles size={16} />Já existe uma peça parecida</p><p className="mt-1 text-xs leading-5 text-accent-soft-fg">Para evitar dois cadastros do mesmo tipo, adicione esta unidade ao registro abaixo.</p><div className="mt-3 space-y-2">{semelhantes.map((peca) => <button type="button" key={peca.id} aria-label={`Usar existente: ${peca.codigoLegado}`} onClick={() => usarExistente(peca)} className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-control border border-accent/25 bg-surface-card px-3 py-2 text-left text-sm transition hover:border-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 active:scale-[.99]"><span className="min-w-0"><strong className="block truncate text-text-primary">{peca.nome}</strong><span className="text-xs text-text-muted">{peca.codigoLegado} · {peca.compatibilidades.join(" · ") || "Moto não informada"}</span></span><span className="shrink-0 text-xs font-semibold text-accent-soft-fg">Usar existente</span></button>)}</div></section>}
             <Combobox label="Categoria" placeholder="Escolha uma categoria" options={categorias.map((categoria) => ({ value: categoria.id, label: categoria.nome }))} value={categoriaId} onChange={setCategoriaId} size="lg" />
             <div className="grid gap-3 sm:grid-cols-2"><Combobox label="Procedência da peça" options={[{ value: "original", label: "Original" }, { value: "paralela", label: "Paralela" }]} value={condicaoOrigem} onChange={(valor) => setCondicaoOrigem(valor as "original" | "paralela")} size="lg" /><Combobox label="Nota para cadastro (quando exigida)" placeholder="Não se aplica" options={[{ value: "", label: "Não se aplica" }, { value: "com_nota", label: "Com nota" }, { value: "sem_nota", label: "Sem nota" }]} value={notaCadastro} onChange={(valor) => setNotaCadastro(valor as "com_nota" | "sem_nota" | "")} size="lg" /></div>
-            <label className="block text-sm font-semibold text-text-secondary">Referência de moto <span className="font-normal text-text-faint">(opcional; salva como observação)</span><input className={inputClass} value={compatibilidade} onChange={(e) => setCompatibilidade(e.target.value)} placeholder="Ex.: CG 160" /></label>
+            <label className="block text-sm font-semibold text-text-secondary">Referência de moto <span className="font-normal text-text-faint">(opcional; preenchida pelo nome quando reconhecida)</span><input className={inputClass} value={compatibilidade} onChange={(e) => { setCompatibilidade(e.target.value); setCompatibilidadeAutomatica(false); }} placeholder="Ex.: CG 160" /></label>
            </div> : <div className="space-y-2"><Combobox label="Peça existente" placeholder="Busque pelo nome ou código" options={pecas.map((peca) => ({ value: peca.id, label: `${peca.codigoLegado} · ${peca.nome}` }))} value={pecaId} onChange={(valor) => { setPecaId(valor); setErroEtapa(null); }} size="lg" /><span className="block text-xs font-normal text-text-faint">O catálogo continua com um único nome; você só registra outra unidade.</span></div>}
           {erroEtapa && <p role="alert" className="text-sm font-medium text-danger">{erroEtapa}</p>}
         </section>}

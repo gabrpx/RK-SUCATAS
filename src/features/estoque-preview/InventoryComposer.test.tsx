@@ -41,4 +41,34 @@ describe('cadastro operacional de estoque', () => {
     expect(onSalvar.mock.calls[0][0]).toMatchObject({ preco: null, novaPeca: { nome: 'Farol CG 150', categoriaId: 'cat-1' } });
     expect(screen.queryByRole('alert')).toBeNull();
   });
+
+  it('não sugere outra peça quando só o modelo da moto coincide', () => {
+    render(<InventoryComposer
+      aberto
+      categorias={[{ id: 'cat-1', nome: 'Peças' }] as any}
+      pecas={[{ id: 'p-1', codigoLegado: 'RK-1', nome: 'Tampa do cubo traseiro CBX Twister 250', categoriaId: 'cat-1', compatibilidades: ['CBX Twister 250'], detalhes: '' }] as any}
+      onFechar={vi.fn()}
+      onSalvar={vi.fn()}
+    />);
+
+    fireEvent.change(screen.getAllByLabelText('Nome da Peça')[0], { target: { value: 'Suporte de pedaleiras CBX Twister 250' } });
+
+    expect(screen.queryByText('Já existe uma peça parecida')).toBeNull();
+  });
+
+  it('preenche a referência de moto reconhecida no nome da peça', () => {
+    render(<InventoryComposer
+      aberto
+      categorias={[{ id: 'cat-1', nome: 'Peças' }] as any}
+      pecas={[{ id: 'p-1', codigoLegado: 'RK-1', nome: 'Suporte de placa CBX Twister 250', categoriaId: 'cat-1', compatibilidades: ['CBX Twister 250'], detalhes: '' }] as any}
+      onFechar={vi.fn()}
+      onSalvar={vi.fn()}
+    />);
+
+    for (const input of screen.getAllByLabelText('Nome da Peça')) {
+      fireEvent.change(input, { target: { value: 'Suporte de pedaleiras CBX Twister 250' } });
+    }
+
+    expect(screen.getAllByLabelText(/Referência de moto/).some((input) => (input as HTMLInputElement).value === 'CBX Twister 250')).toBe(true);
+  });
 });

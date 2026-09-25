@@ -22,8 +22,11 @@ Encontrar problemas de compreensão, fluxo, feedback, estados vazios, edição, 
 3. Rastrear o dado entre UI, estado local, API e resposta persistida; diferenciar bug de produto, bug visual e limitação de dados.
 4. Procurar componentes, padrões e testes existentes antes de criar algo novo.
 5. Auditar desktop e mobile, teclado/foco, mensagens de erro/sucesso, loading, vazios, confirmação e recuperação.
-6. Priorizar correções que removam bloqueios do trabalho. Para cada recomendação, informar impacto, risco, dependências e critério de aceite.
-7. Perguntar ao usuário somente quando a decisão mudar regra de negócio ou risco de dados; decisões locais de UI podem seguir o padrão existente.
+6. Comparar campos equivalentes entre etapas: identificar digitação duplicada, conferir se o valor da etapa anterior é preservado ou autopreenchido e se a edição manual continua possível.
+7. Conferir paridade entre criação e edição para fotos: adicionar, substituir e remover imagem depois do cadastro, distinguindo foto própria da unidade e foto geral de referência.
+8. Conferir atualização entre dispositivos: confirmar se gravações feitas em outro aparelho aparecem na tela aberta, quanto tempo levam e como a tela se recupera após perda de conexão.
+9. Priorizar correções que removam bloqueios do trabalho. Para cada recomendação, informar impacto, risco, dependências e critério de aceite.
+10. Perguntar ao usuário somente quando a decisão mudar regra de negócio ou risco de dados; decisões locais de UI podem seguir o padrão existente.
 
 ## Regras de implementação
 
@@ -44,6 +47,9 @@ Entregar: resumo executivo; reprodução; causa raiz; severidade/prioridade; pro
 - [2026-09-15] Editar uma unidade deve atualizar o detalhe aberto imediatamente, sem exigir fechar e reabrir.
 - [2026-09-15] Fechar modal sobre uma tabela não pode propagar o clique para a linha que estava atrás nem deslocar a rolagem sem foco na origem.
 - [2026-09-15] Ficha individual precisa de uma visualização própria com todas as fotos, não apenas a foto de capa.
+- [2026-09-25] Dados repetidos em etapas do cadastro devem ser herdados/autopreenchidos da etapa anterior e continuar editáveis; validar esse percurso completo.
+- [2026-09-25] A edição de uma unidade existente precisa permitir anexar e remover fotos, com a mesma distinção entre foto própria e foto de referência usada na criação e consulta.
+- [2026-09-25] Em estoque usado simultaneamente no celular e computador, verificar propagação de alterações sem recarregar a página e recuperação da sincronização após reconexão.
 
 ## Prompt master — feedback imediato após adicionar unidade
 

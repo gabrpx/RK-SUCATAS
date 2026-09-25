@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { EventEmitter } from 'node:events';
 import multer from 'multer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { exigirAlguma, exigirPermissao, temPermissao } from '../../../middleware/auth.js';
@@ -326,6 +327,16 @@ function erroBanco(error: { code?: string; message?: string }) {
 
 export function estoqueOrganizacaoRouter(supabase: SupabaseClient) {
   const router = Router();
+  const atualizacoes = new EventEmitter();
+  atualizacoes.setMaxListeners(0);
+  if (typeof supabase.channel === 'function') {
+    supabase.channel('rk-estoque-atualizacoes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'estoque' }, () => atualizacoes.emit('mudanca'))
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'estoque_unidades' }, () => atualizacoes.emit('mudanca'))
+      .subscribe((status, error) => {
+        if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') console.error('Falha na conexão de atualizações do estoque:', error?.message ?? status);
+      });
+  }
 
   // Detecção de schema por leitura sem linhas (limit 0): barata e sem efeito.
   // Resultado positivo é memorizado — uma migration aplicada não "desaplica".
@@ -392,6 +403,30 @@ export function estoqueOrganizacaoRouter(supabase: SupabaseClient) {
     const { data } = await supabase.from('usuarios').select('nome_exibicao').eq('id', usuario.id).maybeSingle();
     return { id: usuario.id, nome: (data as { nome_exibicao?: string } | null)?.nome_exibicao ?? usuario.username };
   }
+
+  // O navegador recebe apenas um aviso para atualizar a consulta pela API;
+  // nenhuma linha ou dado do banco é transmitido pelo canal em tempo real.
+  router.get('/eventos', VER, (_req, res) => {
+    res.status(200);
+    res.setHeader('Content-Type', 'text/event-stream; charset=utf-8');
+    res.setHeader('Cache-Control', 'no-cache, no-transform');
+    res.setHeader('Connection', 'keep-alive');
+    res.setHeader('X-Accel-Buffering', 'no');
+    res.flushHeaders();
+    res.write('event: conectado\ndata: {}\n\n');
+
+    const enviarMudanca = () => {
+      if (!res.destroyed) res.write('event: estoque-atualizado\ndata: {}\n\n');
+    };
+    atualizacoes.on('mudanca', enviarMudanca);
+    const heartbeat = setInterval(() => {
+      if (!res.destroyed) res.write(': keep-alive\n\n');
+    }, 20_000);
+    res.on('close', () => {
+      clearInterval(heartbeat);
+      atualizacoes.off('mudanca', enviarMudanca);
+    });
+  });
 
   router.get('/locais', VER, async (_req, res) => {
     const recursos = await detectarRecursos();

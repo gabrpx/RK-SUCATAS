@@ -431,7 +431,7 @@ export function editarUnidade(
   alteracoes: Partial<
     Pick<
       UnidadeEstoque,
-      "preco" | "grau" | "origem" | "fotoUrl" | "endereco" | "estado"
+      "preco" | "grau" | "origem" | "fotoUrl" | "fotos" | "endereco" | "estado"
     >
   >
 ): EstoquePreviewState {

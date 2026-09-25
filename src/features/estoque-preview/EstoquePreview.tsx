@@ -21,8 +21,10 @@ import { XAxis } from "@/src/components/charts/x-axis";
 import { Button } from "@/src/components/ui/button";
 import { Tabs as SegmentTabs, TabsList as SegmentTabsList, TabsTrigger as SegmentTabsTrigger } from "../tarefas-preview/PreviewTabs";
 import { AnimatePresence, motion } from "motion/react";
-import { categoriasApi, formasPagamentoApi } from "../../lib/catalogApi";
+import { categoriasApi, formasPagamentoApi, modelosMotoApi } from "../../lib/catalogApi";
+import type { ModeloMoto } from "../../types/catalog";
 import { usePermissao } from "../../hooks/usePermissao";
+import { BASE_URL } from "../../utils/api";
 import { estoqueApi } from "../estoque/api";
 import { clientesApi } from "../clientes/api";
 import type { Cliente } from "../clientes/types";
@@ -31,11 +33,11 @@ import { salvarUnidadeOperacional } from "./persistInventory";
 import { InventoryComposer } from "./InventoryComposer";
 import { InventoryDialog, InventoryTokensContext, lightInventoryTokens } from "./InventoryDrawer";
 import { InventoryConferencia, pecasComFichasSobrando } from "./InventoryConferencia";
-import { InventoryUnitDrawer, type HistoricoCarregado } from "./InventoryUnitDrawer";
+import { InventoryUnitDrawer, type HistoricoCarregado, type UnidadeAlteracoes } from "./InventoryUnitDrawer";
 import { InventoryPieceSummaryDrawer } from "./InventoryPieceSummaryDrawer";
 import { InventoryMap } from "./InventoryMap";
 import { ImageZoom } from "../../components/ui/image-zoom";
-import { organizacaoApi, RECURSOS_DEMONSTRACAO, type BaixaPendente, type RecursosOrganizacao, type UnidadeFichaPayload } from "./organizacaoApi";
+import { enviarFotoUnidade, organizacaoApi, RECURSOS_DEMONSTRACAO, type BaixaPendente, type RecursosOrganizacao, type UnidadeFichaPayload } from "./organizacaoApi";
 import {
   adicionarUnidade,
   alternarCategoriaDaSecao,
@@ -352,6 +354,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const buscaRef = useRef<HTMLInputElement>(null);
   const [clientesReais, setClientesReais] = useState<Cliente[]>([]);
   const [formasReais, setFormasReais] = useState<{ id: string; nome: string }[]>([]);
+  const [modelosMoto, setModelosMoto] = useState<ModeloMoto[]>([]);
   const conexaoRealPronta = fonte === "real" && !carregandoReal && !erroReal && !erroOrganizacao;
   const conexaoPermiteGravar = (fonte === "demo" && !embutido) || conexaoRealPronta;
   // Permissões granulares (mesmas chaves que a API exige): sem elas a tela
@@ -378,19 +381,20 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
 
   useEffect(() => {
     let ativo = true;
-    setCarregandoReal(true);
     async function carregarEstoqueReal() {
       try {
-        const [estoqueResposta, categoriasResposta, organizacaoResposta] = await Promise.all([
+        const [estoqueResposta, categoriasResposta, organizacaoResposta, modelosResposta] = await Promise.all([
           estoqueApi.listar(),
           categoriasApi.listar(),
           organizacaoApi.listar().catch(() => null),
+          modelosMotoApi.listar().catch(() => null),
         ]);
         if (!estoqueResposta.success) throw new Error(estoqueResposta.error || "Não foi possível carregar o estoque");
         if (!categoriasResposta.success) throw new Error(categoriasResposta.error || "Não foi possível carregar as categorias");
         if (!ativo) return;
         const organizacao = organizacaoResposta?.success ? organizacaoResposta.data : null;
         setEstoque(adaptarEstoqueReal(estoqueResposta.data ?? [], categoriasResposta.data ?? [], organizacao?.locais ?? [], organizacao?.categorias ?? [], organizacao?.reservas ?? []));
+        setModelosMoto(modelosResposta?.success ? modelosResposta.data ?? [] : []);
         setRecursos(organizacao?.recursos ?? { clienteNaReserva: false, reservaComSinal: false });
         setBaixasPendentes(organizacao?.baixasPendentes ?? []);
         setErroOrganizacao(organizacao ? null : organizacaoResposta?.error ?? "Locais físicos indisponíveis");
@@ -405,6 +409,62 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     void carregarEstoqueReal();
     return () => { ativo = false; };
   }, [reloadKey]);
+
+  // A inscrição autentica no Express; o navegador recebe apenas invalidações,
+  // sem abrir conexão direta com Supabase nem receber registros pelo socket.
+  useEffect(() => {
+    if (fonte !== "real") return;
+    let ativo = true;
+    let controlador: AbortController | null = null;
+    let temporizadorReconexao: number | undefined;
+    let temporizadorAtualizacao: number | undefined;
+    const atualizarComDebounce = () => {
+      if (temporizadorAtualizacao !== undefined) window.clearTimeout(temporizadorAtualizacao);
+      temporizadorAtualizacao = window.setTimeout(() => {
+        if (ativo) setReloadKey((atual) => atual + 1);
+      }, 300);
+    };
+    const reconectar = async () => {
+      controlador = new AbortController();
+      try {
+        const token = localStorage.getItem("auth_token");
+        const resposta = await fetch(`${BASE_URL}/api/estoque/organizacao/eventos`, {
+          headers: { Accept: "text/event-stream", ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          signal: controlador.signal,
+        });
+        if (!resposta.ok || !resposta.body) throw new Error("Canal de atualização indisponível.");
+        atualizarComDebounce(); // reconcilia mudanças ocorridas entre a carga inicial e a inscrição
+        const leitor = resposta.body.getReader();
+        const decodificador = new TextDecoder();
+        let buffer = "";
+        while (ativo) {
+          const { value, done } = await leitor.read();
+          if (done) break;
+          buffer += decodificador.decode(value, { stream: true });
+          const blocos = buffer.split(/\r?\n\r?\n/);
+          buffer = blocos.pop() ?? "";
+          if (blocos.some((bloco) => bloco.split(/\r?\n/).some((linha) => linha.trim() === "event: estoque-atualizado"))) atualizarComDebounce();
+        }
+        leitor.releaseLock();
+      } catch {
+        // O estoque segue utilizável durante quedas de rede; a inscrição tenta reconectar.
+      } finally {
+        if (ativo) temporizadorReconexao = window.setTimeout(() => void reconectar(), 1500);
+      }
+    };
+    const aoVoltarParaTela = () => {
+      if (document.visibilityState === "visible") atualizarComDebounce();
+    };
+    document.addEventListener("visibilitychange", aoVoltarParaTela);
+    void reconectar();
+    return () => {
+      ativo = false;
+      controlador?.abort();
+      if (temporizadorReconexao !== undefined) window.clearTimeout(temporizadorReconexao);
+      if (temporizadorAtualizacao !== undefined) window.clearTimeout(temporizadorAtualizacao);
+      document.removeEventListener("visibilitychange", aoVoltarParaTela);
+    };
+  }, [fonte]);
 
   useEffect(() => {
     if (fonte !== "real") return;
@@ -495,14 +555,15 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     }
   }
 
-  async function salvarEdicao(alteracoes: Partial<Pick<UnidadeEstoque, "preco" | "grau" | "origem" | "endereco">>) {
+  async function salvarEdicao(alteracoes: UnidadeAlteracoes): Promise<boolean> {
     const unidade = unidadeEditando ?? unidadeDetalhando;
-    if (!unidade) return;
-    if (!podeEditarUnidade(unidade)) { avisar("Unidade vendida ou arquivada: a ficha é somente consulta."); return; }
+    if (!unidade) return false;
+    if (!podeEditarUnidade(unidade)) { avisar("Unidade vendida ou arquivada: a ficha é somente consulta."); return false; }
+    const fotosNovas: string[] = [];
     if (fonte === "real") {
-      if (!conexaoRealPronta) { avisar("Conexão indisponível. Atualize os dados antes de editar."); return; }
+      if (!conexaoRealPronta) { avisar("Conexão indisponível. Atualize os dados antes de editar."); return false; }
       const local = alteracoes.endereco ? estoque.locais?.find((item) => item.codigo === alteracoes.endereco && item.ativo) : null;
-      if (alteracoes.endereco && !local) { avisar("Escolha um local cadastrado e ativo."); return; }
+      if (alteracoes.endereco && !local) { avisar("Escolha um local cadastrado e ativo."); return false; }
       // Só o que mudou vai para o banco: preço herdado da peça continua
       // herdado e a nota exata (ex.: 7) não vira 6 só por abrir a edição.
       const payload: UnidadeFichaPayload = {};
@@ -510,11 +571,26 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       if (alteracoes.grau && alteracoes.grau !== unidade.grau) payload.condicao_nota = alteracoes.grau === "A" ? 9 : alteracoes.grau === "C" ? 3 : 6;
       if (alteracoes.endereco !== undefined && (alteracoes.endereco ?? null) !== (unidade.endereco ?? null)) payload.endereco_id = local?.id ?? null;
       if (alteracoes.origem !== undefined && (alteracoes.origem?.trim() || null) !== (unidade.origem ?? null)) payload.origem_identificacao = alteracoes.origem?.trim() || null;
+      try {
+        for (const arquivo of alteracoes.fotosNovas ?? []) {
+          const upload = await enviarFotoUnidade(arquivo);
+          if (!upload.success || !upload.url) throw new Error(upload.error || "Não foi possível enviar uma das fotos.");
+          fotosNovas.push(upload.url);
+        }
+        if (alteracoes.fotos !== undefined || fotosNovas.length) {
+          const fotosAtuais = alteracoes.fotos ?? unidade.fotos?.filter(Boolean) ?? (unidade.fotoUrl ? [unidade.fotoUrl] : []);
+          payload.fotos = [...fotosAtuais, ...fotosNovas];
+        }
+      } catch (erro) {
+        if (fotosNovas.length) await organizacaoApi.descartarFotos(fotosNovas).catch(() => undefined);
+        avisar(erro instanceof Error ? erro.message : "Falha ao enviar as fotos.");
+        return false;
+      }
       if (!Object.keys(payload).length) {
         setUnidadeDetalhando(null);
         setUnidadeEditando(null);
         avisar("Nada mudou nesta unidade.");
-        return;
+        return true;
       }
       try {
         // Uma única gravação (transação no banco) com tudo que mudou.
@@ -524,16 +600,21 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         setUnidadeDetalhando(null);
         setUnidadeEditando(null);
         avisar("Unidade atualizada no estoque.");
+        return true;
       } catch (erro) {
         setReloadKey((valor) => valor + 1);
+        if (fotosNovas.length) await organizacaoApi.descartarFotos(fotosNovas).catch(() => undefined);
         avisar(erro instanceof Error ? erro.message : "Falha ao atualizar unidade.");
+        return false;
       }
-      return;
     }
-    setEstoque((atual) => editarUnidade(atual, unidade.id, alteracoes));
+    const fotosDemo = alteracoes.fotos ?? unidade.fotos;
+    const campos = { preco: alteracoes.preco, grau: alteracoes.grau, origem: alteracoes.origem, endereco: alteracoes.endereco };
+    setEstoque((atual) => editarUnidade(atual, unidade.id, { ...campos, ...(alteracoes.fotos !== undefined ? { fotos: fotosDemo, fotoUrl: fotosDemo?.[0] ?? null } : {}) }));
     setUnidadeDetalhando(null);
     setUnidadeEditando(null);
     avisar("Unidade atualizada na demonstração");
+    return true;
   }
 
   function abrirArquivamento(unidade: UnidadeEstoque) {
@@ -712,7 +793,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       {aba === "arquivados" && <section className="rounded-card border border-border-default bg-surface-card p-5"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Histórico preservado</p><h2 className="mt-1 text-xl font-semibold">{fonte === "real" ? "Unidades fora do ativo" : "Itens arquivados"}</h2><p className="mt-1 text-sm text-text-muted">Arquivar tira do estoque ativo, mas não apaga a rastreabilidade. Vendas aparecem aqui só para consulta.</p><div className="mt-4">{campoBusca}</div><div className="mt-4 space-y-2"><AnimatePresence initial={false}>{arquivados.map((unidade) => <motion.div layout key={unidade.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-default p-3"><button type="button" onClick={() => setUnidadeDetalhando(unidade)} aria-label={`Ver ficha de ${unidade.sku}`} className="min-w-0 flex-1 rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><strong>{unidade.sku}</strong><p className="mt-1 text-xs text-text-muted">{pecaPorId(unidade.pecaId)?.nome} · {unidade.vendidaEm ? "Vendida" : unidade.motivoArquivamento ?? "Arquivada"}</p></button>{!unidade.vendidaEm && podeAlterar && <button type="button" aria-label={`Restaurar ${unidade.sku}`} disabled={restaurando === unidade.id} onClick={() => void restaurar(unidade)} className={botaoSecundario}>{restaurando === unidade.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}Restaurar</button>}</motion.div>)}</AnimatePresence>{!arquivados.length && <p className="rounded-control border border-dashed border-border-default p-6 text-center text-sm text-text-muted">Nenhuma unidade fora do ativo.</p>}</div></section>}
       </motion.div></AnimatePresence>}
     </main>
-    <InventoryComposer aberto={composerAberto} pecaInicialId={pecaParaUnidade} categorias={estoque.categorias} pecas={estoque.pecas} enderecos={fonte === "real" ? enderecosReais : undefined} operacional={fonte === "real"} onFechar={() => { setComposerAberto(false); setPecaParaUnidade(null); }} onDescartarFotos={(urls) => { if (fonte === "real") void organizacaoApi.descartarFotos(urls).catch(() => undefined); }} onSalvar={async (entrada, cacheFotos) => {
+    <InventoryComposer aberto={composerAberto} pecaInicialId={pecaParaUnidade} categorias={estoque.categorias} pecas={estoque.pecas} modelos={modelosMoto} enderecos={fonte === "real" ? enderecosReais : undefined} operacional={fonte === "real"} onFechar={() => { setComposerAberto(false); setPecaParaUnidade(null); }} onDescartarFotos={(urls) => { if (fonte === "real") void organizacaoApi.descartarFotos(urls).catch(() => undefined); }} onSalvar={async (entrada, cacheFotos) => {
       if (fonte === "demo") {
         setEstoque((atual) => adicionarUnidade(atual, entrada));
         avisar("Unidade adicionada à demonstração local");

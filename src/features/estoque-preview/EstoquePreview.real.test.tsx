@@ -18,6 +18,7 @@ vi.mock("../estoque/api", () => ({
 }));
 vi.mock("../../lib/catalogApi", () => ({
   categoriasApi: { listar: async () => ({ success: true, data: [{ id: "cat-1", nome: "Iluminação", parent_id: null, ordem: 1 }] }) },
+  modelosMotoApi: { listar: async () => ({ success: true, data: [] }) },
   formasPagamentoApi: { listar: async () => ({ success: true, data: [{ id: "forma-1", nome: "PIX", natureza: "avista" }] }) },
 }));
 vi.mock("../clientes/api", () => ({ clientesApi: { listar: async () => ({ success: true, data: [] }) } }));
