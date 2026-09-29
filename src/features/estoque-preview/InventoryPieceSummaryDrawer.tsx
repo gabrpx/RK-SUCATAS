@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { InventoryDrawer } from "./InventoryDrawer";
+import { inventoryThumbnailUrl } from "./inventoryImageUrl";
 import type { ResultadoBuscaEstoque, UnidadeEstoque } from "./inventoryPreviewModel";
 
 function formatarPreco(preco: number | null) {
@@ -79,7 +80,14 @@ export function InventoryPieceSummaryDrawer({
                   className="flex min-h-24 w-full cursor-pointer items-center gap-3 rounded-control border border-border-default bg-surface-card p-3 text-left shadow-sm transition hover:border-accent/40 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"
                 >
                 <div className="relative grid w-20 aspect-[4/3] shrink-0 place-items-center overflow-hidden rounded-control border border-border-default bg-surface-inset text-center text-[10px] font-medium text-text-faint">
-                  {foto ? <img src={foto} alt={usandoFotoReferencia ? `Foto de referência de ${unidade.sku}` : `Foto de ${unidade.sku}`} className="size-full object-contain" /> : "Sem foto"}
+                  {foto ? <img src={inventoryThumbnailUrl(foto)} alt={usandoFotoReferencia ? `Foto de referência de ${unidade.sku}` : `Foto de ${unidade.sku}`} loading="lazy" decoding="async" className="size-full bg-surface-inset object-contain" onError={(event) => {
+                    const imagem = event.currentTarget;
+                    const miniatura = inventoryThumbnailUrl(foto);
+                    if (miniatura !== foto && imagem.dataset.fallbackAttempted !== "true") {
+                      imagem.dataset.fallbackAttempted = "true";
+                      imagem.src = foto;
+                    }
+                  }} /> : "Sem foto"}
                   {usandoFotoReferencia && <span title="Foto geral da peça, não uma foto própria da unidade" className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-surface-card/95 px-1 py-0.5 text-[8px] font-bold leading-none text-text-secondary shadow-sm">Ref.</span>}
                 </div>
                 <span className="min-w-0 flex-1">

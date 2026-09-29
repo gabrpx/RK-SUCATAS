@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { ComponentType } from 'react';
 import type { TasksPreviewProps } from '../tarefas-preview/TasksPreview';
 import type { TaskComposerInput } from '../tarefas-preview/TaskComposer';
-import type { PreviewTask, PreviewTaskCategory, PreviewTaskPriority } from '../tarefas-preview/taskPreviewModel';
+import { mapParticipantReadReceipts, type PreviewTask, type PreviewTaskCategory, type PreviewTaskPriority } from '../tarefas-preview/taskPreviewModel';
 import type { Reminder } from '../tarefas-preview/reminderModel';
 import type { Tarefa, UsuarioResumo as TarefaUsuario } from './types';
 import type { Lembrete } from '../lembretes/types';
@@ -14,6 +14,8 @@ type IntegratedProps = {
   tarefas: ReturnType<typeof import('./useTarefas').useTarefas>;
   lembretes: ReturnType<typeof import('../lembretes/useLembretes').useLembretes>;
   Preview: ComponentType<TasksPreviewProps>;
+  initialTaskId?: string | null;
+  onInitialTaskHandled?: (taskId: string) => void;
 };
 
 const operatorTones = [
@@ -75,6 +77,7 @@ function tarefaParaPreview(tarefa: Tarefa): PreviewTask {
     operatorIds,
     instructions: tarefa.descricao || 'Nenhuma instrução adicional registrada.',
     checklist,
+    readReceipts: mapParticipantReadReceipts(participantes),
   };
 }
 
@@ -116,7 +119,7 @@ function dataParaPrazo(dueTime: string) {
   return now.toISOString();
 }
 
-export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview }: IntegratedProps) {
+export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialTaskId, onInitialTaskHandled }: IntegratedProps) {
   const { pode } = usePermissao();
   const canCreate = pode('tarefas.criar');
   const taskList = tarefas.tarefas;
@@ -177,6 +180,24 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview }: Integr
     tarefas.setTarefas((current) => current.map((item) => item.id === id ? response.data : item));
     return tarefaParaPreview(response.data);
   }, [tarefas]);
+
+  const onTaskOpened = useCallback(async (id: string) => {
+    const currentUserId = localStorage.getItem('user_id') || '';
+    const task = taskList.find((item) => item.id === id);
+    const receipt = task?.participantes?.find((participant) => participant.usuario_id === currentUserId);
+    if (!task || !receipt || receipt.lida) return null;
+
+    const response = await tarefasApi.marcarLida(id);
+    if (!response.success) throw new Error(response.error || 'Não foi possível registrar a visualização');
+    const atualizada: Tarefa = {
+      ...task,
+      participantes: task.participantes?.map((participant) =>
+        participant.usuario_id === currentUserId ? { ...participant, lida: true } : participant
+      ),
+    };
+    tarefas.setTarefas((current) => current.map((item) => item.id === id ? atualizada : item));
+    return tarefaParaPreview(atualizada);
+  }, [taskList, tarefas]);
 
   const onCreateTask = useCallback(async (input: Parameters<NonNullable<TasksPreviewProps['onCreateTask']>>[0]) => {
     if (!canCreate) return null;
@@ -285,6 +306,11 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview }: Integr
       onUpdateTask={canEdit ? onUpdateTask : undefined}
       onDeleteTask={canDelete ? onDeleteTask : undefined}
       onRemindersChange={onRemindersChange}
+      onTaskOpened={onTaskOpened}
+      initialTaskId={initialTaskId}
+      onInitialTaskHandled={onInitialTaskHandled}
+      currentUserId={localStorage.getItem('user_id') || ''}
+      canViewReadReceipts={canCreate}
       errorMessage={tarefas.error || lembretes.error || possibleOperatorsError}
       loading={tarefas.loading || lembretes.loading || possibleOperatorsLoading}
       integrated

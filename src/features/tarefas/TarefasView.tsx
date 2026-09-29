@@ -10,9 +10,9 @@ import { useTarefas } from './useTarefas';
 import { useLembretes } from '../lembretes/useLembretes';
 import { TarefasPreviewIntegrated } from './TarefasPreviewIntegrated';
 
-export function TarefasView() {
+export function TarefasView({ initialTaskId, onInitialTaskHandled }: { initialTaskId?: string | null; onInitialTaskHandled?: (taskId: string) => void } = {}) {
   const tarefas = useTarefas();
   const lembretes = useLembretes();
 
-  return <TarefasPreviewIntegrated tarefas={tarefas} lembretes={lembretes} Preview={TasksPreview} />;
+  return <TarefasPreviewIntegrated tarefas={tarefas} lembretes={lembretes} Preview={TasksPreview} initialTaskId={initialTaskId} onInitialTaskHandled={onInitialTaskHandled} />;
 }

@@ -62,7 +62,7 @@ describe('PATCH /:id/participantes/toggle', () => {
 });
 
 describe('PATCH /:id edição de participantes', () => {
-  it('substitui os participantes ativos quando a tarefa em grupo é editada', async () => {
+  it('substitui participantes e mantém um recibo para o responsável único', async () => {
     const fake = criarSupabaseFake([
       usuarioGerente('admin-1', 'Admin'),
       usuarioExecutor('u-bianca', 'Bianca'),
@@ -82,7 +82,39 @@ describe('PATCH /:id edição de participantes', () => {
 
     expect(res.statusCode).toBe(200);
     expect(res.body.data.atribuido_para).toBe('u-diego');
-    expect(res.body.data.participantes).toEqual([]);
+    expect(res.body.data.participantes).toEqual([
+      expect.objectContaining({ usuario_id: 'u-diego', lida: false }),
+    ]);
+  });
+
+  it('preserva o recibo de quem continua responsável e cria pendência para o novo participante', async () => {
+    const fake = criarSupabaseFake([
+      usuarioGerente('admin-1', 'Admin'),
+      usuarioExecutor('u-bianca', 'Bianca'),
+      usuarioExecutor('u-diego', 'Diego'),
+    ]);
+    const router = tarefasRouter(fake as any);
+    const id = await criarTarefaComParticipantes(fake, router, ['u-bianca']);
+    await dispatch(router, criarReq({
+      method: 'PATCH',
+      url: `/${id}/marcar-lida`,
+      usuario: usuarioExecutor('u-bianca', 'Bianca'),
+      params: { id },
+    }));
+
+    const res = await dispatch(router, criarReq({
+      method: 'PATCH',
+      url: `/${id}`,
+      usuario: { id: 'admin-1', roles: ['admin'], permissoes: {} },
+      params: { id },
+      body: { participantes_ids: ['u-bianca', 'u-diego'] },
+    }));
+
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.participantes.map((p: any) => [p.usuario_id, p.lida])).toEqual([
+      ['u-bianca', true],
+      ['u-diego', false],
+    ]);
   });
 });
 

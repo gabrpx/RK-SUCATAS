@@ -10,14 +10,17 @@ interface ComboboxProps {
   options: ComboboxOption[];
   value: string; onChange: (value: string) => void;
   buttonRef?: React.Ref<HTMLButtonElement>;
+  disabled?: boolean;
   virtualizeThreshold?: number;
+  renderOption?: (option: ComboboxOption, selected: boolean) => React.ReactNode;
+  renderValue?: (option: ComboboxOption) => React.ReactNode;
   /** `lg` = alvo de toque de 44 px e texto de 16 px no mobile (formulários operacionais). */
   size?: 'md' | 'lg';
 }
 
 const WINDOW = 60;  // itens renderizados por vez quando threshold estourado
 
-export function Combobox({ label, helper, error, placeholder, options, value, onChange, buttonRef, virtualizeThreshold = 100, size = 'md' }: ComboboxProps) {
+export function Combobox({ label, helper, error, placeholder, options, value, onChange, buttonRef, disabled = false, virtualizeThreshold = 100, renderOption, renderValue, size = 'md' }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
   const [query, setQuery] = React.useState('');
   const [visible, setVisible] = React.useState(WINDOW);
@@ -125,15 +128,18 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
           aria-haspopup="listbox"
           aria-expanded={open}
           aria-labelledby={label ? `${labelId} ${valueId}` : undefined}
-          onClick={() => (open ? close(false) : abrir())}
+          disabled={disabled}
+          onClick={() => { if (disabled) return; if (open) close(false); else abrir(); }}
           onKeyDown={(e) => { if (!open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) { e.preventDefault(); abrir(); } }}
           className={cn(
-            'flex w-full cursor-pointer items-center justify-between gap-2 rounded-control border bg-surface-inset px-3 text-left text-text-primary transition-colors hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30',
+            'flex w-full cursor-pointer items-center justify-between gap-2 rounded-control border bg-surface-inset px-3 text-left text-text-primary transition-colors hover:border-accent/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-60',
             size === 'lg' ? 'min-h-11 text-base sm:text-sm' : 'h-9 text-sm',
             error ? 'border-danger' : open ? 'border-accent' : 'border-border-default'
           )}
         >
-          <span id={valueId} className={cn('truncate', !current && 'text-text-faint')}>{current?.label ?? placeholder ?? 'Selecione…'}</span>
+          <span id={valueId} className={cn('flex min-w-0 flex-1 items-center gap-2', !current && 'text-text-faint')}>
+            {current ? renderValue?.(current) ?? <span className="truncate">{current.label}</span> : placeholder ?? 'Selecione…'}
+          </span>
           <ChevronDown size={14} className={cn('shrink-0 text-text-muted transition-transform', open && 'rotate-180')} />
         </button>
         <AnimatePresence>
@@ -184,13 +190,13 @@ export function Combobox({ label, helper, error, placeholder, options, value, on
                     onClick={() => selectOption(o)}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectOption(o); } }}
                     className={cn(
-                      'px-3 cursor-pointer outline-none',
+                      'cursor-pointer px-3 outline-none',
                       size === 'lg' ? 'py-2.5 text-base sm:text-sm' : 'py-2 text-sm',
                       indice === active && 'bg-surface-inset',
                       o.value === value ? 'text-accent font-medium' : 'text-text-secondary'
                     )}
                   >
-                    {o.label}
+                    {renderOption ? renderOption(o, o.value === value) : o.label}
                   </li>
                 ))}
                 {filtered.length === 0 && (

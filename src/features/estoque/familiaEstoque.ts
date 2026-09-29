@@ -6,6 +6,7 @@
 import type { Estoque } from './types';
 import { valorTotalEstoque, valorDaUnidade, contarAvarias } from './valorEstoque';
 import { extrairAnoOrdenavel } from '../motos/motoTree';
+import { correspondeBuscaEstoque } from './gaveta/buscaGavetas';
 
 export interface GrupoModeloFamilia {
   modeloMotoId: string | null;
@@ -128,18 +129,10 @@ export function agruparLinhasTabela(items: Estoque[]): EstoqueLinha[] {
 }
 
 // Filtra uma linha da tabela pelo texto de busca. Linha-família bate quando
-// QUALQUER ficha-filha contém todos os termos (nome/código/categoria/modelo).
+// QUALQUER ficha-filha contém todos os termos em peça ou unidade.
 export function filtrarLinhaTexto(linha: EstoqueLinha, terms: string[]): boolean {
   if (terms.length === 0) return true;
   const itens = linha.tipo === 'familia' ? linha.itens : [linha.item];
-  return terms.every((t) =>
-    itens.some(
-      (item) =>
-        item.nome.toLowerCase().includes(t) ||
-        item.codigo?.toLowerCase().includes(t) ||
-        item.categoria?.nome?.toLowerCase().includes(t) ||
-        item.modelo_moto?.nome?.toLowerCase().includes(t) ||
-        item.modelos_compativeis?.some((m) => m.nome.toLowerCase().includes(t))
-    )
-  );
+  const busca = terms.join(' ');
+  return itens.some((item) => correspondeBuscaEstoque(item, busca));
 }

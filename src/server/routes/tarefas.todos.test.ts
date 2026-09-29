@@ -41,6 +41,7 @@ describe('POST /api/tarefas com participantes_ids (múltiplos participantes)', (
 
     expect(res.body.data.participantes).toHaveLength(2);
     expect(res.body.data.participantes.every((p: any) => p.concluido === false)).toBe(true);
+    expect(res.body.data.participantes.every((p: any) => p.lida === false)).toBe(true);
   });
 
   it('notifica todo participante que não seja quem criou', async () => {
@@ -51,6 +52,7 @@ describe('POST /api/tarefas com participantes_ids (múltiplos participantes)', (
 
     expect(notificarUsuario).toHaveBeenCalledTimes(1); // não se autonotifica
     expect(vi.mocked(notificarUsuario).mock.calls[0][1]).toBe('u-bianca');
+    expect(fake._tabelas.tarefa_participantes.find((p: any) => p.usuario_id === 'admin-1').lida).toBe(true);
   });
 
   it('um id inválido no meio da lista rejeita a criação inteira, sem criar nada', async () => {
@@ -75,7 +77,7 @@ describe('POST /api/tarefas com participantes_ids (múltiplos participantes)', (
     expect(fake._tabelas.tarefa_participantes).toHaveLength(1);
   });
 
-  it('atribuição normal (sem participantes_ids) continua criando só uma linha, sem tarefa_participantes — modelo antigo intacto', async () => {
+  it('atribuição normal gera recibo não lido para o responsável diferente do criador', async () => {
     const fake = criarSupabaseFake([usuarioExecutor('u-bianca', 'Bianca')]);
     const router = tarefasRouter(fake as any);
 
@@ -85,8 +87,23 @@ describe('POST /api/tarefas com participantes_ids (múltiplos participantes)', (
     expect(res.body.success).toBe(true);
     expect(fake._tabelas.tarefas).toHaveLength(1);
     expect(fake._tabelas.tarefas[0].atribuido_para).toBe('u-bianca');
-    expect(fake._tabelas.tarefa_participantes).toHaveLength(0);
-    expect(res.body.data.participantes).toEqual([]);
+    expect(fake._tabelas.tarefa_participantes).toEqual([
+      expect.objectContaining({ tarefa_id: fake._tabelas.tarefas[0].id, usuario_id: 'u-bianca', lida: false }),
+    ]);
+    expect(res.body.data.participantes[0].lida).toBe(false);
+  });
+
+  it('atribuição normal inicia lida quando o criador é o próprio responsável', async () => {
+    const gerente = usuarioGerente('u-carlos', 'Carlos');
+    const fake = criarSupabaseFake([gerente]);
+    const router = tarefasRouter(fake as any);
+
+    const res = await dispatch(router, criarReq({ usuario: gerente, body: { titulo: 'Organizar bancada', atribuido_para: 'u-carlos' } }));
+
+    expect(res.statusCode).toBe(200);
+    expect(fake._tabelas.tarefa_participantes).toEqual([
+      expect.objectContaining({ tarefa_id: fake._tabelas.tarefas[0].id, usuario_id: 'u-carlos', lida: true }),
+    ]);
   });
 
   it('participantes_ids vazio cai no fluxo antigo (exige atribuido_para)', async () => {

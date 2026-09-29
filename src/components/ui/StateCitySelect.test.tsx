@@ -31,8 +31,8 @@ describe('<StateCitySelect>', () => {
   it('trocar UF esvazia cidade', async () => {
     const onChange = vi.fn();
     render(<StateCitySelect value={{ estado: 'PB', cidade: 'Juazeirinho' }} onChange={onChange} />);
-    await waitFor(() => screen.getByRole('button', { name: /paraíba/i }));
-    fireEvent.click(screen.getByRole('button', { name: /paraíba/i }));
+    await waitFor(() => screen.getByRole('combobox', { name: /paraíba/i }));
+    fireEvent.click(screen.getByRole('combobox', { name: /paraíba/i }));
     fireEvent.click(await screen.findByText(/Pernambuco/));
     expect(onChange).toHaveBeenCalledWith({ estado: 'PE', cidade: '' });
   });

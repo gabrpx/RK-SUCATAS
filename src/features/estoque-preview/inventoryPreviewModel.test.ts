@@ -61,6 +61,26 @@ describe("inventoryPreviewModel", () => {
     expect(resultado.some((item) => item.peca.nome === esperado)).toBe(true);
   });
 
+  it("normaliza acentos e exige que tokens distribuídos entre peça e unidade correspondam", () => {
+    const estoque = criarEstoqueDemo();
+    const peca = estoque.pecas.find((item) => item.codigoLegado === "RK-792")!;
+    peca.nome = "Tanque combustível";
+    peca.detalhes = "Vermelho original";
+    const unidade = estoque.unidades.find((item) => item.pecaId === peca.id)!;
+    unidade.origem = "Honda Titan 150";
+
+    expect(buscarPecas(estoque, "tanque combustivel vermelho titan").some((item) => item.peca.id === peca.id)).toBe(true);
+    expect(buscarPecas(estoque, "tanque roxo titan").some((item) => item.peca.id === peca.id)).toBe(false);
+  });
+
+  it("encontra uma unidade por SKU e endereço físico em uma única consulta", () => {
+    const estoque = criarEstoqueDemo();
+    const unidade = estoque.unidades.find((item) => item.sku === "RK-792-02")!;
+    unidade.endereco = "P03-S01";
+
+    expect(buscarPecas(estoque, "RK-792-02 P03-S01").map((item) => item.peca.id)).toContain(unidade.pecaId);
+  });
+
   it("deriva métricas e mapa da mesma lista de unidades", () => {
     const estoque = criarEstoqueDemo();
     const metricas = getMetricas(estoque);

@@ -230,7 +230,11 @@ export function tarefasRouter(supabase: SupabaseClient) {
         const { data: criada, error: erroCriada } = await supabase.from('tarefas').insert(payload).select('id').single();
         if (erroCriada) throw erroCriada;
 
-        const linhasParticipantes = idsUnicos.map((usuario_id) => ({ tarefa_id: criada.id, usuario_id }));
+        const linhasParticipantes = idsUnicos.map((usuario_id) => ({
+          tarefa_id: criada.id,
+          usuario_id,
+          lida: usuario_id === req.usuario!.id,
+        }));
         const { error: erroParticipantes } = await supabase.from('tarefa_participantes').insert(linhasParticipantes);
         if (erroParticipantes) throw erroParticipantes;
 
@@ -278,6 +282,13 @@ export function tarefasRouter(supabase: SupabaseClient) {
 
       const { data, error } = await supabase.from('tarefas').insert(payload).select(SELECT_COM_JOINS).single();
       if (error) throw error;
+
+      const { error: erroParticipante } = await supabase.from('tarefa_participantes').insert({
+        tarefa_id: data.id,
+        usuario_id: atribuido_para,
+        lida: atribuido_para === req.usuario!.id,
+      });
+      if (erroParticipante) throw erroParticipante;
 
       if (itens.length > 0) {
         const linhas = itens.map((it, i) => ({ tarefa_id: data.id, texto: it.texto, ordem: i }));
@@ -448,11 +459,24 @@ export function tarefasRouter(supabase: SupabaseClient) {
       }
 
       if (participantesInformados && participantesIds) {
+        const { data: participantesAtuais, error: erroLeituraParticipantes } = await supabase
+          .from('tarefa_participantes')
+          .select('usuario_id, lida')
+          .eq('tarefa_id', req.params.id);
+        if (erroLeituraParticipantes) throw erroLeituraParticipantes;
+        const lidaPorUsuario = new Map((participantesAtuais ?? []).map((participante: any) => [
+          participante.usuario_id,
+          Boolean(participante.lida),
+        ]));
         const { error: erroRemocao } = await supabase.from('tarefa_participantes').delete().eq('tarefa_id', req.params.id);
         if (erroRemocao) throw erroRemocao;
-        if (participantesIds.length > 1) {
+        if (participantesIds.length > 0) {
           const { error: erroParticipantes } = await supabase.from('tarefa_participantes').insert(
-            participantesIds.map((usuario_id) => ({ tarefa_id: req.params.id, usuario_id }))
+            participantesIds.map((usuario_id) => ({
+              tarefa_id: req.params.id,
+              usuario_id,
+              lida: lidaPorUsuario.get(usuario_id) ?? usuario_id === req.usuario!.id,
+            }))
           );
           if (erroParticipantes) throw erroParticipantes;
         }

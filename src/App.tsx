@@ -550,6 +550,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const [pendingFiltroSumidos, setPendingFiltroSumidos] = useState(false);
   // Abre o Caixa já na sub-aba de vendas fiado (deep-link que antes ia pra aba Fiado).
   const [pendingCaixaFiado, setPendingCaixaFiado] = useState(false);
+  const [pendingTaskNotificationId, setPendingTaskNotificationId] = useState<string | null>(null);
   const contentRef = useRef<HTMLDivElement>(null);
 
   const [selectedDetailItem, setSelectedDetailItem] = useState<DetailItem | null>(null);
@@ -585,6 +586,13 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
 
   const abrirEstoqueAntigo = useCallback(() => setActiveTab('estoque-antigo'), []);
   const filtroEstoqueBaixoAplicado = useCallback(() => setPendingEstoqueBaixo(false), []);
+  const abrirNotificacaoTarefa = useCallback((taskId: string) => {
+    setPendingTaskNotificationId(taskId);
+    setActiveTab('tarefas');
+  }, []);
+  const notificacaoTarefaTratada = useCallback((taskId: string) => {
+    setPendingTaskNotificationId((current) => current === taskId ? null : current);
+  }, []);
   // As ações de editar/excluir peça vêm da tela antiga. Fora dela a referência
   // apontaria para um componente desmontado: limpa, e o "Editar" do detalhe
   // leva à tela antiga (wrapEdit abaixo).
@@ -669,6 +677,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   onAbrirEstoqueAntigo={abrirEstoqueAntigo}
                   filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
                   onFiltroEstoqueBaixoAplicado={filtroEstoqueBaixoAplicado}
+                  onOpenTaskNotification={abrirNotificacaoTarefa}
                 />
               ) : activeTab === 'estoque-antigo' ? (
                 <div className="space-y-4">
@@ -702,7 +711,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               ) : activeTab === 'mercadolivre' ? (
                 <MercadoLivreView />
               ) : activeTab === 'tarefas' ? (
-                <TarefasView />
+                <TarefasView initialTaskId={pendingTaskNotificationId} onInitialTaskHandled={notificacaoTarefaTratada} />
               ) : activeTab === 'patchnotes' ? (
                 <PatchNotesView />
               ) : activeTab === 'notificacoes' ? (

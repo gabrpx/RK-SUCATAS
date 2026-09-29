@@ -61,6 +61,21 @@ describe('correspondeBuscaEstoque', () => {
     expect(correspondeBuscaEstoque(completo, 'vermelho amassado')).toBe(true);
   });
 
+  it('encontra SKU, identificação de origem e descrição da unidade com termos sem acento', () => {
+    const completo = item({
+      nome: 'Conjunto principal',
+      unidades: [unid({
+        sku: 8127,
+        nome: 'Vermelho sem tampa',
+        origem_identificacao: 'Honda Titan 150',
+        avaria_descricao: 'Amassado lateral',
+      })],
+    });
+
+    expect(correspondeBuscaEstoque(completo, '8127 vermelho amassado titan')).toBe(true);
+    expect(correspondeBuscaEstoque(completo, '8127 preto titan')).toBe(false);
+  });
+
   it('não aceita resultado que contenha apenas parte dos termos', () => {
     expect(correspondeBuscaEstoque(item(), 'tanque yamaha 150')).toBe(false);
   });

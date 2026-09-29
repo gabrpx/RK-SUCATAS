@@ -32,6 +32,22 @@ export interface PreviewChecklistItem {
   completedAt?: string;
 }
 
+export interface PreviewTaskReadReceipt {
+  userId: string;
+  name: string;
+  read: boolean;
+}
+
+export function mapParticipantReadReceipts(
+  participants: { usuario_id: string; lida: boolean; usuario?: { nome_exibicao: string } | null }[]
+): PreviewTaskReadReceipt[] {
+  return participants.map((participant) => ({
+    userId: participant.usuario_id,
+    name: participant.usuario?.nome_exibicao?.trim() || "Funcionário",
+    read: Boolean(participant.lida),
+  }));
+}
+
 export interface PreviewTask {
   id: string;
   title: string;
@@ -46,6 +62,7 @@ export interface PreviewTask {
   checklist: PreviewChecklistItem[];
   operatorIds?: string[];
   instructions?: string;
+  readReceipts?: PreviewTaskReadReceipt[];
 }
 
 export interface PreviewTaskCreateInput {

@@ -47,6 +47,7 @@ import {
 import { TaskComposer, demoOperators, type DemoOperator, type TaskComposerInput } from "./TaskComposer";
 import { initialReminders as demoInitialReminders, RemindersPanel } from "./RemindersPanel";
 import type { Reminder } from "./reminderModel";
+import { TaskNotificationBell } from "../notificacoes/TaskNotificationBell";
 import { TasksNavigationDock } from "../../components/TasksNavigationDock";
 import { useTaskOverlayScrollLock } from "./useTaskOverlayScrollLock";
 import type { Tab } from "../../constants/navigation";
@@ -65,6 +66,7 @@ type TaskPreviewCallbacks = {
   onUpdateTask?: (taskId: string, input: TaskComposerInput) => Promise<PreviewTask | null> | PreviewTask | null;
   onDeleteTask?: (taskId: string) => Promise<void> | void;
   onRemindersChange?: (previous: Reminder[], next: Reminder[]) => void | Promise<void>;
+  onTaskOpened?: (taskId: string) => Promise<PreviewTask | null> | PreviewTask | null;
 };
 
 export type TasksPreviewProps = TaskPreviewCallbacks & {
@@ -74,6 +76,10 @@ export type TasksPreviewProps = TaskPreviewCallbacks & {
   errorMessage?: string | null;
   loading?: boolean;
   integrated?: boolean;
+  currentUserId?: string;
+  canViewReadReceipts?: boolean;
+  initialTaskId?: string | null;
+  onInitialTaskHandled?: (taskId: string) => void;
 };
 
 const PreviewOperatorsContext = createContext<DemoOperator[]>(demoOperators);
@@ -759,6 +765,7 @@ function TaskInspector({
   onResumeTask,
   onEdit,
   onDelete,
+  canViewReadReceipts,
 }: {
   task: PreviewTask | null;
   onClose: () => void;
@@ -768,6 +775,7 @@ function TaskInspector({
   onResumeTask?: (taskId: string) => Promise<void>;
   onEdit?: () => void;
   onDelete?: () => Promise<void> | void;
+  canViewReadReceipts?: boolean;
 }) {
   useTaskOverlayScrollLock(Boolean(task));
   const [pauseFormOpen, setPauseFormOpen] = useState(false);
@@ -909,6 +917,21 @@ function TaskInspector({
           <span className="px-1 text-slate-300">•</span> setor responsável:{" "}
           {task.area}
         </p>
+
+        {canViewReadReceipts && (task.readReceipts?.length ?? 0) > 0 && (
+          <section aria-label="Visualização pelos funcionários" className="mt-5 rounded-xl border border-slate-200 bg-white p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-800">Visualização pelos funcionários</p>
+                <p className="mt-0.5 text-[11px] text-slate-500">Estado individual de abertura dos detalhes</p>
+              </div>
+              <span className="rounded-full bg-slate-100 px-2 py-1 text-[10px] font-semibold text-slate-600">{task.readReceipts.filter((receipt) => receipt.read).length}/{task.readReceipts.length}</span>
+            </div>
+            <ul className="mt-3 divide-y divide-slate-100">
+              {task.readReceipts.map((receipt) => <li key={receipt.userId} className="flex min-h-10 items-center justify-between gap-3 py-2 text-xs"><span className="truncate font-medium text-slate-700">{receipt.name}</span><span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-semibold ${receipt.read ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{receipt.read ? 'Visualizada' : 'Não visualizada'}</span></li>)}
+            </ul>
+          </section>
+        )}
 
         {task.paused && (
           <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50/80 p-4 text-amber-950 shadow-sm">
@@ -1505,6 +1528,11 @@ export function TasksPreview({
   errorMessage,
   loading = false,
   integrated = false,
+  currentUserId = "",
+  canViewReadReceipts = false,
+  initialTaskId,
+  onInitialTaskHandled,
+  onTaskOpened,
 }: TasksPreviewProps) {
   const confirm = useConfirm();
   const [workspaceTab, setWorkspaceTab] = useState<WorkspaceTab>("turno");
@@ -1519,6 +1547,8 @@ export function TasksPreview({
   const [query, setQuery] = useState("");
   const [searchOpen, setSearchOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState<PreviewTask | null>(null);
+  const taskOpenHandledRef = useRef<string | null>(null);
+  const selectedTaskIdRef = useRef<string | null>(null);
   const [editingTask, setEditingTask] = useState<PreviewTask | null>(null);
   const [isComposerOpen, setIsComposerOpen] = useState(false);
   // Ref síncrono para não adicionar isComposerOpen como dep do useEffect abaixo
@@ -1528,6 +1558,7 @@ export function TasksPreview({
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
+  selectedTaskIdRef.current = selectedTask?.id ?? null;
 
   useEffect(() => {
     // Não sobrescreve tasks enquanto o composer estiver aberto — evita perda
@@ -1538,6 +1569,34 @@ export function TasksPreview({
   useEffect(() => {
     if (initialReminders) setReminders(initialReminders);
   }, [initialReminders]);
+
+  useEffect(() => {
+    if (!initialTaskId || loading) return;
+    const task = (initialTasks ?? tasks).find((item) => item.id === initialTaskId);
+    if (task) {
+      setSearchOpen(false);
+      setSelectedTask(task);
+    }
+    onInitialTaskHandled?.(initialTaskId);
+  }, [initialTaskId, initialTasks, loading, tasks, onInitialTaskHandled]);
+
+  useEffect(() => {
+    if (!selectedTask) {
+      taskOpenHandledRef.current = null;
+      return;
+    }
+    if (!integrated || !onTaskOpened || taskOpenHandledRef.current === selectedTask.id) return;
+    taskOpenHandledRef.current = selectedTask.id;
+    const taskId = selectedTask.id;
+    Promise.resolve(onTaskOpened(taskId)).then((updated) => {
+      if (!updated) return;
+      setTasks((current) => current.map((task) => task.id === updated.id ? updated : task));
+      if (selectedTaskIdRef.current === taskId) setSelectedTask(updated);
+      window.dispatchEvent(new CustomEvent('rk:tarefa-lida'));
+    }).catch((error: unknown) => {
+      setActionError(error instanceof Error ? error.message : 'Não foi possível registrar a visualização da tarefa');
+    });
+  }, [integrated, onTaskOpened, selectedTask?.id]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -1793,6 +1852,10 @@ export function TasksPreview({
               ⌘K
             </kbd>
           </button>
+          {integrated && <TaskNotificationBell currentUserId={currentUserId} onOpenTask={(taskId) => {
+            const task = tasks.find((item) => item.id === taskId);
+            if (task) openTask(task);
+          }} />}
           <Button
             variant="default"
             size="sm"
@@ -2326,6 +2389,7 @@ export function TasksPreview({
             onResumeTask={onResumeTask ? resumeTask : undefined}
             onEdit={onUpdateTask || !integrated ? () => editTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
             onDelete={onDeleteTask || !integrated ? () => requestDeleteTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
+            canViewReadReceipts={canViewReadReceipts}
           />
         </>
       )}

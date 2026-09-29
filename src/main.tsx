@@ -5,12 +5,14 @@ import {CapacitorUpdater} from '@capgo/capacitor-updater';
 import App from './App.tsx';
 import { EstoquePreview } from './features/estoque-preview/EstoquePreview.tsx';
 import { ehRotaEstoquePreview } from './features/estoque-preview/previewRoute.ts';
+import { VendasPreview } from './features/vendas-preview/VendasPreview.tsx';
+import { ehRotaVendasPreview } from './features/vendas-preview/previewRoute.ts';
 import './index.css';
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    {/* /estoque-preview: o novo estoque isolado (validação visual e demonstração sem login). */}
-    {ehRotaEstoquePreview(window.location.pathname) ? <EstoquePreview /> : <App />}
+    {/* Estoque segue isolado; Vendas consulta clientes e motos por endpoints de leitura autorizados. */}
+    {ehRotaVendasPreview(window.location.pathname) ? <VendasPreview /> : ehRotaEstoquePreview(window.location.pathname) ? <EstoquePreview /> : <App />}
   </StrictMode>,
 );
 

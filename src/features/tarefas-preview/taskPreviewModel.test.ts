@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { startPreviewTask } from "./taskPreviewModel";
+import { mapParticipantReadReceipts, startPreviewTask } from "./taskPreviewModel";
 import type { PreviewTask } from "./taskPreviewModel";
 
 const pendingTask: PreviewTask = {
@@ -21,5 +21,17 @@ describe("startPreviewTask", () => {
 
     expect(started.status).toBe("em-andamento");
     expect(started).not.toBe(pendingTask);
+  });
+});
+
+describe("mapParticipantReadReceipts", () => {
+  it("keeps each employee's read status and tolerates missing user joins", () => {
+    expect(mapParticipantReadReceipts([
+      { usuario_id: "u-1", lida: true, usuario: { nome_exibicao: "Ana Lima" } },
+      { usuario_id: "u-2", lida: false, usuario: null },
+    ])).toEqual([
+      { userId: "u-1", name: "Ana Lima", read: true },
+      { userId: "u-2", name: "Funcionário", read: false },
+    ]);
   });
 });

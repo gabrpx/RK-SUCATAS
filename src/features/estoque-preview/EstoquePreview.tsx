@@ -24,6 +24,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { categoriasApi, formasPagamentoApi, modelosMotoApi } from "../../lib/catalogApi";
 import type { ModeloMoto } from "../../types/catalog";
 import { usePermissao } from "../../hooks/usePermissao";
+import { TaskNotificationBell } from "../notificacoes/TaskNotificationBell";
 import { BASE_URL } from "../../utils/api";
 import { estoqueApi } from "../estoque/api";
 import { clientesApi } from "../clientes/api";
@@ -35,6 +36,7 @@ import { InventoryDialog, InventoryTokensContext, lightInventoryTokens } from ".
 import { InventoryConferencia, pecasComFichasSobrando } from "./InventoryConferencia";
 import { InventoryUnitDrawer, type HistoricoCarregado, type UnidadeAlteracoes } from "./InventoryUnitDrawer";
 import { InventoryPieceSummaryDrawer } from "./InventoryPieceSummaryDrawer";
+import { inventoryThumbnailUrl } from "./inventoryImageUrl";
 import { InventoryMap } from "./InventoryMap";
 import { ImageZoom } from "../../components/ui/image-zoom";
 import { enviarFotoUnidade, organizacaoApi, RECURSOS_DEMONSTRACAO, type BaixaPendente, type RecursosOrganizacao, type UnidadeFichaPayload } from "./organizacaoApi";
@@ -136,13 +138,13 @@ function ActionMenu({ unidade, acoes }: { unidade: UnidadeEstoque; acoes: AcoesU
   </div>;
 }
 
-function UnitRow({ unidade, acoes, fotoReferencia }: { unidade: UnidadeEstoque; acoes: AcoesUnidade; fotoReferencia?: string | null }) {
+function UnitRow({ unidade, acoes, fotoReferencia, priorizarImagem = false }: { unidade: UnidadeEstoque; acoes: AcoesUnidade; fotoReferencia?: string | null; priorizarImagem?: boolean }) {
   const fotoPropria = unidade.fotos?.find(Boolean) ?? unidade.fotoUrl;
   const foto = fotoPropria || fotoReferencia || null;
   const usandoFotoReferencia = !fotoPropria && Boolean(foto);
   return <div className="relative flex min-h-36 w-[min(19rem,86vw)] shrink-0 snap-start flex-col rounded-control border border-border-default bg-surface-card p-3 shadow-sm transition hover:border-accent/35 hover:shadow-md">
     <div className="flex items-start gap-3">
-      <div className="relative grid aspect-[4/3] w-16 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{foto ? <ImageZoom src={foto} alt={usandoFotoReferencia ? `Foto de referência de ${unidade.sku}` : `Foto ${unidade.sku}`} triggerClassName="size-full overflow-hidden rounded-control" className="size-full object-contain" /> : "Sem foto"}{usandoFotoReferencia && <span title="Foto geral da peça, não uma foto própria da unidade" className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-surface-card/95 px-1 py-0.5 text-[8px] font-bold leading-none text-text-secondary shadow-sm">Ref.</span>}</div>
+      <div className="relative grid aspect-[4/3] w-16 shrink-0 place-items-center overflow-hidden rounded-control border border-dashed border-border-default bg-surface-inset text-center text-[10px] font-semibold text-text-faint">{foto ? <ImageZoom src={foto} thumbnailSrc={inventoryThumbnailUrl(foto)} alt={usandoFotoReferencia ? `Foto de referência de ${unidade.sku}` : `Foto ${unidade.sku}`} loading={priorizarImagem ? "eager" : "lazy"} fetchPriority={priorizarImagem ? "high" : "auto"} triggerClassName="size-full overflow-hidden rounded-control" className="size-full object-contain" /> : "Sem foto"}{usandoFotoReferencia && <span title="Foto geral da peça, não uma foto própria da unidade" className="pointer-events-none absolute bottom-0.5 left-0.5 rounded bg-surface-card/95 px-1 py-0.5 text-[8px] font-bold leading-none text-text-secondary shadow-sm">Ref.</span>}</div>
       <button type="button" aria-label={`Ver detalhes de ${unidade.sku}`} onClick={() => acoes.onOpen(unidade)} className="min-w-0 flex-1 cursor-pointer rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
         <p className="text-base font-semibold text-text-primary">{moeda(unidade.preco)}</p>
         <div className="mt-0.5 flex flex-wrap items-center gap-1.5"><span className="text-xs font-semibold text-text-secondary">{unidade.sku}</span><span className="rounded-full bg-surface-inset px-2 py-0.5 text-[10px] font-semibold text-text-secondary">Grau {unidade.grau}</span></div>
@@ -161,7 +163,7 @@ function RupturaAviso({ peca, acoes, compacto = false }: { peca: PecaEstoque; ac
   </div>;
 }
 
-function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPecas>[number]; acoes: AcoesUnidade }) {
+function PieceCard({ resultado, acoes, priorizarImagem = false }: { resultado: ReturnType<typeof buscarPecas>[number]; acoes: AcoesUnidade; priorizarImagem?: boolean }) {
   const unidadesRef = useRef<HTMLDivElement>(null);
   const [fadeUnidades, setFadeUnidades] = useState({ esquerda: false, direita: false });
   const temMaisUnidades = resultado.unidades.length > 2;
@@ -208,7 +210,7 @@ function PieceCard({ resultado, acoes }: { resultado: ReturnType<typeof buscarPe
         const faixa = event.currentTarget;
         const maximo = faixa.scrollWidth - faixa.clientWidth;
         setFadeUnidades({ esquerda: faixa.scrollLeft > 2, direita: maximo > 2 && faixa.scrollLeft < maximo - 2 });
-      }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : unidadesOrdenadas.map((unidade) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} fotoReferencia={resultado.peca.fotos?.find(Boolean)} />)}</div>
+      }} className="flex snap-x snap-mandatory gap-3 overflow-x-auto overscroll-x-contain scroll-smooth pb-1 pr-8 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{semEstoque ? <RupturaAviso peca={resultado.peca} acoes={acoes} /> : unidadesOrdenadas.map((unidade, indice) => <UnitRow key={unidade.id} unidade={unidade} acoes={acoes} fotoReferencia={resultado.peca.fotos?.find(Boolean)} priorizarImagem={priorizarImagem && indice === 0} />)}</div>
       {temMaisUnidades && fadeUnidades.esquerda && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 left-0 w-10 bg-gradient-to-r from-surface-card via-surface-card/85 to-transparent" />}
       {temMaisUnidades && fadeUnidades.direita && <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 w-10 bg-gradient-to-l from-surface-card via-surface-card/85 to-transparent" />}
     </div>
@@ -300,7 +302,7 @@ function InventoryCatalogViewport({ resultados, visualizacao, acoes, visibleCoun
     const element = event.currentTarget;
     if (element.scrollTop + element.clientHeight >= element.scrollHeight - 120) setVisibleCount((count) => Math.min(count + 6, resultados.length));
   }
-  return <section aria-label="Lista de itens do estoque" className="relative mt-3 overflow-hidden rounded-card border border-border-default bg-surface-card"><div ref={painel} onScroll={carregarMais} tabIndex={0} className="no-scrollbar max-h-[min(68vh,720px)] overflow-y-auto overscroll-contain p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"><div className={visualizacao === "cards" ? "grid gap-3 xl:grid-cols-2" : "space-y-2"}><AnimatePresence initial={false} mode="popLayout">{visualizacao === "cards" ? visibleResultados.map((resultado) => <motion.div key={resultado.peca.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="min-w-0"><PieceCard resultado={resultado} acoes={acoes} /></motion.div>) : unidades.map(({ unidade, resultado }) => <StockListRow key={unidade?.id ?? resultado.peca.id} unidade={unidade} resultado={resultado} acoes={acoes} />)}</AnimatePresence></div>{!visibleResultados.length && <div className="rounded-control border border-dashed border-border-default p-8 text-center text-sm text-text-muted">Nenhum item encontrado. Tente nome, categoria, moto, código ou endereço.</div>}<div aria-live="polite" className="pt-3 text-center text-[11px] text-text-faint">{hasMore ? "Role para carregar mais itens" : "Todos os itens carregados"}</div></div><div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface-card to-transparent" /></section>;
+  return <section aria-label="Lista de itens do estoque" className="relative mt-3 overflow-hidden rounded-card border border-border-default bg-surface-card"><div ref={painel} onScroll={carregarMais} tabIndex={0} className="no-scrollbar max-h-[min(68vh,720px)] overflow-y-auto overscroll-contain p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"><div className={visualizacao === "cards" ? "grid gap-3 xl:grid-cols-2" : "space-y-2"}><AnimatePresence initial={false} mode="popLayout">{visualizacao === "cards" ? visibleResultados.map((resultado, indice) => <motion.div key={resultado.peca.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="min-w-0"><PieceCard resultado={resultado} acoes={acoes} priorizarImagem={indice < 2} /></motion.div>) : unidades.map(({ unidade, resultado }) => <StockListRow key={unidade?.id ?? resultado.peca.id} unidade={unidade} resultado={resultado} acoes={acoes} />)}</AnimatePresence></div>{!visibleResultados.length && <div className="rounded-control border border-dashed border-border-default p-8 text-center text-sm text-text-muted">Nenhum item encontrado. Tente nome, categoria, moto, código ou endereço.</div>}<div aria-live="polite" className="pt-3 text-center text-[11px] text-text-faint">{hasMore ? "Role para carregar mais itens" : "Todos os itens carregados"}</div></div><div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface-card to-transparent" /></section>;
 }
 
 function clienteDemo(id: string, nome: string, telefone: string): Cliente {
@@ -321,9 +323,10 @@ export interface EstoquePreviewProps {
   /** Vindo do Dashboard ("estoque baixo"): abre o catálogo já filtrado. */
   filtroEstoqueBaixoInicial?: boolean;
   onFiltroEstoqueBaixoAplicado?: () => void;
+  onOpenTaskNotification?: (taskId: string) => void;
 }
 
-export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroEstoqueBaixoInicial = false, onFiltroEstoqueBaixoAplicado }: EstoquePreviewProps = {}) {
+export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroEstoqueBaixoInicial = false, onFiltroEstoqueBaixoAplicado, onOpenTaskNotification }: EstoquePreviewProps = {}) {
   const { pode } = usePermissao();
   // Dentro do app nunca mostra peças fictícias: começa vazio até a API responder.
   const [estoque, setEstoque] = useState<EstoquePreviewState>(() => embutido ? { categorias: [], pecas: [], unidades: [], categoriasPorSecao: {}, prioridadesPorSecao: {}, locais: [] } : criarEstoqueDemo());
@@ -723,7 +726,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
 
   // Identidade visual = a da tela Tarefas (modo claro): mesma casca, cabeçalho,
   // tipografia, abas segmentadas e cartões (decisão do usuário, 24/09/2026).
-  const campoBusca = <label className="relative block w-full sm:w-[320px]"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={16} /><input ref={buscaRef} aria-label="Buscar no estoque" type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar peça, moto, SKU ou endereço" className="h-11 w-full rounded-lg border border-border-default bg-surface-card pl-10 pr-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 sm:text-sm" /></label>;
+  const campoBusca = <label className="relative block w-full sm:w-[320px]"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={16} /><input ref={buscaRef} aria-label="Buscar no estoque" type="search" value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar peça, unidade, SKU, moto ou endereço" className="h-11 w-full rounded-lg border border-border-default bg-surface-card pl-10 pr-3 text-base outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 sm:text-sm" /></label>;
   const tokens = lightInventoryTokens;
   return <InventoryTokensContext.Provider value={tokens}><div style={tokens} data-project="rk-sucatas-new" className="min-h-screen w-full min-w-0 overflow-x-hidden bg-surface-page font-[Geist,Inter,ui-sans-serif,system-ui] text-text-primary [&_button]:cursor-pointer">
     <header className="sticky top-0 z-[60] border-b border-border-default bg-surface-card/95 pt-[env(safe-area-inset-top)] backdrop-blur">
@@ -735,6 +738,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         <div className="ml-auto hidden items-center gap-5 text-xs text-text-muted lg:flex"><span className="inline-flex items-center gap-2">{fonte === "real" && conexaoRealPronta ? <DotMatrix sequence={[[0, 1, 3, 4, 6, 7, 9, 10, 12, 13, 15], [1, 4, 7, 10, 13]]} rows={4} cols={4} dotSize={3} gap={2} interval={900} color="var(--positive)" inactiveColor="var(--positive-bg)" /> : <span className={`size-2 rounded-full ${carregandoReal ? "bg-accent" : "bg-warning"}`} />}{statusConexao}</span></div>
         {onAbrirEstoqueAntigo && <button type="button" aria-label="Anúncios e ferramentas antigas" title="Anúncios, famílias e gavetas (tela antiga)" onClick={onAbrirEstoqueAntigo} className="ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-border-default text-text-muted hover:border-accent/40 hover:bg-accent-soft-bg lg:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"><ExternalLink size={15} /><span className="hidden sm:inline">Tela antiga</span></button>}
         <button type="button" onClick={abrirBusca} aria-label="Buscar peça, moto, SKU ou endereço" className={`grid size-11 shrink-0 place-items-center rounded-lg border border-border-default text-text-muted hover:border-accent/40 hover:bg-accent-soft-bg sm:flex sm:w-auto sm:gap-2 sm:px-3 ${onAbrirEstoqueAntigo ? "" : "ml-auto lg:ml-0"}`}><Search size={15} /><span className="hidden sm:inline">Buscar</span><kbd className="hidden rounded border border-border-default px-1 font-mono text-[10px] text-text-faint sm:inline">⌘K</kbd></button>
+        {embutido && pode("tarefas.ver") && <TaskNotificationBell currentUserId={localStorage.getItem('user_id') || ''} onOpenTask={(taskId) => onOpenTaskNotification?.(taskId)} />}
         {podeCriar ? <Button variant="default" size="sm" aria-label="Nova peça" disabled={!podeCadastrar} onClick={() => { setPecaParaUnidade(null); setComposerAberto(true); }} className="size-11 shrink-0 rounded-lg bg-accent text-white hover:bg-accent-hover sm:h-9 sm:w-[154px] sm:rounded-md"><PackagePlus size={15} /><span className="hidden sm:inline">Nova peça</span></Button> : <span className="rounded-md bg-surface-inset px-3 py-1.5 text-xs font-semibold text-text-muted">Somente consulta</span>}
       </div>
     </header>

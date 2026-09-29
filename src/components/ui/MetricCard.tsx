@@ -53,13 +53,18 @@ export interface MetricCardProps {
   tom?: MetricTone;
   /** Badge de variação vs. período anterior (opcional). */
   tendencia?: MetricTendencia;
+  /** Ajusta o feedback de hover para painéis operacionais sem deslocar o card. */
+  hoverStyle?: 'lift' | 'subtle';
 }
 
-export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto, tom = 'neutral', tendencia }: MetricCardProps) {
+export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto, tom = 'neutral', tendencia, hoverStyle = 'lift' }: MetricCardProps) {
   const mostraBadge = tendencia && tendencia.pct != null;
+  const hoverClasses = hoverStyle === 'subtle'
+    ? 'transition-[border-color,box-shadow] duration-200 hover:border-accent/35 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]'
+    : 'transition-[transform,border-color,box-shadow] duration-base hover:-translate-y-0.5 hover:border-border-default hover:shadow-md';
 
   return (
-    <div className="group relative min-w-0 h-full overflow-hidden bg-surface-card border border-border-subtle rounded-card p-4 sm:p-5 transition-[transform,border-color,box-shadow] duration-base hover:-translate-y-0.5 hover:border-border-default hover:shadow-md">
+    <div className={cn('group relative min-w-0 h-full overflow-hidden bg-surface-card border border-border-subtle rounded-card p-4 sm:p-5', hoverClasses)}>
       <div className="absolute inset-x-0 top-0 h-px bg-gradient-surface-edge" />
 
       {/* Cabeçalho: rótulo à esquerda, ícone à direita (posição do menu no card original) */}

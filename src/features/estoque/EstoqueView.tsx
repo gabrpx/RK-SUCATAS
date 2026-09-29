@@ -87,6 +87,7 @@ import { EstoqueFamiliaModal } from './EstoqueFamiliaModal';
 import { EstoqueFundirFamiliasModal } from './EstoqueFundirFamiliasModal';
 import { GavetaList } from './gaveta/GavetaList';
 import { GavetaDetail } from './gaveta/GavetaDetail';
+import { correspondeBuscaEstoque, normalizarTextoBusca } from './gaveta/buscaGavetas';
 
 const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(value) || 0);
 
@@ -556,25 +557,14 @@ export function EstoqueView({
   // `filtered` preserva a lista plana de Estoque[] para CSV, sugestões de
   // busca e métricas do header — sem agrupar por família.
   const filtered = useMemo(() => {
-    const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
-    if (terms.length === 0) return filteredNonSearch;
-    return filteredNonSearch.filter((item) =>
-      terms.every(
-        (t) =>
-          item.nome.toLowerCase().includes(t) ||
-          item.codigo?.toLowerCase().includes(t) ||
-          item.categoria?.nome?.toLowerCase().includes(t) ||
-          item.modelo_moto?.nome?.toLowerCase().includes(t) ||
-          item.modelos_compativeis?.some((m) => m.nome.toLowerCase().includes(t))
-      )
-    );
+    return filteredNonSearch.filter((item) => correspondeBuscaEstoque(item, debouncedSearch));
   }, [filteredNonSearch, debouncedSearch]);
 
   // Linhas da tabela agrupadas por família. A busca textual filtra pela linha
   // inteira — buscar "Titan 99" acha a família mesmo que só uma ficha-filha
   // contenha esse texto (ver filtrarLinhaTexto em familiaEstoque.ts).
   const filteredLinhas = useMemo(() => {
-    const terms = debouncedSearch.toLowerCase().split(' ').filter(Boolean);
+    const terms = normalizarTextoBusca(debouncedSearch).split(/\s+/).filter(Boolean);
     const linhas = agruparLinhasTabela(filteredNonSearch);
     if (terms.length === 0) return linhas;
     return linhas.filter((linha) => filtrarLinhaTexto(linha, terms));

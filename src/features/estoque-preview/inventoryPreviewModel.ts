@@ -262,6 +262,7 @@ function normalizar(valor: string): string {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toLocaleLowerCase("pt-BR")
+    .replace(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
@@ -270,7 +271,7 @@ export function buscarPecas(
   busca: string,
   incluirArquivadas = false
 ): ResultadoBuscaEstoque[] {
-  const termo = normalizar(busca);
+  const termos = normalizar(busca).split(/\s+/).filter(Boolean);
   return estoque.pecas.flatMap((peca) => {
     const categoria = estoque.categorias.find(
       (item) => item.id === peca.categoriaId
@@ -286,14 +287,23 @@ export function buscarPecas(
       peca.codigoLegado,
       categoria.nome,
       peca.detalhes,
+      peca.familiaNome ?? "",
+      peca.gavetaNome ?? "",
       ...peca.compatibilidades,
       ...unidadesDaPeca.flatMap((item) => [
         item.sku,
+        item.codigoLegado,
         item.endereco ?? "",
         item.origem ?? "",
+        item.detalhes ?? "",
+        item.motivoArquivamento ?? "",
+        item.reservadaPara ?? "",
+        item.estado,
+        item.grau,
       ]),
     ];
-    if (termo && !campos.some((campo) => normalizar(campo).includes(termo))) {
+    const alvo = normalizar(campos.filter(Boolean).join(" "));
+    if (termos.length && !termos.every((token) => alvo.includes(token))) {
       return [];
     }
     return [{ peca, categoria, unidades: unidadesDaPeca }];

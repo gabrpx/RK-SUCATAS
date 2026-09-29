@@ -33,13 +33,19 @@ type ImageZoomProps = {
    */
   triggerClassName?: string;
   referrerPolicy?: React.ImgHTMLAttributes<HTMLImageElement>['referrerPolicy'];
+  /** Fonte menor usada na miniatura; a imagem ampliada sempre usa `src`. */
+  thumbnailSrc?: string;
+  loading?: React.ImgHTMLAttributes<HTMLImageElement>['loading'];
+  fetchPriority?: React.ImgHTMLAttributes<HTMLImageElement>['fetchPriority'];
 };
 
-export function ImageZoom({ src, alt, className, triggerClassName, referrerPolicy }: ImageZoomProps) {
+export function ImageZoom({ src, alt, className, triggerClassName, referrerPolicy, thumbnailSrc, loading, fetchPriority }: ImageZoomProps) {
   const [aberto, setAberto] = React.useState(false);
+  const [miniaturaQueFalhou, setMiniaturaQueFalhou] = React.useState<string | null>(null);
   const reduce = useReducedMotion();
   const transition = reduce ? { duration: 0 } : SPRING_SHEET;
   const layoutId = React.useId();
+  const srcMiniatura = thumbnailSrc && miniaturaQueFalhou === thumbnailSrc ? src : thumbnailSrc ?? src;
 
   React.useEffect(() => {
     if (!aberto) return;
@@ -66,10 +72,16 @@ export function ImageZoom({ src, alt, className, triggerClassName, referrerPolic
       >
         <motion.img
           layoutId={aberto ? undefined : layoutId}
-          src={src}
+          src={srcMiniatura}
           alt={alt}
           referrerPolicy={referrerPolicy}
-          className={cn('block object-cover', className)}
+          loading={loading}
+          decoding="async"
+          fetchPriority={fetchPriority}
+          onError={() => {
+            if (thumbnailSrc && srcMiniatura !== src) setMiniaturaQueFalhou(thumbnailSrc);
+          }}
+          className={cn('block bg-surface-inset object-cover', className)}
         />
       </button>
 

@@ -13,7 +13,7 @@ import React, {
   useRef,
   useState,
 } from "react"
-import { AnimatePresence, motion, MotionConfig } from "motion/react"
+import { AnimatePresence, motion, MotionConfig, useReducedMotion } from "motion/react"
 
 import { cn } from "../../utils"
 import { SPRING_MICRO } from "./motion"
@@ -42,6 +42,7 @@ interface PopoverContextType {
   openPopover: () => void
   closePopover: () => void
   uniqueId: string
+  variant: "shared" | "subtle"
 }
 
 const PopoverContext = createContext<PopoverContextType | undefined>(undefined)
@@ -55,9 +56,10 @@ function usePopover() {
 interface PopoverRootProps {
   children: React.ReactNode
   className?: string
+  variant?: "shared" | "subtle"
 }
 
-export function PopoverRoot({ children, className }: PopoverRootProps) {
+export function PopoverRoot({ children, className, variant = "shared" }: PopoverRootProps) {
   const uniqueId = useId()
   const [isOpen, setIsOpen] = useState(false)
   const openPopover = () => setIsOpen(true)
@@ -67,9 +69,9 @@ export function PopoverRoot({ children, className }: PopoverRootProps) {
   useClickOutside(rootRef, closePopover)
 
   return (
-    <PopoverContext.Provider value={{ isOpen, openPopover, closePopover, uniqueId }}>
-      <MotionConfig transition={SPRING_MICRO}>
-        <div ref={rootRef} className={cn("relative flex items-center", className)}>{children}</div>
+    <PopoverContext.Provider value={{ isOpen, openPopover, closePopover, uniqueId, variant }}>
+      <MotionConfig transition={variant === "subtle" ? { duration: 0.14, ease: "easeOut" } : SPRING_MICRO}>
+        <div ref={rootRef} className={cn("relative flex items-center", className)} data-popover-motion={variant}>{children}</div>
       </MotionConfig>
     </PopoverContext.Provider>
   )
@@ -81,12 +83,12 @@ interface PopoverTriggerProps {
 }
 
 export function PopoverTrigger({ children, className }: PopoverTriggerProps) {
-  const { isOpen, openPopover, closePopover, uniqueId } = usePopover()
+  const { isOpen, openPopover, closePopover, uniqueId, variant } = usePopover()
 
   return (
     <motion.button
       type="button"
-      layoutId={`popover-${uniqueId}`}
+      layoutId={variant === "shared" ? `popover-${uniqueId}` : undefined}
       aria-expanded={isOpen}
       className={cn(
         "flex h-11 md:h-10 items-center gap-1.5 rounded-control border px-3 text-[11px] font-semibold uppercase tracking-wider transition-colors",
@@ -97,7 +99,7 @@ export function PopoverTrigger({ children, className }: PopoverTriggerProps) {
       )}
       onClick={() => (isOpen ? closePopover() : openPopover())}
     >
-      <motion.span layoutId={`popover-label-${uniqueId}`} className="flex items-center gap-1.5">
+      <motion.span layoutId={variant === "shared" ? `popover-label-${uniqueId}` : undefined} className="flex items-center gap-1.5">
         {children}
       </motion.span>
     </motion.button>
@@ -110,7 +112,8 @@ interface PopoverContentProps {
 }
 
 export function PopoverContent({ children, className }: PopoverContentProps) {
-  const { isOpen, closePopover, uniqueId } = usePopover()
+  const { isOpen, closePopover, uniqueId, variant } = usePopover()
+  const reduceMotion = useReducedMotion()
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent) => {
@@ -124,7 +127,11 @@ export function PopoverContent({ children, className }: PopoverContentProps) {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          layoutId={`popover-${uniqueId}`}
+          layoutId={variant === "shared" ? `popover-${uniqueId}` : undefined}
+          initial={variant === "subtle" && !reduceMotion ? { opacity: 0, y: -3 } : false}
+          animate={{ opacity: 1, y: 0 }}
+          exit={variant === "subtle" && !reduceMotion ? { opacity: 0, y: -3 } : undefined}
+          transition={reduceMotion ? { duration: 0 } : variant === "subtle" ? { duration: 0.14, ease: "easeOut" } : SPRING_MICRO}
           // Sem `overflow-y-auto`/`max-h` aqui de propósito: qualquer overflow
           // diferente de `visible` transforma este box num container de corte
           // também no eixo X, e o menu do TreeDropdown (absolute, w-80) é mais

@@ -22,11 +22,16 @@ function textoPesquisavel(item: Estoque): string {
     item.ano,
     item.categoria?.nome,
     item.modelo_moto?.nome,
+    item.familia?.nome,
+    item.gaveta?.nome,
     ...(item.modelos_compativeis ?? []).map((modelo) => modelo.nome),
     ...(item.unidades ?? []).flatMap((unidade) => [
+      unidade.sku == null ? '' : String(unidade.sku),
       unidade.nome,
       unidade.descricao,
       unidade.avaria_descricao,
+      unidade.origem_identificacao,
+      unidade.motivo_arquivamento,
     ]),
   ];
   return normalizarTextoBusca(campos.filter(Boolean).join(' '));
