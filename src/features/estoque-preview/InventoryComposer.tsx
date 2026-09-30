@@ -5,12 +5,13 @@ import { InventoryDrawer } from "./InventoryDrawer";
 import { EstoqueUploadFotos } from "../estoque/EstoqueUploadFotos";
 import { formatarNomeModeloMoto } from "../motos/nomeModelo";
 import type { ModeloMoto } from "@/src/types/catalog";
-import { enderecosPrateleira, type CategoriaEstoque, type GrauUnidade, type NovaUnidadeInput, type PecaEstoque } from "./inventoryPreviewModel";
+import { enderecosPrateleira, type CategoriaEstoque, type GrauUnidade, type NovaUnidadeInput, type PecaEstoque, type UnidadeEstoque } from "./inventoryPreviewModel";
 
 interface InventoryComposerProps {
   aberto: boolean;
   categorias: CategoriaEstoque[];
   pecas: PecaEstoque[];
+  unidades?: UnidadeEstoque[];
   modelos?: ModeloMoto[];
   onFechar: () => void;
   onSalvar: (entrada: NovaUnidadeInput, cacheFotos: Map<File, string>) => Promise<void | { completo: boolean; mensagem: string; fotosAnexadas?: boolean }> | void;
@@ -69,7 +70,19 @@ function pontuarSemelhanca(nome: string, peca: PecaEstoque): number | null {
   return emComum / uniao;
 }
 
-export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onFechar, onSalvar, onDescartarFotos, enderecos = enderecosPrateleira, operacional = false, pecaInicialId = null }: InventoryComposerProps) {
+/** O preço mais repetido representa a unidade normal; avarias isoladas não viram padrão. */
+export function obterPrecoPadraoDaPeca(unidades: UnidadeEstoque[], pecaId: string): number | null {
+  const contagem = new Map<number, { quantidade: number; primeiraPosicao: number }>();
+  unidades.forEach((unidade, indice) => {
+    if (unidade.pecaId !== pecaId || unidade.estado === "arquivada" || unidade.preco == null || unidade.preco <= 0) return;
+    const atual = contagem.get(unidade.preco);
+    contagem.set(unidade.preco, atual ? { ...atual, quantidade: atual.quantidade + 1 } : { quantidade: 1, primeiraPosicao: indice });
+  });
+  return [...contagem.entries()]
+    .sort((a, b) => b[1].quantidade - a[1].quantidade || a[1].primeiraPosicao - b[1].primeiraPosicao)[0]?.[0] ?? null;
+}
+
+export function InventoryComposer({ aberto, categorias, pecas, unidades = [], modelos = [], onFechar, onSalvar, onDescartarFotos, enderecos = enderecosPrateleira, operacional = false, pecaInicialId = null }: InventoryComposerProps) {
   const [etapa, setEtapa] = useState(0);
   const [modo, setModo] = useState<"nova" | "existente">("nova");
   const [pecaId, setPecaId] = useState("");
@@ -79,7 +92,10 @@ export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onF
   const [notaCadastro, setNotaCadastro] = useState<"com_nota" | "sem_nota" | "">("");
   const [compatibilidade, setCompatibilidade] = useState("");
   const [compatibilidadeAutomatica, setCompatibilidadeAutomatica] = useState(true);
+  const [modeloMotoId, setModeloMotoId] = useState("");
+  const [anoCompatibilidade, setAnoCompatibilidade] = useState("");
   const [preco, setPreco] = useState("");
+  const [precoEditado, setPrecoEditado] = useState(false);
   const [grau, setGrau] = useState<GrauUnidade>("B");
   const [origem, setOrigem] = useState("");
   const [endereco, setEndereco] = useState("");
@@ -116,6 +132,11 @@ export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onF
     setPecaId(pecaInicialId);
   }, [aberto, pecaInicialId]);
   useEffect(() => {
+    if (!aberto || modo !== "existente" || !pecaId || precoEditado) return;
+    const padrao = obterPrecoPadraoDaPeca(unidades, pecaId);
+    setPreco(padrao?.toString() ?? "");
+  }, [aberto, modo, pecaId, precoEditado, unidades]);
+  useEffect(() => {
     if (aberto) return;
     if (fotosEnviadas.current.size) {
       onDescartarFotos?.([...fotosEnviadas.current.values()]);
@@ -130,7 +151,10 @@ export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onF
     setNotaCadastro("");
     setCompatibilidade("");
     setCompatibilidadeAutomatica(true);
+    setModeloMotoId("");
+    setAnoCompatibilidade("");
     setPreco("");
+    setPrecoEditado(false);
     setGrau("B");
     setOrigem("");
     setEndereco("");
@@ -143,6 +167,7 @@ export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onF
   function usarExistente(peca: PecaEstoque) {
     setModo("existente");
     setPecaId(peca.id);
+    setPrecoEditado(false);
     setErroEtapa(null);
   }
 
@@ -167,7 +192,7 @@ export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onF
     try {
       const resultado = await onSalvar({
       pecaId: modo === "existente" ? pecaId : undefined,
-      novaPeca: modo === "nova" ? { nome: nome.trim(), categoriaId, condicao: condicaoOrigem, notaCadastro: notaCadastro || null, compatibilidades: compatibilidade ? [compatibilidade.trim()] : [] } : undefined,
+      novaPeca: modo === "nova" ? { nome: nome.trim(), categoriaId, condicao: condicaoOrigem, notaCadastro: notaCadastro || null, modeloMotoId: modeloMotoId || null, ano: anoCompatibilidade.trim() || null, compatibilidades: compatibilidade ? [compatibilidade.trim()] : [] } : undefined,
       preco: precoNumerico,
       grau,
       origem: origem.trim() || null,
@@ -216,16 +241,19 @@ export function InventoryComposer({ aberto, categorias, pecas, modelos = [], onF
             </button>)}
           </div>
           {modo === "nova" ? <div className="space-y-3">
-            <label className="block text-sm font-semibold text-text-secondary">Nome da Peça<input aria-label="Nome da Peça" className={inputClass} value={nome} onChange={(e) => { const valor = e.target.value; setNome(valor); if (compatibilidadeAutomatica) setCompatibilidade(detectarMotoNoNome(valor, pecas, modelos)); setErroEtapa(null); }} placeholder="Ex.: suporte de placa CG 160" autoFocus /></label>
+            <label className="block text-sm font-semibold text-text-secondary">Nome da Peça<input aria-label="Nome da Peça" className={inputClass} value={nome} onChange={(e) => { const valor = e.target.value; setNome(valor); if (compatibilidadeAutomatica) { const referencia = detectarMotoNoNome(valor, pecas, modelos); const modelo = modelos.find((item) => formatarNomeModeloMoto(item, modelos) === referencia); setCompatibilidade(referencia); setModeloMotoId(modelo?.id ?? ""); setAnoCompatibilidade(modelo?.ano ?? ""); } setErroEtapa(null); }} placeholder="Ex.: suporte de placa CG 160" autoFocus /></label>
             {semelhantes.length > 0 && <section aria-live="polite" className="rounded-control border border-accent/25 bg-accent-soft-bg p-3"><p className="flex items-center gap-2 text-sm font-semibold text-accent-soft-fg"><Sparkles size={16} />Já existe uma peça parecida</p><p className="mt-1 text-xs leading-5 text-accent-soft-fg">Para evitar dois cadastros do mesmo tipo, adicione esta unidade ao registro abaixo.</p><div className="mt-3 space-y-2">{semelhantes.map((peca) => <button type="button" key={peca.id} aria-label={`Usar existente: ${peca.codigoLegado}`} onClick={() => usarExistente(peca)} className="flex min-h-11 w-full cursor-pointer items-center justify-between gap-3 rounded-control border border-accent/25 bg-surface-card px-3 py-2 text-left text-sm transition hover:border-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 active:scale-[.99]"><span className="min-w-0"><strong className="block truncate text-text-primary">{peca.nome}</strong><span className="text-xs text-text-muted">{peca.codigoLegado} · {peca.compatibilidades.join(" · ") || "Moto não informada"}</span></span><span className="shrink-0 text-xs font-semibold text-accent-soft-fg">Usar existente</span></button>)}</div></section>}
             <Combobox label="Categoria" placeholder="Escolha uma categoria" options={categorias.map((categoria) => ({ value: categoria.id, label: categoria.nome }))} value={categoriaId} onChange={setCategoriaId} size="lg" />
             <div className="grid gap-3 sm:grid-cols-2"><Combobox label="Procedência da peça" options={[{ value: "original", label: "Original" }, { value: "paralela", label: "Paralela" }]} value={condicaoOrigem} onChange={(valor) => setCondicaoOrigem(valor as "original" | "paralela")} size="lg" /><Combobox label="Nota para cadastro (quando exigida)" placeholder="Não se aplica" options={[{ value: "", label: "Não se aplica" }, { value: "com_nota", label: "Com nota" }, { value: "sem_nota", label: "Sem nota" }]} value={notaCadastro} onChange={(valor) => setNotaCadastro(valor as "com_nota" | "sem_nota" | "")} size="lg" /></div>
-            <label className="block text-sm font-semibold text-text-secondary">Referência de moto <span className="font-normal text-text-faint">(opcional; preenchida pelo nome quando reconhecida)</span><input className={inputClass} value={compatibilidade} onChange={(e) => { setCompatibilidade(e.target.value); setCompatibilidadeAutomatica(false); }} placeholder="Ex.: CG 160" /></label>
-           </div> : <div className="space-y-2"><Combobox label="Peça existente" placeholder="Busque pelo nome ou código" options={pecas.map((peca) => ({ value: peca.id, label: `${peca.codigoLegado} · ${peca.nome}` }))} value={pecaId} onChange={(valor) => { setPecaId(valor); setErroEtapa(null); }} size="lg" /><span className="block text-xs font-normal text-text-faint">O catálogo continua com um único nome; você só registra outra unidade.</span></div>}
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Combobox label="Modelo e ano compatíveis" placeholder="Escolha no catálogo de motos" options={modelos.map((modelo) => ({ value: modelo.id, label: formatarNomeModeloMoto(modelo, modelos) }))} value={modeloMotoId} onChange={(id) => { const modelo = modelos.find((item) => item.id === id); setModeloMotoId(id); setAnoCompatibilidade(modelo?.ano ?? ""); setCompatibilidade(modelo ? formatarNomeModeloMoto(modelo, modelos) : ""); setCompatibilidadeAutomatica(false); }} size="lg" />
+              <label className="block text-sm font-semibold text-text-secondary">Ano compatível <span className="font-normal text-text-faint">(editável)</span><input aria-label="Ano compatível" className={inputClass} value={anoCompatibilidade} onChange={(e) => setAnoCompatibilidade(e.target.value)} placeholder="Ex.: 94 a 99" /></label>
+            </div>
+           </div> : <div className="space-y-2"><Combobox label="Peça existente" placeholder="Busque pelo nome ou código" options={pecas.map((peca) => ({ value: peca.id, label: `${peca.codigoLegado} · ${peca.nome}` }))} value={pecaId} onChange={(valor) => { setPecaId(valor); setPrecoEditado(false); setErroEtapa(null); }} size="lg" /><span className="block text-xs font-normal text-text-faint">O catálogo continua com um único nome; você só registra outra unidade.</span></div>}
           {erroEtapa && <p role="alert" className="text-sm font-medium text-danger">{erroEtapa}</p>}
         </section>}
 
-        {etapa === 1 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">2 · Ficha da unidade</p><h3 className="mt-1 text-lg font-semibold">Detalhes desta peça física</h3><p className="mt-1 text-sm text-text-muted">Preço e condição podem ser diferentes de outra unidade com o mesmo nome.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-text-secondary">Preço de venda <span className="font-normal text-text-faint">(opcional; pode definir depois)</span><input ref={precoRef} aria-label="Preço da unidade" className={inputClass} type="number" min="0.01" step="0.01" value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="Deixe em branco para definir depois" /></label><fieldset><legend className="text-sm font-semibold text-text-secondary">Condição</legend><div className="mt-1 grid grid-cols-3 gap-2">{(["A", "B", "C"] as GrauUnidade[]).map((opcao) => <button key={opcao} type="button" aria-pressed={grau === opcao} onClick={() => setGrau(opcao)} className={`h-11 cursor-pointer rounded-control border text-sm font-semibold transition ${grau === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-muted hover:border-accent/30"}`}>Grau {opcao}</button>)}</div></fieldset></div><label className="block text-sm font-semibold text-text-secondary">Origem <span className="font-normal text-text-faint">(opcional)</span><input className={inputClass} value={origem} onChange={(e) => setOrigem(e.target.value)} placeholder="Ex.: lote, moto doadora ou não identificada" /></label><EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={(files) => setFotos((atuais) => [...atuais, ...files])} enviando={salvando} resumoCompressao={null} />{fotos.length > 0 && <ul className="space-y-1 text-xs text-text-secondary">{fotos.map((foto, indice) => <li key={`${foto.name}-${indice}`} className="flex items-center justify-between gap-3 rounded-control bg-surface-inset pl-3"><span className="truncate">{foto.name}</span><button type="button" aria-label={`Remover ${foto.name}`} disabled={salvando} onClick={() => setFotos((atuais) => atuais.filter((_, i) => i !== indice))} className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-control px-3 font-semibold text-danger transition hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-50"><X size={14} />Remover</button></li>)}</ul>}<p className="text-xs text-text-muted">As fotos desta unidade serão enviadas ao salvar. A foto geral do catálogo permanece separada.</p></section>}
+        {etapa === 1 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">2 · Ficha da unidade</p><h3 className="mt-1 text-lg font-semibold">Detalhes desta peça física</h3><p className="mt-1 text-sm text-text-muted">O preço normal da peça vem pré preenchido e continua editável para avarias ou itens com partes extras.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-text-secondary">Preço de venda <span className="font-normal text-text-faint">(editável)</span><input ref={precoRef} aria-label="Preço da unidade" className={inputClass} type="number" min="0.01" step="0.01" value={preco} onChange={(e) => { setPreco(e.target.value); setPrecoEditado(true); }} placeholder="Deixe em branco para definir depois" /></label><fieldset><legend className="text-sm font-semibold text-text-secondary">Condição</legend><div className="mt-1 grid grid-cols-3 gap-2">{(["A", "B", "C"] as GrauUnidade[]).map((opcao) => <button key={opcao} type="button" aria-pressed={grau === opcao} onClick={() => setGrau(opcao)} className={`h-11 cursor-pointer rounded-control border text-sm font-semibold transition ${grau === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-muted hover:border-accent/30"}`}>Grau {opcao}</button>)}</div></fieldset></div><label className="block text-sm font-semibold text-text-secondary">Origem <span className="font-normal text-text-faint">(opcional)</span><input className={inputClass} value={origem} onChange={(e) => setOrigem(e.target.value)} placeholder="Ex.: lote, moto doadora ou não identificada" /></label><EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={(files) => setFotos((atuais) => [...atuais, ...files])} enviando={salvando} resumoCompressao={null} />{fotos.length > 0 && <ul className="space-y-1 text-xs text-text-secondary">{fotos.map((foto, indice) => <li key={`${foto.name}-${indice}`} className="flex items-center justify-between gap-3 rounded-control bg-surface-inset pl-3"><span className="truncate">{foto.name}</span><button type="button" aria-label={`Remover ${foto.name}`} disabled={salvando} onClick={() => setFotos((atuais) => atuais.filter((_, i) => i !== indice))} className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-control px-3 font-semibold text-danger transition hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-50"><X size={14} />Remover</button></li>)}</ul>}<p className="text-xs text-text-muted">As fotos desta unidade serão enviadas ao salvar. A foto geral do catálogo permanece separada.</p></section>}
 
         {etapa === 2 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">3 · Guardar</p><h3 className="mt-1 text-lg font-semibold">Onde ela ficará?</h3><p className="mt-1 text-sm text-text-muted">Escolha a prateleira e a seção. Se ainda não souber, deixe sem endereço e organize depois.</p></div><Combobox buttonRef={enderecoRef} label="Prateleira e seção" placeholder="Para organizar depois" options={enderecos} value={endereco} onChange={setEndereco} size="lg" />{operacional && !enderecos.length && <p className="text-sm text-text-muted">Nenhum local cadastrado. Cadastre uma prateleira no Mapa físico ou deixe para organizar depois.</p>}</section>}
 

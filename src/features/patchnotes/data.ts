@@ -18,6 +18,16 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.10',
+    data: '2026-09-30',
+    titulo: 'Cadastro de unidades com modelo, ano e preço padrão',
+    itens: [
+      { tipo: 'fix', texto: 'A nova tela de Estoque agora grava o modelo e o ano compatíveis no cadastro estruturado da peça, exibindo o período correto nos cartões e na ficha da unidade.' },
+      { tipo: 'melhoria', texto: 'Ao adicionar outra unidade da mesma peça, o preço normal mais usado já vem preenchido e pode ser alterado quando a unidade tiver avaria ou partes extras.' },
+      { tipo: 'fix', texto: 'A compatibilidade da moto deixou de aparecer repetida duas vezes na ficha da unidade.' },
+    ],
+  },
+  {
     versao: '1.7.9',
     data: '2026-09-24',
     titulo: 'Novo Estoque no lugar do antigo, com a cara da tela Tarefas',

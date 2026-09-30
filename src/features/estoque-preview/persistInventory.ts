@@ -77,7 +77,7 @@ export async function salvarUnidadeOperacional(
       nome: nova.nome.trim(), categoria_id: nova.categoriaId,
       condicao: nova.condicao ?? 'original', nota_cadastro: nova.notaCadastro ?? null,
       valor: entrada.preco, quantidade: 1, condicao_nota: nota, imagens: [],
-      modelo_moto_id: null, modelo_moto_compativel_ids: [], ano: null, ativo: true, componentes: null, anuncio_fb_url: null, descricao: [nova.detalhes, nova.compatibilidades?.length ? `Referência de moto: ${nova.compatibilidades.join(', ')}` : null].filter(Boolean).join(' · ') || null,
+      modelo_moto_id: nova.modeloMotoId || null, modelo_moto_compativel_ids: [], ano: nova.ano?.trim() || null, ativo: true, componentes: null, anuncio_fb_url: null, descricao: nova.detalhes?.trim() || null,
     }), 'Não foi possível criar a peça.');
     pecaId = peca.id;
     try {

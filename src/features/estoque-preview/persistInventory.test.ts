@@ -60,6 +60,28 @@ describe('salvarUnidadeOperacional', () => {
     expect(editarUnidade).toHaveBeenCalledWith('ficha-nova', expect.objectContaining({ valor: null }));
   });
 
+  it('preserva modelo e ano compatíveis ao criar a peça', async () => {
+    criar.mockResolvedValue({ success: true, data: { id: 'peca-nova' } });
+    listarUnidades.mockResolvedValue({ success: true, data: [{ id: 'ficha-nova', vendida_em: null }] });
+
+    await salvarUnidadeOperacional({
+      ...entrada,
+      pecaId: undefined,
+      novaPeca: {
+        nome: 'Balança CG 125 Titan',
+        categoriaId: 'cat-1',
+        modeloMotoId: 'moto-titan',
+        ano: '94 a 99',
+        compatibilidades: ['CG 125 Titan · 94 a 99'],
+      },
+    }, [peca], [local]);
+
+    expect(criar).toHaveBeenCalledWith(expect.objectContaining({
+      modelo_moto_id: 'moto-titan',
+      ano: '94 a 99',
+    }));
+  });
+
   it('recusa endereço não cadastrado antes de criar a unidade', async () => {
     await expect(salvarUnidadeOperacional(entrada, [peca], []))
       .rejects.toThrow('não está cadastrado');

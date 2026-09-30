@@ -93,6 +93,8 @@ export interface NovaUnidadeInput {
     categoriaId: string;
     condicao?: "original" | "paralela";
     notaCadastro?: "com_nota" | "sem_nota" | null;
+    modeloMotoId?: string | null;
+    ano?: string | null;
     codigoLegado?: string;
     compatibilidades?: string[];
     detalhes?: string;

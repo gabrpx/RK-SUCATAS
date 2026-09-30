@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { InventoryComposer } from './InventoryComposer';
 
 vi.mock('@/src/components/ui/Combobox', () => ({
@@ -18,10 +18,12 @@ vi.mock('./InventoryDrawer', () => ({
 
 vi.mock('../estoque/EstoqueUploadFotos', () => ({ EstoqueUploadFotos: () => null }));
 
+afterEach(cleanup);
+
 describe('cadastro operacional de estoque', () => {
   it('salva a primeira unidade sem preço e deixa o valor para preencher depois', async () => {
     const onSalvar = vi.fn().mockResolvedValue({ completo: true, mensagem: 'Unidade cadastrada.' });
-    render(<InventoryComposer
+    const tela = render(<InventoryComposer
       aberto
       categorias={[{ id: 'cat-1', nome: 'Peças' }] as any}
       pecas={[]}
@@ -61,6 +63,7 @@ describe('cadastro operacional de estoque', () => {
       aberto
       categorias={[{ id: 'cat-1', nome: 'Peças' }] as any}
       pecas={[{ id: 'p-1', codigoLegado: 'RK-1', nome: 'Suporte de placa CBX Twister 250', categoriaId: 'cat-1', compatibilidades: ['CBX Twister 250'], detalhes: '' }] as any}
+      modelos={[{ id: 'm-1', nome: 'CBX Twister 250', parent_id: null, ordem: 0, ano: '2001 a 2008', imagem_url: null }]}
       onFechar={vi.fn()}
       onSalvar={vi.fn()}
     />);
@@ -69,6 +72,61 @@ describe('cadastro operacional de estoque', () => {
       fireEvent.change(input, { target: { value: 'Suporte de pedaleiras CBX Twister 250' } });
     }
 
-    expect(screen.getAllByLabelText(/Referência de moto/).some((input) => (input as HTMLInputElement).value === 'CBX Twister 250')).toBe(true);
+    expect((screen.getByLabelText('Modelo e ano compatíveis') as HTMLSelectElement).value).toBe('m-1');
+    expect((screen.getByLabelText('Ano compatível') as HTMLInputElement).value).toBe('2001 a 2008');
+  });
+
+  it('salva o modelo e o ano escolhidos de forma estruturada', async () => {
+    const onSalvar = vi.fn().mockResolvedValue({ completo: true, mensagem: 'Unidade cadastrada.' });
+    const modelos = [{ id: 'moto-titan', nome: 'CG 125 Titan', parent_id: null, ordem: 0, ano: '94 a 99', imagem_url: null }];
+    const tela = render(<InventoryComposer
+      aberto
+      categorias={[{ id: 'cat-1', nome: 'Balanças' }] as any}
+      pecas={[]}
+      modelos={modelos}
+      onFechar={vi.fn()}
+      onSalvar={onSalvar}
+    />);
+
+    fireEvent.change(tela.getByLabelText('Nome da Peça'), { target: { value: 'Balança CG 125 Titan' } });
+    fireEvent.change(tela.getByLabelText('Categoria'), { target: { value: 'cat-1' } });
+    fireEvent.change(tela.getByLabelText('Modelo e ano compatíveis'), { target: { value: 'moto-titan' } });
+
+    expect((tela.getByLabelText('Ano compatível') as HTMLInputElement).value).toBe('94 a 99');
+
+    fireEvent.click(tela.getByRole('button', { name: 'Próximo' }));
+    fireEvent.click(tela.getByRole('button', { name: 'Próximo' }));
+    fireEvent.click(tela.getByRole('button', { name: /Próximo/ }));
+    fireEvent.click(tela.getByRole('button', { name: 'Salvar unidade' }));
+
+    await waitFor(() => expect(onSalvar).toHaveBeenCalledOnce());
+    expect(onSalvar.mock.calls[0][0].novaPeca).toMatchObject({
+      modeloMotoId: 'moto-titan',
+      ano: '94 a 99',
+      compatibilidades: ['CG 125 Titan · 94 a 99'],
+    });
+  });
+
+  it('preenche o preço normal da peça e permite editar antes de salvar', async () => {
+    const tela = render(<InventoryComposer
+      aberto
+      pecaInicialId="p-1"
+      categorias={[{ id: 'cat-1', nome: 'Balanças' }] as any}
+      pecas={[{ id: 'p-1', codigoLegado: 'RK-1', nome: 'Balança CG 125 Titan', categoriaId: 'cat-1', compatibilidades: ['CG 125 Titan · 94 a 99'], detalhes: '' }] as any}
+      unidades={[
+        { id: 'u-1', pecaId: 'p-1', preco: 180, estado: 'disponivel' },
+        { id: 'u-2', pecaId: 'p-1', preco: 180, estado: 'disponivel' },
+        { id: 'u-3', pecaId: 'p-1', preco: 130, estado: 'disponivel' },
+      ] as any}
+      onFechar={vi.fn()}
+      onSalvar={vi.fn()}
+    />);
+
+    fireEvent.click(tela.getByRole('button', { name: 'Próximo' }));
+    const preco = await tela.findByLabelText('Preço da unidade');
+    expect((preco as HTMLInputElement).value).toBe('180');
+
+    fireEvent.change(preco, { target: { value: '150' } });
+    expect((preco as HTMLInputElement).value).toBe('150');
   });
 });
