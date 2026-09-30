@@ -1,6 +1,6 @@
 // Chamadas HTTP do módulo de Caixa (livro de entradas e saídas).
 import { api, BASE_URL } from '../../utils/api';
-import type { CaixaEntry, CaixaEntryInput, CaixaPendencia, CaixaPendenciaInput, CaixaPendenciaRecebimento, CaixaPendenciaRecebimentoInput, Cobranca, CobrancaInput } from './types';
+import type { CaixaEntry, CaixaEntryInput, CaixaPendencia, CaixaPendenciaInput, CaixaPendenciaUpdateInput, CaixaPendenciaRecebimento, CaixaPendenciaRecebimentoInput, Cobranca, CobrancaInput } from './types';
 
 interface ApiResult<T> {
   success: boolean;
@@ -20,6 +20,8 @@ export const caixaPendenciasApi = {
   listar: () => api.get('/api/caixa-pendencias') as Promise<ApiResult<CaixaPendencia[]>>,
   listarRecebimentos: () => api.get('/api/caixa-pendencias/recebimentos') as Promise<ApiResult<CaixaPendenciaRecebimento[]>>,
   criar: (payload: CaixaPendenciaInput) => api.post('/api/caixa-pendencias', payload) as Promise<ApiResult<CaixaPendencia>>,
+  atualizar: (pendenciaId: string, payload: CaixaPendenciaUpdateInput) =>
+    api.patch(`/api/caixa-pendencias/${pendenciaId}`, payload) as Promise<ApiResult<CaixaPendencia>>,
   registrarRecebimento: (pendenciaId: string, payload: CaixaPendenciaRecebimentoInput) =>
     api.post(`/api/caixa-pendencias/${pendenciaId}/recebimentos`, payload) as Promise<ApiResult<CaixaPendenciaRecebimento>>,
   removerRecebimento: (pendenciaId: string, recebimentoId: string) =>

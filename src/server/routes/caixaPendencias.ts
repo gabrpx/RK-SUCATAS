@@ -8,6 +8,7 @@ import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { exigirPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
+import { prepararEdicaoPendencia } from './caixaPendenciasValidation.js';
 
 const SELECT_PENDENCIA = '*, criador:usuarios!criado_por(id, nome_exibicao), cliente:clientes(id, nome, telefone)';
 const SELECT_RECEBIMENTO = '*, forma_pagamento:formas_pagamento(id, nome), usuario:usuarios(id, nome_exibicao)';
@@ -62,6 +63,46 @@ export function caixaPendenciasRouter(supabase: SupabaseClient) {
       res.json({ success: true, data: created });
     } catch (error: any) {
       console.error('Erro ao criar pendência de caixa:', error);
+      res.status(500).json({ success: false, error: error.message });
+    }
+  });
+
+  router.patch('/:id', exigirPermissao('caixa.gerenciar_pendencias'), async (req, res) => {
+    try {
+      const { data: atual, error: erroBusca } = await supabase
+        .from('caixa_pendencias')
+        .select('id, descricao, valor_total, data, cliente_id, status')
+        .eq('id', req.params.id)
+        .maybeSingle();
+      if (erroBusca) throw erroBusca;
+      if (!atual) return res.status(404).json({ success: false, error: 'Pendência não encontrada.' });
+
+      const { data: recebimentos, error: erroRecebimentos } = await supabase
+        .from('caixa_pendencia_recebimentos')
+        .select('valor')
+        .eq('pendencia_id', req.params.id);
+      if (erroRecebimentos) throw erroRecebimentos;
+      const recebido = (recebimentos ?? []).reduce((total, item) => total + Number(item.valor || 0), 0);
+      const campos = {
+        descricao: req.body?.descricao,
+        valor_total: req.body?.valor_total,
+        data: req.body?.data,
+        cliente_id: req.body?.cliente_id,
+      };
+      const resultado = prepararEdicaoPendencia(campos, atual, recebido);
+      if (resultado.ok === false) return res.status(resultado.status).json({ success: false, error: resultado.error });
+
+      const { data, error } = await supabase
+        .from('caixa_pendencias')
+        .update(resultado.payload)
+        .eq('id', req.params.id)
+        .eq('status', 'aberta')
+        .select(SELECT_PENDENCIA)
+        .single();
+      if (error) throw error;
+      res.json({ success: true, data });
+    } catch (error: any) {
+      console.error('Erro ao editar pendência de caixa:', error);
       res.status(500).json({ success: false, error: error.message });
     }
   });

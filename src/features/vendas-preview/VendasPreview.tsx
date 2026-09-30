@@ -4,7 +4,7 @@ import { DotMatrix } from "dot-anime-react";
 import {
   ArrowDownLeft, ArrowUpRight, BellRing, Check, Plus,
   ChevronDown, ChevronRight, FileImage,
-  Search, SlidersHorizontal, X,
+  Pencil, Search, SlidersHorizontal, X,
 } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { lightInventoryTokens } from "../estoque-preview/InventoryDrawer";
@@ -21,15 +21,18 @@ import { fiadoApi } from "@/src/features/fiado/api";
 import type { FiadoRecebimento } from "@/src/features/fiado/types";
 import {
   type AbaVendasPreview, type CanalVendaDemo, type MeioPagamentoDemo, type MovimentoDemo,
-  type PendenciaDemo, type PeriodoVendasPreview, type VendaDemo, parseDataLocal,
+  type PendenciaDemo, type PeriodoVendasPreview, parseDataLocal,
 } from "./data";
+import type { SaleViewModel } from "./salesViewModel";
 import { mapearMovimentos, mapearPendencias, mapearVendas } from "./liveData";
 import { CashFlowChart, SalesTrendChart } from "./components/SalesCharts";
 import { OverviewMetrics } from "./components/OverviewMetrics";
 import { SaleDetailDrawer } from "./components/SaleDetailDrawer";
+import { PendingEditDrawer } from "./components/PendingEditDrawer";
 import { MercadoLivreBadge, PaymentMethodMark } from "./components/PaymentMarks";
 import { Tabs as SegmentTabs, TabsList as SegmentTabsList, TabsTrigger as SegmentTabsTrigger } from "../tarefas-preview/PreviewTabs";
 import { filtrarMovimentosPorPeriodo, type PeriodoMovimento } from "./movementFilters";
+import { buildSalesOverview } from "./overviewModel";
 
 const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const previewTokens = {
@@ -171,10 +174,10 @@ function meiosDoRotulo(metodo: string): MeioPagamentoDemo[] {
 }
 
 function Overview({
-  period, periodDays, sales, salesCount, cashIn, cashInCount, receivable, balance, pendencies, salesRows, movementRows, financialAvailable, onOpenTab,
+  period, periodDays, sales, salesCount, cashIn, cashInCount, receivable, overdue, balance, pendencies, salesRows, movementRows, financialAvailable, onOpenTab,
 }: {
-  period: string; periodDays: number; sales: number; salesCount: number; cashIn: number | null; cashInCount: number | null; receivable: number | null; balance: number | null;
-  pendencies: PendenciaDemo[]; salesRows: VendaDemo[]; movementRows: MovimentoDemo[]; financialAvailable: boolean; onOpenTab: (tab: AbaVendasPreview) => void;
+  period: string; periodDays: number; sales: number; salesCount: number; cashIn: number | null; cashInCount: number | null; receivable: number | null; overdue: number | null; balance: number | null;
+  pendencies: PendenciaDemo[]; salesRows: SaleViewModel[]; movementRows: MovimentoDemo[]; financialAvailable: boolean; onOpenTab: (tab: AbaVendasPreview) => void;
 }) {
   const attention = pendencies.filter(pendenciaUrgente).sort((a, b) => (diasAteVencimento(a) ?? 99) - (diasAteVencimento(b) ?? 99));
   const pendenciasAbertas = pendencies.filter((item) => item.pago < item.total);
@@ -187,7 +190,7 @@ function Overview({
   const ageTotal = Math.max(1, aging.reduce((sum, item) => sum + item.count, 0));
 
   return <div className="space-y-6">
-    <OverviewMetrics sales={sales} salesCount={salesCount} cashIn={cashIn} cashInCount={cashInCount} balance={balance} receivable={receivable} cashAvailable={financialAvailable} periodLabel={period.toLowerCase()} />
+    <OverviewMetrics sales={sales} salesCount={salesCount} cashIn={cashIn} cashInCount={cashInCount} balance={balance} receivable={receivable} overdue={overdue} cashAvailable={financialAvailable} periodLabel={period.toLowerCase()} />
 
     <section data-preview-reveal className={`${panel} overflow-hidden`}>
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-4 py-3 sm:px-5">
@@ -229,16 +232,16 @@ function Overview({
   </div>;
 }
 
-function SalesList({ sales, onDetail, onClearFilters, hasActiveFilters }: { sales: VendaDemo[]; onDetail: (sale: VendaDemo) => void; onClearFilters: () => void; hasActiveFilters: boolean }) {
+function SalesList({ sales, onDetail, onClearFilters, hasActiveFilters }: { sales: SaleViewModel[]; onDetail: (sale: SaleViewModel) => void; onClearFilters: () => void; hasActiveFilters: boolean }) {
   if (sales.length === 0) return <div className="rounded-card border border-dashed border-border-default bg-surface-card p-10 text-center"><span className="mx-auto grid size-11 place-items-center rounded-full bg-surface-inset text-text-muted"><Search size={17} /></span><p className="mt-3 text-sm font-semibold">{hasActiveFilters ? "Nenhuma venda corresponde aos filtros" : "Nenhuma venda registrada"}</p><p className="mt-1 text-xs text-text-muted">{hasActiveFilters ? "Remova um filtro para ver outros registros." : "O histórico será exibido quando houver uma venda."}</p>{hasActiveFilters && <button type="button" onClick={onClearFilters} className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-control px-3 text-xs font-semibold text-accent hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><X size={14} />Limpar filtros</button>}</div>;
   return <div className={`${panel} overflow-hidden`}>
     <div className="hidden grid-cols-[1.15fr_1.65fr_1fr_.8fr_.9fr] gap-3 bg-surface-inset px-4 py-3 md:grid"><span className={label}>Cliente · canal</span><span className={label}>Peça · unidade</span><span className={label}>Pagamento recebido</span><span className={`${label} text-right`}>Valor</span><span className={`${label} text-right`}>Estado</span></div>
     <div className="divide-y divide-border-subtle">{sales.map((sale, index) => <motion.button layout key={sale.id} type="button" aria-label={`Abrir detalhes da venda ${sale.id}, cliente ${sale.cliente}`} onClick={() => onDetail(sale)} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING_MICRO, delay: Math.min(index * .035, .18) }} className={`grid gap-2 p-4 text-left transition-colors hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 md:grid-cols-[1.15fr_1.65fr_1fr_.8fr_.9fr] md:items-center md:gap-3 ${sale.canal === "Mercado Livre" ? "meli-sale-row mx-2 my-1 w-[calc(100%-1rem)] rounded-control border border-[#e7ca00] bg-amber-50/20" : "w-full"}`}>
       <span className="min-w-0"><span className="block truncate text-sm font-semibold">{sale.cliente}</span><span className="mt-0.5 block font-mono text-[10px] text-text-faint">{sale.id} · {dateLabel(sale.ocorridoEm)}</span><span className="mt-1 block"><MercadoLivreBadge canal={sale.canal} compact /></span></span>
       <span className="min-w-0"><span className="block break-words text-sm text-text-secondary">{sale.item}</span><span className="mt-0.5 block font-mono text-[10px] text-text-faint">Unidade {sale.unidade}{sale.grau !== "—" ? ` · Grau ${sale.grau}` : ""}</span></span>
-      <span className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-text-muted">{sale.pagamentos.length ? sale.pagamentos.map((pagamento, pagamentoIndex) => <span key={`${pagamento.meio}-${pagamentoIndex}`} title={`${pagamento.meio}: ${money(pagamento.valor)}`} className="inline-flex items-center gap-1"><PaymentMethodMark meio={pagamento.meio} className="size-3.5" />{pagamento.meio}</span>) : <span>{sale.recebido === null ? "Financeiro restrito" : "Sem pagamento"}</span>}{sale.temComprovantePix && <span className="inline-flex items-center gap-1 text-text-faint"><FileImage size={12} />Comprovante</span>}</span>
+      <span className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-text-muted">{sale.pagamentos.length ? sale.pagamentos.map((pagamento, pagamentoIndex) => <span key={`${pagamento.meio}-${pagamentoIndex}`} title={`${pagamento.meio}: ${money(pagamento.valor)}`} className="inline-flex items-center gap-1"><PaymentMethodMark meio={pagamento.meio} className="size-3.5" />{pagamento.meio}</span>) : <span>{sale.reconciliation.kind === "unavailable" ? "Financeiro restrito" : sale.reconciliation.kind === "needs-review" ? `Sem lançamento no Caixa${sale.reconciliation.recordedMethod ? ` · ${sale.reconciliation.recordedMethod}` : ""}` : "Sem pagamento"}</span>}{sale.temComprovantePix && <span className="inline-flex items-center gap-1 text-text-faint"><FileImage size={12} />Comprovante</span>}</span>
       <span className="text-sm font-semibold tabular-nums md:text-right">{money(sale.valor)}</span>
-      <span className={`w-fit rounded-full px-2 py-1 text-[10px] font-semibold md:ml-auto ${sale.recebido === null ? "bg-surface-inset text-text-muted" : sale.recebido >= sale.valor ? "bg-positive-bg text-positive" : "bg-warning-bg text-warning"}`}>{sale.recebido === null ? "Financeiro restrito" : sale.recebido >= sale.valor ? "Pago" : `Saldo ${money(sale.valor - sale.recebido)}`}</span>
+      <span className={`w-fit rounded-full px-2 py-1 text-[10px] font-semibold md:ml-auto ${sale.reconciliation.kind === "unavailable" ? "bg-surface-inset text-text-muted" : sale.reconciliation.kind === "settled" ? "bg-positive-bg text-positive" : sale.reconciliation.kind === "needs-review" ? "bg-info-bg text-info" : "bg-warning-bg text-warning"}`}>{sale.reconciliation.kind === "unavailable" ? "Financeiro restrito" : sale.reconciliation.kind === "settled" ? "Pago" : sale.reconciliation.kind === "needs-review" ? "Conciliação necessária" : `Saldo ${money(sale.reconciliation.outstanding)}`}</span>
     </motion.button>)}</div>
     <div className="border-t border-border-default px-4 py-3 text-center text-[10px] text-text-faint">Dados reais em modo somente leitura · selecione uma venda para abrir os detalhes</div>
   </div>;
@@ -253,7 +256,7 @@ function MovementsList({ items }: { items: MovimentoDemo[] }) {
   </motion.div>)}</AnimatePresence>{!items.length && <p role="status" className="border-t border-dashed border-border-default p-10 text-center text-sm text-text-muted">Nenhuma movimentação corresponde aos filtros.</p>}</div></div>;
 }
 
-function PendingList({ items, hasActiveFilters, onClearFilters }: { items: PendenciaDemo[]; hasActiveFilters: boolean; onClearFilters: () => void }) {
+function PendingList({ items, hasActiveFilters, onClearFilters, onEdit, canEditItem }: { items: PendenciaDemo[]; hasActiveFilters: boolean; onClearFilters: () => void; onEdit: (item: PendenciaDemo) => void; canEditItem: (item: PendenciaDemo) => boolean }) {
   const [historicoAberto, setHistoricoAberto] = useState<Record<string, boolean>>({});
   const reduceMotion = useReducedMotion();
   if (!items.length) return <div className="rounded-card border border-dashed border-border-default bg-surface-card p-10 text-center"><span className={`mx-auto grid size-11 place-items-center rounded-full ${hasActiveFilters ? "bg-surface-inset text-text-muted" : "bg-positive-bg text-positive"}`}>{hasActiveFilters ? <Search size={17} /> : <Check size={18} />}</span><p className="mt-3 text-sm font-semibold">{hasActiveFilters ? "Nenhuma pendência corresponde aos filtros" : "Fila em dia"}</p><p className="mt-1 text-xs text-text-muted">{hasActiveFilters ? "Remova um filtro ou limpe a seleção para ver outras pendências." : "Não há recebíveis em aberto no momento."}</p>{hasActiveFilters && <button type="button" onClick={onClearFilters} className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-control px-3 text-xs font-semibold text-accent hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><X size={14} />Limpar filtros</button>}</div>;
@@ -271,7 +274,7 @@ function PendingList({ items, hasActiveFilters, onClearFilters }: { items: Pende
         <AnimatePresence initial={false}>{historicoAberto[item.id] && <motion.ul initial={reduceMotion ? false : { opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={reduceMotion ? undefined : { opacity: 0, height: 0 }} transition={reduceMotion ? { duration: 0 } : SPRING_MICRO} className="mt-1 overflow-hidden divide-y divide-border-subtle rounded-control border border-border-default bg-surface-card px-3">
           {item.pagamentos.map((pagamento, pagamentoIndex) => <li key={`${pagamento.meio}-${pagamento.ocorridoEm}-${pagamentoIndex}`} className="flex items-center gap-2 py-2 text-xs"><PaymentMethodMark meio={pagamento.meio} className="size-3.5 shrink-0 text-accent-soft-fg" /><span className="min-w-0 flex-1 text-text-secondary">{pagamento.meio} · {dateLabel(pagamento.ocorridoEm)}</span><strong className="shrink-0 tabular-nums text-text-primary">{money(pagamento.valor)}</strong></li>)}
         </motion.ul>}</AnimatePresence>
-      </div> : <p className="inline-flex items-center gap-1.5 py-2 text-[11px] text-text-muted"><span aria-hidden="true" className="size-1.5 rounded-full bg-border-default" />Sem pagamentos registrados · saldo em aberto</p>}</div><span className="text-[10px] text-text-faint">Consulta somente leitura</span></div>
+      </div> : <p className="inline-flex items-center gap-1.5 py-2 text-[11px] text-text-muted"><span aria-hidden="true" className="size-1.5 rounded-full bg-border-default" />Sem pagamentos registrados · saldo em aberto</p>}</div><button type="button" onClick={() => onEdit(item)} className="inline-flex min-h-10 shrink-0 items-center gap-1.5 rounded-control border border-border-default bg-surface-card px-3 text-xs font-semibold text-text-secondary transition-colors hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><Pencil size={13} />{canEditItem(item) ? "Editar pendência" : "Ver detalhes"}</button></div>
     </motion.article>;
   })}</div></div>;
 }
@@ -298,8 +301,8 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
   const [clienteVenda, setClienteVenda] = useState("");
   const [produtoVenda, setProdutoVenda] = useState("");
   const [filtroMovimento, setFiltroMovimento] = useState("Todos");
-  const [filtroPendencia, setFiltroPendencia] = useState("Todas");
-  const [saleDetail, setSaleDetail] = useState<VendaDemo | null>(null);
+  const [saleDetail, setSaleDetail] = useState<SaleViewModel | null>(null);
+  const [pendingEdit, setPendingEdit] = useState<PendenciaDemo | null>(null);
   const [periodoMovimento, setPeriodoMovimento] = useState<PeriodoMovimento>("todos");
   const rootRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
@@ -355,6 +358,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
     const data = parseDataLocal(item.ocorridoEm);
     return data >= intervaloResumo.inicio && data <= intervaloResumo.agora;
   }), [intervaloResumo, movimentos]);
+  const overview = useMemo(() => buildSalesOverview({ sales: vendas, movements: movimentos, pendings: pendencias, start: intervaloResumo.inicio, end: intervaloResumo.agora, financialAvailable: statusCaixa === "pronto" }), [intervaloResumo, movimentos, pendencias, statusCaixa, vendas]);
 
   const vendaFiltradas = useMemo(() => vendas.filter((sale) => {
     const texto = `${sale.id} ${sale.cliente} ${sale.item} ${sale.unidade}`.toLocaleLowerCase();
@@ -362,7 +366,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
     const inicioHoje = new Date(hoje.getFullYear(), hoje.getMonth(), hoje.getDate());
     const dataVenda = parseDataLocal(sale.ocorridoEm);
     const dias = Math.floor((inicioHoje.getTime() - new Date(dataVenda.getFullYear(), dataVenda.getMonth(), dataVenda.getDate()).getTime()) / umDia);
-    const atendeStatus = filtroSituacaoVenda === "Todas" || (filtroSituacaoVenda === "Pagas" ? sale.recebido !== null && sale.recebido >= sale.valor : sale.recebido !== null && sale.recebido < sale.valor);
+    const atendeStatus = filtroSituacaoVenda === "Todas" || (filtroSituacaoVenda === "Pagas" ? sale.reconciliation.kind === "settled" : sale.reconciliation.kind === "open");
     const atendePeriodo = periodoVenda === "Todos" || (periodoVenda === "Hoje" ? dias === 0 : periodoVenda === "30 dias" ? dias >= 0 && dias <= 29 : dataVenda.getMonth() === hoje.getMonth() && dataVenda.getFullYear() === hoje.getFullYear());
     const atendeCanal = canaisVendaSelecionados.length === 0 || canaisVendaSelecionados.includes(sale.canal);
     const atendePagamento = meiosVendaSelecionados.length === 0 || sale.pagamentos.some((pagamento) => meiosVendaSelecionados.includes(pagamento.meio));
@@ -393,7 +397,6 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
 
   function limparFiltrosPendencia() {
     setBusca("");
-    setFiltroPendencia("Todas");
   }
 
   const movimentosFiltrados = useMemo(() => movimentos.filter((item) => {
@@ -401,23 +404,24 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
     const atendeTipo = filtroMovimento === "Todos" || item.tipo === (filtroMovimento === "Entradas" ? "entrada" : "saída");
     return atendeTipo && texto.includes(busca.toLocaleLowerCase());
   }).sort((a, b) => parseDataLocal(b.ocorridoEm).getTime() - parseDataLocal(a.ocorridoEm).getTime()), [busca, filtroMovimento, movimentos]);
+  const movimentosVisiveis = useMemo(() => filtrarMovimentosPorPeriodo(movimentosFiltrados, periodoMovimento), [movimentosFiltrados, periodoMovimento]);
 
   const pendenciasFiltradas = useMemo(() => pendencias.filter((item) => {
     const texto = `${item.nome} ${item.origem} ${item.tipo}`.toLocaleLowerCase();
-    return item.pago < item.total && texto.includes(busca.toLocaleLowerCase()) && (filtroPendencia === "Todas" || item.tipo === filtroPendencia);
-  }).sort((a, b) => Number(pendenciaVencida(b)) - Number(pendenciaVencida(a)) || parseDataLocal(a.venceEm ?? a.criadaEm).getTime() - parseDataLocal(b.venceEm ?? b.criadaEm).getTime()), [busca, filtroPendencia, pendencias]);
+    return item.pago < item.total && texto.includes(busca.toLocaleLowerCase());
+  }).sort((a, b) => Number(pendenciaVencida(b)) - Number(pendenciaVencida(a)) || parseDataLocal(a.venceEm ?? a.criadaEm).getTime() - parseDataLocal(b.venceEm ?? b.criadaEm).getTime()), [busca, pendencias]);
 
-  const totalVendas = vendasDoPeriodo.reduce((sum, item) => sum + item.valor, 0);
+  const totalVendas = overview.period.grossSales;
   const entradasDoPeriodo = movimentosDoPeriodo.filter((item) => item.tipo === "entrada");
-  const totalEntradas = statusCaixa === "pronto" ? entradasDoPeriodo.reduce((sum, item) => sum + item.valor, 0) : null;
-  const totalReceber = statusCaixa === "pronto" ? pendencias.reduce((sum, item) => sum + Math.max(0, item.total - item.pago), 0) : null;
-  const totalVencido = statusCaixa === "pronto" ? pendencias.filter(pendenciaVencida).reduce((sum, item) => sum + Math.max(0, item.total - item.pago), 0) : null;
-  const saldoCaixa = statusCaixa === "pronto" ? movimentosDoPeriodo.reduce((sum, item) => sum + (item.tipo === "entrada" ? item.valor : -item.valor), 0) : null;
+  const totalEntradas = statusCaixa === "pronto" ? overview.period.cashIn : null;
+  const totalReceber = statusCaixa === "pronto" ? overview.current.receivable : null;
+  const totalVencido = statusCaixa === "pronto" ? overview.current.overdue : null;
+  const saldoCaixa = statusCaixa === "pronto" ? overview.period.netResult : null;
   const contadorPendencias = pendencias.filter((item) => item.pago < item.total).length;
   const meiosDisponiveis = Array.from(new Set(vendas.flatMap((sale) => sale.pagamentos.map((pagamento) => pagamento.meio)))).sort((a, b) => a.localeCompare(b, "pt-BR"));
   const canaisDisponiveis = Array.from(new Set(vendas.map((sale) => sale.canal))).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
-  function detalharVenda(sale: VendaDemo) {
+  function detalharVenda(sale: SaleViewModel) {
     setSaleDetail(sale);
   }
 
@@ -449,7 +453,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
 
       <AnimatePresence mode="wait" initial={false}>
         <motion.section key={aba} id="vendas-preview-panel" role="tabpanel" aria-labelledby={`vendas-tab-${abas.indexOf(aba)}`} tabIndex={0} initial={reduceMotion ? false : { opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -4 }} transition={{ duration: reduceMotion ? 0 : .18 }} className="mt-6 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
-          {aba === "Visão geral" && (statusVendas !== "pronto" ? <DataNotice status={statusVendas} area="as vendas" detail={erroVendas ?? undefined} /> : <Overview period={periodo} periodDays={intervaloResumo.dias} sales={totalVendas} salesCount={vendasDoPeriodo.length} cashIn={totalEntradas} cashInCount={statusCaixa === "pronto" ? entradasDoPeriodo.length : null} balance={saldoCaixa} receivable={totalReceber} pendencies={pendencias} salesRows={vendas} movementRows={movimentosDoPeriodo} financialAvailable={statusCaixa === "pronto"} onOpenTab={setAba} />)}
+          {aba === "Visão geral" && (statusVendas !== "pronto" ? <DataNotice status={statusVendas} area="as vendas" detail={erroVendas ?? undefined} /> : <Overview period={periodo} periodDays={intervaloResumo.dias} sales={totalVendas} salesCount={vendasDoPeriodo.length} cashIn={totalEntradas} cashInCount={statusCaixa === "pronto" ? entradasDoPeriodo.length : null} balance={saldoCaixa} receivable={totalReceber} overdue={totalVencido} pendencies={pendencias} salesRows={vendas} movementRows={movimentosDoPeriodo} financialAvailable={statusCaixa === "pronto"} onOpenTab={setAba} />)}
 
           {aba === "Vendas" && (statusVendas !== "pronto" ? <DataNotice status={statusVendas} area="as vendas" detail={erroVendas ?? undefined} /> : <div className="space-y-4">
             <SectionTitle eyebrow="Registro e consulta" title="Vendas recentes" aside={<span className="font-mono text-[10px] uppercase tracking-wide text-text-faint">{vendaFiltradas.length} registros</span>} />
@@ -480,15 +484,15 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
             <SectionTitle eyebrow="Histórico cronológico" title="Entradas e saídas" />
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center"><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={15} /><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar origem, descrição ou pagamento" className={`${inputClass} pl-9`} /></label><div className="sm:w-48"><Select ariaLabel="Filtrar movimentações" value={filtroMovimento} onChange={setFiltroMovimento} options={["Todos", "Entradas", "Saídas"].map((value) => ({ value, label: value }))} size="lg" /></div><SegmentTabs value={periodoMovimento} onValueChange={(value) => setPeriodoMovimento(value as PeriodoMovimento)} className="w-full sm:w-auto"><SegmentTabsList aria-label="Período das movimentações" className="w-full max-w-full shrink-0 bg-surface-inset sm:w-auto"><SegmentTabsTrigger value="todos" className="min-h-9 flex-1 whitespace-nowrap px-3 text-xs sm:flex-none">Todos os períodos</SegmentTabsTrigger><SegmentTabsTrigger value="trinta-dias" className="min-h-9 flex-1 whitespace-nowrap px-3 text-xs sm:flex-none">30 dias</SegmentTabsTrigger></SegmentTabsList></SegmentTabs></div>
             <p className="text-xs leading-5 text-text-muted">Lançamentos efetivos do livro-caixa, incluindo entradas e saídas registradas.</p>
-            <MovementsList items={filtrarMovimentosPorPeriodo(movimentosFiltrados, periodoMovimento)} />
-            <div className={`${panel} flex flex-wrap items-center justify-between gap-2 p-4 text-xs`}><span className="text-text-muted">Saldo líquido dos lançamentos filtrados</span><strong className="text-positive tabular-nums">{money(movimentosFiltrados.reduce((sum, item) => sum + (item.tipo === "entrada" ? item.valor : -item.valor), 0))}</strong></div>
+            <MovementsList items={movimentosVisiveis} />
+            <div className={`${panel} flex flex-wrap items-center justify-between gap-2 p-4 text-xs`}><span className="text-text-muted">Saldo líquido dos lançamentos filtrados</span><strong className="text-positive tabular-nums">{money(movimentosVisiveis.reduce((sum, item) => sum + (item.tipo === "entrada" ? item.valor : -item.valor), 0))}</strong></div>
           </div>)}
 
           {aba === "Pendências" && (statusCaixa !== "pronto" ? <DataNotice status={statusCaixa} area="as pendências e recebimentos" detail={erroCaixa ?? undefined} /> : <div className="space-y-4">
             <SectionTitle eyebrow="Recebíveis em aberto" title="Pendências" />
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3"><div className={`${panel} p-3.5 sm:p-4`}><p className={label}>A receber</p><p className="mt-2 text-xl font-semibold tabular-nums">{money(totalReceber ?? 0)}</p><p className="mt-1 text-[11px] text-text-muted">Fiado e pendências abertas</p></div><div className={`${panel} p-3.5 sm:p-4`}><p className={label}>A pagar</p><p className="mt-2 text-base font-semibold">Não disponível</p><p className="mt-1 text-[11px] text-text-muted">Esta tela não possui fonte de contas a pagar</p></div><div className={`${panel} col-span-2 p-3.5 sm:col-span-1 sm:p-4`}><p className={label}>Atraso</p><p className="mt-2 text-xl font-semibold tabular-nums">{money(totalVencido ?? 0)}</p><p className="mt-1 text-[11px] text-text-muted">Em aberto há 30 dias ou mais</p></div></div>
-            <div className="flex flex-col gap-2 sm:flex-row"><label className="relative min-w-0 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={15} /><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar cliente ou origem" className={`${inputClass} pl-9`} /></label><div className="sm:w-48"><Select ariaLabel="Filtrar pendências" value={filtroPendencia} onChange={setFiltroPendencia} options={["Todas", "A receber"].map((value) => ({ value, label: value }))} size="lg" /></div></div>
-            <PendingList items={pendenciasFiltradas} hasActiveFilters={Boolean(busca) || filtroPendencia !== "Todas"} onClearFilters={limparFiltrosPendencia} />
+            <div className="grid gap-3 sm:grid-cols-2"><div className={`${panel} p-3.5 sm:p-4`}><p className={label}>A receber</p><p className="mt-2 text-xl font-semibold tabular-nums">{money(totalReceber ?? 0)}</p><p className="mt-1 text-[11px] text-text-muted">{contadorPendencias} {contadorPendencias === 1 ? "recebível aberto" : "recebíveis abertos"}</p></div><div className={`${panel} p-3.5 sm:p-4`}><p className={label}>Em atraso</p><p className="mt-2 text-xl font-semibold tabular-nums text-danger">{money(totalVencido ?? 0)}</p><p className="mt-1 text-[11px] text-text-muted">Em aberto há 30 dias ou mais</p></div></div>
+            <label className="relative block min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={15} /><input value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar cliente ou origem" className={`${inputClass} pl-9`} /></label>
+            <PendingList items={pendenciasFiltradas} hasActiveFilters={Boolean(busca)} onClearFilters={limparFiltrosPendencia} onEdit={setPendingEdit} canEditItem={(item) => item.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("vendas.editar")} />
             <p className="rounded-control border border-border-default bg-surface-inset px-4 py-3 text-xs leading-5 text-text-muted">Recebíveis em fiado são calculados a partir das vendas e dos recebimentos vinculados. A classificação como atrasado segue a regra atual do Caixa: 30 dias em aberto.</p>
           </div>)}
         </motion.section>
@@ -498,6 +502,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
     </main>
 
     <SaleDetailDrawer sale={saleDetail} onClose={() => setSaleDetail(null)} />
+    <PendingEditDrawer pending={pendingEdit} canEdit={pendingEdit?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("vendas.editar")} onClose={() => setPendingEdit(null)} onSaved={() => setReloadKey((value) => value + 1)} />
     {embutido && <NovaVendaDrawer isOpen={novaVendaAberta} onClose={() => setNovaVendaAberta(false)} onSaved={() => setReloadKey((value) => value + 1)} />}
     {!embutido && <footer className="border-t border-border-default bg-surface-card px-4 py-4 text-center font-mono text-[9px] uppercase tracking-[0.12em] text-text-faint">RK Sucatas · dados reais · modo somente leitura</footer>}
   </div>;

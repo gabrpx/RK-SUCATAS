@@ -9,5 +9,8 @@ export function filtrarMovimentosPorPeriodo(
 ): MovimentoDemo[] {
   if (periodo === 'todos') return movimentos;
   const limite = 30 * 24 * 60 * 60 * 1000;
-  return movimentos.filter((movimento) => agora - new Date(movimento.ocorridoEm).getTime() <= limite);
+  return movimentos.filter((movimento) => {
+    const ocorridoEm = new Date(movimento.ocorridoEm).getTime();
+    return ocorridoEm <= agora && agora - ocorridoEm <= limite;
+  });
 }
