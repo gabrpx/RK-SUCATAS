@@ -38,6 +38,7 @@ import { Login } from './components/Login';
 import { EstoqueView } from './features/estoque/EstoqueView';
 import { EstoquePreview } from './features/estoque-preview/EstoquePreview';
 import { VendasView } from './features/vendas/VendasView';
+import { VendasPreview } from './features/vendas-preview/VendasPreview';
 import { OrcamentosView } from './features/orcamentos/OrcamentosView';
 import { ClientesView } from './features/clientes/ClientesView';
 import { formaPagamentoEfetiva } from './features/fiado/metricas';
@@ -71,20 +72,20 @@ type DetailItem = Estoque | Venda;
 // 'fiado' saiu da navegação: virou sub-aba do Caixa. Não fica em VALID_TABS
 // pra a URL /fiado não abrir mais uma aba solta — os botões que iam pra lá
 // agora redirecionam pro Caixa na sub-aba de vendas fiado.
-const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes', 'estoque-antigo'];
+const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'vendas-antigo', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes', 'estoque-antigo'];
 
 // /estoque é o novo módulo (features/estoque-preview) desde 24/09/2026; a tela
 // antiga continua em /estoque-antigo para anúncios, famílias e gavetas. As
 // duas usam a mesma permissão de ver estoque.
 function permissaoDeVer(tab: Tab) {
-  return tab === 'estoque-antigo' ? 'estoque.ver' : `${tab}.ver`;
+  return tab === 'estoque-antigo' ? 'estoque.ver' : tab === 'vendas-antigo' ? 'vendas.ver' : `${tab}.ver`;
 }
 
 // Telas com casca própria no padrão da nova Tarefas (cabeçalho, fundo claro e
 // espaço para a dock): o app não desenha o cabeçalho escuro nem os botões
 // flutuantes por cima delas.
 function telaImersiva(tab: Tab) {
-  return tab === 'tarefas' || tab === 'estoque';
+  return tab === 'tarefas' || tab === 'estoque' || tab === 'vendas';
 }
 
 // Primeira aba que o usuário pode VER — usada como fallback quando a URL pede
@@ -521,7 +522,7 @@ const LogoutModal = memo(({ isOpen, onClose, onLogout }: { isOpen: boolean; onCl
 // APP CONTENT — layout + navegação
 // =============================================================================
 
-const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', 'estoque-antigo': 'Estoque · tela antiga', vendas: 'Vendas', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades', notificacoes: 'Notificações' };
+const TAB_LABELS: Record<Tab, string> = { dashboard: 'Dashboard', estoque: 'Estoque', 'estoque-antigo': 'Estoque · tela antiga', vendas: 'Vendas', 'vendas-antigo': 'Vendas · tela anterior', orcamentos: 'Orçamentos', clientes: 'Clientes', fiado: 'Fiado', caixa: 'Caixa', frete: 'Frete', mercadolivre: 'Mercado Livre', configuracoes: 'Configurações', tarefas: 'Tarefas', patchnotes: 'Novidades', notificacoes: 'Notificações' };
 
 function AppContent({ onLogout }: { onLogout: () => void }) {
   // Usado pelo modal de detalhes pra recarregar a lista depois de mexer nas
@@ -598,6 +599,9 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   // leva à tela antiga (wrapEdit abaixo).
   useEffect(() => {
     if (activeTab !== 'estoque-antigo') setEstoqueActions(null);
+  }, [activeTab]);
+  useEffect(() => {
+    if (activeTab !== 'vendas-antigo') setVendasActions(null);
   }, [activeTab]);
   const imersiva = telaImersiva(activeTab);
 
@@ -694,7 +698,15 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                   />
                 </div>
               ) : activeTab === 'vendas' ? (
-                <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
+                <VendasPreview embutido onAbrirVendasAntigas={() => setActiveTab('vendas-antigo')} />
+              ) : activeTab === 'vendas-antigo' ? (
+                <div className="space-y-4">
+                  <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-default bg-surface-card px-4 py-3 text-sm text-text-secondary">
+                    <span>Esta tela mantém as ações anteriores de gerenciamento de vendas.</span>
+                    <button type="button" onClick={() => setActiveTab('vendas')} className="min-h-11 rounded-control border border-border-default px-3 text-sm font-semibold text-text-primary hover:text-accent">Voltar à nova tela</button>
+                  </div>
+                  <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
+                </div>
               ) : activeTab === 'orcamentos' ? (
                 <OrcamentosView />
               ) : activeTab === 'clientes' ? (
@@ -725,7 +737,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
       </main>
 
       <TasksNavigationDock
-        activeTab={activeTab === 'estoque-antigo' ? 'estoque' : activeTab}
+        activeTab={activeTab === 'estoque-antigo' ? 'estoque' : activeTab === 'vendas-antigo' ? 'vendas' : activeTab}
         onTabChange={setActiveTab}
         onLogoutClick={() => setIsLogoutModalOpen(true)}
       />

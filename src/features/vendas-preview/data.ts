@@ -1,6 +1,6 @@
 export type AbaVendasPreview = "Visão geral" | "Vendas" | "Movimentações" | "Pendências";
-export type PeriodoVendasPreview = "Hoje" | "7 dias" | "30 dias" | "Este mês";
-export type MeioPagamentoDemo = "Pix" | "Dinheiro" | "Cartão de débito" | "Cartão de crédito";
+export type PeriodoVendasPreview = "Hoje" | "30 dias" | "Este mês";
+export type MeioPagamentoDemo = string;
 export type CanalVendaDemo = "Balcão" | "WhatsApp" | "Mercado Livre";
 
 export interface PagamentoRecebidoDemo {
@@ -16,10 +16,10 @@ export interface VendaDemo {
   unidade: string;
   ocorridoEm: string;
   valor: number;
-  recebido: number;
+  recebido: number | null;
   pagamentos: PagamentoRecebidoDemo[];
   canal: CanalVendaDemo;
-  grau: "A" | "B" | "C";
+  grau: "A" | "B" | "C" | "—";
   temComprovantePix?: boolean;
 }
 
@@ -46,6 +46,11 @@ export interface PendenciaDemo {
   criadaEm: string;
   recorrencia?: "Semanal" | "Mensal" | "Anual";
   lembreteTratado?: boolean;
+}
+
+export function parseDataLocal(value: string): Date {
+  const data = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return data ? new Date(Number(data[1]), Number(data[2]) - 1, Number(data[3])) : new Date(value);
 }
 
 const hoje = new Date(2026, 8, 29, 12, 0, 0);

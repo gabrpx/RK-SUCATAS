@@ -1,5 +1,4 @@
 import { Banknote, CreditCard, Handshake } from "lucide-react";
-import type { LucideIcon } from "lucide-react";
 import type { CanalVendaDemo, MeioPagamentoDemo } from "../data";
 
 export function PixMark({ className = "size-4" }: { className?: string }) {
@@ -11,16 +10,11 @@ export function PixMark({ className = "size-4" }: { className?: string }) {
   </svg>;
 }
 
-const paymentIcons: Record<MeioPagamentoDemo, LucideIcon | null> = {
-  Pix: null,
-  Dinheiro: Banknote,
-  "Cartão de débito": CreditCard,
-  "Cartão de crédito": CreditCard,
-};
-
 export function PaymentMethodMark({ meio, className = "size-4" }: { meio: MeioPagamentoDemo; className?: string }) {
-  const Icon = paymentIcons[meio];
-  return Icon ? <Icon aria-hidden="true" className={className} strokeWidth={1.8} /> : <PixMark className={className} />;
+  const label = meio.toLocaleLowerCase("pt-BR");
+  if (label.includes("pix")) return <PixMark className={className} />;
+  const Icon = label.includes("dinheiro") ? Banknote : CreditCard;
+  return <Icon aria-hidden="true" className={className} strokeWidth={1.8} />;
 }
 
 export function MercadoLivreBadge({ canal, compact = false }: { canal: CanalVendaDemo; compact?: boolean }) {

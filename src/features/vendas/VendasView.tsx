@@ -13,10 +13,11 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { aviso } from '../../components/ui/toast';
 import { CustomDropdown } from '../../components/CustomDropdown';
 import { Modal } from '../../components/ui/Modal';
+import { InventoryDrawer } from '../estoque-preview/InventoryDrawer';
+import { Select } from '../../components/ui/Select';
 import { Button } from '@/src/components/ui/button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { vendasApi } from './api';
-import { SeletorCliente } from '../clientes/SeletorCliente';
 import { useSincronizacaoMl } from '../mercadolivre/SincronizacaoMlContext';
 import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import { formaPagamentoEfetiva, saldoPorVenda } from '../fiado/metricas';
@@ -236,7 +237,7 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
         )}
       </div>
 
-      <NovaVendaModal isOpen={isNovaVendaOpen} onClose={() => setIsNovaVendaOpen(false)} />
+      <NovaVendaDrawer isOpen={isNovaVendaOpen} onClose={() => setIsNovaVendaOpen(false)} />
 
       {/* Confirmação de cancelamento */}
       <Modal
@@ -281,8 +282,8 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
   );
 }
 
-function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { estoque, vendas, refreshData } = useData();
+export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: () => void; onSaved?: () => void }) {
+  const { estoque, vendas, clientes, motosClientes, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
   const [busca, setBusca] = useState<string>(() => {
@@ -309,6 +310,19 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const [saving, setSaving] = useState(false);
 
   const disponiveis = useMemo(() => estoque.filter((e) => e.quantidade > 0), [estoque]);
+  const opcoesClientes = useMemo(() => [
+    { value: '', label: 'Venda no balcão' },
+    ...clientes.filter((cliente) => cliente.ativo && !cliente.banido).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((cliente) => ({ value: cliente.id, label: cliente.nome })),
+  ], [clientes]);
+  const motosPorCliente = useMemo(() => {
+    const mapa = new Map<string, string[]>();
+    for (const moto of motosClientes) {
+      const nome = moto.modelo_moto?.nome;
+      if (!nome) continue;
+      mapa.set(moto.cliente_id, [...(mapa.get(moto.cliente_id) ?? []), nome]);
+    }
+    return mapa;
+  }, [motosClientes]);
   const resultados = useMemo(() => {
     if (!busca.trim()) return [];
     const termo = busca.toLowerCase();
@@ -407,6 +421,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
       if (!result.success) throw new Error(result.error);
       // Registrar mexe em vendas + estoque + caixa — resincroniza tudo de uma vez.
       await refreshData();
+      onSaved?.();
       const temAnuncio = (itemSelecionado.links_ml?.length ?? 0) > 0;
       const estoqueIdVendido = itemSelecionado.id;
       handleClose();
@@ -430,23 +445,7 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
   const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   return (
-    <Modal
-      aberto={isOpen}
-      onFechar={handleClose}
-      titulo="Nova Venda"
-      tamanho="md"
-      rodape={
-        itemSelecionado ? (
-          <Button
-            onClick={handleSubmit}
-            disabled={saving || !formaPagamentoId}
-            className="h-auto w-full py-4 rounded-2xl font-black text-xs uppercase tracking-[0.2em] shadow-lg shadow-accent-shadow"
-          >
-            {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar Venda'}
-          </Button>
-        ) : undefined
-      }
-    >
+    <InventoryDrawer isOpen={isOpen} onClose={handleClose} title="Nova venda">
       <div className="space-y-4">
         {!itemSelecionado ? (
           <div>
@@ -610,14 +609,17 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={labelClass}>Cliente (opcional)</label>
-                <SeletorCliente
-                  clienteId={clienteId}
-                  nome={clienteNome}
-                  onChange={(id, nome) => {
-                    setClienteId(id);
-                    setClienteNome(nome);
+                <Select
+                  ariaLabel="Cliente da venda"
+                  value={clienteId ?? ''}
+                  onChange={(id) => {
+                    setClienteId(id || null);
+                    setClienteNome(id ? opcoesClientes.find((opcao) => opcao.value === id)?.label ?? '' : '');
                   }}
-                  placeholder="Nome"
+                  options={opcoesClientes}
+                  size="lg"
+                  renderOption={(opcao) => <span className="flex min-w-0 flex-wrap items-center gap-1.5"><span className="truncate">{opcao.label}</span>{(motosPorCliente.get(opcao.value) ?? []).map((moto, indice) => <span key={`${moto}-${indice}`} className="rounded-full border border-accent/20 bg-accent-soft-bg px-2 py-0.5 text-[10px] font-medium text-accent">{moto}</span>)}</span>}
+                  renderValue={(opcao) => <span className="flex min-w-0 items-center gap-1.5"><span className="truncate">{opcao.label}</span>{(motosPorCliente.get(opcao.value) ?? []).slice(0, 1).map((moto) => <span key={moto} className="max-w-28 truncate rounded-full bg-accent-soft-bg px-2 py-0.5 text-[10px] text-accent">{moto}</span>)}</span>}
                 />
               </div>
               <div>
@@ -638,6 +640,11 @@ function NovaVendaModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => v
           </>
         )}
       </div>
-    </Modal>
+      {itemSelecionado && <div className="sticky bottom-0 mt-5 border-t border-border-default bg-surface-card pt-4 pb-[env(safe-area-inset-bottom)]">
+        <Button onClick={handleSubmit} disabled={saving || !formaPagamentoId} className="min-h-11 w-full rounded-control font-semibold">
+          {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}
+        </Button>
+      </div>}
+    </InventoryDrawer>
   );
 }

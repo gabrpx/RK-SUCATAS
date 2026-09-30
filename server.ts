@@ -66,6 +66,7 @@ async function startServer() {
 
   const app = express();
   const PORT = Number(process.env.PORT) || 3000;
+  const previewSomenteLeitura = process.env.NODE_ENV !== 'production' && process.env.RK_READ_ONLY_PREVIEW === '1';
   const httpServer = createServer(app);
 
   app.set('trust proxy', 1);
@@ -102,6 +103,17 @@ async function startServer() {
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
 
+  // A API local usada pela preview não deve criar registros nem disparar
+  // processos automáticos contra o banco configurado no ambiente.
+  if (previewSomenteLeitura) {
+    app.use('/api', (req, res, next) => {
+      if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        return res.status(405).json({ success: false, error: 'Preview local: somente leitura' });
+      }
+      next();
+    });
+  }
+
   app.use('/api', (req, res, next) => {
     console.log(`${req.method} ${req.url}`);
     next();
@@ -119,7 +131,7 @@ async function startServer() {
 
   if (erroContagemUsuarios) {
     console.warn('⚠️ Não foi possível checar a tabela usuarios (rodou a migration_011?):', erroContagemUsuarios.message);
-  } else if (totalUsuarios === 0) {
+  } else if (totalUsuarios === 0 && !previewSomenteLeitura) {
     const senhaHash = bcrypt.hashSync(ADMIN_PASSWORD, 10);
     const { error: erroBootstrap } = await supabase
       .from('usuarios')
@@ -353,16 +365,18 @@ async function startServer() {
   // do Mercado Livre (feature 9) pra alimentar o indicador de pendências.
   // Nunca muda anúncio nem grava venda sozinho — isso só acontece por clique
   // humano (ver mercadolivreSync.ts > sincronizarAnuncio/importarPedidoComoVenda).
-  iniciarDetectorDePendenciasML(supabase);
-  iniciarSincronizadorDeEstatisticasML(supabase);
-  // Segundo canal (Shopee) — dois jobs próprios, cadência independente do
-  // ML (ver shopeeScheduler.ts): token expira em 4h contra 6h do ML.
-  iniciarRenovacaoDeTokenShopee(supabase);
-  iniciarSincronizadorDeEstatisticasShopee(supabase);
-  iniciarRastreioAutomaticoDeEnvios(supabase);
-  iniciarChecagemDiariaDeAlertas(supabase);
-  iniciarDisparoDeLembretes(supabase);
-  iniciarDisparoDeCobrancas(supabase);
+  if (!previewSomenteLeitura) {
+    iniciarDetectorDePendenciasML(supabase);
+    iniciarSincronizadorDeEstatisticasML(supabase);
+    // Segundo canal (Shopee) — dois jobs próprios, cadência independente do
+    // ML (ver shopeeScheduler.ts): token expira em 4h contra 6h do ML.
+    iniciarRenovacaoDeTokenShopee(supabase);
+    iniciarSincronizadorDeEstatisticasShopee(supabase);
+    iniciarRastreioAutomaticoDeEnvios(supabase);
+    iniciarChecagemDiariaDeAlertas(supabase);
+    iniciarDisparoDeLembretes(supabase);
+    iniciarDisparoDeCobrancas(supabase);
+  }
 
   // Error handler genérico pra API
   app.use('/api', (err: any, _req: any, res: any, _next: any) => {
