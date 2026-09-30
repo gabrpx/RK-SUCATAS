@@ -142,7 +142,9 @@ const pedidoPago = {
   date_created: '2026-08-14T10:00:00.000Z',
   buyer: { nickname: 'comprador1' },
   shipping: { id: 777 },
-  order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira' }, quantity: 1, unit_price: 120 }],
+  // Taxa zero aqui é conhecida; ausência do campo agora representa valor
+  // financeiro ainda não confirmado e bloqueia a importação.
+  order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira' }, quantity: 1, unit_price: 120, sale_fee: 0 }],
 };
 
 beforeEach(() => {
@@ -239,8 +241,8 @@ describe('processarPedidosPendentes', () => {
     vi.mocked(buscarPedido).mockResolvedValue({
       ...pedidoPago,
       order_items: [
-        { item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900123 }, quantity: 1, unit_price: 120 },
-        { item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900456 }, quantity: 1, unit_price: 120 },
+        { item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900123 }, quantity: 1, unit_price: 120, sale_fee: 0 },
+        { item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900456 }, quantity: 1, unit_price: 120, sale_fee: 0 },
       ],
     } as any);
     const supabase = criarSupabaseFake({
@@ -392,7 +394,7 @@ describe('processarPedidosPendentes', () => {
   it('pedido de uma variação registra a venda na ficha de unidade correspondente', async () => {
     vi.mocked(buscarPedido).mockResolvedValue({
       ...pedidoPago,
-      order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900123 }, quantity: 1, unit_price: 120 }],
+      order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900123 }, quantity: 1, unit_price: 120, sale_fee: 0 }],
     } as any);
     const supabase = criarSupabaseFake({
       pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
@@ -408,7 +410,7 @@ describe('processarPedidosPendentes', () => {
   it('variação desconhecida (migration 043 sem o vínculo) registra a venda sem ficha, em vez de falhar', async () => {
     vi.mocked(buscarPedido).mockResolvedValue({
       ...pedidoPago,
-      order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900999 }, quantity: 1, unit_price: 120 }],
+      order_items: [{ item: { id: 'MLB111', title: 'Lanterna Traseira', variation_id: 900999 }, quantity: 1, unit_price: 120, sale_fee: 0 }],
     } as any);
     const supabase = criarSupabaseFake({
       pendentes: [{ id: 'n1', topic: 'orders_v2', resource: '/orders/555', tentativas: 0 }],
@@ -483,8 +485,8 @@ describe('processarPedidosPendentes', () => {
     vi.mocked(buscarPedido).mockResolvedValue({
       ...pedidoPago,
       order_items: [
-        { item: { id: 'MLB111', title: 'Lanterna Traseira' }, quantity: 1, unit_price: 120 },
-        { item: { id: 'MLB999', title: 'Retrovisor Esquerdo' }, quantity: 1, unit_price: 80 },
+        { item: { id: 'MLB111', title: 'Lanterna Traseira' }, quantity: 1, unit_price: 120, sale_fee: 0 },
+        { item: { id: 'MLB999', title: 'Retrovisor Esquerdo' }, quantity: 1, unit_price: 80, sale_fee: 0 },
       ],
     } as any);
     const supabase = criarSupabaseFake({

@@ -25,6 +25,7 @@ export const PATCH_NOTES: PatchNoteEntrada[] = [
       { tipo: 'fix', texto: 'A nova tela de Estoque agora grava o modelo e o ano compatíveis no cadastro estruturado da peça, exibindo o período correto nos cartões e na ficha da unidade.' },
       { tipo: 'melhoria', texto: 'Ao adicionar outra unidade da mesma peça, o preço normal mais usado já vem preenchido e pode ser alterado quando a unidade tiver avaria ou partes extras.' },
       { tipo: 'fix', texto: 'A compatibilidade da moto deixou de aparecer repetida duas vezes na ficha da unidade.' },
+      { tipo: 'fix', texto: 'Vendas do Mercado Livre passam a consultar a vista atual de custos do envio e não são mais registradas pelo valor cheio quando taxa ou frete ainda não estiverem confirmados.' },
     ],
   },
   {

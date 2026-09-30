@@ -276,7 +276,10 @@ export function alocarCustoEnvio(pedido: PedidoML, custoEnvioTotal: number, mlIt
 export async function buscarCustoEnvioVendedor(token: string, shippingId: string): Promise<number | null> {
   try {
     const { data } = await axios.get(`${ML_API_URL}/shipments/${shippingId}/costs`, {
-      headers: { Authorization: `Bearer ${token}` },
+      // O contrato atual do ML documenta os custos por remetente na vista
+      // nova. Sem este header, alguns envios não devolvem `senders[].cost`,
+      // e o sistema perde justamente o valor cobrado do vendedor.
+      headers: { Authorization: `Bearer ${token}`, 'x-format-new': 'true' },
     });
     const senders: any[] = data?.senders;
     if (!Array.isArray(senders) || senders.length === 0) return null;

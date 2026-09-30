@@ -140,6 +140,31 @@ describe('importarPedidoComoVenda — custo de envio', () => {
 
     expect(supabase.chamadasRpc[0].p_valor_recebido).toBeCloseTo(598.05);
   });
+
+  it('não registra valor cheio quando a API ainda não confirmou o custo líquido', async () => {
+    const supabase = criarSupabaseFake({
+      vendas: {
+        select: () => ({ eq: () => ({ eq: () => ({ maybeSingle: () => Promise.resolve({ data: null, error: null }) }) }) }),
+        update: () => ({ eq: () => Promise.resolve({ error: null }) }),
+      },
+    });
+
+    await expect(importarPedidoComoVenda(supabase, {
+      estoqueId: 'peca-1',
+      quantidade: 1,
+      valorUnitario: 230.73,
+      formaPagamentoId: 'fp-ml',
+      clienteNome: null,
+      data: null,
+      mlOrderId: '556',
+      mlItemId: 'MLB222',
+      mlShippingId: '778',
+      mlSaleFee: 29,
+      mlCustoEnvio: null,
+    })).rejects.toThrow('valor líquido');
+
+    expect(supabase.chamadasRpc).toHaveLength(0);
+  });
 });
 
 describe('corrigirTaxaVendasMlImportadas — custo de envio', () => {

@@ -78,7 +78,7 @@ describe('buscarCustoEnvioVendedor', () => {
     const custo = await buscarCustoEnvioVendedor('token-fake', '777');
 
     expect(axios.get).toHaveBeenCalledWith(expect.stringContaining('/shipments/777/costs'), {
-      headers: { Authorization: 'Bearer token-fake' },
+      headers: { Authorization: 'Bearer token-fake', 'x-format-new': 'true' },
     });
     expect(custo).toBe(24.45);
   });

@@ -510,6 +510,9 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
   if (existente) return null;
 
   const valorRecebido = calcularValorRecebido(params.quantidade * params.valorUnitario, params.mlSaleFee, params.mlCustoEnvio);
+  if (valorRecebido == null) {
+    throw new Error('O Mercado Livre ainda não confirmou o valor líquido desta venda (taxa ou frete pendente). Atualize os pedidos e tente novamente.');
+  }
 
   const { data: venda, error } = await supabase.rpc('registrar_venda', {
     p_estoque_id: params.estoqueId,
