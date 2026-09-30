@@ -16,4 +16,10 @@ describe('filtrarMovimentosPorPeriodo', () => {
     expect(filtrarMovimentosPorPeriodo(itens, 'todos', agora).map((item) => item.id)).toEqual(['hoje', 'limite', 'antigo']);
     expect(filtrarMovimentosPorPeriodo(itens, 'trinta-dias', agora).map((item) => item.id)).toEqual(['hoje', 'limite']);
   });
+
+  it('exclui movimentos futuros da janela de trinta dias', () => {
+    const referencia = new Date('2026-09-30T12:00:00-03:00').getTime();
+    const futuro = movimento('futuro', '2026-10-01T10:00:00-03:00');
+    expect(filtrarMovimentosPorPeriodo([futuro], 'trinta-dias', referencia)).toEqual([]);
+  });
 });

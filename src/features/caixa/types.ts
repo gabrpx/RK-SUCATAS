@@ -43,6 +43,8 @@ export interface CaixaPendenciaInput {
   cliente_id?: string | null;
 }
 
+export type CaixaPendenciaUpdateInput = Partial<Pick<CaixaPendenciaInput, 'descricao' | 'valor_total' | 'data' | 'cliente_id'>>;
+
 export interface CaixaPendenciaRecebimento {
   id: string;
   pendencia_id: string;

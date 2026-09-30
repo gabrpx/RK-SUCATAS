@@ -46,6 +46,9 @@ export interface PendenciaDemo {
   criadaEm: string;
   recorrencia?: "Semanal" | "Mensal" | "Anual";
   lembreteTratado?: boolean;
+  source: { kind: "fiado"; vendaId: string } | { kind: "caixa"; pendenciaId: string };
+  clienteId: string | null;
+  observacoes: string | null;
 }
 
 export function parseDataLocal(value: string): Date {
@@ -101,9 +104,9 @@ export const movimentosDemoIniciais: MovimentoDemo[] = [
 ];
 
 export const pendenciasDemoIniciais: PendenciaDemo[] = [
-  { id: "P-102", tipo: "A receber", nome: "Rafael Mendes", origem: "Retrovisor Fazer 250 · V-2840", total: 92, pago: 40, pagamentos: [pagamento("Pix", 24, 0, 13), pagamento("Dinheiro", 16, 0, 13)], venceEm: null, criadaEm: haDias(0, 13) },
-  { id: "P-101", tipo: "A receber", nome: "Carlos Henrique", origem: "Banco CG 160 · V-2812", total: 340, pago: 220, pagamentos: [pagamento("Pix", 220, 8)], venceEm: haDias(-2), criadaEm: haDias(8) },
-  { id: "P-100", tipo: "A pagar", nome: "Oficina do Nando", origem: "Serviço de mecânica · ocorrência mensal", total: 780, pago: 0, venceEm: haDias(-1), criadaEm: haDias(10), recorrencia: "Mensal" },
-  { id: "P-099", tipo: "A receber", nome: "Diego Almeida", origem: "Tanque CG 150 · V-2794", total: 520, pago: 0, venceEm: null, criadaEm: haDias(34) },
-  { id: "P-098", tipo: "A pagar", nome: "Energia elétrica", origem: "Conta da empresa · ocorrência mensal", total: 410, pago: 0, venceEm: haDias(-4), criadaEm: haDias(18), recorrencia: "Mensal" },
+  { id: "P-102", tipo: "A receber", nome: "Rafael Mendes", origem: "Retrovisor Fazer 250 · V-2840", total: 92, pago: 40, pagamentos: [pagamento("Pix", 24, 0, 13), pagamento("Dinheiro", 16, 0, 13)], venceEm: null, criadaEm: haDias(0, 13), source: { kind: "fiado", vendaId: "V-2840" }, clienteId: null, observacoes: null },
+  { id: "P-101", tipo: "A receber", nome: "Carlos Henrique", origem: "Banco CG 160 · V-2812", total: 340, pago: 220, pagamentos: [pagamento("Pix", 220, 8)], venceEm: haDias(-2), criadaEm: haDias(8), source: { kind: "fiado", vendaId: "V-2812" }, clienteId: null, observacoes: null },
+  { id: "P-100", tipo: "A pagar", nome: "Oficina do Nando", origem: "Serviço de mecânica · ocorrência mensal", total: 780, pago: 0, venceEm: haDias(-1), criadaEm: haDias(10), recorrencia: "Mensal", source: { kind: "caixa", pendenciaId: "P-100" }, clienteId: null, observacoes: null },
+  { id: "P-099", tipo: "A receber", nome: "Diego Almeida", origem: "Tanque CG 150 · V-2794", total: 520, pago: 0, venceEm: null, criadaEm: haDias(34), source: { kind: "fiado", vendaId: "V-2794" }, clienteId: null, observacoes: null },
+  { id: "P-098", tipo: "A pagar", nome: "Energia elétrica", origem: "Conta da empresa · ocorrência mensal", total: 410, pago: 0, venceEm: haDias(-4), criadaEm: haDias(18), recorrencia: "Mensal", source: { kind: "caixa", pendenciaId: "P-098" }, clienteId: null, observacoes: null },
 ];

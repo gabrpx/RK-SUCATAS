@@ -13,7 +13,7 @@ export const vendasApi = {
   // POST chama registrar_venda no banco: baixa o estoque e já lança a entrada no caixa.
   registrar: (payload: VendaInput) => api.post('/api/vendas', payload) as Promise<ApiResult<Venda>>,
   // Só campos que não afetam o estoque (mudar quantidade/item exige cancelar e registrar de novo).
-  atualizarParcial: (id: string, payload: Partial<Pick<Venda, 'forma_pagamento' | 'observacoes' | 'cliente_nome'>>) =>
+  atualizarParcial: (id: string, payload: Partial<Pick<Venda, 'forma_pagamento_id' | 'observacoes' | 'cliente_nome' | 'cliente_id'>>) =>
     api.patch(`/api/vendas/${id}`, payload) as Promise<ApiResult<Venda>>,
   // DELETE chama cancelar_venda: devolve o estoque e remove a entrada de caixa vinculada.
   // Falha com 409 se a venda já tem recebimento de fiado (ver cancelarFiadoCompleto).

@@ -1,7 +1,8 @@
 import type { Venda } from "../vendas/types";
 import type { CaixaEntry, CaixaPendencia, CaixaPendenciaRecebimento } from "../caixa/types";
 import type { FiadoRecebimento } from "../fiado/types";
-import type { MovimentoDemo, PendenciaDemo, VendaDemo } from "./data";
+import type { MovimentoDemo, PendenciaDemo } from "./data";
+import { buildSaleViewModels, type SaleViewModel } from "./salesViewModel";
 
 const dinheiro = (value: number) => Number(value) || 0;
 
@@ -15,32 +16,8 @@ function pagamentosFiado(vendaId: string, recebimentos: FiadoRecebimento[]) {
     }));
 }
 
-export function mapearVendas(vendas: Venda[], caixa: CaixaEntry[], fiado: FiadoRecebimento[], podeVerCaixa: boolean): VendaDemo[] {
-  return vendas.map((venda) => {
-    const pagamentosCaixa = caixa.filter((entrada) => entrada.venda_id === venda.id && entrada.tipo === "entrada");
-    const pagamentos = venda.forma_pagamento?.natureza === "fiado"
-      ? podeVerCaixa ? pagamentosFiado(venda.id, fiado) : []
-      : pagamentosCaixa.length
-        ? pagamentosCaixa.map((entrada) => ({ meio: entrada.forma_pagamento?.nome ?? "Forma não informada", valor: dinheiro(entrada.valor), ocorridoEm: entrada.data }))
-        : venda.forma_pagamento?.nome ? [{ meio: venda.forma_pagamento.nome, valor: dinheiro(venda.valor_total), ocorridoEm: venda.data }] : [];
-    const recebido = venda.forma_pagamento?.natureza === "fiado"
-      ? podeVerCaixa ? pagamentos.reduce((total, pagamento) => total + pagamento.valor, 0) : null
-      : podeVerCaixa ? pagamentosCaixa.reduce((total, entrada) => total + dinheiro(entrada.valor), 0) : dinheiro(venda.valor_total);
-
-    return {
-      id: venda.id,
-      cliente: venda.cliente?.nome || venda.cliente_nome || "Balcão",
-      item: venda.nome_item,
-      unidade: venda.unidade?.sku ? `SKU ${venda.unidade.sku}` : venda.unidade?.nome || "Não especificada",
-      ocorridoEm: venda.data,
-      valor: dinheiro(venda.valor_total),
-      recebido,
-      pagamentos,
-      canal: venda.canal === "mercado_livre" ? "Mercado Livre" : "Balcão",
-      grau: "—",
-      temComprovantePix: false,
-    };
-  });
+export function mapearVendas(vendas: Venda[], caixa: CaixaEntry[], fiado: FiadoRecebimento[], podeVerCaixa: boolean): SaleViewModel[] {
+  return buildSaleViewModels(vendas, caixa, fiado, { canViewCash: podeVerCaixa });
 }
 
 export function mapearMovimentos(caixa: CaixaEntry[], recebimentosFiado: FiadoRecebimento[], recebimentosPendencia: CaixaPendenciaRecebimento[]): MovimentoDemo[] {
@@ -87,6 +64,9 @@ export function mapearPendencias(
         pagamentos,
         venceEm: null,
         criadaEm: venda.data,
+        source: { kind: "fiado", vendaId: venda.id },
+        clienteId: venda.cliente_id,
+        observacoes: venda.observacoes,
       };
     });
 
@@ -110,6 +90,9 @@ export function mapearPendencias(
         pagamentos,
         venceEm: null,
         criadaEm: pendencia.data,
+        source: { kind: "caixa", pendenciaId: pendencia.id },
+        clienteId: pendencia.cliente_id,
+        observacoes: null,
       };
     });
 
