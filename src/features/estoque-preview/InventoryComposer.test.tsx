@@ -107,6 +107,26 @@ describe('cadastro operacional de estoque', () => {
     });
   });
 
+  it('exige o ano quando uma moto é selecionada na criação da peça', async () => {
+    const onSalvar = vi.fn().mockResolvedValue({ completo: true, mensagem: 'Unidade cadastrada.' });
+    const tela = render(<InventoryComposer
+      aberto
+      categorias={[{ id: 'cat-1', nome: 'Balanças' }] as any}
+      pecas={[]}
+      modelos={[{ id: 'moto-titan', nome: 'CG 125 Titan', parent_id: null, ordem: 0, ano: null, imagem_url: null }]}
+      onFechar={vi.fn()}
+      onSalvar={onSalvar}
+    />);
+
+    fireEvent.change(tela.getByLabelText('Nome da Peça'), { target: { value: 'Balança CG 125 Titan' } });
+    fireEvent.change(tela.getByLabelText('Categoria'), { target: { value: 'cat-1' } });
+    fireEvent.change(tela.getByLabelText('Modelo e ano compatíveis'), { target: { value: 'moto-titan' } });
+    fireEvent.click(tela.getByRole('button', { name: 'Próximo' }));
+
+    expect(await tela.findByText('Informe o ano compatível da moto selecionada antes de continuar.')).toBeTruthy();
+    expect(onSalvar).not.toHaveBeenCalled();
+  });
+
   it('preenche o preço normal da peça e permite editar antes de salvar', async () => {
     const tela = render(<InventoryComposer
       aberto

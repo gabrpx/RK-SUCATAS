@@ -1,4 +1,5 @@
 import type { Categoria } from "../../types/catalog";
+import type { ModeloMoto } from "../../types/catalog";
 import type { Estoque, EstoqueLocal, EstoqueLocalCategoria, EstoqueUnidade } from "../estoque/types";
 import type { ReservaComSinal } from "./organizacaoApi";
 import type { EstoquePreviewState, GrauUnidade, PecaEstoque, UnidadeEstoque } from "./inventoryPreviewModel";
@@ -12,10 +13,27 @@ function grauDaNota(nota: number | null | undefined): GrauUnidade {
   return "C";
 }
 
-function compatibilidadesDoItem(item: Estoque): string[] {
+function normalizar(valor: string) {
+  return valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR");
+}
+
+function compatibilidadesDoItem(item: Estoque, modelosDisponiveis: ModeloMoto[] = []): string[] {
   const principal = item.modelo_moto ? `${item.modelo_moto.nome}${item.modelo_moto.ano ? ` · ${item.modelo_moto.ano}` : ""}` : null;
   const extras = (item.modelos_compativeis ?? []).map((modelo) => `${modelo.nome}${modelo.ano ? ` · ${modelo.ano}` : ""}`);
-  return Array.from(new Set([principal, ...extras].filter((value): value is string => Boolean(value))));
+  const existentes = [principal, ...extras].filter((value): value is string => Boolean(value));
+  if (existentes.length > 0) return Array.from(new Set(existentes));
+
+  // Alguns cadastros antigos guardam a moto apenas no nome da peça. Quando a
+  // relação estruturada não existe, reaproveita o catálogo de motos para não
+  // exibir "Moto não informada" em um card cujo título já identifica a moto.
+  const nomeNormalizado = normalizar(item.nome);
+  const correspondencias = modelosDisponiveis
+    .map((modelo) => ({ modelo, texto: normalizar(modelo.nome) }))
+    .filter(({ texto }) => texto.length >= 3 && nomeNormalizado.includes(texto))
+    .sort((a, b) => b.texto.length - a.texto.length);
+  const encontrado = correspondencias[0]?.modelo;
+  if (encontrado) return [`${encontrado.nome}${encontrado.ano ? ` · ${encontrado.ano}` : item.ano ? ` · ${item.ano}` : ""}`];
+  return item.ano ? [item.ano] : [];
 }
 
 function detalhesDaPeca(item: Estoque): string {
@@ -86,7 +104,7 @@ function unidadeVirtual(item: Estoque, indice: number): UnidadeEstoque {
   };
 }
 
-export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiCategoria[], locaisDisponiveis: EstoqueLocal[] = [], vinculos: EstoqueLocalCategoria[] = [], reservasDisponiveis: ReservaComSinal[] = []): EstoquePreviewState {
+export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiCategoria[], locaisDisponiveis: EstoqueLocal[] = [], vinculos: EstoqueLocalCategoria[] = [], reservasDisponiveis: ReservaComSinal[] = [], modelosDisponiveis: ModeloMoto[] = []): EstoquePreviewState {
   // Todas as categorias ficam disponíveis mesmo quando ainda não têm item
   // vinculado. Isso deixa as seções prontas para preencher sem reclassificar
   // o estoque legado antes da implantação física.
@@ -108,7 +126,7 @@ export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiC
       codigoLegado: item.codigo,
       nome: item.nome,
       categoriaId: categoria.id,
-      compatibilidades: compatibilidadesDoItem(item),
+      compatibilidades: compatibilidadesDoItem(item, modelosDisponiveis),
       detalhes: detalhesDaPeca(item),
       fotos: item.imagens ?? [],
       origemDado: "real",

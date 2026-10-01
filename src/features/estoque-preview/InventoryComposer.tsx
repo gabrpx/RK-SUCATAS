@@ -198,7 +198,13 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
   function validarEtapaAtual() {
     if (etapa !== 0) return true;
     if (modo === "existente" && pecaEscolhida) return true;
-    if (modo === "nova" && nome.trim() && categoriaId) return true;
+    if (modo === "nova" && nome.trim() && categoriaId) {
+      if (modeloMotoId && !anoCompatibilidade.trim()) {
+        setErroEtapa("Informe o ano compatível da moto selecionada antes de continuar.");
+        return false;
+      }
+      return true;
+    }
     setErroEtapa(modo === "nova" ? "Informe o nome e a categoria antes de continuar." : "Escolha a peça existente antes de continuar.");
     return false;
   }
@@ -271,7 +277,7 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
             <div className="grid gap-3 sm:grid-cols-2"><Combobox label="Procedência da peça" options={[{ value: "original", label: "Original" }, { value: "paralela", label: "Paralela" }]} value={condicaoOrigem} onChange={(valor) => setCondicaoOrigem(valor as "original" | "paralela")} size="lg" /><Combobox label="Nota para cadastro (quando exigida)" placeholder="Não se aplica" options={[{ value: "", label: "Não se aplica" }, { value: "com_nota", label: "Com nota" }, { value: "sem_nota", label: "Sem nota" }]} value={notaCadastro} onChange={(valor) => setNotaCadastro(valor as "com_nota" | "sem_nota" | "")} size="lg" /></div>
             <div className="grid gap-3 sm:grid-cols-2">
               <Combobox label="Modelo e ano compatíveis" placeholder="Escolha no catálogo de motos" options={modelos.map((modelo) => ({ value: modelo.id, label: formatarNomeModeloMoto(modelo, modelos) }))} value={modeloMotoId} onChange={(id) => { const modelo = modelos.find((item) => item.id === id); setModeloMotoId(id); setAnoCompatibilidade(modelo?.ano ?? ""); setCompatibilidade(modelo ? formatarNomeModeloMoto(modelo, modelos) : ""); setCompatibilidadeAutomatica(false); }} size="lg" />
-              <label className="block text-sm font-semibold text-text-secondary">Ano compatível <span className="font-normal text-text-faint">(editável)</span><input aria-label="Ano compatível" className={inputClass} value={anoCompatibilidade} onChange={(e) => setAnoCompatibilidade(e.target.value)} placeholder="Ex.: 94 a 99" /></label>
+              <label className="block text-sm font-semibold text-text-secondary">Ano compatível <span className="font-normal text-text-faint">(obrigatório com moto selecionada)</span><input aria-label="Ano compatível" required={Boolean(modeloMotoId)} className={inputClass} value={anoCompatibilidade} onChange={(e) => { setAnoCompatibilidade(e.target.value); setErroEtapa(null); }} placeholder="Ex.: 94 a 99" /></label>
             </div>
            </div> : <div className="space-y-2"><Combobox label="Peça existente" placeholder="Busque pelo nome ou código" options={pecas.map((peca) => ({ value: peca.id, label: `${peca.codigoLegado} · ${peca.nome}` }))} value={pecaId} onChange={(valor) => { setPecaId(valor); setPrecoEditado(false); setOrigemEditada(false); setUnidadeOrigemId(""); setErroEtapa(null); }} size="lg" /><span className="block text-xs font-normal text-text-faint">O catálogo continua com um único nome; você só registra outra unidade.</span></div>}
           {erroEtapa && <p role="alert" className="text-sm font-medium text-danger">{erroEtapa}</p>}

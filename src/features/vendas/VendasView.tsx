@@ -24,6 +24,8 @@ import { PromocaoBadge } from '../promocoes/PromocaoBadge';
 import { formaPagamentoEfetiva, saldoPorVenda } from '../fiado/metricas';
 import { valorRestanteEstimado, valorVendidoEmPartes } from './metricas';
 import { pendenciasObrigatoriasDaFicha } from '../estoque/gaveta/pendenciasGaveta';
+import { caixaApi } from '../caixa/api';
+import type { CaixaTipo } from '../caixa/types';
 import type { Venda } from './types';
 import type { Estoque } from '../estoque/types';
 import type { Role } from '../../constants/roles';
@@ -61,6 +63,7 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
   const [periodo, setPeriodo] = useState<PeriodoFiltro>('30d');
   const [pagamentoFiltro, setPagamentoFiltro] = useState('Todos');
   const [isNovaVendaOpen, setIsNovaVendaOpen] = useState(false);
+  const [isMovimentoAvulsoOpen, setIsMovimentoAvulsoOpen] = useState(false);
   const [vendaToCancel, setVendaToCancel] = useState<Venda | null>(null);
   const [cancelando, setCancelando] = useState(false);
 
@@ -128,12 +131,16 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
             </p>
           </div>
         </div>
-        <Button
-          onClick={() => setIsNovaVendaOpen(true)}
-          className="h-auto px-5 py-3.5 md:py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow"
-        >
-          <Plus size={18} /> Nova Venda
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-2">
+          {pode('caixa.criar') && (
+            <Button variant="secondary" onClick={() => setIsMovimentoAvulsoOpen(true)} className="h-auto px-5 py-3.5 md:py-3 rounded-2xl font-black text-xs uppercase tracking-widest">
+              <Plus size={18} /> Entrada/saída avulsa
+            </Button>
+          )}
+          <Button onClick={() => setIsNovaVendaOpen(true)} className="h-auto px-5 py-3.5 md:py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow">
+            <Plus size={18} /> Nova Venda
+          </Button>
+        </div>
       </div>
 
       {/* Filtros */}
@@ -239,6 +246,7 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
       </div>
 
       <NovaVendaDrawer isOpen={isNovaVendaOpen} onClose={() => setIsNovaVendaOpen(false)} />
+      <MovimentoAvulsoModal isOpen={isMovimentoAvulsoOpen} onClose={() => setIsMovimentoAvulsoOpen(false)} onSaved={refreshData} />
 
       {/* Confirmação de cancelamento */}
       <Modal
@@ -280,6 +288,108 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
         )}
       </Modal>
     </div>
+  );
+}
+
+function MovimentoAvulsoModal({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: () => void; onSaved: () => Promise<void> }) {
+  const { formasPagamento } = useCatalogos();
+  const [tipo, setTipo] = useState<CaixaTipo>('entrada');
+  const [descricao, setDescricao] = useState('');
+  const [valor, setValor] = useState('');
+  const [formaPagamentoId, setFormaPagamentoId] = useState('');
+  const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+
+  const reset = () => {
+    setTipo('entrada');
+    setDescricao('');
+    setValor('');
+    setFormaPagamentoId('');
+    setData(new Date().toISOString().slice(0, 10));
+  };
+
+  const fechar = () => {
+    if (saving) return;
+    reset();
+    onClose();
+  };
+
+  const salvar = async () => {
+    const valorNumerico = Number(valor.replace(',', '.'));
+    if (!descricao.trim()) return aviso.atencao('Informe uma descrição');
+    if (!Number.isFinite(valorNumerico) || valorNumerico <= 0) return aviso.atencao('Informe um valor maior que zero');
+    setSaving(true);
+    try {
+      const result = await caixaApi.lancar({
+        tipo,
+        descricao: descricao.trim(),
+        valor: valorNumerico,
+        forma_pagamento_id: formaPagamentoId || null,
+        data,
+      });
+      if (!result.success) throw new Error(result.error || 'Não foi possível lançar o movimento');
+      await onSaved();
+      aviso.sucesso(tipo === 'entrada' ? 'Entrada registrada' : 'Saída registrada');
+      fechar();
+    } catch (error) {
+      aviso.falha(error, 'Erro ao registrar movimento');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal
+      aberto={isOpen}
+      onFechar={fechar}
+      titulo="Lançamento avulso"
+      subtitulo="Registre uma entrada ou saída sem vincular a uma peça."
+      tamanho="sm"
+      rodape={
+        <div className="flex gap-3">
+          <Button variant="secondary" onClick={fechar} disabled={saving} className="flex-1">Cancelar</Button>
+          <Button onClick={salvar} disabled={saving} className="flex-1">
+            {saving ? <Loader2 size={16} className="animate-spin" /> : 'Salvar lançamento'}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-2 gap-2">
+          {(['entrada', 'saida'] as CaixaTipo[]).map((opcao) => (
+            <button
+              key={opcao}
+              type="button"
+              onClick={() => setTipo(opcao)}
+              className={cn('rounded-xl border px-3 py-2.5 text-sm font-bold transition-colors', tipo === opcao ? 'border-accent bg-accent/10 text-accent' : 'border-border-default text-text-muted')}
+            >
+              {opcao === 'entrada' ? 'Entrada' : 'Saída'}
+            </button>
+          ))}
+        </div>
+        <label className="block text-sm font-medium text-text-secondary">
+          Descrição
+          <input value={descricao} onChange={(e) => setDescricao(e.target.value)} placeholder="Ex.: frete recebido, compra de material..." className="mt-1.5 w-full rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-sm outline-none focus:border-accent" />
+        </label>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label className="block text-sm font-medium text-text-secondary">
+            Valor
+            <input type="number" min="0.01" step="0.01" inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" className="mt-1.5 w-full rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-sm outline-none focus:border-accent" />
+          </label>
+          <label className="block text-sm font-medium text-text-secondary">
+            Data
+            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className="mt-1.5 w-full rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-sm outline-none focus:border-accent" />
+          </label>
+        </div>
+        <label className="block text-sm font-medium text-text-secondary">
+          Forma de pagamento
+          <select value={formaPagamentoId} onChange={(e) => setFormaPagamentoId(e.target.value)} className="mt-1.5 w-full rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-sm outline-none focus:border-accent">
+            <option value="">Não informada</option>
+            {formasPagamento.map((forma) => <option key={forma.id} value={forma.id}>{forma.nome}</option>)}
+          </select>
+        </label>
+      </div>
+    </Modal>
   );
 }
 

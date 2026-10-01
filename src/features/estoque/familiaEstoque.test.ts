@@ -97,6 +97,19 @@ describe('agruparPorModelo', () => {
     const grupos = agruparPorModelo([semModelo, comModelo]);
     expect(grupos.map((g) => g.modeloMotoId)).toEqual(['m1', null]);
   });
+
+  it('uses the piece year when the selected motorcycle catalog has no year', () => {
+    const item = mockItem({
+      ano: '2012-2014',
+      modelo_moto: { id: 'm1', nome: 'CG 125', parent_id: null, ordem: 0, ano: null, criado_em: '' } as any,
+    });
+    expect(agruparPorModelo([item])[0]).toMatchObject({ nomeModelo: 'CG 125', ano: '2012-2014' });
+  });
+
+  it('identifies items without a motorcycle instead of showing a generic model', () => {
+    const item = mockItem({ modelo_moto_id: null, modelo_moto: null, ano: null });
+    expect(agruparPorModelo([item])[0].nomeModelo).toBe('Moto não informada');
+  });
 });
 
 describe('contarModelosFamilia', () => {

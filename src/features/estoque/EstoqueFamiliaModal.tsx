@@ -300,7 +300,7 @@ function GrupoModelo({
                   <div key={it.id} className="mb-2 last:mb-0">
                     {grupo.itens.length > 1 && (
                       <p className="text-[10px] text-text-muted mb-1">
-                        {it.modelo_moto?.nome ?? it.nome}
+                        {it.modelo_moto?.nome ?? 'Moto não informada'}{it.ano ? ` · ${it.ano}` : it.modelo_moto?.ano ? ` · ${it.modelo_moto.ano}` : ''}
                       </p>
                     )}
                     <div className="flex gap-1.5 overflow-x-auto pb-0.5">

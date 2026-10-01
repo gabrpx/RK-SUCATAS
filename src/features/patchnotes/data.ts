@@ -18,6 +18,16 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.11',
+    data: '2026-10-01',
+    titulo: 'Lançamentos avulsos e identificação completa das peças',
+    itens: [
+      { tipo: 'feature', texto: 'Vendas agora permite registrar entradas e saídas avulsas diretamente pelo botão Entrada / saída, sem criar uma venda vinculada a uma peça.' },
+      { tipo: 'fix', texto: 'Cards de unidades usam o nome da moto e o ano informado no cadastro da peça, sem cair em Moto não informada quando a moto foi selecionada.' },
+      { tipo: 'melhoria', texto: 'Ao cadastrar uma peça com moto, o ano do modelo é sugerido automaticamente e passa a ser solicitado antes de salvar.' },
+    ],
+  },
+  {
     versao: '1.7.10',
     data: '2026-09-30',
     titulo: 'Cadastro de unidades com modelo, ano e preço padrão',

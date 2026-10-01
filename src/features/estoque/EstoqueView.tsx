@@ -621,6 +621,17 @@ export function EstoqueView({
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5">
                   <p className={cn('text-[12.5px] font-medium break-words line-clamp-2 min-w-0', item.quantidade === 0 ? 'text-text-faint line-through' : 'text-text-primary')}>{item.nome}</p>
+                  {!readOnly && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); openEditModal(item); }}
+                      className="shrink-0 rounded-control p-1 text-text-faint hover:bg-surface-raised hover:text-text-primary"
+                      title="Editar peça"
+                      aria-label={`Editar peça ${item.nome}`}
+                    >
+                      <Pencil size={12} />
+                    </button>
+                  )}
                   <CondicaoNotaBadge nota={item.condicao_nota} />
                   {contarFichas(item) > 0 && (
                     <span title={`${contarFichas(item)} unidade(s) com ficha própria (nota, avaria, nome ou preço diferente)`}>
@@ -766,6 +777,7 @@ export function EstoqueView({
   const handleSave = async (continuar = false) => {
     if (!formData.nome.trim()) return aviso.atencao('Preencha o nome da peça');
     if (!formData.categoria_id) return aviso.atencao('Selecione uma categoria');
+    if (formData.modelo_moto_id && !formData.ano.trim()) return aviso.atencao('Informe o ano compatível da moto');
     if (formExigeNota && !formData.nota_cadastro) {
       return aviso.atencao('Peça de Motor Completo precisa da nota', { descricao: 'Escolha "Com nota" ou "Sem nota pra cadastro".' });
     }
@@ -1497,9 +1509,11 @@ export function EstoqueView({
                       value={formData.modelo_moto_id || ''}
                       onChange={(id) => {
                         setModeloAutoDetectado(false);
+                        const modeloSelecionado = modelos.find((modelo) => modelo.id === id);
                         setFormData({
                           ...formData,
                           modelo_moto_id: id,
+                          ano: modeloSelecionado?.ano || formData.ano,
                           modelo_moto_compativel_ids: formData.modelo_moto_compativel_ids.filter((cid) => cid !== id),
                         });
                       }}
@@ -1699,11 +1713,11 @@ export function EstoqueView({
                     />
                   </div>
                   <div>
-                    <label className={labelClass}>Ano compatível</label>
+                    <label className={labelClass}>Ano compatível{formData.modelo_moto_id ? ' *' : ''}</label>
                     <input
                       value={formData.ano || ''}
                       onChange={(e) => setFormData({ ...formData, ano: e.target.value })}
-                      placeholder="2020 ou 2004-2008"
+                      placeholder={formData.modelo_moto_id ? 'Informe o ano ou período' : '2020 ou 2004-2008'}
                       title="Ano único ou período dentro da variação escolhida acima"
                       className={inputClass}
                     />

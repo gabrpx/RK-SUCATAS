@@ -402,8 +402,9 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         if (!categoriasResposta.success) throw new Error(categoriasResposta.error || "Não foi possível carregar as categorias");
         if (!ativo) return;
         const organizacao = organizacaoResposta?.success ? organizacaoResposta.data : null;
-        setEstoque(adaptarEstoqueReal(estoqueResposta.data ?? [], categoriasResposta.data ?? [], organizacao?.locais ?? [], organizacao?.categorias ?? [], organizacao?.reservas ?? []));
-        setModelosMoto(modelosResposta?.success ? modelosResposta.data ?? [] : []);
+        const modelosCarregados = modelosResposta?.success ? modelosResposta.data ?? [] : [];
+        setEstoque(adaptarEstoqueReal(estoqueResposta.data ?? [], categoriasResposta.data ?? [], organizacao?.locais ?? [], organizacao?.categorias ?? [], organizacao?.reservas ?? [], modelosCarregados));
+        setModelosMoto(modelosCarregados);
         setRecursos(organizacao?.recursos ?? { clienteNaReserva: false, reservaComSinal: false });
         setBaixasPendentes(organizacao?.baixasPendentes ?? []);
         setErroOrganizacao(organizacao ? null : organizacaoResposta?.error ?? "Locais físicos indisponíveis");

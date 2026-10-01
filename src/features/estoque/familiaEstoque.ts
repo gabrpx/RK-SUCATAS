@@ -30,8 +30,10 @@ export function agruparPorModelo(itens: Estoque[]): GrupoModeloFamilia[] {
     } else {
       porModelo.set(chave, {
         modeloMotoId: item.modelo_moto_id,
-        nomeModelo: item.modelo_moto?.nome ?? 'Sem modelo',
-        ano: item.modelo_moto?.ano ?? null,
+        nomeModelo: item.modelo_moto?.nome ?? 'Moto não informada',
+        // O ano digitado no cadastro da peça é a fonte de verdade desta
+        // variante; o ano do catálogo da moto fica como fallback legado.
+        ano: item.ano ?? item.modelo_moto?.ano ?? null,
         itens: [item],
       });
     }
