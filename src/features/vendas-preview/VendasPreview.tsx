@@ -526,7 +526,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
 
     <SaleDetailDrawer sale={saleDetail} onClose={() => setSaleDetail(null)} />
     <PendingEditDrawer pending={pendingEdit} canEdit={pendingEdit?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("vendas.editar")} onClose={() => setPendingEdit(null)} onSaved={() => setReloadKey((value) => value + 1)} />
-    <PendingReceivableDrawer pending={pendingReceivable} canReceive={pendingReceivable?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("caixa.receber_fiado")} onClose={() => setPendingReceivable(null)} onSaved={() => setReloadKey((value) => value + 1)} />
+    <PendingReceivableDrawer pending={pendingReceivable} canReceive={pendingReceivable?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("caixa.receber_fiado")} onClose={() => setPendingReceivable(null)} onSaved={() => { setPendingReceivable(null); setReloadKey((value) => value + 1); }} />
     <MovementActionDrawer isOpen={movementDrawer !== null} initialTipo={movementDrawer ?? 'entrada'} onClose={() => setMovementDrawer(null)} onSaved={() => { setMovementDrawer(null); setReloadKey((value) => value + 1); }} />
     <PendingCreateDrawer isOpen={pendingCreateOpen} onClose={() => setPendingCreateOpen(false)} onSaved={() => { setPendingCreateOpen(false); setReloadKey((value) => value + 1); }} />
     {embutido && novaVendaAberta && <Suspense fallback={null}><NovaVendaDrawer isOpen onClose={() => setNovaVendaAberta(false)} onSaved={() => setReloadKey((value) => value + 1)} /></Suspense>}
