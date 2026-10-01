@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.13',
+    data: '2026-10-01',
+    titulo: 'Vendas mais legível no celular',
+    itens: [
+      { tipo: 'fix', texto: 'As tabs da tela Vendas agora se organizam em uma grade no celular, sem barra de rolagem lateral e sem cortar os nomes das áreas.' },
+      { tipo: 'melhoria', texto: 'Os gráficos do resumo adaptam marcadores, rótulos e espaço vertical ao período escolhido para continuar legíveis e úteis em telas pequenas.' },
+    ],
+  },
+  {
     versao: '1.7.12',
     data: '2026-10-01',
     titulo: 'Vendas com lançamentos e pendências operacionais',

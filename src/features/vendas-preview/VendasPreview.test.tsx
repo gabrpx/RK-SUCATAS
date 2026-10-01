@@ -110,6 +110,16 @@ describe('VendasPreview', () => {
     expect(screen.getByRole('tab', { name: 'Movimentações' })).toHaveAttribute('aria-selected', 'true');
   });
 
+  it('mantém as tabs dentro do viewport sem rolagem horizontal', async () => {
+    renderVendasPreview();
+    const tablist = await screen.findByRole('tablist', { name: 'Visões de vendas' });
+    const tabViewport = tablist.parentElement?.parentElement;
+
+    expect(tabViewport).toHaveClass('w-full');
+    expect(tabViewport).not.toHaveClass('overflow-x-auto');
+    expect(screen.getAllByRole('tab')).toHaveLength(4);
+  });
+
   it('abre o drawer ao selecionar uma venda', async () => {
     renderVendasPreview();
     fireEvent.click(screen.getByRole('tab', { name: /^Vendas$/ }));
