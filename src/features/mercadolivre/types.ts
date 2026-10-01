@@ -21,6 +21,8 @@ export interface ItemPedidoPreview {
   // (retirada em loja), valor conhecido. null = API não devolveu custo
   // confiável pra este envio — mesmo tratamento de "não sei" que taxaMl.
   custoEnvio: number | null;
+  // Desconto/campanha financiado pelo vendedor e abatido do repasse.
+  descontoVendedor: number;
 }
 
 export interface PedidoPreview {
@@ -52,6 +54,7 @@ export interface ImportarPedidoItemInput {
   ml_shipping_id: string | null;
   ml_sale_fee: number | null;
   ml_custo_envio: number | null;
+  ml_desconto_vendedor: number;
 }
 
 export interface ImportarPedidosResultado {

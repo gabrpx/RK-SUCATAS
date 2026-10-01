@@ -34,9 +34,9 @@ describe('<TasksNavigationDock>', () => {
     render(<TasksNavigationDock activeTab="tarefas" onTabChange={vi.fn()} onLogoutClick={vi.fn()} />);
 
     expect(screen.getByTestId('tasks-navigation-mobile')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Mais opções de navegação' })).toBeInTheDocument();
+    expect(within(screen.getByTestId('tasks-navigation-mobile')).getByRole('button', { name: 'Mais opções de navegação' })).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: 'Mais opções de navegação' }));
+    fireEvent.click(within(screen.getByTestId('tasks-navigation-mobile')).getByRole('button', { name: 'Mais opções de navegação' }));
 
     const dialog = screen.getByRole('dialog', { name: 'Mais opções de navegação' });
     expect(dialog).toBeInTheDocument();

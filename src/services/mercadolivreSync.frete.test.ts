@@ -17,8 +17,9 @@ vi.mock('./mercadolivreApi.js', () => ({
   // Puras — mesma implementação da real (ver mercadolivreApi.ts), copiadas
   // aqui só pra não precisar mockar toda a resposta da API por teste.
   encontrarItemPedido: (pedido: any, mlItemId: string) => pedido.order_items.find((linha: any) => linha.item.id === mlItemId) ?? null,
-  calcularValorRecebido: (valorTotal: number, saleFee: number | null | undefined, custoEnvio: number | null | undefined) =>
-    saleFee == null || custoEnvio == null ? null : valorTotal - saleFee - custoEnvio,
+  calcularValorRecebido: (valorTotal: number, saleFee: number | null | undefined, custoEnvio: number | null | undefined, descontoVendedor = 0) =>
+    saleFee == null || custoEnvio == null ? null : valorTotal - saleFee - custoEnvio - descontoVendedor,
+  calcularDescontoVendedor: (linha: any) => (linha?.discounts ?? []).reduce((total: number, desconto: any) => total + (Number(desconto.amounts?.seller) || 0), 0),
   alocarCustoEnvio: (pedido: any, custoEnvioTotal: number, mlItemId: string) => {
     const linha = pedido.order_items.find((l: any) => l.item.id === mlItemId);
     if (!linha) return 0;
@@ -168,6 +169,26 @@ describe('importarPedidoComoVenda — custo de envio', () => {
 });
 
 describe('corrigirTaxaVendasMlImportadas — custo de envio', () => {
+  it('não desconta taxa e frete duas vezes quando a venda antiga já foi gravada líquida', async () => {
+    vi.mocked(obterConexaoAtual).mockResolvedValue({ accessToken: 'token-fake', mlUserId: '42' } as any);
+    vi.mocked(buscarPedido).mockResolvedValue({
+      id: 555, date_created: '', status: 'paid', shipping: { id: 777 },
+      order_items: [{ item: { id: 'MLB111' }, quantity: 1, unit_price: 290.03, sale_fee: 33.85, discounts: [{ amounts: { seller: 29 } }] }],
+    } as any);
+    vi.mocked(buscarCustoEnvioVendedor).mockResolvedValue(25.45);
+    const atualizacoesCaixa: any[] = [];
+    const supabase = criarSupabaseFake({
+      vendas: { select: () => ({ eq: () => Promise.resolve({ data: [{ id: 'venda-1', valor_total: 230.73, ml_order_id: '555', ml_item_id: 'MLB111' }], error: null }) }) },
+      caixa: {
+        select: () => ({ in: () => Promise.resolve({ data: [{ id: 'caixa-1', valor: 171.43, venda_id: 'venda-1' }], error: null }) }),
+        update(payload: any) { atualizacoesCaixa.push(payload); return { eq: () => Promise.resolve({ error: null }) }; },
+      },
+    });
+    const resultado = await corrigirTaxaVendasMlImportadas(supabase, 'token-fake');
+    expect(resultado.sucesso).toBe(1);
+    expect(atualizacoesCaixa[0].valor).toBeCloseTo(201.73);
+  });
+
   it('recalcula o Caixa descontando comissão e frete rateado do pedido real', async () => {
     vi.mocked(obterConexaoAtual).mockResolvedValue({ accessToken: 'token-fake', mlUserId: '42' } as any);
     vi.mocked(buscarPedido).mockResolvedValue({

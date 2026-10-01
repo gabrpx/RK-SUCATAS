@@ -33,11 +33,26 @@ export function buildSaleViewModels(
   recebimentosFiado: FiadoRecebimento[],
   options: { canViewCash: boolean },
 ): SaleViewModel[] {
+  const caixaPorVenda = new Map<string, CaixaEntry[]>();
+  const fiadoPorVenda = new Map<string, FiadoRecebimento[]>();
+  for (const entry of caixa) {
+    if (entry.venda_id && entry.tipo === 'entrada') {
+      const entries = caixaPorVenda.get(entry.venda_id) ?? [];
+      entries.push(entry);
+      caixaPorVenda.set(entry.venda_id, entries);
+    }
+  }
+  for (const receipt of recebimentosFiado) {
+    const entries = fiadoPorVenda.get(receipt.venda_id) ?? [];
+    entries.push(receipt);
+    fiadoPorVenda.set(receipt.venda_id, entries);
+  }
   return vendas.map((venda) => {
     const total = amount(venda.valor_total);
     const isCredit = venda.forma_pagamento?.natureza === 'fiado';
-    const cashEntries = caixa.filter((entry) => entry.venda_id === venda.id && entry.tipo === 'entrada');
-    const creditReceipts = recebimentosFiado.filter((receipt) => receipt.venda_id === venda.id);
+    const isMarketplace = venda.canal === 'mercado_livre';
+    const cashEntries = caixaPorVenda.get(venda.id) ?? [];
+    const creditReceipts = fiadoPorVenda.get(venda.id) ?? [];
     const payments = options.canViewCash
       ? (isCredit ? creditReceipts.map((receipt) => ({
           meio: receipt.forma_pagamento?.nome ?? 'Forma não informada',
@@ -55,6 +70,10 @@ export function buildSaleViewModels(
       reconciliation = { kind: 'unavailable' };
     } else if (!isCredit && cashEntries.length === 0) {
       reconciliation = { kind: 'needs-review', recordedMethod: venda.forma_pagamento?.nome ?? null };
+    } else if (isMarketplace && !isCredit) {
+      // O Caixa registra o líquido após taxa/frete; a diferença para o bruto
+      // da venda não é saldo devido pelo comprador.
+      reconciliation = { kind: 'settled', received: payments.reduce((sum, payment) => sum + payment.valor, 0) };
     } else {
       reconciliation = reconcile(payments.reduce((sum, payment) => sum + payment.valor, 0), total);
     }

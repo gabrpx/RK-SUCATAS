@@ -1556,6 +1556,8 @@ export function TasksPreview({
   composerOpenRef.current = isComposerOpen;
   const [queueFilter, setQueueFilter] = useState<QueueFilter>("todas");
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [showDesktopAnimation, setShowDesktopAnimation] = useState(false);
+  const [visibleTaskLimit, setVisibleTaskLimit] = useState(40);
   const [actionError, setActionError] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   selectedTaskIdRef.current = selectedTask?.id ?? null;
@@ -1605,6 +1607,17 @@ export function TasksPreview({
     media.addEventListener("change", updatePreference);
     return () => media.removeEventListener("change", updatePreference);
   }, []);
+
+  useEffect(() => {
+    const media = window.matchMedia("(min-width: 1024px) and (hover: hover) and (pointer: fine)");
+    const update = () => setShowDesktopAnimation(media.matches && !document.hidden);
+    update();
+    media.addEventListener("change", update);
+    document.addEventListener("visibilitychange", update);
+    return () => { media.removeEventListener("change", update); document.removeEventListener("visibilitychange", update); };
+  }, []);
+
+  useEffect(() => setVisibleTaskLimit(40), [activePrimaryTab]);
 
   useEffect(() => {
     if (prefersReducedMotion || !rootRef.current) return;
@@ -1821,7 +1834,7 @@ export function TasksPreview({
           <div className="ml-auto hidden items-center gap-5 text-xs text-slate-500 lg:flex">
             <span>Turno ativo · 08:00–17:00</span>
             <span className="inline-flex items-center gap-2">
-              {prefersReducedMotion ? (
+              {prefersReducedMotion || !showDesktopAnimation ? (
                 <span className="size-2 rounded-full bg-emerald-600" />
               ) : (
                 <DotMatrix
@@ -2305,7 +2318,7 @@ export function TasksPreview({
                 data-preview-reveal
                 className="grid gap-4 md:grid-cols-2"
               >
-                {visibleTasks.map((task) => (
+                {visibleTasks.slice(0, visibleTaskLimit).map((task) => (
                   <TaskCard
                     key={task.id}
                     task={task}
@@ -2313,6 +2326,7 @@ export function TasksPreview({
                     onToggleChecklist={toggleChecklist}
                   />
                 ))}
+                {visibleTaskLimit < visibleTasks.length && <button type="button" onClick={() => setVisibleTaskLimit((count) => count + 40)} className="col-span-full min-h-11 rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-blue-700 transition-colors hover:bg-blue-50">Mostrar mais tarefas ({visibleTasks.length - visibleTaskLimit} restantes)</button>}
                 {!visibleTasks.length && (
                   <div className="col-span-full rounded-lg border border-dashed border-slate-300 bg-white py-16 text-center">
                     <CheckCircle2 className="mx-auto text-emerald-500" />

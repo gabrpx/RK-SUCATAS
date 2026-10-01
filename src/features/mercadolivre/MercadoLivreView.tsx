@@ -580,6 +580,7 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
           ml_shipping_id: pedido.shippingId,
           ml_sale_fee: item.taxaMl,
           ml_custo_envio: item.custoEnvio,
+          ml_desconto_vendedor: item.descontoVendedor,
         });
       }
     }
@@ -756,9 +757,10 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
                               {item.taxaMl != null && item.custoEnvio != null && (
                                 <>
                                   {' '}
-                                  · líquido no Caixa: {formatCurrency(item.quantidade * item.valorUnitario - item.taxaMl - item.custoEnvio)} (taxa ML{' '}
+                                  · líquido no Caixa: {formatCurrency(item.quantidade * item.valorUnitario - item.taxaMl - item.custoEnvio - item.descontoVendedor)} (taxa ML{' '}
                                   {formatCurrency(item.taxaMl)}
-                                  {item.custoEnvio > 0 ? ` + frete ${formatCurrency(item.custoEnvio)}` : ''})
+                                  {item.custoEnvio > 0 ? ` + frete ${formatCurrency(item.custoEnvio)}` : ''}
+                                  {item.descontoVendedor > 0 ? ` + desconto do vendedor ${formatCurrency(item.descontoVendedor)}` : ''})
                                 </>
                               )}
                             </p>

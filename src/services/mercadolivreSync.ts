@@ -17,6 +17,7 @@ import {
   obterMargemSincronizacao,
   encontrarItemPedido,
   calcularValorRecebido,
+  calcularDescontoVendedor,
   buscarCustoEnvioVendedor,
   alocarCustoEnvio,
   resolverNomeComprador,
@@ -338,6 +339,7 @@ export interface ItemPedidoPreview {
   // loja) — nesse caso é um zero CONHECIDO, não "não sei". null só quando a
   // API de custos do envio não devolveu resposta confiável.
   custoEnvio: number | null;
+  descontoVendedor: number;
 }
 
 export interface PedidoPreview {
@@ -457,6 +459,7 @@ export async function buscarPreviewPedidos(supabase: SupabaseClient, token: stri
           estoqueNomeSugerido: match?.nome ?? null,
           taxaMl: linha.sale_fee ?? null,
           custoEnvio: custoEnvioTotal == null ? null : alocarCustoEnvio(pedido, custoEnvioTotal, linha.item.id),
+          descontoVendedor: calcularDescontoVendedor(linha),
         };
       }),
     };
@@ -486,6 +489,7 @@ export interface ImportarPedidoParams {
   // preview, ItemPedidoPreview.custoEnvio) — mesma regra do mlSaleFee: nunca
   // toca vendas.valor_unitario/valor_total, só o lançamento de Caixa.
   mlCustoEnvio?: number | null;
+  mlDescontoVendedor?: number;
   // Nome do destinatário do envio — usado quando buyer.first_name/last_name
   // vêm vazios. Confirmado via API real: receiver_address.receiver_name tem o
   // nome real do comprador quando buyer fields estão vazios.
@@ -509,7 +513,7 @@ export async function importarPedidoComoVenda(supabase: SupabaseClient, params: 
   }
   if (existente) return null;
 
-  const valorRecebido = calcularValorRecebido(params.quantidade * params.valorUnitario, params.mlSaleFee, params.mlCustoEnvio);
+  const valorRecebido = calcularValorRecebido(params.quantidade * params.valorUnitario, params.mlSaleFee, params.mlCustoEnvio, params.mlDescontoVendedor);
   if (valorRecebido == null) {
     throw new Error('O Mercado Livre ainda não confirmou o valor líquido desta venda (taxa ou frete pendente). Atualize os pedidos e tente novamente.');
   }
@@ -623,7 +627,13 @@ export async function corrigirTaxaVendasMlImportadas(supabase: SupabaseClient, t
       // calcularValorRecebido trata como "não sei", igual à taxa ausente.
       const custoEnvioTotal = pedido.shipping?.id ? await buscarCustoEnvioVendedor(token, String(pedido.shipping.id)) : 0;
       const custoEnvioAlocado = custoEnvioTotal == null ? null : alocarCustoEnvio(pedido, custoEnvioTotal, venda.ml_item_id);
-      const valorRecebido = calcularValorRecebido(Number(venda.valor_total), linha?.sale_fee, custoEnvioAlocado);
+      // Vendas importadas em versões antigas podem ter valor_total já líquido.
+      // Usar esse campo como base desconta comissão e frete pela segunda vez.
+      // A ordem original é a fonte do preço efetivo pago pelo comprador.
+      const valorPedido = linha ? Number(linha.unit_price) * Number(linha.quantity) : null;
+      const valorRecebido = valorPedido != null && Number.isFinite(valorPedido) && valorPedido > 0
+        ? calcularValorRecebido(valorPedido, linha?.sale_fee, custoEnvioAlocado, calcularDescontoVendedor(linha))
+        : null;
       if (valorRecebido == null) {
         resultado.falhas.push({ mlOrderId: venda.ml_order_id, mlItemId: venda.ml_item_id, error: 'A API do Mercado Livre não devolveu a taxa ou o custo de envio deste item' });
         continue;
@@ -1138,6 +1148,7 @@ export async function processarPedidosPendentes(supabase: SupabaseClient): Promi
             unidadeId: itemPedido.item.variation_id != null ? unidadesPorVariacao.get(String(itemPedido.item.variation_id)) ?? null : null,
             mlSaleFee: itemPedido.sale_fee ?? null,
             mlCustoEnvio: custoEnvioTotal == null ? null : alocarCustoEnvio(pedido, custoEnvioTotal, itemPedido.item.id),
+            mlDescontoVendedor: calcularDescontoVendedor(itemPedido),
             clienteNomeAlternativo: receiverName,
           });
           if (venda) {

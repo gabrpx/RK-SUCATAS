@@ -15,6 +15,7 @@ import { CustomDropdown } from '../../components/CustomDropdown';
 import { Modal } from '../../components/ui/Modal';
 import { InventoryDrawer } from '../estoque-preview/InventoryDrawer';
 import { Select } from '../../components/ui/Select';
+import { CurrencyInput } from '../../components/ui/CurrencyInput';
 import { Button } from '@/src/components/ui/button';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { vendasApi } from './api';
@@ -445,7 +446,7 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
   const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   return (
-    <InventoryDrawer isOpen={isOpen} onClose={handleClose} title="Nova venda">
+    <InventoryDrawer isOpen={isOpen} onClose={handleClose} title="Nova venda" footer={<div className="flex gap-2"><Button type="button" variant="ghost" onClick={handleClose} className="min-h-11 rounded-control">Cancelar</Button>{itemSelecionado && <Button onClick={handleSubmit} disabled={saving || !formaPagamentoId} className="min-h-11 flex-1 rounded-control font-semibold">{saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}</Button>}</div>}>
       <div className="space-y-4">
         {!itemSelecionado ? (
           <div>
@@ -596,8 +597,7 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
                 />
               </div>
               <div>
-                <label className={labelClass}>Valor unitário (R$)</label>
-                <input type="number" min="0" step="0.01" value={valorUnitario} onChange={(e) => setValorUnitario(e.target.value)} className={inputClass} />
+                <CurrencyInput label="Valor unitário" size="lg" value={valorUnitario ? Math.round(Number(valorUnitario) * 100) : null} onChange={(centavos) => setValorUnitario(centavos == null ? '' : String(centavos / 100))} />
               </div>
             </div>
 
@@ -640,11 +640,6 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
           </>
         )}
       </div>
-      {itemSelecionado && <div className="sticky bottom-0 mt-5 border-t border-border-default bg-surface-card pt-4 pb-[env(safe-area-inset-bottom)]">
-        <Button onClick={handleSubmit} disabled={saving || !formaPagamentoId} className="min-h-11 w-full rounded-control font-semibold">
-          {saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}
-        </Button>
-      </div>}
     </InventoryDrawer>
   );
 }

@@ -23,7 +23,7 @@ const money = (value: number) => value.toLocaleString('pt-BR', { style: 'currenc
 
 export function PendingEditDrawer({ pending, canEdit, onClose, onSaved }: PendingEditDrawerProps) {
   const [descricao, setDescricao] = useState('');
-  const [totalCents, setTotalCents] = useState(0);
+  const [totalCents, setTotalCents] = useState<number | null>(null);
   const [data, setData] = useState('');
   const [clienteId, setClienteId] = useState('');
   const [observacoes, setObservacoes] = useState('');
@@ -57,7 +57,7 @@ export function PendingEditDrawer({ pending, canEdit, onClose, onSaved }: Pendin
 
   if (!pending) return <InventoryDrawer isOpen={false} onClose={onClose} title="Editar pendência"><span /></InventoryDrawer>;
   const manual = pending.source.kind === 'caixa';
-  const total = totalCents / 100;
+  const total = (totalCents ?? 0) / 100;
 
   async function save() {
     if (!pending || !canEdit) return;
@@ -87,7 +87,7 @@ export function PendingEditDrawer({ pending, canEdit, onClose, onSaved }: Pendin
     }
   }
 
-  return <InventoryDrawer isOpen title="Editar pendência" onClose={onClose}>
+  return <InventoryDrawer isOpen title="Editar pendência" onClose={onClose} footer={canEdit ? <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={onClose} className="min-h-11 rounded-control border border-border-default px-4 text-sm font-semibold text-text-secondary hover:bg-surface-inset">Cancelar</button><button type="button" disabled={saving} onClick={() => void save()} className="min-h-11 rounded-control bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60">{saving ? 'Salvando…' : 'Salvar alterações'}</button></div> : undefined}>
     <div className="space-y-5">
       <header className="rounded-card border border-border-default bg-surface-inset p-4">
         <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">{manual ? 'Pendência manual do Caixa' : 'Venda em fiado'}</p>
@@ -98,7 +98,7 @@ export function PendingEditDrawer({ pending, canEdit, onClose, onSaved }: Pendin
       {!canEdit ? <div className="rounded-control border border-border-default bg-surface-inset p-4 text-sm leading-6 text-text-muted">Seu perfil pode consultar esta pendência, mas não alterá-la.</div> : <>
         {manual ? <div className="space-y-4">
           <Input label="Descrição" size="lg" value={descricao} onChange={(event) => setDescricao(event.target.value)} iconLeft={<FilePenLine size={15} />} />
-          <CurrencyInput label="Valor total" size="lg" value={totalCents} onChange={setTotalCents} helper={`Já recebido: ${money(pending.pago)}`} />
+          <CurrencyInput label="Valor total" size="lg" value={totalCents} onChange={setTotalCents} helper={`Recebido até agora: ${money(pending.pago)}`} />
           <Input label="Data da pendência" type="date" size="lg" value={data} onChange={(event) => setData(event.target.value)} iconLeft={<CalendarDays size={15} />} />
         </div> : <div className="rounded-control border border-warning/20 bg-warning-bg p-3 text-xs leading-5 text-warning">Valor e data pertencem à venda original e ficam protegidos. Esta edição altera somente cliente e observações.</div>}
 
@@ -106,10 +106,6 @@ export function PendingEditDrawer({ pending, canEdit, onClose, onSaved }: Pendin
         {!manual && <Textarea label="Observações" value={observacoes} onChange={(event) => setObservacoes(event.target.value)} maxLength={500} showCount autoResize />}
 
         {error && <p role="alert" className="rounded-control border border-danger/20 bg-danger-bg p-3 text-sm text-danger">{error}</p>}
-        <div className="flex flex-col-reverse gap-2 border-t border-border-subtle pt-4 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} className="min-h-11 rounded-control border border-border-default px-4 text-sm font-semibold text-text-secondary hover:bg-surface-inset">Cancelar</button>
-          <button type="button" disabled={saving} onClick={() => void save()} className="min-h-11 rounded-control bg-accent px-4 text-sm font-semibold text-white hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-60">{saving ? 'Salvando…' : 'Salvar alterações'}</button>
-        </div>
       </>}
     </div>
   </InventoryDrawer>;

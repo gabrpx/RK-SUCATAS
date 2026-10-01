@@ -35,23 +35,9 @@ import { TasksNavigationDock } from './components/TasksNavigationDock';
 import { Modal } from './components/ui/Modal';
 import { Button } from './components/ui/button';
 import { Login } from './components/Login';
-import { EstoqueView } from './features/estoque/EstoqueView';
-import { EstoquePreview } from './features/estoque-preview/EstoquePreview';
-import { VendasView } from './features/vendas/VendasView';
-import { VendasPreview } from './features/vendas-preview/VendasPreview';
-import { OrcamentosView } from './features/orcamentos/OrcamentosView';
-import { ClientesView } from './features/clientes/ClientesView';
 import { formaPagamentoEfetiva } from './features/fiado/metricas';
 import type { FiadoRecebimento } from './features/fiado/types';
 import { valorVendidoEmPartes, valorRestanteEstimado } from './features/vendas/metricas';
-import { CaixaView } from './features/caixa/CaixaView';
-import { FreteView } from './features/frete/FreteView';
-import { MercadoLivreView } from './features/mercadolivre/MercadoLivreView';
-import { DashboardView } from './features/dashboard/DashboardView';
-import { ConfiguracoesView } from './features/configuracoes/ConfiguracoesView';
-import { TarefasView } from './features/tarefas/TarefasView';
-import { PatchNotesView } from './features/patchnotes/PatchNotesView';
-import { NotificacoesView } from './features/notificacoes/NotificacoesView';
 import { Toaster } from './components/ui/toast';
 import { ConfirmProvider } from './components/ui/ConfirmProvider';
 import { SincronizacaoMlProvider } from './features/mercadolivre/SincronizacaoMlContext';
@@ -67,6 +53,23 @@ import { usePermissao } from './hooks/usePermissao';
 import { FloatingNotaButton } from './components/DeclaracaoVenda';
 import type { Estoque } from './features/estoque/types';
 import type { Venda } from './features/vendas/types';
+
+// Cada aba carrega sua própria implementação quando é aberta. Isso reduz o
+// JavaScript inicial, sobretudo no iPhone, sem mudar o estado nem as rotas.
+const EstoqueView = React.lazy(() => import('./features/estoque/EstoqueView').then((mod) => ({ default: mod.EstoqueView })));
+const EstoquePreview = React.lazy(() => import('./features/estoque-preview/EstoquePreview').then((mod) => ({ default: mod.EstoquePreview })));
+const VendasView = React.lazy(() => import('./features/vendas/VendasView').then((mod) => ({ default: mod.VendasView })));
+const VendasPreview = React.lazy(() => import('./features/vendas-preview/VendasPreview').then((mod) => ({ default: mod.VendasPreview })));
+const OrcamentosView = React.lazy(() => import('./features/orcamentos/OrcamentosView').then((mod) => ({ default: mod.OrcamentosView })));
+const ClientesView = React.lazy(() => import('./features/clientes/ClientesView').then((mod) => ({ default: mod.ClientesView })));
+const CaixaView = React.lazy(() => import('./features/caixa/CaixaView').then((mod) => ({ default: mod.CaixaView })));
+const FreteView = React.lazy(() => import('./features/frete/FreteView').then((mod) => ({ default: mod.FreteView })));
+const MercadoLivreView = React.lazy(() => import('./features/mercadolivre/MercadoLivreView').then((mod) => ({ default: mod.MercadoLivreView })));
+const DashboardView = React.lazy(() => import('./features/dashboard/DashboardView').then((mod) => ({ default: mod.DashboardView })));
+const ConfiguracoesView = React.lazy(() => import('./features/configuracoes/ConfiguracoesView').then((mod) => ({ default: mod.ConfiguracoesView })));
+const TarefasView = React.lazy(() => import('./features/tarefas/TarefasView').then((mod) => ({ default: mod.TarefasView })));
+const PatchNotesView = React.lazy(() => import('./features/patchnotes/PatchNotesView').then((mod) => ({ default: mod.PatchNotesView })));
+const NotificacoesView = React.lazy(() => import('./features/notificacoes/NotificacoesView').then((mod) => ({ default: mod.NotificacoesView })));
 
 type DetailItem = Estoque | Venda;
 // 'fiado' saiu da navegação: virou sub-aba do Caixa. Não fica em VALID_TABS
@@ -653,6 +656,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
         >
           <AnimatePresence mode="wait">
             <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
+              <React.Suspense fallback={<div role="status" className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-text-muted"><Loader2 size={18} className="animate-spin" />Carregando aba…</div>}>
               {activeTab === 'dashboard' ? (
                 <DashboardView
                   onSelectItem={setSelectedDetailItem}
@@ -731,6 +735,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
               ) : (
                 <ConfiguracoesView />
               )}
+              </React.Suspense>
             </motion.div>
           </AnimatePresence>
         </div>

@@ -11,7 +11,7 @@ vi.mock('@/src/features/clientes/api', () => ({ clientesApi: { listar: mocks.cli
 vi.mock('@/src/features/caixa/api', () => ({ caixaPendenciasApi: { atualizar: mocks.atualizarPendencia } }));
 vi.mock('@/src/features/vendas/api', () => ({ vendasApi: { atualizarParcial: mocks.atualizarVenda } }));
 vi.mock('../../estoque-preview/InventoryDrawer', () => ({
-  InventoryDrawer: ({ isOpen, title, children }: any) => isOpen ? <div role="dialog" aria-label={title}>{children}</div> : null,
+  InventoryDrawer: ({ isOpen, title, children, footer }: any) => isOpen ? <div role="dialog" aria-label={title}>{children}{footer}</div> : null,
 }));
 
 import type { PendenciaDemo } from '../data';

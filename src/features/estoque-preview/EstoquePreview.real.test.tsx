@@ -119,6 +119,20 @@ describe("EstoquePreview dentro do app (dados reais)", () => {
     expect(mocks.organizarUnidade).not.toHaveBeenCalled();
   });
 
+  it("mostra o preço editado de imediato e restaura se a gravação falhar", async () => {
+    let rejectUpdate: (reason: Error) => void = () => {};
+    mocks.editarUnidade.mockImplementation(() => new Promise((_resolve, reject) => { rejectUpdate = reject; }));
+    render(<EstoquePreview embutido />);
+    await screen.findByText("Estoque real · sincronizado");
+    fireEvent.click(screen.getByRole("button", { name: "Ações de 902" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: /Editar unidade/i }));
+    fireEvent.change(await screen.findByLabelText("Preço da unidade"), { target: { value: "175" } });
+    fireEvent.click(screen.getByRole("button", { name: /Salvar alterações/i }));
+    expect(document.body.textContent).toContain("175,00");
+    rejectUpdate(new Error("Falha simulada"));
+    await waitFor(() => expect(document.body.textContent).not.toContain("175,00"));
+  });
+
   it("volta ao catálogo na mesma posição depois de trocar de aba", async () => {
     render(<EstoquePreview embutido />);
     await screen.findByText("Estoque real · sincronizado");

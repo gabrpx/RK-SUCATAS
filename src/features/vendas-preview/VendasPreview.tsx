@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { animate, stagger } from "animejs";
 import { DotMatrix } from "dot-anime-react";
 import {
@@ -13,7 +13,6 @@ import { PopoverContent, PopoverHeader, PopoverRoot, PopoverTrigger } from "@/sr
 import { SPRING_MICRO } from "@/src/components/ui/motion";
 import { podeAtual } from "@/src/hooks/usePermissao";
 import { vendasApi } from "@/src/features/vendas/api";
-import { NovaVendaDrawer } from "@/src/features/vendas/VendasView";
 import type { Venda } from "@/src/features/vendas/types";
 import { caixaApi, caixaPendenciasApi } from "@/src/features/caixa/api";
 import type { CaixaEntry, CaixaPendencia, CaixaPendenciaRecebimento } from "@/src/features/caixa/types";
@@ -33,6 +32,8 @@ import { MercadoLivreBadge, PaymentMethodMark } from "./components/PaymentMarks"
 import { Tabs as SegmentTabs, TabsList as SegmentTabsList, TabsTrigger as SegmentTabsTrigger } from "../tarefas-preview/PreviewTabs";
 import { filtrarMovimentosPorPeriodo, type PeriodoMovimento } from "./movementFilters";
 import { buildSalesOverview } from "./overviewModel";
+
+const NovaVendaDrawer = lazy(() => import("@/src/features/vendas/VendasView").then((mod) => ({ default: mod.NovaVendaDrawer })));
 
 const money = (value: number) => value.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const previewTokens = {
@@ -233,16 +234,19 @@ function Overview({
 }
 
 function SalesList({ sales, onDetail, onClearFilters, hasActiveFilters }: { sales: SaleViewModel[]; onDetail: (sale: SaleViewModel) => void; onClearFilters: () => void; hasActiveFilters: boolean }) {
+  const [visibleCount, setVisibleCount] = useState(40);
+  useEffect(() => setVisibleCount(40), [sales]);
   if (sales.length === 0) return <div className="rounded-card border border-dashed border-border-default bg-surface-card p-10 text-center"><span className="mx-auto grid size-11 place-items-center rounded-full bg-surface-inset text-text-muted"><Search size={17} /></span><p className="mt-3 text-sm font-semibold">{hasActiveFilters ? "Nenhuma venda corresponde aos filtros" : "Nenhuma venda registrada"}</p><p className="mt-1 text-xs text-text-muted">{hasActiveFilters ? "Remova um filtro para ver outros registros." : "O histórico será exibido quando houver uma venda."}</p>{hasActiveFilters && <button type="button" onClick={onClearFilters} className="mt-3 inline-flex min-h-10 items-center gap-1.5 rounded-control px-3 text-xs font-semibold text-accent hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><X size={14} />Limpar filtros</button>}</div>;
   return <div className={`${panel} overflow-hidden`}>
     <div className="hidden grid-cols-[1.15fr_1.65fr_1fr_.8fr_.9fr] gap-3 bg-surface-inset px-4 py-3 md:grid"><span className={label}>Cliente · canal</span><span className={label}>Peça · unidade</span><span className={label}>Pagamento recebido</span><span className={`${label} text-right`}>Valor</span><span className={`${label} text-right`}>Estado</span></div>
-    <div className="divide-y divide-border-subtle">{sales.map((sale, index) => <motion.button layout key={sale.id} type="button" aria-label={`Abrir detalhes da venda ${sale.id}, cliente ${sale.cliente}`} onClick={() => onDetail(sale)} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING_MICRO, delay: Math.min(index * .035, .18) }} className={`grid gap-2 p-4 text-left transition-colors hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 md:grid-cols-[1.15fr_1.65fr_1fr_.8fr_.9fr] md:items-center md:gap-3 ${sale.canal === "Mercado Livre" ? "meli-sale-row mx-2 my-1 w-[calc(100%-1rem)] rounded-control border border-[#e7ca00] bg-amber-50/20" : "w-full"}`}>
+    <div className="divide-y divide-border-subtle">{sales.slice(0, visibleCount).map((sale, index) => <motion.button key={sale.id} type="button" aria-label={`Abrir detalhes da venda ${sale.id}, cliente ${sale.cliente}`} onClick={() => onDetail(sale)} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ ...SPRING_MICRO, delay: Math.min(index * .035, .18) }} className={`grid gap-2 p-4 text-left transition-colors hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 md:grid-cols-[1.15fr_1.65fr_1fr_.8fr_.9fr] md:items-center md:gap-3 ${sale.canal === "Mercado Livre" ? "meli-sale-row mx-2 my-1 w-[calc(100%-1rem)] rounded-control border border-[#e7ca00] bg-amber-50/20" : "w-full"}`}>
       <span className="min-w-0"><span className="block truncate text-sm font-semibold">{sale.cliente}</span><span className="mt-0.5 block font-mono text-[10px] text-text-faint">{sale.id} · {dateLabel(sale.ocorridoEm)}</span><span className="mt-1 block"><MercadoLivreBadge canal={sale.canal} compact /></span></span>
       <span className="min-w-0"><span className="block break-words text-sm text-text-secondary">{sale.item}</span><span className="mt-0.5 block font-mono text-[10px] text-text-faint">Unidade {sale.unidade}{sale.grau !== "—" ? ` · Grau ${sale.grau}` : ""}</span></span>
       <span className="flex flex-wrap gap-x-2 gap-y-1 text-xs text-text-muted">{sale.pagamentos.length ? sale.pagamentos.map((pagamento, pagamentoIndex) => <span key={`${pagamento.meio}-${pagamentoIndex}`} title={`${pagamento.meio}: ${money(pagamento.valor)}`} className="inline-flex items-center gap-1"><PaymentMethodMark meio={pagamento.meio} className="size-3.5" />{pagamento.meio}</span>) : <span>{sale.reconciliation.kind === "unavailable" ? "Financeiro restrito" : sale.reconciliation.kind === "needs-review" ? `Sem lançamento no Caixa${sale.reconciliation.recordedMethod ? ` · ${sale.reconciliation.recordedMethod}` : ""}` : "Sem pagamento"}</span>}{sale.temComprovantePix && <span className="inline-flex items-center gap-1 text-text-faint"><FileImage size={12} />Comprovante</span>}</span>
-      <span className="text-sm font-semibold tabular-nums md:text-right">{money(sale.valor)}</span>
+      <span className="text-sm font-semibold tabular-nums md:text-right">{money(sale.valor)}{sale.canal === "Mercado Livre" && sale.recebido != null && <span className="mt-0.5 block text-[10px] font-medium text-text-muted">Líquido recebido {money(sale.recebido)}</span>}</span>
       <span className={`w-fit rounded-full px-2 py-1 text-[10px] font-semibold md:ml-auto ${sale.reconciliation.kind === "unavailable" ? "bg-surface-inset text-text-muted" : sale.reconciliation.kind === "settled" ? "bg-positive-bg text-positive" : sale.reconciliation.kind === "needs-review" ? "bg-info-bg text-info" : "bg-warning-bg text-warning"}`}>{sale.reconciliation.kind === "unavailable" ? "Financeiro restrito" : sale.reconciliation.kind === "settled" ? "Pago" : sale.reconciliation.kind === "needs-review" ? "Conciliação necessária" : `Saldo ${money(sale.reconciliation.outstanding)}`}</span>
     </motion.button>)}</div>
+    {visibleCount < sales.length && <button type="button" onClick={() => setVisibleCount((count) => count + 40)} className="flex min-h-11 w-full items-center justify-center border-t border-border-default px-4 text-xs font-semibold text-accent transition-colors hover:bg-surface-raised">Mostrar mais vendas ({sales.length - visibleCount} restantes)</button>}
     <div className="border-t border-border-default px-4 py-3 text-center text-[10px] text-text-faint">Dados reais em modo somente leitura · selecione uma venda para abrir os detalhes</div>
   </div>;
 }
@@ -503,7 +507,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
 
     <SaleDetailDrawer sale={saleDetail} onClose={() => setSaleDetail(null)} />
     <PendingEditDrawer pending={pendingEdit} canEdit={pendingEdit?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("vendas.editar")} onClose={() => setPendingEdit(null)} onSaved={() => setReloadKey((value) => value + 1)} />
-    {embutido && <NovaVendaDrawer isOpen={novaVendaAberta} onClose={() => setNovaVendaAberta(false)} onSaved={() => setReloadKey((value) => value + 1)} />}
+    {embutido && novaVendaAberta && <Suspense fallback={null}><NovaVendaDrawer isOpen onClose={() => setNovaVendaAberta(false)} onSaved={() => setReloadKey((value) => value + 1)} /></Suspense>}
     {!embutido && <footer className="border-t border-border-default bg-surface-card px-4 py-4 text-center font-mono text-[9px] uppercase tracking-[0.12em] text-text-faint">RK Sucatas · dados reais · modo somente leitura</footer>}
   </div>;
 }

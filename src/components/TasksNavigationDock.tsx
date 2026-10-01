@@ -22,7 +22,7 @@ type TooltipState = {
 
 // Quatro atalhos diretos preservam o uso diário no celular. O restante fica
 // no painel "Mais", sem obrigar a dock a virar uma barra horizontal rolável.
-const MOBILE_MAIN_IDS = ['dashboard', 'tarefas', 'vendas', 'caixa'] as const;
+const MOBILE_MAIN_IDS = ['dashboard', 'estoque', 'vendas', 'tarefas'] as const;
 
 function DockIcon({
   item,
@@ -194,9 +194,10 @@ export function TasksNavigationDock({
           data-dock-scroll-region
           className="pointer-events-auto hidden max-w-[calc(100vw-1rem)] items-end gap-1 overflow-x-auto overscroll-x-contain rounded-[1.35rem] border border-slate-200/90 bg-white/80 p-1.5 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex sm:gap-1.5 sm:p-2"
         >
-          {items.map((item) => (
+          {mobileMainItems.map((item) => (
             <DockIcon key={item.id} item={item} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
           ))}
+          <PlainDockButton item={{ id: 'more', label: 'Mais opções de navegação', active: mobileMoreActive, icon: mobileMoreOpen ? X : MoreHorizontal, onClick: () => setMobileMoreOpen((open) => !open) }} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
         </div>
 
         <div data-testid="tasks-navigation-mobile" className="pointer-events-auto flex items-end gap-1.5 rounded-[1.35rem] border border-slate-200/90 bg-white/85 p-2 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl lg:hidden">
@@ -237,7 +238,7 @@ export function TasksNavigationDock({
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
               onClick={() => setMobileMoreOpen(false)}
-              className="cursor-pointer pointer-events-auto fixed inset-0 z-[110] bg-slate-950/20 lg:hidden"
+              className="cursor-pointer pointer-events-auto fixed inset-0 z-[110] bg-slate-950/20"
             />
             <motion.div
               role="dialog"
@@ -246,7 +247,7 @@ export function TasksNavigationDock({
               initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: 12 }}
-              className="pointer-events-auto fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[130] max-h-[min(70vh,34rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.2)] lg:hidden"
+              className="pointer-events-auto fixed inset-x-3 bottom-[calc(4.75rem+env(safe-area-inset-bottom))] z-[130] max-h-[min(70vh,34rem)] overflow-y-auto rounded-2xl border border-slate-200 bg-white p-4 shadow-[0_20px_60px_rgba(15,23,42,0.2)] lg:inset-x-auto lg:left-1/2 lg:w-[30rem] lg:-translate-x-1/2"
             >
               <div className="mb-3 flex items-center justify-between">
                 <div>

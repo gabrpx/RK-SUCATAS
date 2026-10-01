@@ -31,6 +31,8 @@ vi.mock('../../context/DataContext', () => ({
     vendas: mockEstado.vendas,
     setVendas: vi.fn(),
     estoque: mockEstado.estoque,
+    clientes: [],
+    motosClientes: [],
     fiadoRecebimentos: [],
     refreshData: vi.fn(),
     loading: false,

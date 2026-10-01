@@ -41,11 +41,11 @@ export function SaleDetailDrawer({ sale, onClose }: { sale: SaleViewModel | null
       </header>
 
       <section aria-label="Resumo financeiro da venda" className={`rounded-card border p-4 ${pago ? "border-positive/20 bg-positive-bg/60" : "border-warning/25 bg-warning-bg/60"} ${sale.canal === "Mercado Livre" ? "meli-sale-highlight border-[#e7ca00]" : ""}`}>
-        <p className="flex items-center gap-2 text-xs font-semibold text-text-secondary">{indisponivel || precisaConciliar ? <ShoppingBag size={15} /> : pago ? <ArrowDownLeft size={15} className="text-positive" /> : <ShoppingBag size={15} className="text-warning" />}{indisponivel ? "Situação financeira" : precisaConciliar ? "Registro sem lançamento vinculado" : pago ? "Total recebido" : "Saldo em aberto"}</p>
+        <p className="flex items-center gap-2 text-xs font-semibold text-text-secondary">{indisponivel || precisaConciliar ? <ShoppingBag size={15} /> : pago ? <ArrowDownLeft size={15} className="text-positive" /> : <ShoppingBag size={15} className="text-warning" />}{indisponivel ? "Situação financeira" : precisaConciliar ? "Registro sem lançamento vinculado" : pago ? sale.canal === "Mercado Livre" ? "Líquido recebido" : "Total recebido" : "Saldo em aberto"}</p>
         <p className="mt-1 text-2xl font-semibold tracking-tight tabular-nums text-text-primary">{indisponivel ? "Sem acesso ao Caixa" : precisaConciliar ? "Revisar no Caixa" : money(pago ? sale.recebido ?? 0 : saldo ?? 0)}</p>
         <div className="mt-3 grid grid-cols-2 gap-3 border-t border-slate-200/80 pt-3 text-xs">
-          <div><p className="text-text-muted">Total da venda</p><p className="mt-0.5 font-semibold tabular-nums text-text-primary">{money(sale.valor)}</p></div>
-          <div><p className="text-text-muted">Já recebido</p><p className="mt-0.5 font-semibold tabular-nums text-text-primary">{indisponivel || precisaConciliar ? "—" : money(sale.recebido ?? 0)}</p></div>
+          <div><p className="text-text-muted">Valor da venda</p><p className="mt-0.5 font-semibold tabular-nums text-text-primary">{money(sale.valor)}</p></div>
+          <div><p className="text-text-muted">{sale.canal === "Mercado Livre" ? "Líquido recebido" : "Recebido até agora"}</p><p className="mt-0.5 font-semibold tabular-nums text-text-primary">{indisponivel || precisaConciliar ? "—" : money(sale.recebido ?? 0)}</p></div>
         </div>
       </section>
 

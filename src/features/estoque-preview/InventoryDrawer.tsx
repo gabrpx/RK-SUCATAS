@@ -8,6 +8,7 @@ interface InventoryDrawerProps {
   onClose: () => void;
   title: string;
   children: React.ReactNode;
+  footer?: React.ReactNode;
 }
 
 /**
@@ -78,7 +79,7 @@ const springLateral = { type: "spring", damping: 28, stiffness: 280 } as const;
  * aparência clara desta nova operação. Não altera o drawer compartilhado,
  * pois outras telas ainda dependem dos tokens visuais legados.
  */
-export function InventoryDrawer({ isOpen, onClose, title, children }: InventoryDrawerProps) {
+export function InventoryDrawer({ isOpen, onClose, title, children, footer }: InventoryDrawerProps) {
   const reduzirMovimento = useReducedMotion();
   const tokens = React.useContext(InventoryTokensContext);
   return <DialogPrimitive.Root open={isOpen} onOpenChange={(aberto) => { if (!aberto) onClose(); }}>
@@ -88,10 +89,11 @@ export function InventoryDrawer({ isOpen, onClose, title, children }: InventoryD
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18 }} style={{ ...tokens, ...Z_DRAWER }} className="fixed inset-0 bg-overlay-scrim backdrop-blur-[1px]" />
         </DialogPrimitive.Overlay>
         <DialogPrimitive.Content asChild forceMount>
-          <motion.aside initial={reduzirMovimento ? { opacity: 0 } : { x: "100%" }} animate={reduzirMovimento ? { opacity: 1 } : { x: 0 }} exit={reduzirMovimento ? { opacity: 0 } : { x: "100%" }} transition={reduzirMovimento ? { duration: 0.15 } : springLateral} style={{ ...tokens, ...Z_DRAWER }} className="fixed inset-y-0 right-0 w-full max-w-[32rem] overflow-y-auto overscroll-contain border-l border-border-default bg-surface-card font-[Geist,Inter,ui-sans-serif,system-ui,sans-serif] text-text-primary shadow-lg outline-none">
-            <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-border-default bg-surface-card/95 p-4 pt-[max(2.75rem,calc(env(safe-area-inset-top)+0.75rem))] backdrop-blur sm:py-4"><DialogPrimitive.Title className="min-w-0 break-words text-base font-semibold tracking-tight text-text-primary">{title}</DialogPrimitive.Title><DialogPrimitive.Close aria-label="Fechar" className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-control text-text-muted transition hover:bg-surface-inset hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><X size={18} /></DialogPrimitive.Close></div>
+          <motion.aside initial={reduzirMovimento ? { opacity: 0 } : { x: "100%" }} animate={reduzirMovimento ? { opacity: 1 } : { x: 0 }} exit={reduzirMovimento ? { opacity: 0 } : { x: "100%" }} transition={reduzirMovimento ? { duration: 0.15 } : springLateral} style={{ ...tokens, ...Z_DRAWER }} className="fixed inset-y-0 right-0 flex h-[100dvh] w-full max-w-[32rem] flex-col overflow-hidden border-l border-border-default bg-surface-card font-[Geist,Inter,ui-sans-serif,system-ui,sans-serif] text-text-primary shadow-lg outline-none">
+            <div className="z-10 flex shrink-0 items-center justify-between gap-3 border-b border-border-default bg-surface-card p-4 pt-[max(2.75rem,calc(env(safe-area-inset-top)+0.75rem))] sm:py-4"><DialogPrimitive.Title className="min-w-0 break-words text-base font-semibold tracking-tight text-text-primary">{title}</DialogPrimitive.Title><DialogPrimitive.Close aria-label="Fechar" className="grid size-11 shrink-0 cursor-pointer place-items-center rounded-control text-text-muted transition hover:bg-surface-inset hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><X size={18} /></DialogPrimitive.Close></div>
             <VisuallyHidden.Root asChild><DialogPrimitive.Description>Conteúdo do drawer de estoque</DialogPrimitive.Description></VisuallyHidden.Root>
-            <div className="p-4 sm:p-5">{children}</div>
+            <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-5">{children}</div>
+            {footer && <div className="z-10 shrink-0 border-t border-border-default bg-surface-card px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] sm:px-5">{footer}</div>}
           </motion.aside>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>}

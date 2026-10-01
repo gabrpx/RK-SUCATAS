@@ -1,18 +1,21 @@
-import {StrictMode} from 'react';
+import {StrictMode, Suspense, lazy} from 'react';
 import {createRoot} from 'react-dom/client';
 import {Capacitor} from '@capacitor/core';
 import {CapacitorUpdater} from '@capgo/capacitor-updater';
-import App from './App.tsx';
-import { EstoquePreview } from './features/estoque-preview/EstoquePreview.tsx';
 import { ehRotaEstoquePreview } from './features/estoque-preview/previewRoute.ts';
-import { VendasPreview } from './features/vendas-preview/VendasPreview.tsx';
 import { ehRotaVendasPreview } from './features/vendas-preview/previewRoute.ts';
 import './index.css';
+
+const App = lazy(() => import('./App.tsx'));
+const EstoquePreview = lazy(() => import('./features/estoque-preview/EstoquePreview.tsx').then((mod) => ({ default: mod.EstoquePreview })));
+const VendasPreview = lazy(() => import('./features/vendas-preview/VendasPreview.tsx').then((mod) => ({ default: mod.VendasPreview })));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     {/* Estoque segue isolado; Vendas consulta clientes e motos por endpoints de leitura autorizados. */}
-    {ehRotaVendasPreview(window.location.pathname) ? <VendasPreview /> : ehRotaEstoquePreview(window.location.pathname) ? <EstoquePreview /> : <App />}
+    <Suspense fallback={<div role="status" className="flex min-h-screen items-center justify-center text-sm text-slate-500">Carregando sistema…</div>}>
+      {ehRotaVendasPreview(window.location.pathname) ? <VendasPreview /> : ehRotaEstoquePreview(window.location.pathname) ? <EstoquePreview /> : <App />}
+    </Suspense>
   </StrictMode>,
 );
 

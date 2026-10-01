@@ -46,6 +46,16 @@ describe('buildSaleViewModels', () => {
     expect(settled.reconciliation).toEqual({ kind: 'settled', received: 100 });
   });
 
+  it('separa bruto e líquido de venda Mercado Livre sem criar saldo fictício', () => {
+    const [result] = buildSaleViewModels(
+      [venda('avista', { canal: 'mercado_livre', valor_total: 230.73 })],
+      [entrada(201.73)], [], { canViewCash: true },
+    );
+    expect(result.valor).toBe(230.73);
+    expect(result.reconciliation).toEqual({ kind: 'settled', received: 201.73 });
+    expect(result.recebido).toBe(201.73);
+  });
+
   it('não infere situação financeira sem permissão de Caixa', () => {
     const immediate = buildSaleViewModels([venda('avista')], [entrada(100)], [], { canViewCash: false })[0];
     const credit = buildSaleViewModels([venda('fiado')], [], [recebimento(40)], { canViewCash: false })[0];

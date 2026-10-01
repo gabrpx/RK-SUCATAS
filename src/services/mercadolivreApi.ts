@@ -183,6 +183,9 @@ export interface ItemPedidoML {
   // alternativo `payments[].marketplace_fee` veio 0 no mesmo pedido, então
   // não é confiável.
   sale_fee?: number;
+  // Parcela dos descontos/campanhas que fica por conta do vendedor. A API
+  // pode devolver mais de uma campanha na mesma linha.
+  discounts?: Array<{ amounts?: { seller?: number | null } | null }>;
 }
 
 export interface PedidoML {
@@ -239,9 +242,13 @@ export function encontrarItemPedido(pedido: PedidoML, mlItemId: string): ItemPed
 // visivelmente diferente de "sei que é zero"). Quem chama decide o fallback
 // (import novo cai pra null em registrar_venda, que usa o valor cheio; a
 // correção retroativa reporta como falha e pula a linha).
-export function calcularValorRecebido(valorTotal: number, saleFee: number | null | undefined, custoEnvio: number | null | undefined): number | null {
+export function calcularValorRecebido(valorTotal: number, saleFee: number | null | undefined, custoEnvio: number | null | undefined, descontoVendedor = 0): number | null {
   if (saleFee == null || custoEnvio == null) return null;
-  return valorTotal - saleFee - custoEnvio;
+  return Math.round((valorTotal - saleFee - custoEnvio - Math.max(0, descontoVendedor)) * 100) / 100;
+}
+
+export function calcularDescontoVendedor(linha: ItemPedidoML | null | undefined): number {
+  return Math.round((linha?.discounts ?? []).reduce((total, desconto) => total + (Number(desconto.amounts?.seller) || 0), 0) * 100) / 100;
 }
 
 // Quanto de valorTotal (soma de quantity*unit_price de todos os order_items)

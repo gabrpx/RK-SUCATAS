@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { Tabs, TabsContent, TabsContents, TabsList, TabsTrigger } from "@/src/components/animate-ui/components/animate/tabs";
 import { Combobox } from "@/src/components/ui/Combobox";
+import { CurrencyInput } from "@/src/components/ui/CurrencyInput";
 import { InventoryDrawer } from "./InventoryDrawer";
 import { SeletorCliente } from "@/src/features/clientes/SeletorCliente";
 import { InventoryPhotoGallery } from "./InventoryPhotoGallery";
@@ -178,7 +179,7 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
     </div>
     <div className="grid gap-4 sm:grid-cols-2">
       <label className="block text-sm font-semibold text-text-secondary">Sinal pago (R$)
-        <input aria-label="Valor do sinal" inputMode="decimal" className={inputClass} value={valorSinal} onChange={(event) => setValorSinal(event.target.value)} />
+        <CurrencyInput aria-label="Valor do sinal" size="lg" value={valorSinal ? Math.round(numeroBr(valorSinal) * 100) : null} onChange={(centavos) => setValorSinal(centavos == null ? "" : textoMoeda(centavos / 100))} />
         <span className={`mt-1.5 block text-xs font-normal ${valorSinal && !sinalValido ? "text-danger" : "text-text-muted"}`}>{minimo != null && unidade.preco != null ? `Mínimo ${moeda(minimo)} (${PERCENTUAL_SINAL_MINIMO}% de ${moeda(unidade.preco)}); máximo ${moeda(unidade.preco)}.` : "Defina o preço da unidade primeiro."}</span>
       </label>
       <div className="text-sm font-semibold text-text-secondary">
@@ -195,7 +196,7 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
   const formularioEdicao = <section aria-labelledby="editar-unidade" className="space-y-5">
     <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-soft-fg">Editar unidade</p><h3 id="editar-unidade" className="mt-1 text-lg font-semibold">Altere somente o que mudou nesta peça física</h3></div>
     <div className="grid gap-4 sm:grid-cols-2">
-      <label className="text-sm font-semibold text-text-secondary">Preço de venda<input aria-label="Preço da unidade" type="number" min="0.01" step="0.01" className={inputClass} value={preco} onChange={(event) => setPreco(event.target.value)} placeholder={operacional ? "Obrigatório" : "Pode definir depois"} /></label>
+      <label className="text-sm font-semibold text-text-secondary">Preço de venda<CurrencyInput aria-label="Preço da unidade" size="lg" value={preco ? Math.round(Number(preco) * 100) : null} onChange={(centavos) => setPreco(centavos == null ? "" : String(centavos / 100))} placeholder={operacional ? "Obrigatório" : "Pode definir depois"} /></label>
       <fieldset><legend className="text-sm font-semibold text-text-secondary">Condição</legend><div className="mt-1 grid grid-cols-3 gap-2">{(["A", "B", "C"] as const).map((opcao) => <button key={opcao} type="button" aria-pressed={grau === opcao} onClick={() => setGrau(opcao)} className={`h-11 cursor-pointer rounded-control border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 active:scale-[.98] ${grau === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-muted hover:border-accent/30"}`}>Grau {opcao}</button>)}</div></fieldset>
     </div>
     <label className="block text-sm font-semibold text-text-secondary">Origem <span className="font-normal text-text-faint">(opcional)</span><input className={inputClass} value={origem} onChange={(event) => setOrigem(event.target.value)} placeholder="Não identificada" /></label>
@@ -268,7 +269,7 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
         {podeEditar && <button type="button" onClick={() => setModo("editar")} className={botaoPrimario}><Pencil size={16} />Editar unidade</button>}
       </div>;
 
-  return <InventoryDrawer isOpen onClose={onFechar} title={`Detalhes da unidade ${unidade.sku}`}>
+  return <InventoryDrawer isOpen onClose={onFechar} title={`Detalhes da unidade ${unidade.sku}`} footer={<div className="flex flex-wrap items-center justify-between gap-3">{rodapeEsquerda}{rodapeDireita}</div>}>
     <div className="space-y-5">
       <header className="border-b border-border-subtle pb-4">
         <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-soft-fg">Ficha da unidade</p>
@@ -279,7 +280,6 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
       <AnimatePresence mode="wait" initial={false}>
         <motion.div key={modo} {...transicaoModo}>{modo === "reservar" ? formularioReserva : modo === "editar" ? formularioEdicao : detalhe}</motion.div>
       </AnimatePresence>
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle pt-4">{rodapeEsquerda}{rodapeDireita}</footer>
     </div>
   </InventoryDrawer>;
 }

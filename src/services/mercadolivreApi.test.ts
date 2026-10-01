@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 vi.mock('axios', () => ({ default: { get: vi.fn() } }));
 
 import axios from 'axios';
-import { buscarPedido, buscarCustoEnvioVendedor, buscarEnvio, calcularValorRecebido, alocarCustoEnvio, resolverNomeComprador } from './mercadolivreApi.js';
+import { buscarPedido, buscarCustoEnvioVendedor, buscarEnvio, calcularValorRecebido, calcularDescontoVendedor, alocarCustoEnvio, resolverNomeComprador } from './mercadolivreApi.js';
 
 beforeEach(() => vi.clearAllMocks());
 
@@ -103,6 +103,10 @@ describe('buscarCustoEnvioVendedor', () => {
 });
 
 describe('calcularValorRecebido', () => {
+  it('desconta a parcela de campanha financiada pelo vendedor', () => {
+    expect(calcularDescontoVendedor({ discounts: [{ amounts: { seller: 20 } }, { amounts: { seller: 9 } }] } as any)).toBe(29);
+    expect(calcularValorRecebido(290.03, 33.85, 25.45, 29)).toBe(201.73);
+  });
   it('desconta comissão e frete do valor total', () => {
     expect(calcularValorRecebido(750, 127.5, 24.45)).toBeCloseTo(598.05);
   });

@@ -16,6 +16,18 @@ describe('<CurrencyInput>', () => {
     fireEvent.change(screen.getByLabelText('Preço'), { target: { value: 'R$ 12,34' } });
     expect(onChange).toHaveBeenCalledWith(1234);
   });
+  it('mantém R$ visível e permite apagar somente o valor numérico', () => {
+    const onChange = vi.fn();
+    render(<CurrencyInput label="Preço" value={null} onChange={onChange} />);
+    const input = screen.getByLabelText('Preço') as HTMLInputElement;
+    expect(input.value).toBe('');
+    expect(input.parentElement?.textContent).toContain('R$');
+    fireEvent.change(input, { target: { value: '12,50' } });
+    expect(onChange).toHaveBeenLastCalledWith(1250);
+    fireEvent.change(input, { target: { value: '' } });
+    expect(onChange).toHaveBeenLastCalledWith(null);
+    expect(input.parentElement?.textContent).toContain('R$');
+  });
   it('stepper +/- respeita stepCents', () => {
     const onChange = vi.fn();
     render(<CurrencyInput label="P" value={500} onChange={onChange} showStepper stepCents={100} />);

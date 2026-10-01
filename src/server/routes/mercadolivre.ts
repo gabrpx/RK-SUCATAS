@@ -262,6 +262,7 @@ export function mercadolivreRouter(supabase: SupabaseClient) {
         mlShippingId: i.ml_shipping_id ? String(i.ml_shipping_id) : null,
         mlSaleFee: i.ml_sale_fee != null ? Number(i.ml_sale_fee) : null,
         mlCustoEnvio: i.ml_custo_envio != null ? Number(i.ml_custo_envio) : null,
+        mlDescontoVendedor: Number(i.ml_desconto_vendedor) || 0,
       }));
 
       const resultado = await importarPedidosEmLote(supabase, itens);

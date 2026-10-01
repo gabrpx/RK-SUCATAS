@@ -13,7 +13,7 @@ vi.mock('@/src/components/ui/Combobox', () => ({
 }));
 
 vi.mock('./InventoryDrawer', () => ({
-  InventoryDrawer: ({ isOpen, title, children }: any) => isOpen ? <section role="dialog" aria-label={title}>{children}</section> : null,
+  InventoryDrawer: ({ isOpen, title, children, footer }: any) => isOpen ? <section role="dialog" aria-label={title}>{children}{footer}</section> : null,
 }));
 
 vi.mock('../estoque/EstoqueUploadFotos', () => ({ EstoqueUploadFotos: () => null }));
@@ -124,9 +124,38 @@ describe('cadastro operacional de estoque', () => {
 
     fireEvent.click(tela.getByRole('button', { name: 'Próximo' }));
     const preco = await tela.findByLabelText('Preço da unidade');
-    expect((preco as HTMLInputElement).value).toBe('180');
+    expect((preco as HTMLInputElement).value).toBe('180,00');
 
     fireEvent.change(preco, { target: { value: '150' } });
     expect((preco as HTMLInputElement).value).toBe('150');
+  });
+
+  it('herda a origem de uma unidade real e deixa moto e lote editáveis', async () => {
+    const onSalvar = vi.fn().mockResolvedValue({ completo: true, mensagem: 'Unidade cadastrada.' });
+    render(<InventoryComposer aberto pecaInicialId="p-1"
+      categorias={[{ id: 'cat-1', nome: 'Peças' }] as any}
+      pecas={[{ id: 'p-1', codigoLegado: 'RK-1', nome: 'Farol', categoriaId: 'cat-1', compatibilidades: ['CG 160'], detalhes: '' }] as any}
+      unidades={[{ id: 'u-1', pecaId: 'p-1', sku: 'RK-1-01', origem: 'CG 125 Titan 1998 · Lote: L-42', estado: 'disponivel', preco: 100 }] as any}
+      onFechar={vi.fn()} onSalvar={onSalvar} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Próximo' }));
+    expect((screen.getByLabelText('Moto de origem') as HTMLInputElement).value).toBe('CG 125 Titan 1998');
+    expect((screen.getByLabelText('Lote da moto de origem') as HTMLInputElement).value).toBe('L-42');
+    fireEvent.change(screen.getByLabelText('Lote da moto de origem'), { target: { value: 'L-43' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Próximo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Próximo' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar unidade' }));
+    await waitFor(() => expect(onSalvar).toHaveBeenCalledOnce());
+    expect(onSalvar.mock.calls[0][0].origem).toBe('CG 125 Titan 1998 · Lote: L-43');
+  });
+
+  it('sugere a moto exibida quando a peça existente ainda não tem origem de unidade', () => {
+    render(<InventoryComposer aberto pecaInicialId="p-1"
+      categorias={[{ id: 'cat-1', nome: 'Peças' }] as any}
+      pecas={[{ id: 'p-1', codigoLegado: 'RK-1', nome: 'Farol', categoriaId: 'cat-1', compatibilidades: ['CG 160 · 2016 a 2020'], detalhes: '' }] as any}
+      unidades={[]} onFechar={vi.fn()} onSalvar={vi.fn()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Próximo' }));
+    expect((screen.getByLabelText('Moto de origem') as HTMLInputElement).value).toBe('CG 160 · 2016 a 2020');
+    fireEvent.change(screen.getByLabelText('Moto de origem'), { target: { value: 'CG 160 2018' } });
+    expect((screen.getByLabelText('Moto de origem') as HTMLInputElement).value).toBe('CG 160 2018');
   });
 });

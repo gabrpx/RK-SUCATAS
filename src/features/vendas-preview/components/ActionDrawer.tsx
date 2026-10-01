@@ -29,7 +29,7 @@ const label = "block text-xs font-semibold text-text-secondary";
 const meios: MeioPagamentoDemo[] = ["Pix", "Dinheiro", "Cartão de débito", "Cartão de crédito"];
 
 function CampoMoeda({ label, value, onChange }: { label: string; value: number; onChange: (value: number) => void }) {
-  return <CurrencyInput label={label} size="lg" value={Math.round(Math.max(0, value) * 100)} onChange={(centavos) => onChange(centavos / 100)} className="tabular-nums" />;
+  return <CurrencyInput label={label} size="lg" value={value > 0 ? Math.round(value * 100) : null} onChange={(centavos) => onChange((centavos ?? 0) / 100)} className="tabular-nums" />;
 }
 
 export function ActionDrawer({ action, onClose, onConfirm, clientes, motosClientes, statusClientes }: { action: AcaoPreview | null; onClose: () => void; onConfirm: (action: AcaoConfirmada) => void; clientes: Cliente[]; motosClientes: ClienteMotoResumo[]; statusClientes: "carregando" | "pronto" | "restrito" | "erro" }) {
@@ -91,6 +91,7 @@ export function ActionDrawer({ action, onClose, onConfirm, clientes, motosClient
     isOpen={Boolean(action)}
     onClose={onClose}
     title={title}
+    footer={<div className="flex flex-wrap justify-end gap-2"><Button type="button" variant="ghost" size="mobile" onClick={onClose}>Cancelar</Button><Button type="button" variant="default" size="mobile" className="bg-accent text-white shadow-sm hover:bg-accent-hover" onClick={submit}>{action?.tipo === "cobranca" ? <><ArrowUpRight size={15} />Marcar como tratada</> : action?.tipo === "venda" ? "Adicionar à demonstração" : action?.tipo === "pagamento" ? "Registrar recebimento" : "Adicionar à demonstração"}</Button></div>}
   >
     <div className="mb-4 rounded-control border border-border-default bg-surface-inset px-3 py-2.5">
       <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Interação local · nada será gravado</p>
@@ -143,10 +144,6 @@ export function ActionDrawer({ action, onClose, onConfirm, clientes, motosClient
       {action.tipo === "conta" && <fieldset><legend className={label}>Recorrência</legend><div className="mt-2 flex flex-wrap gap-2">{(["Sem recorrência", "Semanal", "Mensal", "Anual"] as const).map((opcao) => <button key={opcao} type="button" aria-pressed={recorrencia === opcao} onClick={() => setRecorrencia(opcao)} className={`min-h-10 rounded-full border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 ${recorrencia === opcao ? "border-accent/25 bg-accent-soft-bg text-accent" : "border-border-default bg-surface-card text-text-muted hover:text-text-primary"}`}>{opcao}</button>)}</div></fieldset>}
     </div>}
     {action?.tipo === "cobranca" && <div className="space-y-3"><div className="rounded-control border border-warning/25 bg-warning-bg p-3 text-sm"><p className="font-semibold">{action.pendencia.nome} · saldo {moedas(action.pendencia.total - action.pendencia.pago)}</p><p className="mt-1 text-xs leading-5 text-text-secondary">Texto sugerido para revisão: “Olá, {action.pendencia.nome.split(" ")[0]}. Estou entrando em contato para confirmar o pagamento pendente. Quando puder, me avise por aqui.”</p></div><p className="text-xs leading-5 text-text-muted">Marcar como tratada encerra o destaque interno, mas a pendência continua na fila.</p></div>}
-    </div>
-    <div className="sticky bottom-0 z-10 -mx-4 -mb-4 mt-5 flex flex-wrap justify-end gap-2 border-t border-border-default bg-surface-card/95 px-4 pb-[calc(env(safe-area-inset-bottom)+1rem)] pt-3 backdrop-blur sm:-mx-5 sm:-mb-5 sm:px-5">
-      <Button type="button" variant="ghost" size="mobile" onClick={onClose}>Fechar</Button>
-      <Button type="button" variant="default" size="mobile" className="bg-accent text-white shadow-sm hover:bg-accent-hover" onClick={submit}>{action?.tipo === "cobranca" ? <><ArrowUpRight size={15} />Marcar como tratada</> : action?.tipo === "venda" ? "Adicionar à demonstração" : action?.tipo === "pagamento" ? "Registrar recebimento" : "Adicionar à demonstração"}</Button>
     </div>
   </InventoryDrawer>;
 }

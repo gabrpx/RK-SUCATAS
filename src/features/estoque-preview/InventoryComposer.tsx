@@ -1,6 +1,7 @@
 import { CheckCircle2, Layers3, Loader2, PackagePlus, Sparkles, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Combobox } from "@/src/components/ui/Combobox";
+import { CurrencyInput } from "@/src/components/ui/CurrencyInput";
 import { InventoryDrawer } from "./InventoryDrawer";
 import { EstoqueUploadFotos } from "../estoque/EstoqueUploadFotos";
 import { formatarNomeModeloMoto } from "../motos/nomeModelo";
@@ -98,6 +99,9 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
   const [precoEditado, setPrecoEditado] = useState(false);
   const [grau, setGrau] = useState<GrauUnidade>("B");
   const [origem, setOrigem] = useState("");
+  const [loteOrigem, setLoteOrigem] = useState("");
+  const [origemEditada, setOrigemEditada] = useState(false);
+  const [unidadeOrigemId, setUnidadeOrigemId] = useState("");
   const [endereco, setEndereco] = useState("");
   const [erroEtapa, setErroEtapa] = useState<string | null>(null);
   const [fotos, setFotos] = useState<File[]>([]);
@@ -106,6 +110,7 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
   const [cadastroParcial, setCadastroParcial] = useState(false);
 
   const pecaEscolhida = pecas.find((peca) => peca.id === pecaId);
+  const unidadesDeOrigem = useMemo(() => unidades.filter((unidade) => unidade.pecaId === pecaId && Boolean(unidade.origem?.trim())), [unidades, pecaId]);
   const semelhantes = useMemo(() => modo === "nova"
     ? pecas
       .map((peca) => ({ peca, score: pontuarSemelhanca(nome, peca) }))
@@ -137,6 +142,20 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
     setPreco(padrao?.toString() ?? "");
   }, [aberto, modo, pecaId, precoEditado, unidades]);
   useEffect(() => {
+    if (!aberto || origemEditada) return;
+    if (modo === "nova") {
+      setOrigem(compatibilidade ? [compatibilidade, anoCompatibilidade].filter(Boolean).join(" · ") : "");
+      setLoteOrigem("");
+      return;
+    }
+    if (!pecaId) return;
+    const referencia = unidadesDeOrigem.find((unidade) => unidade.id === unidadeOrigemId) ?? unidadesDeOrigem[0];
+    const [moto, lote] = (referencia?.origem ?? pecaEscolhida?.compatibilidades[0] ?? "").split(/\s*[·|]\s*Lote:\s*/i);
+    setUnidadeOrigemId(referencia?.id ?? "");
+    setOrigem(moto ?? "");
+    setLoteOrigem(lote ?? "");
+  }, [aberto, modo, pecaId, origemEditada, unidadeOrigemId, unidadesDeOrigem, pecaEscolhida?.compatibilidades, compatibilidade, anoCompatibilidade]);
+  useEffect(() => {
     if (aberto) return;
     if (fotosEnviadas.current.size) {
       onDescartarFotos?.([...fotosEnviadas.current.values()]);
@@ -157,6 +176,9 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
     setPrecoEditado(false);
     setGrau("B");
     setOrigem("");
+    setLoteOrigem("");
+    setOrigemEditada(false);
+    setUnidadeOrigemId("");
     setEndereco("");
     setErroEtapa(null);
     setFotos([]);
@@ -168,6 +190,8 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
     setModo("existente");
     setPecaId(peca.id);
     setPrecoEditado(false);
+    setOrigemEditada(false);
+    setUnidadeOrigemId("");
     setErroEtapa(null);
   }
 
@@ -195,7 +219,7 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
       novaPeca: modo === "nova" ? { nome: nome.trim(), categoriaId, condicao: condicaoOrigem, notaCadastro: notaCadastro || null, modeloMotoId: modeloMotoId || null, ano: anoCompatibilidade.trim() || null, compatibilidades: compatibilidade ? [compatibilidade.trim()] : [] } : undefined,
       preco: precoNumerico,
       grau,
-      origem: origem.trim() || null,
+      origem: [origem.trim(), loteOrigem.trim() ? `Lote: ${loteOrigem.trim()}` : ""].filter(Boolean).join(" · ") || null,
       fotoUrl: null,
       endereco: enderecoNormalizado,
       fotos,
@@ -225,7 +249,7 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
   }
 
   return (
-    <InventoryDrawer isOpen={aberto} onClose={onFechar} title="Nova peça e primeira unidade">
+    <InventoryDrawer isOpen={aberto} onClose={onFechar} title="Nova peça e primeira unidade" footer={<div className="flex items-center justify-between gap-3"><button type="button" disabled={salvando} onClick={() => cadastroParcial || !etapa ? onFechar() : setEtapa((atual) => atual - 1)} className="h-11 cursor-pointer rounded-control px-3 text-sm font-medium text-text-muted transition hover:bg-surface-raised hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:opacity-50">{cadastroParcial ? "Fechar e conferir" : etapa ? "Voltar" : "Cancelar"}</button>{!cadastroParcial && (etapa < 3 ? <button type="button" onClick={proxima} className="h-11 cursor-pointer rounded-control bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-[.98]">Próximo</button> : <button type="button" disabled={salvando} onClick={() => void salvar()} className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-control bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60">{salvando ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}{salvando ? "Salvando…" : "Salvar unidade"}</button>)}</div>}>
       <div className="space-y-5">
         <div className="rounded-control border border-accent/15 bg-accent-soft-bg/50 p-4">
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-soft-fg">Cadastro guiado · etapa {etapa + 1} de 4</p>
@@ -235,7 +259,7 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
         {etapa === 0 && <section className="space-y-4" aria-labelledby="identificar-peca">
           <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">1 · Identificar</p><h3 id="identificar-peca" className="mt-1 text-lg font-semibold text-text-primary">Qual peça física você está cadastrando?</h3><p className="mt-1 text-sm text-text-muted">Antes de criar outro nome, o sistema procura peças parecidas para não duplicar o catálogo.</p></div>
           <div className="grid gap-2 sm:grid-cols-2">
-            {(["nova", "existente"] as const).map((opcao) => <button key={opcao} type="button" aria-pressed={modo === opcao} onClick={() => { setModo(opcao); setErroEtapa(null); }} className={`cursor-pointer rounded-control border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 ${modo === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-secondary hover:border-accent/30 hover:bg-surface-raised"}`}>
+            {(["nova", "existente"] as const).map((opcao) => <button key={opcao} type="button" aria-pressed={modo === opcao} onClick={() => { setModo(opcao); setOrigemEditada(false); setUnidadeOrigemId(""); setErroEtapa(null); }} className={`cursor-pointer rounded-control border p-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 ${modo === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-secondary hover:border-accent/30 hover:bg-surface-raised"}`}>
               <span className="flex items-center gap-2 font-semibold">{opcao === "nova" ? <PackagePlus size={16} /> : <Layers3 size={16} />}{opcao === "nova" ? "Criar peça" : "Usar existente"}</span>
               <span className="mt-1 block text-xs leading-5 text-text-muted">{opcao === "nova" ? "Ainda não existe este tipo no catálogo" : "Adicionar outra unidade a um nome já cadastrado"}</span>
             </button>)}
@@ -249,20 +273,19 @@ export function InventoryComposer({ aberto, categorias, pecas, unidades = [], mo
               <Combobox label="Modelo e ano compatíveis" placeholder="Escolha no catálogo de motos" options={modelos.map((modelo) => ({ value: modelo.id, label: formatarNomeModeloMoto(modelo, modelos) }))} value={modeloMotoId} onChange={(id) => { const modelo = modelos.find((item) => item.id === id); setModeloMotoId(id); setAnoCompatibilidade(modelo?.ano ?? ""); setCompatibilidade(modelo ? formatarNomeModeloMoto(modelo, modelos) : ""); setCompatibilidadeAutomatica(false); }} size="lg" />
               <label className="block text-sm font-semibold text-text-secondary">Ano compatível <span className="font-normal text-text-faint">(editável)</span><input aria-label="Ano compatível" className={inputClass} value={anoCompatibilidade} onChange={(e) => setAnoCompatibilidade(e.target.value)} placeholder="Ex.: 94 a 99" /></label>
             </div>
-           </div> : <div className="space-y-2"><Combobox label="Peça existente" placeholder="Busque pelo nome ou código" options={pecas.map((peca) => ({ value: peca.id, label: `${peca.codigoLegado} · ${peca.nome}` }))} value={pecaId} onChange={(valor) => { setPecaId(valor); setPrecoEditado(false); setErroEtapa(null); }} size="lg" /><span className="block text-xs font-normal text-text-faint">O catálogo continua com um único nome; você só registra outra unidade.</span></div>}
+           </div> : <div className="space-y-2"><Combobox label="Peça existente" placeholder="Busque pelo nome ou código" options={pecas.map((peca) => ({ value: peca.id, label: `${peca.codigoLegado} · ${peca.nome}` }))} value={pecaId} onChange={(valor) => { setPecaId(valor); setPrecoEditado(false); setOrigemEditada(false); setUnidadeOrigemId(""); setErroEtapa(null); }} size="lg" /><span className="block text-xs font-normal text-text-faint">O catálogo continua com um único nome; você só registra outra unidade.</span></div>}
           {erroEtapa && <p role="alert" className="text-sm font-medium text-danger">{erroEtapa}</p>}
         </section>}
 
-        {etapa === 1 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">2 · Ficha da unidade</p><h3 className="mt-1 text-lg font-semibold">Detalhes desta peça física</h3><p className="mt-1 text-sm text-text-muted">O preço normal da peça vem pré preenchido e continua editável para avarias ou itens com partes extras.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-text-secondary">Preço de venda <span className="font-normal text-text-faint">(editável)</span><input ref={precoRef} aria-label="Preço da unidade" className={inputClass} type="number" min="0.01" step="0.01" value={preco} onChange={(e) => { setPreco(e.target.value); setPrecoEditado(true); }} placeholder="Deixe em branco para definir depois" /></label><fieldset><legend className="text-sm font-semibold text-text-secondary">Condição</legend><div className="mt-1 grid grid-cols-3 gap-2">{(["A", "B", "C"] as GrauUnidade[]).map((opcao) => <button key={opcao} type="button" aria-pressed={grau === opcao} onClick={() => setGrau(opcao)} className={`h-11 cursor-pointer rounded-control border text-sm font-semibold transition ${grau === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-muted hover:border-accent/30"}`}>Grau {opcao}</button>)}</div></fieldset></div><label className="block text-sm font-semibold text-text-secondary">Origem <span className="font-normal text-text-faint">(opcional)</span><input className={inputClass} value={origem} onChange={(e) => setOrigem(e.target.value)} placeholder="Ex.: lote, moto doadora ou não identificada" /></label><EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={(files) => setFotos((atuais) => [...atuais, ...files])} enviando={salvando} resumoCompressao={null} />{fotos.length > 0 && <ul className="space-y-1 text-xs text-text-secondary">{fotos.map((foto, indice) => <li key={`${foto.name}-${indice}`} className="flex items-center justify-between gap-3 rounded-control bg-surface-inset pl-3"><span className="truncate">{foto.name}</span><button type="button" aria-label={`Remover ${foto.name}`} disabled={salvando} onClick={() => setFotos((atuais) => atuais.filter((_, i) => i !== indice))} className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-control px-3 font-semibold text-danger transition hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-50"><X size={14} />Remover</button></li>)}</ul>}<p className="text-xs text-text-muted">As fotos desta unidade serão enviadas ao salvar. A foto geral do catálogo permanece separada.</p></section>}
+        {etapa === 1 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">2 · Ficha da unidade</p><h3 className="mt-1 text-lg font-semibold">Detalhes desta peça física</h3><p className="mt-1 text-sm text-text-muted">O preço normal da peça vem pré preenchido e continua editável para avarias ou itens com partes extras.</p></div><div className="grid gap-4 sm:grid-cols-2"><label className="text-sm font-semibold text-text-secondary">Preço de venda <span className="font-normal text-text-faint">(editável)</span><CurrencyInput ref={precoRef} aria-label="Preço da unidade" size="lg" value={preco ? Math.round(Number(preco) * 100) : null} onChange={(centavos) => { setPreco(centavos == null ? "" : String(centavos / 100)); setPrecoEditado(true); }} placeholder="Deixe em branco para definir depois" /></label><fieldset><legend className="text-sm font-semibold text-text-secondary">Condição</legend><div className="mt-1 grid grid-cols-3 gap-2">{(["A", "B", "C"] as GrauUnidade[]).map((opcao) => <button key={opcao} type="button" aria-pressed={grau === opcao} onClick={() => setGrau(opcao)} className={`h-11 cursor-pointer rounded-control border text-sm font-semibold transition ${grau === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-muted hover:border-accent/30"}`}>Grau {opcao}</button>)}</div></fieldset></div><div className="space-y-3">{modo === "existente" && unidadesDeOrigem.length > 1 && <Combobox label="Usar origem de uma unidade" placeholder="Escolha a unidade de referência" options={unidadesDeOrigem.map((unidade) => ({ value: unidade.id, label: `${unidade.sku} · ${unidade.origem}` }))} value={unidadeOrigemId} onChange={(id) => { setUnidadeOrigemId(id); setOrigemEditada(false); }} size="lg" />}<label className="block text-sm font-semibold text-text-secondary">Moto de origem <span className="font-normal text-text-faint">(editável, se identificada)</span><input aria-label="Moto de origem" className={inputClass} value={origem} onChange={(e) => { setOrigem(e.target.value); setOrigemEditada(true); }} placeholder="Ex.: CG 125 Titan 1998" /></label><label className="block text-sm font-semibold text-text-secondary">Lote da moto de origem <span className="font-normal text-text-faint">(opcional)</span><input aria-label="Lote da moto de origem" className={inputClass} value={loteOrigem} onChange={(e) => { setLoteOrigem(e.target.value); setOrigemEditada(true); }} placeholder="Informe o lote correto desta moto" /></label><p className="text-xs text-text-muted">A moto compatível com a peça pode ser diferente da moto de onde esta unidade saiu.</p></div><EstoqueUploadFotos imagens={[]} onRemoverImagem={() => {}} onArquivosSelecionados={(files) => setFotos((atuais) => [...atuais, ...files])} enviando={salvando} resumoCompressao={null} />{fotos.length > 0 && <ul className="space-y-1 text-xs text-text-secondary">{fotos.map((foto, indice) => <li key={`${foto.name}-${indice}`} className="flex items-center justify-between gap-3 rounded-control bg-surface-inset pl-3"><span className="truncate">{foto.name}</span><button type="button" aria-label={`Remover ${foto.name}`} disabled={salvando} onClick={() => setFotos((atuais) => atuais.filter((_, i) => i !== indice))} className="inline-flex min-h-11 cursor-pointer items-center gap-1 rounded-control px-3 font-semibold text-danger transition hover:bg-danger-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-danger/30 disabled:opacity-50"><X size={14} />Remover</button></li>)}</ul>}<p className="text-xs text-text-muted">As fotos desta unidade serão enviadas ao salvar. A foto geral do catálogo permanece separada.</p></section>}
 
         {etapa === 2 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">3 · Guardar</p><h3 className="mt-1 text-lg font-semibold">Onde ela ficará?</h3><p className="mt-1 text-sm text-text-muted">Escolha a prateleira e a seção. Se ainda não souber, deixe sem endereço e organize depois.</p></div><Combobox buttonRef={enderecoRef} label="Prateleira e seção" placeholder="Para organizar depois" options={enderecos} value={endereco} onChange={setEndereco} size="lg" />{operacional && !enderecos.length && <p className="text-sm text-text-muted">Nenhum local cadastrado. Cadastre uma prateleira no Mapa físico ou deixe para organizar depois.</p>}</section>}
 
-        {etapa === 3 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">4 · Conferir</p><h3 className="mt-1 text-lg font-semibold">Revise antes de cadastrar</h3><p className="mt-1 text-sm text-text-muted">Você poderá editar esta unidade depois, sem criar outra peça no catálogo.</p></div><dl className="divide-y divide-border-subtle rounded-control border border-border-default text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Peça</dt><dd className="text-right font-semibold text-text-primary">{modo === "nova" ? nome : pecaEscolhida?.nome}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Categoria</dt><dd className="text-right font-semibold text-text-primary">{categorias.find((categoria) => categoria.id === (modo === "nova" ? categoriaId : pecaEscolhida?.categoriaId))?.nome ?? "Não definida"}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Preço e condição</dt><dd className="font-semibold text-text-primary">{preco ? `R$ ${preco}` : "A definir"} · Grau {grau}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Origem</dt><dd className="font-semibold text-text-primary">{origem || "Não identificada"}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Local</dt><dd className="font-semibold text-text-primary">{enderecoNormalizado ?? "Para organizar"}</dd></div></dl></section>}
+        {etapa === 3 && <section className="space-y-4"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">4 · Conferir</p><h3 className="mt-1 text-lg font-semibold">Revise antes de cadastrar</h3><p className="mt-1 text-sm text-text-muted">Você poderá editar esta unidade depois, sem criar outra peça no catálogo.</p></div><dl className="divide-y divide-border-subtle rounded-control border border-border-default text-sm"><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Peça</dt><dd className="text-right font-semibold text-text-primary">{modo === "nova" ? nome : pecaEscolhida?.nome}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Categoria</dt><dd className="text-right font-semibold text-text-primary">{categorias.find((categoria) => categoria.id === (modo === "nova" ? categoriaId : pecaEscolhida?.categoriaId))?.nome ?? "Não definida"}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Preço e condição</dt><dd className="font-semibold text-text-primary">{preco ? Number(preco).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "A definir"} · Grau {grau}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Origem</dt><dd className="font-semibold text-text-primary">{[origem.trim(), loteOrigem.trim() ? `Lote: ${loteOrigem.trim()}` : ""].filter(Boolean).join(" · ") || "Não identificada"}</dd></div><div className="flex justify-between gap-4 p-3"><dt className="text-text-muted">Local</dt><dd className="font-semibold text-text-primary">{enderecoNormalizado ?? "Para organizar"}</dd></div></dl></section>}
         {etapa === 3 && <p className="text-xs text-text-muted">{fotos.length} {fotos.length === 1 ? "foto selecionada" : "fotos selecionadas"}{modo === "nova" ? ` · ${condicaoOrigem === "original" ? "Original" : "Paralela"}${notaCadastro ? ` · ${notaCadastro === "com_nota" ? "Com nota" : "Sem nota"}` : ""}` : ""}</p>}
 
         <ol className="grid grid-cols-4 gap-1 border-t border-border-subtle pt-4 text-center font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">{["Peça", "Unidade", "Local", "Conferir"].map((nomeEtapa, indice) => <li key={nomeEtapa} className={indice === etapa ? "text-accent-soft-fg" : ""}>{indice + 1}. {nomeEtapa}</li>)}</ol>
         {erroSalvar && <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg p-3 text-sm text-danger">{erroSalvar}</p>}
-        <footer className="flex items-center justify-between gap-3"><button type="button" disabled={salvando} onClick={() => cadastroParcial || !etapa ? onFechar() : setEtapa((atual) => atual - 1)} className="h-11 cursor-pointer rounded-control px-3 text-sm font-medium text-text-muted transition hover:bg-surface-raised hover:text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:opacity-50">{cadastroParcial ? "Fechar e conferir" : etapa ? "Voltar" : "Cancelar"}</button>{!cadastroParcial && (etapa < 3 ? <button type="button" onClick={proxima} className="h-11 cursor-pointer rounded-control bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-[.98]">Próximo</button> : <button type="button" disabled={salvando} onClick={() => void salvar()} className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-control bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-60">{salvando ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}{salvando ? "Salvando…" : "Salvar unidade"}</button>)}</footer>
       </div>
     </InventoryDrawer>
   );

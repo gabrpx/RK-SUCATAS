@@ -281,8 +281,8 @@ function StockRhythmCard({ unidades }: { unidades: UnidadeEstoque[] }) {
 }
 
 function StockListRow({ unidade, resultado, acoes }: { unidade: UnidadeEstoque | null; resultado: ReturnType<typeof buscarPecas>[number]; acoes: AcoesUnidade }) {
-  if (!unidade) return <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-negative/40 bg-negative-bg p-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-text-primary">{resultado.peca.codigoLegado}</strong><span className="rounded-badge border border-negative/30 bg-surface-card px-1.5 py-0.5 text-[10px] font-semibold text-negative">Sem estoque</span></div><p className="mt-1 truncate text-sm font-semibold text-text-secondary">{resultado.peca.nome}</p><p className="mt-1 text-xs text-negative">0 unidades físicas cadastradas</p></div>{acoes.podeCriar ? <button type="button" onClick={() => acoes.onAddUnit(resultado.peca)} aria-label={`Adicionar unidade a ${resultado.peca.codigoLegado}`} className={botaoSecundario}><Plus size={15} />Adicionar unidade</button> : <span className="text-xs text-text-muted">Sem permissão para cadastrar</span>}</motion.div>;
-  return <motion.div layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3 transition hover:border-accent/35 hover:shadow-md"><button type="button" aria-label={`Ver detalhes de ${unidade.sku}`} onClick={() => acoes.onOpen(unidade)} className="min-w-0 flex-1 cursor-pointer rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-text-primary">{unidade.sku}</strong><span className="rounded-badge border border-border-default bg-surface-inset px-1.5 py-0.5 text-[10px] font-semibold text-text-muted">{resultado.categoria.nome}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${estadoClass(unidade)}`}>{estadoLabel(unidade)}</span></div><p className="mt-1 truncate text-sm font-semibold text-text-secondary">{resultado.peca.nome}</p><p className="mt-1 truncate text-xs text-text-muted">{unidade.endereco ?? "Sem endereço"} · <strong className="text-text-primary">{moeda(unidade.preco)}</strong></p></button><ActionMenu unidade={unidade} acoes={acoes} /></motion.div>;
+  if (!unidade) return <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-negative/40 bg-negative-bg p-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-text-primary">{resultado.peca.codigoLegado}</strong><span className="rounded-badge border border-negative/30 bg-surface-card px-1.5 py-0.5 text-[10px] font-semibold text-negative">Sem estoque</span></div><p className="mt-1 truncate text-sm font-semibold text-text-secondary">{resultado.peca.nome}</p><p className="mt-1 text-xs text-negative">0 unidades físicas cadastradas</p></div>{acoes.podeCriar ? <button type="button" onClick={() => acoes.onAddUnit(resultado.peca)} aria-label={`Adicionar unidade a ${resultado.peca.codigoLegado}`} className={botaoSecundario}><Plus size={15} />Adicionar unidade</button> : <span className="text-xs text-text-muted">Sem permissão para cadastrar</span>}</motion.div>;
+  return <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3 transition hover:border-accent/35 hover:shadow-md"><button type="button" aria-label={`Ver detalhes de ${unidade.sku}`} onClick={() => acoes.onOpen(unidade)} className="min-w-0 flex-1 cursor-pointer rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-text-primary">{unidade.sku}</strong><span className="rounded-badge border border-border-default bg-surface-inset px-1.5 py-0.5 text-[10px] font-semibold text-text-muted">{resultado.categoria.nome}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${estadoClass(unidade)}`}>{estadoLabel(unidade)}</span></div><p className="mt-1 truncate text-sm font-semibold text-text-secondary">{resultado.peca.nome}</p><p className="mt-1 truncate text-xs text-text-muted">{unidade.endereco ?? "Sem endereço"} · <strong className="text-text-primary">{moeda(unidade.preco)}</strong></p></button><ActionMenu unidade={unidade} acoes={acoes} /></motion.div>;
 }
 
 // A quantidade carregada e a posição de rolagem ficam no componente pai:
@@ -290,19 +290,21 @@ function StockListRow({ unidade, resultado, acoes }: { unidade: UnidadeEstoque |
 // lista ao topo. Só uma nova busca/filtro recomeça do início.
 function InventoryCatalogViewport({ resultados, visualizacao, acoes, visibleCount, setVisibleCount, rolagem }: { resultados: ReturnType<typeof buscarPecas>; visualizacao: Visualizacao; acoes: AcoesUnidade; visibleCount: number; setVisibleCount: (atualizar: (valor: number) => number) => void; rolagem: MutableRefObject<number> }) {
   const painel = useRef<HTMLDivElement>(null);
+  const [rowLimit, setRowLimit] = useState(40);
   useLayoutEffect(() => {
     if (painel.current) painel.current.scrollTop = rolagem.current;
   }, [rolagem]);
   const visibleResultados = resultados.slice(0, visibleCount);
   const unidades = visibleResultados.flatMap((resultado) => resultado.unidades.length ? resultado.unidades.map((unidade) => ({ unidade, resultado })) : [{ unidade: null, resultado }]);
-  const hasMore = visibleCount < resultados.length;
+  const visibleUnidades = unidades.slice(0, rowLimit);
+  const hasMore = visibleCount < resultados.length || (visualizacao === "lista" && rowLimit < unidades.length);
   function carregarMais(event: UIEvent<HTMLDivElement>) {
     rolagem.current = event.currentTarget.scrollTop;
     if (!hasMore) return;
     const element = event.currentTarget;
-    if (element.scrollTop + element.clientHeight >= element.scrollHeight - 120) setVisibleCount((count) => Math.min(count + 6, resultados.length));
+    if (element.scrollTop + element.clientHeight >= element.scrollHeight - 120) { setVisibleCount((count) => Math.min(count + 6, resultados.length)); if (visualizacao === "lista") setRowLimit((count) => count + 30); }
   }
-  return <section aria-label="Lista de itens do estoque" className="relative mt-3 overflow-hidden rounded-card border border-border-default bg-surface-card"><div ref={painel} onScroll={carregarMais} tabIndex={0} className="no-scrollbar max-h-[min(68vh,720px)] overflow-y-auto overscroll-contain p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"><div className={visualizacao === "cards" ? "grid gap-3 xl:grid-cols-2" : "space-y-2"}><AnimatePresence initial={false} mode="popLayout">{visualizacao === "cards" ? visibleResultados.map((resultado, indice) => <motion.div key={resultado.peca.id} layout initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="min-w-0"><PieceCard resultado={resultado} acoes={acoes} priorizarImagem={indice < 2} /></motion.div>) : unidades.map(({ unidade, resultado }) => <StockListRow key={unidade?.id ?? resultado.peca.id} unidade={unidade} resultado={resultado} acoes={acoes} />)}</AnimatePresence></div>{!visibleResultados.length && <div className="rounded-control border border-dashed border-border-default p-8 text-center text-sm text-text-muted">Nenhum item encontrado. Tente nome, categoria, moto, código ou endereço.</div>}<div aria-live="polite" className="pt-3 text-center text-[11px] text-text-faint">{hasMore ? "Role para carregar mais itens" : "Todos os itens carregados"}</div></div><div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface-card to-transparent" /></section>;
+  return <section aria-label="Lista de itens do estoque" className="relative mt-3 overflow-hidden rounded-card border border-border-default bg-surface-card"><div ref={painel} onScroll={carregarMais} tabIndex={0} className="no-scrollbar max-h-[min(68vh,720px)] overflow-y-auto overscroll-contain p-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/20"><div className={visualizacao === "cards" ? "grid gap-3 xl:grid-cols-2" : "space-y-2"}><AnimatePresence initial={false} mode="popLayout">{visualizacao === "cards" ? visibleResultados.map((resultado, indice) => <motion.div key={resultado.peca.id} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} className="min-w-0"><PieceCard resultado={resultado} acoes={acoes} priorizarImagem={indice < 2} /></motion.div>) : visibleUnidades.map(({ unidade, resultado }) => <StockListRow key={unidade?.id ?? resultado.peca.id} unidade={unidade} resultado={resultado} acoes={acoes} />)}</AnimatePresence></div>{!visibleResultados.length && <div className="rounded-control border border-dashed border-border-default p-8 text-center text-sm text-text-muted">Nenhum item encontrado. Tente nome, categoria, moto, código ou endereço.</div>}<div aria-live="polite" className="pt-3 text-center text-[11px] text-text-faint">{hasMore ? "Role para carregar mais itens" : "Todos os itens carregados"}</div></div><div aria-hidden="true" className="pointer-events-none absolute inset-x-0 bottom-0 h-8 bg-gradient-to-t from-surface-card to-transparent" /></section>;
 }
 
 function clienteDemo(id: string, nome: string, telefone: string): Cliente {
@@ -366,15 +368,19 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const podeCriar = pode("estoque.criar");
   const podeAlterar = conexaoPermiteGravar && podeEditar;
   const podeCadastrar = conexaoPermiteGravar && podeCriar;
-  const metricas = getMetricas(estoque);
+  const metricas = useMemo(() => getMetricas(estoque), [estoque]);
   const todosResultados = useMemo(() => buscarPecas(estoque, busca), [estoque, busca]);
   const resultadoResumo = useMemo(() => pecaResumoId ? buscarPecas(estoque, "").find((item) => item.peca.id === pecaResumoId) ?? null : null, [estoque, pecaResumoId]);
   const resultados = useMemo(() => soEstoqueBaixo ? filtrarEstoqueBaixo(todosResultados) : todosResultados, [todosResultados, soEstoqueBaixo]);
   const sobras = useMemo(() => pecasComFichasSobrando(estoque.pecas, estoque.unidades), [estoque]);
   const pendenciasConferencia = baixasPendentes.length + sobras.length;
-  const arquivados = useMemo(() => estoque.unidades.filter((unidade) => unidade.estado === "arquivada" && (!busca || buscarPecas(estoque, busca, true).some((item) => item.unidades.some((candidato) => candidato.id === unidade.id)))), [estoque, busca]);
-  const triagem = estoque.unidades.filter((unidade) => unidade.estado !== "arquivada" && unidade.estado !== "reservada" && (unidade.estado === "organizar" || !unidade.endereco));
-  const pecaPorId = (id: string) => estoque.pecas.find((peca) => peca.id === id) ?? null;
+  const arquivados = useMemo(() => {
+    const encontrados = busca ? new Set(buscarPecas(estoque, busca, true).flatMap((item) => item.unidades.map((unidade) => unidade.id))) : null;
+    return estoque.unidades.filter((unidade) => unidade.estado === "arquivada" && (!encontrados || encontrados.has(unidade.id)));
+  }, [estoque, busca]);
+  const triagem = useMemo(() => estoque.unidades.filter((unidade) => unidade.estado !== "arquivada" && unidade.estado !== "reservada" && (unidade.estado === "organizar" || !unidade.endereco)), [estoque]);
+  const pecasPorId = useMemo(() => new Map(estoque.pecas.map((peca) => [peca.id, peca])), [estoque.pecas]);
+  const pecaPorId = (id: string) => pecasPorId.get(id) ?? null;
   // O drawer lê a unidade atualizada do estado (após reservar/liberar/recarregar),
   // não a cópia guardada no clique que o abriu.
   const unidadeSelecionada = unidadeDetalhando ?? unidadeEditando;
@@ -574,6 +580,9 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       if (alteracoes.grau && alteracoes.grau !== unidade.grau) payload.condicao_nota = alteracoes.grau === "A" ? 9 : alteracoes.grau === "C" ? 3 : 6;
       if (alteracoes.endereco !== undefined && (alteracoes.endereco ?? null) !== (unidade.endereco ?? null)) payload.endereco_id = local?.id ?? null;
       if (alteracoes.origem !== undefined && (alteracoes.origem?.trim() || null) !== (unidade.origem ?? null)) payload.origem_identificacao = alteracoes.origem?.trim() || null;
+      // O preço aparece no catálogo assim que a ação é iniciada; falhas
+      // restauram o valor anterior. Os demais campos aguardam confirmação.
+      if (payload.valor !== undefined) setEstoque((atual) => editarUnidade(atual, unidade.id, { preco: payload.valor ?? null }));
       try {
         for (const arquivo of alteracoes.fotosNovas ?? []) {
           const upload = await enviarFotoUnidade(arquivo);
@@ -585,6 +594,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
           payload.fotos = [...fotosAtuais, ...fotosNovas];
         }
       } catch (erro) {
+        if (payload.valor !== undefined) setEstoque((atual) => editarUnidade(atual, unidade.id, { preco: unidade.preco }));
         if (fotosNovas.length) await organizacaoApi.descartarFotos(fotosNovas).catch(() => undefined);
         avisar(erro instanceof Error ? erro.message : "Falha ao enviar as fotos.");
         return false;
@@ -599,13 +609,19 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         // Uma única gravação (transação no banco) com tudo que mudou.
         const resposta = await organizacaoApi.editarUnidade(unidade.id, payload);
         if (!resposta.success) throw new Error(resposta.error || "Não foi possível salvar a unidade. Nada foi alterado.");
-        setReloadKey((valor) => valor + 1);
+        setEstoque((atual) => editarUnidade(atual, unidade.id, {
+          preco: resposta.data?.valor ?? alteracoes.preco ?? unidade.preco,
+          grau: alteracoes.grau ?? unidade.grau,
+          origem: alteracoes.origem !== undefined ? alteracoes.origem?.trim() || null : unidade.origem,
+          endereco: alteracoes.endereco !== undefined ? alteracoes.endereco : unidade.endereco,
+          ...(payload.fotos !== undefined ? { fotos: resposta.data?.fotos ?? payload.fotos, fotoUrl: (resposta.data?.fotos ?? payload.fotos)[0] ?? null } : {}),
+        }));
         setUnidadeDetalhando(null);
         setUnidadeEditando(null);
         avisar("Unidade atualizada no estoque.");
         return true;
       } catch (erro) {
-        setReloadKey((valor) => valor + 1);
+        if (payload.valor !== undefined) setEstoque((atual) => editarUnidade(atual, unidade.id, { preco: unidade.preco }));
         if (fotosNovas.length) await organizacaoApi.descartarFotos(fotosNovas).catch(() => undefined);
         avisar(erro instanceof Error ? erro.message : "Falha ao atualizar unidade.");
         return false;
