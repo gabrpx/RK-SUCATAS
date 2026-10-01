@@ -4,6 +4,7 @@ export type MeioPagamentoDemo = string;
 export type CanalVendaDemo = "Balcão" | "WhatsApp" | "Mercado Livre";
 
 export interface PagamentoRecebidoDemo {
+  id?: string;
   meio: MeioPagamentoDemo;
   valor: number;
   ocorridoEm: string;
@@ -32,6 +33,7 @@ export interface MovimentoDemo {
   valor: number;
   metodo: string;
   origem: "Venda" | "Recebimento" | "Conta paga" | "Lançamento manual";
+  podeExcluir?: boolean;
 }
 
 export interface PendenciaDemo {

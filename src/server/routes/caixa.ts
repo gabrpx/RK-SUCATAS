@@ -1,6 +1,5 @@
-// CRUD do livro de caixa. Lançamentos com venda_id preenchido foram gerados
-// automaticamente por uma venda — a UI trata esses como somente-leitura, mas
-// o backend não impede a edição (a trava é só de UX, não de segurança).
+// CRUD do livro de caixa. Lançamentos vinculados a venda ou recebimento são
+// derivados de outros fluxos e não podem ser removidos diretamente.
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { exigirPermissao } from '../../../middleware/auth.js';
@@ -57,7 +56,20 @@ export function caixaRouter(supabase: SupabaseClient) {
       for (const campo of ['tipo', 'descricao', 'valor', 'forma_pagamento_id', 'data'] as const) {
         if (req.body[campo] !== undefined) payload[campo] = req.body[campo];
       }
+      if (payload.tipo !== undefined && !['entrada', 'saida'].includes(payload.tipo)) {
+        return res.status(400).json({ success: false, error: 'Tipo deve ser "entrada" ou "saida"' });
+      }
+      if (payload.descricao !== undefined) {
+        payload.descricao = String(payload.descricao).trim();
+        if (!payload.descricao) return res.status(400).json({ success: false, error: 'Descrição é obrigatória' });
+      }
       if (payload.valor !== undefined) payload.valor = Number(payload.valor);
+      if (payload.valor !== undefined && (!Number.isFinite(payload.valor) || payload.valor <= 0)) {
+        return res.status(400).json({ success: false, error: 'Valor deve ser maior que zero' });
+      }
+      if (payload.data !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(String(payload.data))) {
+        return res.status(400).json({ success: false, error: 'Data deve estar no formato AAAA-MM-DD' });
+      }
 
       const { data, error } = await supabase.from('caixa').update(payload).eq('id', req.params.id).select(SELECT_COM_JOIN).single();
       if (error) throw error;
@@ -87,6 +99,16 @@ export function caixaRouter(supabase: SupabaseClient) {
       }
       if (viaPendencia) {
         return res.status(409).json({ success: false, error: 'Este lançamento veio de um recebimento de pendência — reverta-o pela sub-aba Pendências, dentro de Caixa.' });
+      }
+
+      const { data: venda, error: erroVenda } = await supabase
+        .from('caixa')
+        .select('venda_id')
+        .eq('id', req.params.id)
+        .maybeSingle();
+      if (erroVenda) throw erroVenda;
+      if (venda?.venda_id) {
+        return res.status(409).json({ success: false, error: 'Este lançamento veio de uma venda — cancele a venda para estornar o Caixa.' });
       }
 
       const { error } = await supabase.from('caixa').delete().eq('id', req.params.id);

@@ -18,6 +18,16 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.12',
+    data: '2026-10-01',
+    titulo: 'Vendas com lançamentos e pendências operacionais',
+    itens: [
+      { tipo: 'feature', texto: 'A aba Movimentações agora permite registrar entradas e saídas manuais, além de excluir lançamentos manuais com confirmação.' },
+      { tipo: 'feature', texto: 'A aba Pendências agora permite criar uma pendência e vinculá-la a um cliente no mesmo fluxo.' },
+      { tipo: 'fix', texto: 'Removido o filtro Com saldo, ajustado o layout mobile dos controles financeiros e removidas mensagens de modo somente leitura.' },
+    ],
+  },
+  {
     versao: '1.7.11',
     data: '2026-10-01',
     titulo: 'Lançamentos avulsos e identificação completa das peças',

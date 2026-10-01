@@ -10,6 +10,7 @@ function pagamentosFiado(vendaId: string, recebimentos: FiadoRecebimento[]) {
   return recebimentos
     .filter((recebimento) => recebimento.venda_id === vendaId)
     .map((recebimento) => ({
+      id: recebimento.id,
       meio: recebimento.forma_pagamento?.nome ?? "Forma não informada",
       valor: dinheiro(recebimento.valor),
       ocorridoEm: recebimento.recebido_em,
@@ -40,6 +41,7 @@ export function mapearMovimentos(caixa: CaixaEntry[], recebimentosFiado: FiadoRe
       valor: dinheiro(entrada.valor),
       metodo: entrada.forma_pagamento?.nome ?? "Forma não informada",
       origem: entrada.venda_id ? "Venda" : detalheRecebimento ? "Recebimento" : "Lançamento manual",
+      podeExcluir: !entrada.venda_id && !detalheRecebimento,
     };
   });
 }
@@ -76,6 +78,7 @@ export function mapearPendencias(
       const pagamentos = recebimentosPendencia
         .filter((recebimento) => recebimento.pendencia_id === pendencia.id)
         .map((recebimento) => ({
+          id: recebimento.id,
           meio: recebimento.forma_pagamento?.nome ?? "Forma não informada",
           valor: dinheiro(recebimento.valor),
           ocorridoEm: recebimento.recebido_em,

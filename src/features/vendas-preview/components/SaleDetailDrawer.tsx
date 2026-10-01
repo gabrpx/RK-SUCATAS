@@ -87,7 +87,7 @@ export function SaleDetailDrawer({ sale, onClose }: { sale: SaleViewModel | null
       </section>
 
       <section className="rounded-control border border-border-default bg-surface-inset/70 p-3 text-xs leading-5 text-text-muted">
-        <div className="flex items-start gap-2"><UserRound size={14} className="mt-0.5 shrink-0" /><span>Informações consultadas dos registros de vendas em modo somente leitura.</span></div>
+        <div className="flex items-start gap-2"><UserRound size={14} className="mt-0.5 shrink-0" /><span>Informações da venda e do cliente.</span></div>
       </section>
     </div>}
   </InventoryDrawer>;
