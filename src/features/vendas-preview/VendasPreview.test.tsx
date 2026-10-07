@@ -110,13 +110,14 @@ describe('VendasPreview', () => {
     expect(screen.getByRole('tab', { name: 'Movimentações' })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('mantém as tabs dentro do viewport sem rolagem horizontal', async () => {
+  it('mantém as tabs numa única faixa alinhada à direita e rolável em telas estreitas', async () => {
     renderVendasPreview();
     const tablist = await screen.findByRole('tablist', { name: 'Visões de vendas' });
     const tabViewport = tablist.parentElement?.parentElement;
 
     expect(tabViewport).toHaveClass('w-full');
-    expect(tabViewport).not.toHaveClass('overflow-x-auto');
+    expect(tabViewport).toHaveClass('overflow-x-auto');
+    expect(tabViewport).toHaveClass('justify-end');
     expect(screen.getAllByRole('tab')).toHaveLength(4);
   });
 
