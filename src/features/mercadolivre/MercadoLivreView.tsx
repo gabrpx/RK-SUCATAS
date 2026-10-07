@@ -29,6 +29,7 @@ import {
 } from 'lucide-react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { cn } from '../../utils';
+import { Select } from '@/src/components/ui/Select';
 import { aviso } from '../../components/ui/toast';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { MetricCard, type MetricTone } from '../../components/ui/MetricCard';
@@ -689,18 +690,7 @@ function SecaoPedidos({ pedidosNovos, onAtualizarPendencias }: { pedidosNovos: n
         tamanho="lg"
         rodape={
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
-            <select
-              value={formaPagamentoId}
-              onChange={(e) => setFormaPagamentoId(e.target.value)}
-              className="h-10 rounded-control border border-border-default bg-surface-card px-3 text-sm text-text-primary focus:outline-none focus:ring-1 focus:ring-accent/40 focus:border-accent"
-            >
-              <option value="">Forma de pagamento...</option>
-              {formasPagamento.map((forma) => (
-                <option key={forma.id} value={forma.id}>
-                  {forma.nome}
-                </option>
-              ))}
-            </select>
+            <Select ariaLabel="Forma de pagamento" className="w-full sm:w-64" value={formaPagamentoId} onChange={setFormaPagamentoId} options={[{ value: '', label: 'Forma de pagamento...' }, ...formasPagamento.map((forma) => ({ value: forma.id, label: forma.nome }))]} />
             <button
               type="button"
               onClick={confirmarImportacao}

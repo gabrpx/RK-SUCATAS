@@ -1,6 +1,7 @@
 // CRUD do estoque de peças. Cada linha carrega a categoria e o modelo de moto
 // já resolvidos via join, pra UI não precisar cruzar os lookups na mão.
 import { Router } from 'express';
+import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { excluirImagemPorUrl } from '../../services/storageService.js';
 import { categoriaExigeNota } from '../../features/estoque/categoriaMotor.js';
@@ -516,7 +517,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // baixas e edição atômica da unidade. Montado antes de '/:id' de propósito.
   router.use('/organizacao', estoqueOrganizacaoRouter(supabase));
 
-  router.get('/', VER, async (_req, res) => {
+  router.get('/', VER, async (req, res) => {
     try {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).order('criado_em', { ascending: false });
       if (error) throw error;
@@ -525,7 +526,22 @@ export function estoqueRouter(supabase: SupabaseClient) {
       const comFamilias = await anexarFamilias(supabase, comCompatibilidades);
       const comAnunciosMl = await anexarAnunciosMl(supabase, comFamilias);
       const comAnunciosShopee = await anexarAnunciosShopee(supabase, comAnunciosMl);
-      res.json({ success: true, data: await anexarPromocoes(supabase, comAnunciosShopee) });
+      const payload = { success: true, data: await anexarPromocoes(supabase, comAnunciosShopee) };
+      // A lista completa pode chegar perto de 1 MB. O preview embutido leva
+      // muito mais tempo para recebê-la sem compressão e estoura o timeout do
+      // cliente. Mantém exatamente o mesmo JSON para consumidores existentes.
+      res.vary('Accept-Encoding');
+      if (req.acceptsEncodings('br')) {
+        res.setHeader('Content-Encoding', 'br');
+        res.type('json').send(brotliCompressSync(JSON.stringify(payload), {
+          params: { [zlibConstants.BROTLI_PARAM_QUALITY]: 5 },
+        }));
+      } else if (req.acceptsEncodings('gzip')) {
+        res.setHeader('Content-Encoding', 'gzip');
+        res.type('json').send(gzipSync(JSON.stringify(payload)));
+      } else {
+        res.json(payload);
+      }
     } catch (error: any) {
       console.error('Erro ao listar estoque:', error);
       res.status(500).json({ success: false, error: error.message });

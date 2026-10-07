@@ -14,6 +14,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { Select } from '@/src/components/ui/Select';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { fiadoApi } from './api';
 import { vendasFiadoEmAberto, resumoFiadoPorCliente } from './metricas';
@@ -153,18 +154,7 @@ function LinhaVendaFiado({ venda, saldo, diasEmAberto, podeReverter }: { venda: 
           className="w-24 border rounded-control py-2 px-2.5 text-xs outline-none bg-surface-inset border-border-default text-text-primary focus:ring-2 focus:ring-accent/50"
           placeholder="0,00"
         />
-        <select
-          value={formaPagamentoId}
-          onChange={(e) => setFormaPagamentoId(e.target.value)}
-          className="flex-1 border rounded-control py-2 px-2.5 text-xs outline-none bg-surface-inset border-border-default text-text-primary focus:ring-2 focus:ring-accent/50"
-        >
-          <option value="">Forma de pagamento...</option>
-          {formasAvista.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.nome}
-            </option>
-          ))}
-        </select>
+        <Select ariaLabel="Forma de pagamento" className="flex-1" size="sm" value={formaPagamentoId} onChange={setFormaPagamentoId} options={[{ value: '', label: 'Forma de pagamento...' }, ...formasAvista.map((f) => ({ value: f.id, label: f.nome }))]} />
         <Button onClick={confirmar} disabled={enviando} className="shrink-0 h-8 px-3 rounded-control bg-positive text-xs font-semibold hover:bg-positive/90">
           {enviando ? <Loader2 size={13} className="animate-spin" /> : <Check size={13} />} Confirmar
         </Button>

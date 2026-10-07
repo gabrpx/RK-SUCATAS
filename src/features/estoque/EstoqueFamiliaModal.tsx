@@ -5,6 +5,7 @@ import { useState, useMemo, useCallback, type Key } from 'react';
 import { Package, Search, MoreVertical, ShoppingCart, Plus, Trash2, Pencil, Check, Move, AlertTriangle, ChevronDown } from 'lucide-react';
 import { cn } from '../../utils';
 import { Button } from '../../components/ui/button';
+import { Select } from '../../components/ui/Select';
 import { StatusBadge } from '../../components/ui/StatusBadge';
 import { aviso } from '../../components/ui/toast';
 import { formatarTempoRelativoCurto } from '../../utils/tempoRelativo';
@@ -531,24 +532,8 @@ export function EstoqueFamiliaModal({ linha, open, onClose, onRefresh }: Estoque
             className="w-full pl-8 pr-3 py-1.5 text-sm rounded-control border border-border-default bg-surface-inset text-text-primary placeholder:text-text-faint focus:outline-none focus:ring-2 focus:ring-accent/50"
           />
         </div>
-        <select
-          value={statusFiltro}
-          onChange={(e) => setStatusFiltro(e.target.value as any)}
-          className="text-sm rounded-control border border-border-default bg-surface-inset text-text-primary px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/50"
-        >
-          <option value="todos">Todos</option>
-          <option value="disponivel">Disponível</option>
-          <option value="vendida">Vendida</option>
-        </select>
-        <select
-          value={avaFiltro}
-          onChange={(e) => setAvaFiltro(e.target.value as any)}
-          className="text-sm rounded-control border border-border-default bg-surface-inset text-text-primary px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-accent/50"
-        >
-          <option value="todos">Avaria: todos</option>
-          <option value="com">Com avaria</option>
-          <option value="sem">Sem avaria</option>
-        </select>
+        <Select ariaLabel="Filtrar unidades por status" className="w-36" size="sm" value={statusFiltro} onChange={(status) => setStatusFiltro(status as any)} options={[{ value: 'todos', label: 'Todos' }, { value: 'disponivel', label: 'Disponível' }, { value: 'vendida', label: 'Vendida' }]} />
+        <Select ariaLabel="Filtrar unidades por avaria" className="w-36" size="sm" value={avaFiltro} onChange={(avaria) => setAvaFiltro(avaria as any)} options={[{ value: 'todos', label: 'Avaria: todos' }, { value: 'com', label: 'Com avaria' }, { value: 'sem', label: 'Sem avaria' }]} />
       </div>
 
       {/* Abas */}

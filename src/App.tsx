@@ -77,6 +77,9 @@ type DetailItem = Estoque | Venda;
 // pra a URL /fiado não abrir mais uma aba solta — os botões que iam pra lá
 // agora redirecionam pro Caixa na sub-aba de vendas fiado.
 const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'vendas-antigo', 'orcamentos', 'clientes', 'caixa', 'frete', 'mercadolivre', 'configuracoes', 'tarefas', 'patchnotes', 'notificacoes', 'estoque-antigo'];
+// Telas mais leves primeiro; painéis com gráficos ficam por último para não
+// competir com a leitura inicial de estoque e clientes no servidor Vite/Express.
+const WARM_TABS: Tab[] = ['clientes', 'tarefas', 'estoque', 'caixa', 'vendas', 'dashboard'];
 
 // /estoque é o novo módulo (features/estoque-preview) desde 24/09/2026; a tela
 // antiga continua em /estoque-antigo para anúncios, famílias e gavetas. As
@@ -542,6 +545,24 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     // usuário pode ver, em vez de sempre tentar 'dashboard'.
     return primeiraAbaPermitida(pode);
   });
+  // Mantém cada tela montada depois da primeira visita para preservar dados,
+  // filtros e estado de formulários ao navegar entre as abas.
+  const visitedTabs = useRef<Set<Tab>>(new Set());
+  const [warmTabs, setWarmTabs] = useState<Tab[]>([]);
+  const tabsToRender = new Set([...visitedTabs.current, ...warmTabs, activeTab]);
+  useEffect(() => {
+    visitedTabs.current.add(activeTab);
+  }, [activeTab]);
+  useEffect(() => {
+    // A tela ativa tem prioridade. As demais telas novas montam uma a uma em
+    // segundo plano e conservam seus dados/filtros quando o usuário navegar.
+    const timers = WARM_TABS.filter((tab) => tab !== activeTab && pode(permissaoDeVer(tab)))
+      .map((tab, index) => window.setTimeout(() => {
+        setWarmTabs((current) => current.includes(tab) ? current : [...current, tab]);
+      }, 5000 + index * 1500));
+    return () => timers.forEach(window.clearTimeout);
+  // O aquecimento ocorre uma vez por sessão, sem reiniciar a cada navegação.
+  }, []);
   const [pendingEditItem, setPendingEditItem] = useState<Estoque | null>(null);
   const [pendingEstoqueBaixo, setPendingEstoqueBaixo] = useState(false);
   const [pendingClienteId, setPendingClienteId] = useState<string | null>(null);
@@ -591,15 +612,8 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
   const notificacaoTarefaTratada = useCallback((taskId: string) => {
     setPendingTaskNotificationId((current) => current === taskId ? null : current);
   }, []);
-  // As ações de editar/excluir peça vêm da tela antiga. Fora dela a referência
-  // apontaria para um componente desmontado: limpa, e o "Editar" do detalhe
-  // leva à tela antiga (wrapEdit abaixo).
-  useEffect(() => {
-    if (activeTab !== 'estoque-antigo') setEstoqueActions(null);
-  }, [activeTab]);
-  useEffect(() => {
-    if (activeTab !== 'vendas-antigo') setVendasActions(null);
-  }, [activeTab]);
+  // As telas antigas continuam montadas em painéis ocultos; suas ações seguem
+  // válidas para o modal de detalhes mesmo quando outra aba está ativa.
   const imersiva = telaImersiva(activeTab);
 
   const itemActions = useMemo(() => {
@@ -620,6 +634,92 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     // Edição completa da peça (anúncios, família, gaveta) continua na tela antiga.
     return { edit: wrapEdit(estoqueActions?.edit, 'estoque-antigo'), delete: estoqueActions?.delete };
   }, [selectedDetailItem, estoqueActions, vendasActions, activeTab]);
+
+  const renderTab = (tab: Tab) => {
+    if (tab === 'dashboard') {
+      return (
+        <DashboardView
+          onSelectItem={setSelectedDetailItem}
+          onTabChange={(nextTab) => setActiveTab(nextTab as Tab)}
+          onOpenSearch={() => setIsSearchOpen(true)}
+          onNavigateEstoqueBaixo={() => {
+            setActiveTab('estoque');
+            setPendingEstoqueBaixo(true);
+          }}
+          onNavigateCliente={(clienteId) => {
+            setActiveTab('clientes');
+            setPendingClienteId(clienteId);
+          }}
+          onNavigateClientesSumidos={() => {
+            setActiveTab('clientes');
+            setPendingFiltroSumidos(true);
+          }}
+          onNavigateFiado={() => {
+            setActiveTab('caixa');
+            setPendingCaixaFiado(true);
+          }}
+        />
+      );
+    }
+    if (tab === 'estoque') {
+      return (
+        <EstoquePreview
+          embutido
+          onAbrirEstoqueAntigo={abrirEstoqueAntigo}
+          filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
+          onFiltroEstoqueBaixoAplicado={filtroEstoqueBaixoAplicado}
+          onOpenTaskNotification={abrirNotificacaoTarefa}
+        />
+      );
+    }
+    if (tab === 'estoque-antigo') {
+      return (
+        <div className="space-y-4">
+          <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-default bg-surface-card px-4 py-3 text-sm text-text-secondary">
+            <span><strong className="text-text-primary">Tela antiga do estoque.</strong> Use para anúncios, famílias e gavetas. Busca, unidades, endereços e reservas agora ficam no novo Estoque.</span>
+            <button type="button" onClick={() => setActiveTab('estoque')} className="min-h-11 cursor-pointer rounded-control border border-border-default px-3 text-sm font-semibold text-text-primary transition hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">Voltar ao novo Estoque</button>
+          </div>
+          <EstoqueView
+            onSelectItem={setSelectedDetailItem}
+            onRegisterActions={setEstoqueActions}
+            pendingEditItem={pendingEditItem}
+            setPendingEditItem={setPendingEditItem}
+            readOnly={!(pode('estoque.criar') || pode('estoque.editar') || pode('estoque.deletar') || pode('estoque.anunciar_ml') || pode('estoque.anunciar_shopee'))}
+          />
+        </div>
+      );
+    }
+    if (tab === 'vendas') return <VendasPreview embutido onAbrirVendasAntigas={() => setActiveTab('vendas-antigo')} />;
+    if (tab === 'vendas-antigo') {
+      return (
+        <div className="space-y-4">
+          <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-default bg-surface-card px-4 py-3 text-sm text-text-secondary">
+            <span>Esta tela mantém as ações anteriores de gerenciamento de vendas.</span>
+            <button type="button" onClick={() => setActiveTab('vendas')} className="min-h-11 rounded-control border border-border-default px-3 text-sm font-semibold text-text-primary hover:text-accent">Voltar à nova tela</button>
+          </div>
+          <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
+        </div>
+      );
+    }
+    if (tab === 'orcamentos') return <OrcamentosView />;
+    if (tab === 'clientes') {
+      return (
+        <ClientesView
+          pendingClienteId={pendingClienteId}
+          setPendingClienteId={setPendingClienteId}
+          pendingFiltroSumidos={pendingFiltroSumidos}
+          setPendingFiltroSumidos={setPendingFiltroSumidos}
+        />
+      );
+    }
+    if (tab === 'caixa') return <CaixaView pendingFiado={pendingCaixaFiado} setPendingFiado={setPendingCaixaFiado} />;
+    if (tab === 'frete') return <FreteView />;
+    if (tab === 'mercadolivre') return <MercadoLivreView />;
+    if (tab === 'tarefas') return <TarefasView initialTaskId={pendingTaskNotificationId} onInitialTaskHandled={notificacaoTarefaTratada} />;
+    if (tab === 'patchnotes') return <PatchNotesView />;
+    if (tab === 'notificacoes') return <NotificacoesView />;
+    return <ConfiguracoesView />;
+  };
 
   return (
     <div
@@ -648,90 +748,22 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
             ? 'min-h-[100dvh] w-full min-w-0 overflow-x-hidden'
             : 'flex-1 overflow-y-auto overflow-x-hidden p-4 pt-[calc(env(safe-area-inset-top)+1rem)] md:p-6 md:pt-6'}
         >
-          <AnimatePresence mode="wait">
-            <motion.div key={activeTab} initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.2 }} className="w-full h-full">
-              <React.Suspense fallback={<div role="status" className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-text-muted"><Loader2 size={18} className="animate-spin" />Carregando aba…</div>}>
-              {activeTab === 'dashboard' ? (
-                <DashboardView
-                  onSelectItem={setSelectedDetailItem}
-                  onTabChange={(tab) => setActiveTab(tab as Tab)}
-                  onOpenSearch={() => setIsSearchOpen(true)}
-                  onNavigateEstoqueBaixo={() => {
-                    setActiveTab('estoque');
-                    setPendingEstoqueBaixo(true);
-                  }}
-                  onNavigateCliente={(clienteId) => {
-                    setActiveTab('clientes');
-                    setPendingClienteId(clienteId);
-                  }}
-                  onNavigateClientesSumidos={() => {
-                    setActiveTab('clientes');
-                    setPendingFiltroSumidos(true);
-                  }}
-                  onNavigateFiado={() => {
-                    setActiveTab('caixa');
-                    setPendingCaixaFiado(true);
-                  }}
-                />
-              ) : activeTab === 'estoque' ? (
-                <EstoquePreview
-                  embutido
-                  onAbrirEstoqueAntigo={abrirEstoqueAntigo}
-                  filtroEstoqueBaixoInicial={pendingEstoqueBaixo}
-                  onFiltroEstoqueBaixoAplicado={filtroEstoqueBaixoAplicado}
-                  onOpenTaskNotification={abrirNotificacaoTarefa}
-                />
-              ) : activeTab === 'estoque-antigo' ? (
-                <div className="space-y-4">
-                  <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-default bg-surface-card px-4 py-3 text-sm text-text-secondary">
-                    <span><strong className="text-text-primary">Tela antiga do estoque.</strong> Use para anúncios, famílias e gavetas. Busca, unidades, endereços e reservas agora ficam no novo Estoque.</span>
-                    <button type="button" onClick={() => setActiveTab('estoque')} className="min-h-11 cursor-pointer rounded-control border border-border-default px-3 text-sm font-semibold text-text-primary transition hover:border-accent/40 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">Voltar ao novo Estoque</button>
-                  </div>
-                  <EstoqueView
-                    onSelectItem={setSelectedDetailItem}
-                    onRegisterActions={setEstoqueActions}
-                    pendingEditItem={pendingEditItem}
-                    setPendingEditItem={setPendingEditItem}
-                    readOnly={!(pode('estoque.criar') || pode('estoque.editar') || pode('estoque.deletar') || pode('estoque.anunciar_ml') || pode('estoque.anunciar_shopee'))}
-                  />
-                </div>
-              ) : activeTab === 'vendas' ? (
-                <VendasPreview embutido onAbrirVendasAntigas={() => setActiveTab('vendas-antigo')} />
-              ) : activeTab === 'vendas-antigo' ? (
-                <div className="space-y-4">
-                  <div role="note" className="flex flex-wrap items-center justify-between gap-3 rounded-card border border-border-default bg-surface-card px-4 py-3 text-sm text-text-secondary">
-                    <span>Esta tela mantém as ações anteriores de gerenciamento de vendas.</span>
-                    <button type="button" onClick={() => setActiveTab('vendas')} className="min-h-11 rounded-control border border-border-default px-3 text-sm font-semibold text-text-primary hover:text-accent">Voltar à nova tela</button>
-                  </div>
-                  <VendasView onSelectItem={setSelectedDetailItem} onRegisterActions={setVendasActions} />
-                </div>
-              ) : activeTab === 'orcamentos' ? (
-                <OrcamentosView />
-              ) : activeTab === 'clientes' ? (
-                <ClientesView
-                  pendingClienteId={pendingClienteId}
-                  setPendingClienteId={setPendingClienteId}
-                  pendingFiltroSumidos={pendingFiltroSumidos}
-                  setPendingFiltroSumidos={setPendingFiltroSumidos}
-                />
-              ) : activeTab === 'caixa' ? (
-                <CaixaView pendingFiado={pendingCaixaFiado} setPendingFiado={setPendingCaixaFiado} />
-              ) : activeTab === 'frete' ? (
-                <FreteView />
-              ) : activeTab === 'mercadolivre' ? (
-                <MercadoLivreView />
-              ) : activeTab === 'tarefas' ? (
-                <TarefasView initialTaskId={pendingTaskNotificationId} onInitialTaskHandled={notificacaoTarefaTratada} />
-              ) : activeTab === 'patchnotes' ? (
-                <PatchNotesView />
-              ) : activeTab === 'notificacoes' ? (
-                <NotificacoesView />
-              ) : (
-                <ConfiguracoesView />
-              )}
-              </React.Suspense>
-            </motion.div>
-          </AnimatePresence>
+          {VALID_TABS.filter((tab) => tabsToRender.has(tab)).map((tab) => {
+            const isActive = tab === activeTab;
+            return (
+              <div
+                key={tab}
+                hidden={!isActive}
+                aria-hidden={!isActive}
+                data-tab-panel={tab}
+                className="min-h-full w-full"
+              >
+                <React.Suspense fallback={<div role="status" className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-text-muted"><Loader2 size={18} className="animate-spin" />Carregando aba…</div>}>
+                  {renderTab(tab)}
+                </React.Suspense>
+              </div>
+            );
+          })}
         </div>
       </main>
 

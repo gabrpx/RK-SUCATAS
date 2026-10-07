@@ -11,7 +11,10 @@ const mocks = vi.hoisted(() => ({
   editarUnidade: vi.fn(),
   conferirBaixa: vi.fn(),
   baixarFichaExcedente: vi.fn(),
+  estoqueContexto: [] as unknown[],
 }));
+
+vi.mock("../../context/DataContext", () => ({ useData: () => ({ estoque: mocks.estoqueContexto }) }));
 
 vi.mock("../estoque/api", () => ({
   estoqueApi: { listar: mocks.listarEstoque, atualizarUnidade: mocks.atualizarUnidade, organizarUnidade: mocks.organizarUnidade },
@@ -51,6 +54,7 @@ const peca = (id: string, codigo: string, nome: string, quantidade: number, unid
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.estoqueContexto = [];
   mocks.listarEstoque.mockResolvedValue({ success: true, data: [
     // Farol: 1 unidade vendida por baixa automática + 1 livre.
     peca("peca-1", "RK-900", "Farol CG 160", 1, [ficha("u1", 901, { vendida_em: "2026-09-24T10:00:00Z" }), ficha("u2", 902)]),
@@ -70,6 +74,26 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("EstoquePreview dentro do app (dados reais)", () => {
+  it("mostra imediatamente o estoque real já recebido, mas bloqueia gravação até atualizar", async () => {
+    mocks.estoqueContexto = [peca("peca-1", "RK-900", "Farol CG 160", 1, [ficha("u2", 902)])];
+    mocks.listarEstoque.mockImplementation(() => new Promise(() => {}));
+    render(<EstoquePreview embutido />);
+    expect(screen.getByText("Farol CG 160")).toBeTruthy();
+    expect((screen.getByRole("button", { name: "Nova peça" }) as HTMLButtonElement).disabled).toBe(true);
+    expect(screen.queryByText("Estoque real · sincronizado")).toBeNull();
+  });
+
+  it("mostra peças sem aguardar a organização auxiliar", async () => {
+    let liberarOrganizacao: (value: unknown) => void = () => {};
+    const organizacao = mocks.listarOrganizacao.getMockImplementation()?.();
+    mocks.listarOrganizacao.mockImplementation(() => new Promise((resolve) => { liberarOrganizacao = resolve; }));
+    render(<EstoquePreview embutido />);
+    expect(await screen.findByText("Farol CG 160")).toBeTruthy();
+    expect(screen.queryByText("Estoque real · sincronizado")).toBeNull();
+    liberarOrganizacao(await organizacao);
+    expect(await screen.findByText("Estoque real · sincronizado")).toBeTruthy();
+  });
+
   it("usa a moldura do app e leva às ferramentas antigas", async () => {
     const abrirAntigo = vi.fn();
     render(<EstoquePreview embutido onAbrirEstoqueAntigo={abrirAntigo} />);

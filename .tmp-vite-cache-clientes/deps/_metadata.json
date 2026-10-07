@@ -1,0 +1,205 @@
+{
+  "hash": "a5b670c7",
+  "configHash": "f8050ea8",
+  "lockfileHash": "96ef7270",
+  "browserHash": "6fcd0e8f",
+  "optimized": {
+    "react": {
+      "src": "../../node_modules/react/index.js",
+      "file": "react.js",
+      "fileHash": "b5328b45",
+      "needsInterop": true
+    },
+    "react-dom": {
+      "src": "../../node_modules/react-dom/index.js",
+      "file": "react-dom.js",
+      "fileHash": "31b51295",
+      "needsInterop": true
+    },
+    "react/jsx-dev-runtime": {
+      "src": "../../node_modules/react/jsx-dev-runtime.js",
+      "file": "react_jsx-dev-runtime.js",
+      "fileHash": "3004f947",
+      "needsInterop": true
+    },
+    "react/jsx-runtime": {
+      "src": "../../node_modules/react/jsx-runtime.js",
+      "file": "react_jsx-runtime.js",
+      "fileHash": "6646ac31",
+      "needsInterop": true
+    },
+    "react-dom/client": {
+      "src": "../../node_modules/react-dom/client.js",
+      "file": "react-dom_client.js",
+      "fileHash": "407d879a",
+      "needsInterop": true
+    },
+    "@capacitor/core": {
+      "src": "../../node_modules/@capacitor/core/dist/index.js",
+      "file": "@capacitor_core.js",
+      "fileHash": "cc728075",
+      "needsInterop": false
+    },
+    "@capgo/capacitor-updater": {
+      "src": "../../node_modules/@capgo/capacitor-updater/dist/esm/index.js",
+      "file": "@capgo_capacitor-updater.js",
+      "fileHash": "0fc61532",
+      "needsInterop": false
+    },
+    "lucide-react": {
+      "src": "../../node_modules/lucide-react/dist/esm/lucide-react.js",
+      "file": "lucide-react.js",
+      "fileHash": "57d02146",
+      "needsInterop": false
+    },
+    "motion/react": {
+      "src": "../../node_modules/motion/dist/es/react.mjs",
+      "file": "motion_react.js",
+      "fileHash": "aad0349b",
+      "needsInterop": false
+    },
+    "clsx": {
+      "src": "../../node_modules/clsx/dist/clsx.mjs",
+      "file": "clsx.js",
+      "fileHash": "a6d508ec",
+      "needsInterop": false
+    },
+    "tailwind-merge": {
+      "src": "../../node_modules/tailwind-merge/dist/bundle-mjs.mjs",
+      "file": "tailwind-merge.js",
+      "fileHash": "8258356d",
+      "needsInterop": false
+    },
+    "class-variance-authority": {
+      "src": "../../node_modules/class-variance-authority/dist/index.mjs",
+      "file": "class-variance-authority.js",
+      "fileHash": "df284444",
+      "needsInterop": false
+    },
+    "radix-ui": {
+      "src": "../../node_modules/radix-ui/dist/index.mjs",
+      "file": "radix-ui.js",
+      "fileHash": "59722b1e",
+      "needsInterop": false
+    },
+    "sonner": {
+      "src": "../../node_modules/sonner/dist/index.mjs",
+      "file": "sonner.js",
+      "fileHash": "5cd7111a",
+      "needsInterop": false
+    },
+    "animejs": {
+      "src": "../../node_modules/animejs/dist/modules/index.js",
+      "file": "animejs.js",
+      "fileHash": "ba811ea9",
+      "needsInterop": false
+    },
+    "recharts": {
+      "src": "../../node_modules/recharts/es6/index.js",
+      "file": "recharts.js",
+      "fileHash": "3c048990",
+      "needsInterop": false
+    },
+    "@visx/responsive": {
+      "src": "../../node_modules/@visx/responsive/esm/index.js",
+      "file": "@visx_responsive.js",
+      "fileHash": "ff6467bc",
+      "needsInterop": false
+    },
+    "@visx/grid": {
+      "src": "../../node_modules/@visx/grid/esm/index.js",
+      "file": "@visx_grid.js",
+      "fileHash": "7bb97281",
+      "needsInterop": false
+    },
+    "@visx/curve": {
+      "src": "../../node_modules/@visx/curve/esm/index.js",
+      "file": "@visx_curve.js",
+      "fileHash": "f5df568f",
+      "needsInterop": false
+    },
+    "@visx/shape": {
+      "src": "../../node_modules/@visx/shape/esm/index.js",
+      "file": "@visx_shape.js",
+      "fileHash": "52b81407",
+      "needsInterop": false
+    },
+    "@visx/scale": {
+      "src": "../../node_modules/@visx/scale/esm/index.js",
+      "file": "@visx_scale.js",
+      "fileHash": "4fc8ff20",
+      "needsInterop": false
+    },
+    "d3-array": {
+      "src": "../../node_modules/d3-array/src/index.js",
+      "file": "d3-array.js",
+      "fileHash": "d6779346",
+      "needsInterop": false
+    },
+    "@visx/event": {
+      "src": "../../node_modules/@visx/event/esm/index.js",
+      "file": "@visx_event.js",
+      "fileHash": "dbc2825d",
+      "needsInterop": false
+    },
+    "dot-anime-react": {
+      "src": "../../node_modules/dot-anime-react/dist/index.js",
+      "file": "dot-anime-react.js",
+      "fileHash": "0b4e4c0f",
+      "needsInterop": false
+    },
+    "react-use-measure": {
+      "src": "../../node_modules/react-use-measure/dist/index.js",
+      "file": "react-use-measure.js",
+      "fileHash": "3863a72f",
+      "needsInterop": false
+    }
+  },
+  "chunks": {
+    "web-HSBNX6LX": {
+      "file": "web-HSBNX6LX.js"
+    },
+    "chunk-C42Z7GUC": {
+      "file": "chunk-C42Z7GUC.js"
+    },
+    "chunk-TYQKNIWH": {
+      "file": "chunk-TYQKNIWH.js"
+    },
+    "chunk-UHWCQHRD": {
+      "file": "chunk-UHWCQHRD.js"
+    },
+    "chunk-VEXWFR7E": {
+      "file": "chunk-VEXWFR7E.js"
+    },
+    "chunk-AZQO223K": {
+      "file": "chunk-AZQO223K.js"
+    },
+    "chunk-IGPLQBZZ": {
+      "file": "chunk-IGPLQBZZ.js"
+    },
+    "chunk-4KYZ6QUR": {
+      "file": "chunk-4KYZ6QUR.js"
+    },
+    "chunk-JQSUXS6S": {
+      "file": "chunk-JQSUXS6S.js"
+    },
+    "chunk-KDVGFZWC": {
+      "file": "chunk-KDVGFZWC.js"
+    },
+    "chunk-6OUJDZPH": {
+      "file": "chunk-6OUJDZPH.js"
+    },
+    "chunk-RR6CKJYS": {
+      "file": "chunk-RR6CKJYS.js"
+    },
+    "chunk-NKDCSL63": {
+      "file": "chunk-NKDCSL63.js"
+    },
+    "chunk-RW64IELW": {
+      "file": "chunk-RW64IELW.js"
+    },
+    "chunk-UN725CXD": {
+      "file": "chunk-UN725CXD.js"
+    }
+  }
+}

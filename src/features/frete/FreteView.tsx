@@ -14,6 +14,7 @@ import type { StatusTone } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { Select } from '@/src/components/ui/Select';
 import { Tabs, TabsList, TabsTrigger } from '../../components/animate-ui/components/animate/tabs';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { CEP_ORIGEM_LOJA } from '../../constants/loja';
@@ -584,18 +585,9 @@ function EnviosSection() {
       key: 'status',
       header: 'Status',
       render: (e) => (
-        <select
-          value={e.status}
-          onChange={(ev) => mudarStatus(e, ev.target.value as EnvioStatus)}
-          onClick={(ev) => ev.stopPropagation()}
-          className="bg-transparent text-xs border-none outline-none cursor-pointer text-text-secondary"
-        >
-          {(Object.keys(STATUS_LABELS) as EnvioStatus[]).map((s) => (
-            <option key={s} value={s}>
-              {STATUS_LABELS[s]}
-            </option>
-          ))}
-        </select>
+        <div onClick={(ev) => ev.stopPropagation()}>
+          <Select ariaLabel="Status do envio" size="sm" value={e.status} onChange={(status) => mudarStatus(e, status as EnvioStatus)} options={(Object.keys(STATUS_LABELS) as EnvioStatus[]).map((s) => ({ value: s, label: STATUS_LABELS[s] }))} />
+        </div>
       ),
     },
     {

@@ -24,6 +24,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { categoriasApi, formasPagamentoApi, modelosMotoApi } from "../../lib/catalogApi";
 import type { ModeloMoto } from "../../types/catalog";
 import { usePermissao } from "../../hooks/usePermissao";
+import { useData } from "../../context/DataContext";
 import { TaskNotificationBell } from "../notificacoes/TaskNotificationBell";
 import { BASE_URL } from "../../utils/api";
 import { estoqueApi } from "../estoque/api";
@@ -330,14 +331,19 @@ export interface EstoquePreviewProps {
 
 export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroEstoqueBaixoInicial = false, onFiltroEstoqueBaixoAplicado, onOpenTaskNotification }: EstoquePreviewProps = {}) {
   const { pode } = usePermissao();
-  // Dentro do app nunca mostra peças fictícias: começa vazio até a API responder.
-  const [estoque, setEstoque] = useState<EstoquePreviewState>(() => embutido ? { categorias: [], pecas: [], unidades: [], categoriasPorSecao: {}, prioridadesPorSecao: {}, locais: [] } : criarEstoqueDemo());
-  const [fonte, setFonte] = useState<"demo" | "real">("demo");
+  const { estoque: estoqueContexto } = useData();
+  // O DataProvider já pode ter recebido peças reais. Exibe-as sem outra espera,
+  // mas só libera escrita depois que esta tela confirmar catálogo e organização.
+  const [estoque, setEstoque] = useState<EstoquePreviewState>(() => embutido
+    ? adaptarEstoqueReal(estoqueContexto, [])
+    : criarEstoqueDemo());
+  const [fonte, setFonte] = useState<"demo" | "real">(() => embutido && estoqueContexto.length > 0 ? "real" : "demo");
   const [carregandoReal, setCarregandoReal] = useState(true);
   const [erroReal, setErroReal] = useState<string | null>(null);
-  const [erroOrganizacao, setErroOrganizacao] = useState<string | null>(null);
+  const [erroOrganizacao, setErroOrganizacao] = useState<string | null>(() => embutido && estoqueContexto.length > 0 ? "Atualizando organização do estoque" : null);
   const [recursos, setRecursos] = useState<RecursosOrganizacao>(RECURSOS_DEMONSTRACAO);
   const [reloadKey, setReloadKey] = useState(0);
+  const estoqueRealJaCarregado = useRef(false);
   const [aba, setAba] = useState<Aba>("atendimento");
   const [busca, setBusca] = useState("");
   const [visualizacao, setVisualizacao] = useState<Visualizacao>("cards");
@@ -389,17 +395,37 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
+    if (!embutido || fonte === "real" || estoqueContexto.length === 0) return;
+    setEstoque(adaptarEstoqueReal(estoqueContexto, []));
+    setErroOrganizacao("Atualizando organização do estoque");
+    setFonte("real");
+  }, [embutido, estoqueContexto, fonte]);
+
+  useEffect(() => {
     let ativo = true;
     async function carregarEstoqueReal() {
       try {
-        const [estoqueResposta, categoriasResposta, organizacaoResposta, modelosResposta] = await Promise.all([
+        if (!estoqueRealJaCarregado.current) setErroOrganizacao("Carregando organização do estoque");
+        const organizacaoPromise = organizacaoApi.listar().catch(() => null);
+        const modelosPromise = modelosMotoApi.listar().catch(() => null);
+        const [estoqueResposta, categoriasResposta] = await Promise.all([
           estoqueApi.listar(),
           categoriasApi.listar(),
-          organizacaoApi.listar().catch(() => null),
-          modelosMotoApi.listar().catch(() => null),
         ]);
         if (!estoqueResposta.success) throw new Error(estoqueResposta.error || "Não foi possível carregar o estoque");
         if (!categoriasResposta.success) throw new Error(categoriasResposta.error || "Não foi possível carregar as categorias");
+        if (!ativo) return;
+        // Catálogo visível assim que os dados essenciais chegam; endereços e
+        // modelos enriquecem a tela depois, sem bloquear a lista de peças.
+        if (!estoqueRealJaCarregado.current) {
+          setEstoque(adaptarEstoqueReal(estoqueResposta.data ?? [], categoriasResposta.data ?? [], [], [], [], []));
+          estoqueRealJaCarregado.current = true;
+          setFonte("real");
+          setErroReal(null);
+          setCarregandoReal(false);
+        }
+
+        const [organizacaoResposta, modelosResposta] = await Promise.all([organizacaoPromise, modelosPromise]);
         if (!ativo) return;
         const organizacao = organizacaoResposta?.success ? organizacaoResposta.data : null;
         const modelosCarregados = modelosResposta?.success ? modelosResposta.data ?? [] : [];
@@ -408,7 +434,6 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         setRecursos(organizacao?.recursos ?? { clienteNaReserva: false, reservaComSinal: false });
         setBaixasPendentes(organizacao?.baixasPendentes ?? []);
         setErroOrganizacao(organizacao ? null : organizacaoResposta?.error ?? "Locais físicos indisponíveis");
-        setFonte("real");
         setErroReal(null);
       } catch (erro) {
         if (ativo) setErroReal(erro instanceof Error ? erro.message : "Não foi possível carregar os dados reais");
@@ -766,7 +791,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         {mostrarConteudo && <div className="-mx-3 flex w-[calc(100%+1.5rem)] overflow-x-auto px-3 pb-5 sm:mx-0 sm:w-full sm:justify-end sm:px-0 lg:w-auto"><SegmentTabs value={aba} onValueChange={(valor) => setAba(valor as Aba)}><SegmentTabsList className="max-w-full shrink-0 bg-surface-inset">{abas.map(([id, nome, total]) => <SegmentTabsTrigger key={id} value={id} className="shrink-0 whitespace-nowrap text-sm">{nome} <span className="ml-1 text-[11px] text-text-faint">{total}</span></SegmentTabsTrigger>)}</SegmentTabsList></SegmentTabs></div>}
       </div>
       <AnimatePresence initial={false} mode="wait">
-        {carregandoReal ? <motion.div key="carregando" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-5 flex items-center gap-2 rounded-card border border-accent/25 bg-accent-soft-bg px-4 py-3 text-sm text-accent-soft-fg"><Loader2 size={16} className="animate-spin" />Carregando categorias e itens reais do estoque…</motion.div>
+        {carregandoReal && fonte !== "real" ? <motion.div key="carregando" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-5 flex items-center gap-2 rounded-card border border-accent/25 bg-accent-soft-bg px-4 py-3 text-sm text-accent-soft-fg"><Loader2 size={16} className="animate-spin" />Carregando categorias e itens reais do estoque…</motion.div>
           : fonte === "real" ? (conexaoRealPronta ? null : <motion.div key="leitura" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border px-4 py-3 text-sm ${conexaoRealPronta ? "border-accent/25 bg-accent-soft-bg text-accent-soft-fg" : "border-warning/30 bg-warning-bg text-text-primary"}`}><strong>{conexaoRealPronta ? "Você está no estoque real." : "Dados antigos em modo somente leitura."}</strong><span>{conexaoRealPronta ? `Cadastros, edições, endereços, reservas e arquivamentos feitos aqui são gravados no sistema pela API.${podeEditar ? "" : " Seu usuário não tem permissão de edição: a tela está em modo consulta."}` : `Não foi possível confirmar o estado atual: ${erroReal ?? erroOrganizacao}. Não faça alterações até reconectar.`}</span>{!conexaoRealPronta && <button type="button" onClick={() => setReloadKey((valor) => valor + 1)} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button>}</motion.div>)
           : embutido ? <motion.div key="falha" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-danger/30 bg-danger-bg px-4 py-3 text-sm text-text-primary"><strong>Não foi possível carregar o estoque.</strong><span>{erroReal ?? "Sem resposta do servidor."} Nenhuma peça é exibida para não vender com dado errado.</span><button type="button" onClick={() => setReloadKey((valor) => valor + 1)} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button></motion.div>
           : <motion.div key="demo" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-text-primary"><strong>Dados demonstrativos.</strong><span>Não foi possível carregar o estoque real{erroReal ? `: ${erroReal}` : "."} Nada feito nesta tela será gravado enquanto a conexão não voltar.</span><button type="button" onClick={() => setReloadKey((valor) => valor + 1)} className={`${botaoSecundario} min-h-9`}>Tentar conectar</button></motion.div>}

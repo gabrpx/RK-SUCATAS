@@ -18,6 +18,25 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.15',
+    data: '2026-10-05',
+    titulo: 'Clientes pensado para o celular',
+    itens: [
+      { tipo: 'melhoria', texto: 'As ações de Clientes agora ficam lado a lado no celular, com áreas de toque confortáveis e sem a aparência de botões empilhados no centro da tela.' },
+      { tipo: 'melhoria', texto: 'Abas, filtros e ações rápidas foram reorganizados em uma grade compacta para caber melhor em telas estreitas, mantendo o mesmo fluxo no desktop.' },
+    ],
+  },
+  {
+    versao: '1.7.14',
+    data: '2026-10-05',
+    titulo: 'Clientes mais confiáveis no atendimento',
+    itens: [
+      { tipo: 'melhoria', texto: 'A lista de Clientes agora mostra carregamento, erro recuperável e opção de trazer mais resultados, sem confundir ausência de dados com falha de conexão.' },
+      { tipo: 'fix', texto: 'A moto principal e o histórico real de compras passam a aparecer corretamente na ficha resumida de cada cliente.' },
+      { tipo: 'fix', texto: 'Ações que dependem da agenda de visitas deixam de confirmar um agendamento que ainda não está disponível.' },
+    ],
+  },
+  {
     versao: '1.7.13',
     data: '2026-10-01',
     titulo: 'Vendas mais legível no celular',

@@ -117,9 +117,15 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [estoqueError, setEstoqueError] = useState(false);
   const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
   const lastFetchRef = useRef(0);
+  const inFlightRef = useRef<Promise<void> | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const loadData = async (force = false, silent = false) => {
+    if (inFlightRef.current) {
+      await inFlightRef.current;
+      if (!force) return;
+    }
+    const task = (async () => {
     const now = Date.now();
     if (!force && !silent && now - lastFetchRef.current < CACHE_TIME_MS && estoque.length > 0) {
       return;
@@ -314,6 +320,13 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     lastFetchRef.current = now;
     setLoading(false);
+    })();
+    inFlightRef.current = task;
+    try {
+      await task;
+    } finally {
+      if (inFlightRef.current === task) inFlightRef.current = null;
+    }
   };
 
   useEffect(() => {

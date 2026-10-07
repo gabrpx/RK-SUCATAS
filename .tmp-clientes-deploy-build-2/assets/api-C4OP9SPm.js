@@ -1,0 +1,1 @@
+import{x as e}from"./api-DE4Syt9q.js";const t={listar:()=>e.get("/api/vendas"),registrar:a=>e.post("/api/vendas",a),atualizarParcial:(a,i)=>e.patch(`/api/vendas/${a}`,i),cancelar:a=>e.delete(`/api/vendas/${a}`),cancelarFiadoCompleto:a=>e.delete(`/api/vendas/${a}/fiado-completo`)};export{t as v};

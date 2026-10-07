@@ -8,7 +8,8 @@
   },
   "type": "module",
   "scripts": {
-    "dev": "tsx server.ts",
+    "dev": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\preview-new-system.ps1 -Mode development",
+    "dev:preview": "powershell -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\preview-new-system.ps1",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=dist/server.js",
     "start": "node dist/server.js",
     "preview": "vite preview",

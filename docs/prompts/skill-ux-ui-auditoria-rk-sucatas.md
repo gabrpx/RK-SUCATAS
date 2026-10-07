@@ -50,6 +50,7 @@ Entregar: resumo executivo; reprodução; causa raiz; severidade/prioridade; pro
 - [2026-09-25] Dados repetidos em etapas do cadastro devem ser herdados/autopreenchidos da etapa anterior e continuar editáveis; validar esse percurso completo.
 - [2026-09-25] A edição de uma unidade existente precisa permitir anexar e remover fotos, com a mesma distinção entre foto própria e foto de referência usada na criação e consulta.
 - [2026-09-25] Em estoque usado simultaneamente no celular e computador, verificar propagação de alterações sem recarregar a página e recuperação da sincronização após reconexão.
+- [2026-10-06] Disponibilidade técnica não comprova conclusão do fluxo: seguir a tela além do primeiro render até o conteúdo e as ações esperadas estarem utilizáveis. Acompanhar loading, vazio, erro e recuperação; corrigir bloqueios reversíveis dentro do escopo e repetir a validação. Se uma dependência externa impedir o estado funcional, registrar a causa comprovada e não declarar o fluxo concluído.
 
 ## Prompt master — feedback imediato após adicionar unidade
 

@@ -1,0 +1,1 @@
+function o(n){const t=(n??"").replace(/\D/g,"");return t?t.length>=12&&t.startsWith("55")?t:`55${t}`:null}function i(n,t){const e=o(n);if(!e)return null;const r=`https://wa.me/${e}`;return t?`${r}?text=${encodeURIComponent(t)}`:r}export{i as l};

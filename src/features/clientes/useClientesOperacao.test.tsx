@@ -26,7 +26,7 @@ describe('useClientesOperacao', () => {
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(result.current.capabilityUnavailable).toBe(true);
     expect(result.current.itens).toHaveLength(1);
-    expect(apiMocks.listarOperacao).not.toHaveBeenCalled();
+    expect(apiMocks.listarOperacao).toHaveBeenCalledWith({ limit: 50 });
     expect(apiMocks.listar).toHaveBeenCalledWith(true);
   });
 
@@ -46,6 +46,31 @@ describe('useClientesOperacao', () => {
 
     await waitFor(() => expect(result.current.itens).toHaveLength(1));
     expect(result.current.resumo).toBeNull();
+    expect(result.current.error).toBeNull();
+  });
+
+  it('exibe a lista sem aguardar um resumo operacional lento', async () => {
+    let resolverResumo: (value: ReturnType<typeof resumo>) => void = () => {};
+    apiMocks.resumoOperacional.mockImplementation(() => new Promise((resolve) => { resolverResumo = resolve; }));
+    apiMocks.listarOperacao.mockResolvedValue({ success: true, data: { itens: [{ id: 'cliente-1' }], proximo_cursor: null } });
+
+    const { result } = renderHook(() => useClientesOperacao());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.itens).toHaveLength(1);
+    expect(result.current.resumo).toBeNull();
+
+    await act(async () => { resolverResumo(resumo(true)); });
+    await waitFor(() => expect(result.current.resumo?.capabilities.base).toBe(true));
+  });
+
+  it('usa o cadastro básico quando a lista operacional falha', async () => {
+    apiMocks.resumoOperacional.mockResolvedValue(resumo(true));
+    apiMocks.listarOperacao.mockRejectedValue(new Error('Falha operacional'));
+    apiMocks.listar.mockResolvedValue({ success: true, data: [{ id: 'cliente-2', nome: 'Ana Souza', telefone: null, instagram_usuario: null, preferencia_contato: null, origem: null, cidade: null, estado: null, ativo: true, banido: false, criado_em: '2026-10-01T12:00:00.000Z', atualizado_em: '2026-10-01T12:00:00.000Z' }] });
+
+    const { result } = renderHook(() => useClientesOperacao());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.itens.map((item) => item.id)).toEqual(['cliente-2']);
     expect(result.current.error).toBeNull();
   });
 

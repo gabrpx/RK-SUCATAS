@@ -137,7 +137,7 @@ export function VendasView({ onSelectItem, onRegisterActions }: VendasViewProps)
               <Plus size={18} /> Entrada/saída avulsa
             </Button>
           )}
-          <Button onClick={() => setIsNovaVendaOpen(true)} className="h-auto px-5 py-3.5 md:py-3 rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow">
+          <Button onClick={() => setIsNovaVendaOpen(true)} className="h-auto px-5 py-3.5 md:py-3 rounded-control font-black text-xs uppercase tracking-widest shadow-lg shadow-accent-shadow">
             <Plus size={18} /> Nova Venda
           </Button>
         </div>
@@ -383,10 +383,7 @@ function MovimentoAvulsoModal({ isOpen, onClose, onSaved }: { isOpen: boolean; o
         </div>
         <label className="block text-sm font-medium text-text-secondary">
           Forma de pagamento
-          <select value={formaPagamentoId} onChange={(e) => setFormaPagamentoId(e.target.value)} className="mt-1.5 w-full rounded-xl border border-border-default bg-surface-inset px-3 py-2.5 text-sm outline-none focus:border-accent">
-            <option value="">Não informada</option>
-            {formasPagamento.map((forma) => <option key={forma.id} value={forma.id}>{forma.nome}</option>)}
-          </select>
+          <Select ariaLabel="Forma de pagamento" className="mt-1.5" value={formaPagamentoId} onChange={setFormaPagamentoId} options={[{ value: '', label: 'Não informada' }, ...formasPagamento.map((forma) => ({ value: forma.id, label: forma.nome }))]} size="lg" />
         </label>
       </div>
     </Modal>

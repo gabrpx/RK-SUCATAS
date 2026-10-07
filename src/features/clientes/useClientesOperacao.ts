@@ -51,32 +51,50 @@ export function useClientesOperacao(filtros: ClientesOperacaoFiltros = FILTROS_V
     setLoading(true);
     setError(null);
     try {
-      let resumoResult: Awaited<ReturnType<typeof clientesApi.resumoOperacional>> | null = null;
+      // A lista principal e o resumo são independentes. O resumo não pode
+      // atrasar a exibição dos clientes quando estiver lento ou indisponível.
+      const resumoPromise = clientesApi.resumoOperacional().catch(() => null);
+      let erroLista: Error | null = null;
+      let usouCadastro = false;
       try {
-        resumoResult = await clientesApi.resumoOperacional();
-      } catch {
-        // Os indicadores são complementares: uma indisponibilidade temporária
-        // não pode bloquear a lista cadastral da aba Clientes.
+        const listaResult = await clientesApi.listarOperacao({ ...filtros, limit: filtros.limit ?? 50 });
+        if (!listaResult.success) throw new Error(listaResult.error || 'Não foi possível carregar os clientes.');
+        if (request !== requestRef.current) return;
+        setItens(listaResult.data.itens);
+        setProximoCursor(listaResult.data.proximo_cursor);
+        setLoading(false);
+      } catch (erro) {
+        erroLista = erro instanceof Error ? erro : new Error('Não foi possível carregar os clientes.');
+        // A consulta operacional pode falhar mesmo com o cadastro básico
+        // disponível. Não deixe a tela vazia por causa de um recurso auxiliar.
+        try {
+          const cadastroResult = await clientesApi.listar(true);
+          if (!cadastroResult.success) throw new Error(cadastroResult.error || 'Não foi possível carregar os clientes.');
+          if (request !== requestRef.current) return;
+          setItens(cadastroResult.data.map(paraItemOperacional));
+          setProximoCursor(null);
+          setLoading(false);
+          usouCadastro = true;
+        } catch {
+          // O erro original é apresentado depois do resumo, caso ambos falhem.
+        }
       }
-      if (request !== requestRef.current) return;
 
+      const resumoResult = await resumoPromise;
+      if (request !== requestRef.current) return;
       const resumoData = resumoResult?.success ? resumoResult.data : null;
       setResumo(resumoData);
       const indisponivel = resumoData !== null && !resumoData.capabilities.base;
       setCapabilityUnavailable(indisponivel);
-      if (indisponivel) {
+      if (indisponivel && !usouCadastro) {
         const cadastroResult = await clientesApi.listar(true);
         if (!cadastroResult.success) throw new Error(cadastroResult.error || 'Não foi possível carregar os clientes.');
         if (request !== requestRef.current) return;
         setItens(cadastroResult.data.map(paraItemOperacional));
         setProximoCursor(null);
-        return;
+      } else if (erroLista && !usouCadastro) {
+        throw erroLista;
       }
-      const listaResult = await clientesApi.listarOperacao({ ...filtros, limit: filtros.limit ?? 50 });
-      if (!listaResult.success) throw new Error(listaResult.error || 'Não foi possível carregar os clientes.');
-      if (request !== requestRef.current) return;
-      setItens(listaResult.data.itens);
-      setProximoCursor(listaResult.data.proximo_cursor);
     } catch (erro) {
       if (request !== requestRef.current) return;
       setError(erro instanceof Error ? erro.message : 'Não foi possível carregar a central de clientes.');

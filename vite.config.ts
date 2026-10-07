@@ -12,6 +12,12 @@ export default defineConfig(() => {
     plugins: [react(), tailwindcss()],
     base: './', // Necessário para o Capacitor carregar corretamente os assets
     cacheDir: process.env.VITE_CACHE_DIR || 'node_modules/.vite',
+    // O monorepo mantém bundles web gerados do Android em android/**. Eles
+    // não são entradas do Vite e podem referenciar dependências nativas ausentes
+    // no frontend web; limite a descoberta à única entrada da SPA.
+    optimizeDeps: {
+      entries: ['index.html'],
+    },
     build: {
       outDir: 'dist',
     },
@@ -41,7 +47,9 @@ export default defineConfig(() => {
       },
       // HMR is disabled in AI Studio via DISABLE_HMR env var.
       // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
-      hmr: process.env.DISABLE_HMR !== 'true',
+      hmr: process.env.DISABLE_HMR === 'true'
+        ? false
+        : { port: Number(process.env.VITE_HMR_PORT || 24678) },
     },
     preview: {
       port: Number(process.env.VITE_PREVIEW_PORT || 3001),

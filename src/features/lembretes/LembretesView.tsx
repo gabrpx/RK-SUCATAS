@@ -12,6 +12,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { Select } from '@/src/components/ui/Select';
 import { useLembretes } from './useLembretes';
 import { lembretesApi } from './api';
 import type { Lembrete, UsuarioResumo } from './types';
@@ -294,14 +295,7 @@ export function LembretesView() {
             />
           </div>
           <div>
-            <label className={labelClass}>Responsável</label>
-            <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
-              {usuarios.map((u) => (
-                <option key={u.id} value={u.id}>
-                  {u.id === meuId ? `${u.nome_exibicao} (você)` : u.nome_exibicao}
-                </option>
-              ))}
-            </select>
+            <Select label="Responsável" value={form.atribuido_para} onChange={(atribuido_para) => setForm((f) => ({ ...f, atribuido_para }))} options={usuarios.map((u) => ({ value: u.id, label: u.id === meuId ? `${u.nome_exibicao} (você)` : u.nome_exibicao }))} />
           </div>
           <div className="flex items-center gap-2">
             {(['repetir', 'horario'] as const).map((modo) => (

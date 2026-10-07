@@ -20,6 +20,9 @@ Express fino (autenticação de staff + proxy do Melhor Envio + CRUD Supabase).
 
 Este projeto está configurado para deploy automático no Google Cloud Run:
 
-1. O servidor escuta na porta definida por `process.env.PORT`
+1. O servidor local inicia com `npm run dev` em `http://127.0.0.1:3001`.
+   O inicializador usa um bundle temporário e cache isolado por processo para
+   evitar falhas `ENOMEM` do `tsx`, colisões de cache `EPERM` e conflitos de HMR
+   no Windows. Para uma prévia somente leitura, use `npm run dev:preview`.
 2. O comando de start é `npm start`
 3. As variáveis de ambiente devem ser configuradas no Cloud Run

@@ -10,6 +10,7 @@ import { aviso } from '../../components/ui/toast';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { Select } from '@/src/components/ui/Select';
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from '../../components/ui/dropdown-menu';
 import { SeletorCliente } from '../clientes/SeletorCliente';
 import { DatePicker } from '../../components/ui/DatePicker';
@@ -759,26 +760,12 @@ function VisaoCriador({
               />
             </div>
             <div>
-              <label className={labelClass}>Prioridade</label>
-              <select value={form.prioridade} onChange={(e) => setForm((f) => ({ ...f, prioridade: e.target.value as TarefaPrioridade }))} className={inputClass}>
-                {(['baixa', 'media', 'alta'] as const).map((p) => (
-                  <option key={p} value={p}>
-                    {PRIORIDADE_LABELS[p]}
-                  </option>
-                ))}
-              </select>
+              <Select label="Prioridade" value={form.prioridade} onChange={(prioridade) => setForm((f) => ({ ...f, prioridade: prioridade as TarefaPrioridade }))} options={(['baixa', 'media', 'alta'] as const).map((prioridade) => ({ value: prioridade, label: PRIORIDADE_LABELS[prioridade] }))} />
             </div>
           </div>
           {editando ? (
             <div>
-              <label className={labelClass}>Responsável</label>
-              <select value={form.atribuido_para} onChange={(e) => setForm((f) => ({ ...f, atribuido_para: e.target.value }))} className={inputClass}>
-                {responsaveis.map((r) => (
-                  <option key={r.id} value={r.id}>
-                    {r.nome_exibicao}
-                  </option>
-                ))}
-              </select>
+              <Select label="Responsável" value={form.atribuido_para} onChange={(atribuido_para) => setForm((f) => ({ ...f, atribuido_para }))} options={responsaveis.map((responsavel) => ({ value: responsavel.id, label: responsavel.nome_exibicao }))} />
             </div>
           ) : (
             <div>

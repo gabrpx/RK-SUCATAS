@@ -15,6 +15,7 @@ import { useCatalogos } from '../../hooks/useCatalogos';
 import { Modal } from '../../components/ui/Modal';
 import { aviso } from '../../components/ui/toast';
 import { Button } from '@/src/components/ui/button';
+import { Select } from '@/src/components/ui/Select';
 import { caixaPendenciasApi } from './api';
 import type { CaixaPendencia, CaixaPendenciaRecebimento } from './types';
 
@@ -164,21 +165,14 @@ function LinhaPendencia({
           )}
           placeholder="0,00"
         />
-        <select
+        <Select
+          ariaLabel="Forma de pagamento"
+          className="flex-1"
+          size="sm"
           value={formaPagamentoId}
-          onChange={(e) => setFormaPagamentoId(e.target.value)}
-          className={cn(
-            'flex-1 border rounded-xl py-2 px-2.5 text-xs outline-none focus:ring-2 focus:ring-accent/50',
-            'bg-surface-inset border-border-default text-text-primary'
-          )}
-        >
-          <option value="">Forma de pagamento...</option>
-          {formasAvista.map((f) => (
-            <option key={f.id} value={f.id}>
-              {f.nome}
-            </option>
-          ))}
-        </select>
+          onChange={setFormaPagamentoId}
+          options={[{ value: '', label: 'Forma de pagamento...' }, ...formasAvista.map((f) => ({ value: f.id, label: f.nome }))]}
+        />
         <button
           onClick={confirmar}
           disabled={enviando}
