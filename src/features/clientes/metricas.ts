@@ -88,8 +88,30 @@ export interface BadgeMotoProcurada {
   tom: StatusTone;
 }
 
-const PRIORIDADE_STATUS: Record<PecaProcuradaResumo['status'], number> = { atendida: 2, aguardando: 1, cancelada: 0 };
-const TOM_POR_STATUS: Record<PecaProcuradaResumo['status'], StatusTone> = { atendida: 'positive', aguardando: 'warning', cancelada: 'neutral' };
+const PRIORIDADE_STATUS: Record<PecaProcuradaResumo['status'], number> = {
+  nova: 2,
+  em_busca: 2,
+  peca_disponivel: 4,
+  aguardando_cliente: 3,
+  vendida: 5,
+  nao_encontrada: 0,
+  cliente_desistiu: 0,
+  cancelada: 0,
+  aguardando: 2,
+  atendida: 5,
+};
+const TOM_POR_STATUS: Record<PecaProcuradaResumo['status'], StatusTone> = {
+  nova: 'accent',
+  em_busca: 'warning',
+  peca_disponivel: 'positive',
+  aguardando_cliente: 'warning',
+  vendida: 'positive',
+  nao_encontrada: 'neutral',
+  cliente_desistiu: 'neutral',
+  cancelada: 'neutral',
+  aguardando: 'warning',
+  atendida: 'positive',
+};
 
 export function badgesMotoProcurada(clienteId: string, pecasProcuradas: PecaProcuradaResumo[]): BadgeMotoProcurada[] {
   const porModelo = new Map<string, PecaProcuradaResumo>();

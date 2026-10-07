@@ -49,6 +49,7 @@ import { PromocaoBadge } from './features/promocoes/PromocaoBadge';
 import { ComprovantesPixVenda } from './features/comprovantes/ComprovantesPixVenda';
 import { VendaClienteResumo } from './features/vendas/VendaClienteResumo';
 import type { Tab } from './constants/navigation';
+import { telaImersiva } from './appShell';
 import { usePermissao } from './hooks/usePermissao';
 import { FloatingNotaButton } from './components/DeclaracaoVenda';
 import type { Estoque } from './features/estoque/types';
@@ -82,13 +83,6 @@ const VALID_TABS: Tab[] = ['dashboard', 'estoque', 'vendas', 'vendas-antigo', 'o
 // duas usam a mesma permissão de ver estoque.
 function permissaoDeVer(tab: Tab) {
   return tab === 'estoque-antigo' ? 'estoque.ver' : tab === 'vendas-antigo' ? 'vendas.ver' : `${tab}.ver`;
-}
-
-// Telas com casca própria no padrão da nova Tarefas (cabeçalho, fundo claro e
-// espaço para a dock): o app não desenha o cabeçalho escuro nem os botões
-// flutuantes por cima delas.
-function telaImersiva(tab: Tab) {
-  return tab === 'tarefas' || tab === 'estoque' || tab === 'vendas';
 }
 
 // Primeira aba que o usuário pode VER — usada como fallback quando a URL pede

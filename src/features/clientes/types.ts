@@ -1,7 +1,16 @@
 import type { ComprovantePixComVenda } from '../comprovantes/types';
+import type { PedidoBuscaEstadoPersistido } from './operacaoTypes';
 
-export type ClienteOrigem = 'balcao' | 'indicacao' | 'mercado_livre' | 'redes_sociais' | 'outro';
-export type PreferenciaContato = 'whatsapp' | 'ligacao' | 'sms' | 'nenhuma';
+export type ClienteOrigem =
+  | 'balcao'
+  | 'indicacao'
+  | 'mercado_livre'
+  | 'redes_sociais'
+  | 'outro'
+  | 'whatsapp'
+  | 'facebook'
+  | 'instagram';
+export type PreferenciaContato = 'whatsapp' | 'instagram' | 'ligacao' | 'sms' | 'nenhuma';
 
 export interface ClienteNota {
   id: string;
@@ -18,17 +27,20 @@ export interface ClienteMoto {
   id: string;
   cliente_id: string;
   modelo_moto_id: string | null;
+  modelo_texto?: string | null;
   modelo_moto: { id: string; nome: string; ano: string | null } | null;
   placa: string | null;
   chassi: string | null;
   ano: string | null;
   cor: string | null;
   observacoes: string | null;
+  principal?: boolean;
   criado_em: string;
 }
 
 export interface ClienteMotoInput {
   modelo_moto_id?: string | null;
+  modelo_texto?: string | null;
   placa?: string | null;
   chassi?: string | null;
   ano?: string | null;
@@ -36,7 +48,7 @@ export interface ClienteMotoInput {
   observacoes?: string | null;
 }
 
-export type PecaProcuradaStatus = 'aguardando' | 'atendida' | 'cancelada';
+export type PecaProcuradaStatus = PedidoBuscaEstadoPersistido;
 
 export interface PecaProcurada {
   id: string;
@@ -46,8 +58,17 @@ export interface PecaProcurada {
   categoria_id: string | null;
   categoria: { id: string; nome: string } | null;
   modelo_moto_id: string | null;
+  cliente_moto_id?: string | null;
+  moto_modelo_texto?: string | null;
   modelo_moto: { id: string; nome: string; ano: string | null } | null;
   status: PecaProcuradaStatus;
+  ano_compatibilidade?: string | null;
+  observacoes?: string | null;
+  responsavel_id?: string | null;
+  prometido_para?: string | null;
+  proxima_acao_em?: string | null;
+  encerrada_em?: string | null;
+  venda_id?: string | null;
   criado_por: string;
   criado_em: string;
   atendida_em: string | null;
@@ -84,6 +105,7 @@ export interface Cliente {
   id: string;
   nome: string;
   telefone: string | null;
+  instagram_usuario?: string | null;
   documento: string | null;
   data_nascimento: string | null;
   origem: ClienteOrigem | null;
@@ -94,6 +116,11 @@ export interface Cliente {
   banido: boolean;
   cidade: string | null;
   estado: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
   criado_em: string;
   atualizado_em: string;
   // Vínculo manual com o comprador do Mercado Livre (ver migration_035) —
@@ -114,11 +141,14 @@ export interface ClienteResumo {
   id: string;
   nome: string;
   telefone: string | null;
+  instagram_usuario?: string | null;
+  preferencia_contato?: PreferenciaContato | null;
 }
 
 export interface ClienteInput {
   nome: string;
   telefone?: string | null;
+  instagram_usuario?: string | null;
   documento?: string | null;
   data_nascimento?: string | null;
   origem?: ClienteOrigem | null;
@@ -127,6 +157,11 @@ export interface ClienteInput {
   observacoes?: string | null;
   cidade?: string | null;
   estado?: string | null;
+  cep?: string | null;
+  logradouro?: string | null;
+  numero?: string | null;
+  complemento?: string | null;
+  bairro?: string | null;
 }
 
-export type ClienteUpdateInput = Partial<ClienteInput> & { ativo?: boolean };
+export type ClienteUpdateInput = Partial<ClienteInput> & { ativo?: boolean; banido?: boolean };

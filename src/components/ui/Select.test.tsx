@@ -57,17 +57,13 @@ describe('<Select>', () => {
     expect(screen.queryByText('Alpha')).toBeNull();
   });
 
-  it('aria-labelledby combina id do label + id do valor quando label passado', () => {
+  it('aria-labelledby referencia o label quando label passado', () => {
     render(<Select label="Estado" options={opts} value="b" onChange={() => {}} />);
     const btn = screen.getByRole('combobox');
     const aria = btn.getAttribute('aria-labelledby');
     expect(aria).toBeTruthy();
-    const parts = aria!.split(' ');
-    expect(parts).toHaveLength(2);
-    // Ambos os ids devem existir no DOM
-    parts.forEach((id) => {
-      expect(document.getElementById(id)).not.toBeNull();
-    });
+    expect(aria!.split(' ')).toHaveLength(1);
+    expect(document.getElementById(aria!)).not.toBeNull();
   });
 
   it('aria-labelledby ausente quando label não passado', () => {

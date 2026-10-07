@@ -211,30 +211,33 @@ export function Tooltip({
   const tooltipEl = (
     <AnimatePresence mode="wait">
       {open && pos ? (
-        <motion.span
-          id={id}
-          role="tooltip"
-          variants={variants}
-          initial="initial"
-          animate="animate"
-          exit="exit"
+        <span
           style={{
             position: "fixed",
             top: pos.top,
             left: pos.left,
             transform: getTransform(side),
             transformOrigin: transformOrigin[side],
-            willChange: "transform, opacity, filter",
             zIndex: 9999,
             pointerEvents: "none",
           }}
-          className={cn(
-            "block whitespace-nowrap rounded-lg border border-border-default bg-surface-overlay/85 px-2.5 py-1 text-xs font-medium text-text-primary shadow-2xl backdrop-blur-xl",
-            className,
-          )}
         >
-          {content}
-        </motion.span>
+          <motion.span
+            id={id}
+            role="tooltip"
+            variants={variants}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            style={{ willChange: "transform, opacity, filter" }}
+            className={cn(
+              "block whitespace-nowrap rounded-lg border border-border-default bg-surface-overlay/85 px-2.5 py-1 text-xs font-medium text-text-primary shadow-2xl backdrop-blur-xl",
+              className,
+            )}
+          >
+            {content}
+          </motion.span>
+        </span>
       ) : null}
     </AnimatePresence>
   );

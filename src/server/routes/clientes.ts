@@ -5,15 +5,34 @@
 import { Router } from 'express';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
-import { exigirPermissao } from '../../../middleware/auth.js';
+import { exigirAlguma, exigirPermissao, temPermissao } from '../../../middleware/auth.js';
 import { gerarUrlAssinadaComprovante } from '../../services/storageService.js';
+import { clientesOperacaoRouter } from './clientes/clientesOperacao.js';
 
 const SELECT_COM_DETALHES =
   '*, notas:clientes_notas(*, autor:usuarios(id, nome_exibicao)), ' +
   'motos:clientes_motos(*, modelo_moto:modelos_moto(id, nome, ano)), ' +
   'pecas_procuradas:pecas_procuradas(*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano))';
 
-const CAMPOS_EDITAVEIS = ['nome', 'telefone', 'documento', 'data_nascimento', 'origem', 'preferencia_contato', 'tags', 'observacoes', 'ativo', 'banido', 'ml_nickname', 'cidade', 'estado'] as const;
+const CAMPOS_EDITAVEIS_COMUNS = [
+  'nome',
+  'telefone',
+  'instagram_usuario',
+  'documento',
+  'data_nascimento',
+  'preferencia_contato',
+  'tags',
+  'observacoes',
+  'ml_nickname',
+  'cidade',
+  'estado',
+  'cep',
+  'logradouro',
+  'numero',
+  'complemento',
+  'bairro',
+] as const;
+const CAMPOS_EDITAVEIS_ADMIN = ['ativo', 'banido'] as const;
 
 function normalizarTags(tags: unknown): string[] | undefined {
   if (!Array.isArray(tags)) return undefined;
@@ -32,11 +51,21 @@ function normalizarDigitos(value: unknown): string | null {
 export function clientesRouter(supabase: SupabaseClient) {
   const router = Router();
 
+  // O centro operacional usa contratos próprios e precisa ser montado antes
+  // de /:id, para que "operacao" nunca seja interpretado como id de cliente.
+  router.use('/operacao', clientesOperacaoRouter(supabase));
+
   // Por padrão só lista ativos — ?incluir_inativos=true traz todos, usado
   // pela tela de reativação.
   router.get('/', exigirPermissao('clientes.ver'), async (req, res) => {
     try {
-      let query = supabase.from('clientes').select('*').order('nome');
+      let query = supabase
+        .from('clientes')
+        .select(
+          'id, nome, telefone, instagram_usuario, documento, data_nascimento, origem, preferencia_contato, ' +
+          'tags, observacoes, ativo, banido, ml_nickname, cidade, estado, criado_em, atualizado_em'
+        )
+        .order('nome');
       if (req.query.incluir_inativos !== 'true') query = query.eq('ativo', true);
       const { data, error } = await query;
       if (error) throw error;
@@ -126,6 +155,7 @@ export function clientesRouter(supabase: SupabaseClient) {
       const payload = {
         nome,
         telefone: normalizarDigitos(req.body?.telefone),
+        instagram_usuario: req.body?.instagram_usuario ? String(req.body.instagram_usuario).trim().replace(/^@+/, '').toLowerCase() : null,
         documento: normalizarDigitos(req.body?.documento),
         data_nascimento: req.body?.data_nascimento || null,
         origem: req.body?.origem || null,
@@ -133,6 +163,11 @@ export function clientesRouter(supabase: SupabaseClient) {
         tags: normalizarTags(req.body?.tags) ?? [],
         observacoes: req.body?.observacoes ? String(req.body.observacoes).trim() : null,
         cidade: req.body?.cidade ? String(req.body.cidade).trim() : null,
+        cep: normalizarDigitos(req.body?.cep),
+        logradouro: req.body?.logradouro ? String(req.body.logradouro).trim() : null,
+        numero: req.body?.numero ? String(req.body.numero).trim() : null,
+        complemento: req.body?.complemento ? String(req.body.complemento).trim() : null,
+        bairro: req.body?.bairro ? String(req.body.bairro).trim() : null,
         estado: (() => {
           const raw = req.body?.estado;
           if (raw == null || raw === '') return null;
@@ -156,10 +191,28 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.patch('/:id', exigirPermissao('clientes.editar'), async (req, res) => {
+  router.patch('/:id', exigirAlguma('clientes.editar', 'clientes.administrar'), async (req: AuthenticatedRequest, res) => {
     try {
       const payload: Record<string, any> = {};
-      for (const campo of CAMPOS_EDITAVEIS) {
+      const possuiCampoComum = CAMPOS_EDITAVEIS_COMUNS.some((campo) => req.body?.[campo] !== undefined);
+      const possuiCampoAdministrativo = CAMPOS_EDITAVEIS_ADMIN.some((campo) => req.body?.[campo] !== undefined);
+
+      if (possuiCampoComum && !temPermissao(req.usuario, 'clientes.editar')) {
+        return res.status(403).json({ success: false, error: 'Acesso negado: edição cadastral não permitida' });
+      }
+      if (possuiCampoAdministrativo && !temPermissao(req.usuario, 'clientes.administrar')) {
+        return res.status(403).json({ success: false, error: 'Acesso negado: esta ação é administrativa' });
+      }
+      for (const campo of CAMPOS_EDITAVEIS_ADMIN) {
+        if (req.body?.[campo] !== undefined && typeof req.body[campo] !== 'boolean') {
+          return res.status(400).json({ success: false, error: `${campo} deve ser verdadeiro ou falso` });
+        }
+      }
+
+      // A origem é imutável nesta rota legada. A correção histórica passa
+      // exclusivamente por /operacao/clientes/:id/origem, que exige motivo
+      // e registra o evento de auditoria pela RPC.
+      for (const campo of CAMPOS_EDITAVEIS_COMUNS) {
         if (req.body?.[campo] === undefined) continue;
         if (campo === 'nome') {
           const nome = String(req.body.nome).trim();
@@ -167,16 +220,24 @@ export function clientesRouter(supabase: SupabaseClient) {
           payload.nome = nome;
         } else if (campo === 'tags') {
           payload.tags = normalizarTags(req.body.tags) ?? [];
-        } else if (campo === 'telefone' || campo === 'documento') {
+        } else if (campo === 'telefone' || campo === 'documento' || campo === 'cep') {
           payload[campo] = normalizarDigitos(req.body[campo]);
-        } else if (campo === 'ativo') {
-          payload.ativo = Boolean(req.body.ativo);
+        } else if (campo === 'instagram_usuario') {
+          const instagram = String(req.body.instagram_usuario ?? '').trim().replace(/^@+/, '').toLowerCase();
+          payload.instagram_usuario = instagram || null;
         } else if (campo === 'estado') {
           const s = String(req.body.estado ?? '').trim().toUpperCase();
           payload.estado = /^[A-Z]{2}$/.test(s) ? s : null;
         } else {
           payload[campo] = req.body[campo] === '' ? null : req.body[campo];
         }
+      }
+      for (const campo of CAMPOS_EDITAVEIS_ADMIN) {
+        if (req.body?.[campo] !== undefined) payload[campo] = Boolean(req.body[campo]);
+      }
+
+      if (Object.keys(payload).length === 0) {
+        return res.status(400).json({ success: false, error: 'Nenhum campo editável foi informado' });
       }
 
       const { data, error } = await supabase.from('clientes').update(payload).eq('id', req.params.id).select('*').maybeSingle();
@@ -241,6 +302,7 @@ export function clientesRouter(supabase: SupabaseClient) {
       const payload = {
         cliente_id: req.params.id,
         modelo_moto_id: req.body?.modelo_moto_id || null,
+        modelo_texto: req.body?.modelo_texto ? String(req.body.modelo_texto).trim() : null,
         placa: req.body?.placa ? String(req.body.placa).trim() : null,
         chassi: req.body?.chassi ? String(req.body.chassi).trim() : null,
         ano: req.body?.ano ? String(req.body.ano).trim() : null,
@@ -259,7 +321,7 @@ export function clientesRouter(supabase: SupabaseClient) {
   router.patch('/:id/motos/:motoId', exigirPermissao('clientes.editar'), async (req, res) => {
     try {
       const payload: Record<string, any> = {};
-      for (const campo of ['modelo_moto_id', 'placa', 'chassi', 'ano', 'cor', 'observacoes'] as const) {
+      for (const campo of ['modelo_moto_id', 'modelo_texto', 'placa', 'chassi', 'ano', 'cor', 'observacoes'] as const) {
         if (req.body?.[campo] !== undefined) payload[campo] = req.body[campo] === '' ? null : req.body[campo];
       }
       const { data, error } = await supabase
@@ -304,7 +366,14 @@ export function clientesRouter(supabase: SupabaseClient) {
         descricao,
         categoria_id: req.body?.categoria_id || null,
         modelo_moto_id: req.body?.modelo_moto_id || null,
+        cliente_moto_id: req.body?.cliente_moto_id || null,
+        moto_modelo_texto: req.body?.moto_modelo_texto ? String(req.body.moto_modelo_texto).trim() : null,
+        ano_compatibilidade: req.body?.ano_compatibilidade ? String(req.body.ano_compatibilidade).trim() : null,
+        observacoes: req.body?.observacoes ? String(req.body.observacoes).trim() : null,
         criado_por: req.usuario!.id,
+        responsavel_id: req.body?.responsavel_id || req.usuario!.id,
+        prometido_para: req.body?.prometido_para || null,
+        idempotency_key: req.body?.idempotency_key || null,
       };
       const { data, error } = await supabase
         .from('pecas_procuradas')
@@ -321,23 +390,21 @@ export function clientesRouter(supabase: SupabaseClient) {
 
   // Só o status é editável manualmente (ex: cancelar um pedido) — "atendida"
   // normalmente é setado automaticamente pelo match em estoque.ts.
-  router.patch('/:id/pecas-procuradas/:pedidoId', exigirPermissao('clientes.editar'), async (req, res) => {
+  router.patch('/:id/pecas-procuradas/:pedidoId', exigirPermissao('clientes.editar'), async (req: AuthenticatedRequest, res) => {
     try {
       const status = req.body?.status;
       if (!['aguardando', 'atendida', 'cancelada'].includes(status)) {
         return res.status(400).json({ success: false, error: 'Status inválido' });
       }
-      const payload: Record<string, any> = { status };
-      if (status !== 'aguardando') payload.atendida_em = new Date().toISOString();
-      const { data, error } = await supabase
-        .from('pecas_procuradas')
-        .update(payload)
-        .eq('id', req.params.pedidoId)
-        .eq('cliente_id', req.params.id)
-        .select('*, categoria:categorias(id, nome), modelo_moto:modelos_moto(id, nome, ano)')
-        .maybeSingle();
-      if (error) throw error;
-      if (!data) return res.status(404).json({ success: false, error: 'Pedido não encontrado' });
+      const novoStatus = status === 'aguardando' ? 'em_busca' : status;
+      const { data, error } = await supabase.rpc('transicionar_pedido_busca', {
+        p_pedido_id: req.params.pedidoId,
+        p_novo_status: novoStatus,
+        p_usuario_id: req.usuario!.id,
+        p_motivo: status === 'cancelada' ? String(req.body?.motivo || 'Cancelado pelo fluxo anterior') : null,
+        p_venda_id: null,
+      });
+      if (error) return res.status(400).json({ success: false, error: 'Não foi possível alterar o estado deste pedido' });
       res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao atualizar peça procurada:', error);
@@ -345,11 +412,16 @@ export function clientesRouter(supabase: SupabaseClient) {
     }
   });
 
-  router.delete('/:id/pecas-procuradas/:pedidoId', exigirPermissao('clientes.editar'), async (req, res) => {
+  router.delete('/:id/pecas-procuradas/:pedidoId', exigirPermissao('clientes.editar'), async (req: AuthenticatedRequest, res) => {
     try {
-      const { error } = await supabase.from('pecas_procuradas').delete().eq('id', req.params.pedidoId).eq('cliente_id', req.params.id);
-      if (error) throw error;
-      res.json({ success: true });
+      const { data, error } = await supabase.rpc('registrar_acao_pedido', {
+        p_pedido_id: req.params.pedidoId,
+        p_acao: 'cancelar',
+        p_usuario_id: req.usuario!.id,
+        p_detalhe: { motivo: 'Cancelado pelo fluxo anterior' },
+      });
+      if (error) return res.status(400).json({ success: false, error: 'Não foi possível cancelar este pedido' });
+      res.json({ success: true, data });
     } catch (error: any) {
       console.error('Erro ao excluir peça procurada:', error);
       res.status(500).json({ success: false, error: error.message });

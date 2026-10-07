@@ -10,6 +10,7 @@ import { PhoneInput } from '@/src/components/ui/PhoneInput';
 import { DocInput } from '@/src/components/ui/DocInput';
 import { CepInput } from '@/src/components/ui/CepInput';
 import { StateCitySelect } from '@/src/components/ui/StateCitySelect';
+import { Select } from '@/src/components/ui/Select';
 import type { ClienteOrigem, PreferenciaContato } from './types';
 
 const ORIGEM_LABELS: Record<ClienteOrigem, string> = {
@@ -18,10 +19,14 @@ const ORIGEM_LABELS: Record<ClienteOrigem, string> = {
   mercado_livre: 'Mercado Livre',
   redes_sociais: 'Redes sociais',
   outro: 'Outro',
+  whatsapp: 'WhatsApp',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
 };
 
 const CONTATO_LABELS: Record<PreferenciaContato, string> = {
   whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
   ligacao: 'Ligação',
   sms: 'SMS',
   nenhuma: 'Nenhuma',
@@ -224,53 +229,14 @@ export function ClienteFormModal({
               className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
             />
           </FloatingField>
-          <FloatingField label="Preferência de contato">
-            <select
-              value={form.preferencia_contato || ''}
-              onChange={(e) => update({ preferencia_contato: e.target.value || null })}
-              className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-            >
-              <option value="">—</option>
-              {(Object.keys(CONTATO_LABELS) as PreferenciaContato[]).map((k) => (
-                <option key={k} value={k}>
-                  {CONTATO_LABELS[k]}
-                </option>
-              ))}
-            </select>
-          </FloatingField>
+          <Select label="Preferência de contato" value={form.preferencia_contato || ''} onChange={(preferencia_contato) => update({ preferencia_contato: (preferencia_contato || null) as PreferenciaContato | null })} options={[{ value: '', label: '—' }, ...(Object.keys(CONTATO_LABELS) as PreferenciaContato[]).map((contato) => ({ value: contato, label: CONTATO_LABELS[contato] }))]} />
         </div>
 
-        <FloatingField label="Como conheceu a loja">
-          <select
-            value={form.origem || ''}
-            onChange={(e) => update({ origem: e.target.value || null })}
-            className={cn(baseInput, 'focus:ring-2 focus:ring-accent/50')}
-          >
-            <option value="">—</option>
-            {(Object.keys(ORIGEM_LABELS) as ClienteOrigem[]).map((k) => (
-              <option key={k} value={k}>
-                {ORIGEM_LABELS[k]}
-              </option>
-            ))}
-          </select>
-        </FloatingField>
+        <Select label="Como conheceu a loja" value={form.origem || ''} onChange={(origem) => update({ origem: (origem || null) as ClienteOrigem | null })} options={[{ value: '', label: '—' }, ...(Object.keys(ORIGEM_LABELS) as ClienteOrigem[]).map((origem) => ({ value: origem, label: ORIGEM_LABELS[origem] }))]} />
 
         <FloatingField label="Motos que ele busca peças">
           <div className="flex gap-2">
-            <select
-              value={motoBuscaSel}
-              onChange={(e) => onMotoBuscaSelChange(e.target.value)}
-              className={cn(baseInput, 'flex-1 focus:ring-2 focus:ring-accent/50')}
-            >
-              <option value="">Escolher modelo…</option>
-              {opcoesModelo
-                .filter((o) => !motosBuscaForm.some((m) => m.id === o.id))
-                .map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-            </select>
+            <Select className="flex-1" ariaLabel="Modelo de moto procurado" value={motoBuscaSel} onChange={onMotoBuscaSelChange} options={[{ value: '', label: 'Escolher modelo…' }, ...opcoesModelo.filter((opcao) => !motosBuscaForm.some((moto) => moto.id === opcao.id)).map((opcao) => ({ value: opcao.id, label: opcao.label }))]} />
             <Button
               type="button"
               variant="outline"

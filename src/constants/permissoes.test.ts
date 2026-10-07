@@ -26,6 +26,7 @@ describe('catálogo de permissões', () => {
     expect(chaveExiste('estoque', 'ver')).toBe(true);
     expect(chaveExiste('estoque', 'inexistente')).toBe(false);
     expect(chaveExiste('tela_fantasma', 'ver')).toBe(false);
+    expect(chaveExiste('clientes', 'administrar')).toBe(true);
   });
 });
 
@@ -104,7 +105,7 @@ describe('permissoesDeRoles (backfill)', () => {
   });
 
   it('equipe recebe tudo menos as ações exclusivas de admin', () => {
-    const soAdmin = ['vendas.cancelar_fiado', 'vendas.excluir_comprovante', 'dashboard.ver_visao_dono'];
+    const soAdmin = ['vendas.cancelar_fiado', 'vendas.excluir_comprovante', 'dashboard.ver_visao_dono', 'clientes.administrar'];
     const ligadas = new Set(chavesLigadas(permissoesDeRoles(['equipe'])));
     // Não recebe as ações admin-only de hoje...
     for (const chave of soAdmin) expect(ligadas.has(chave), chave).toBe(false);

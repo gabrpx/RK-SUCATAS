@@ -4,6 +4,7 @@
 // some do histórico de quem já comprou).
 import { useEffect, useMemo, useState } from 'react';
 import { Users, Plus, Pencil, Search, Loader2, RotateCcw, Ban, Trash2, UserX, PackageSearch, X, MessageCircle, ShieldAlert } from 'lucide-react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { cn } from '../../utils';
 import { usePermissao } from '../../hooks/usePermissao';
 import { formatTelefoneBR, formatDocumentoBR, onlyDigits } from '../../utils/formatters';
@@ -13,11 +14,12 @@ import { useData } from '../../context/DataContext';
 import { aviso } from '../../components/ui/toast';
 import { DataTable } from '../../components/ui/DataTable';
 import type { DataTableColumn } from '../../components/ui/DataTable';
-import { StatusBadge } from '../../components/ui/StatusBadge';
+import { StatusBadge, type StatusTone } from '../../components/ui/StatusBadge';
 import { AlertBar } from '../../components/ui/AlertBar';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { Modal } from '../../components/ui/Modal';
 import { Button } from '@/src/components/ui/button';
+import { Select } from '@/src/components/ui/Select';
 import { useCatalogos } from '../../hooks/useCatalogos';
 import { getAncestorChain as getAncestorChainMoto } from '../motos/motoTree';
 import { getAncestorChain as getAncestorChainCategoria } from '../categorias/categoriaTree';
@@ -39,7 +41,19 @@ import { gerarCsvHistoricoCliente, baixarCsv } from './exportarHistoricoCsv';
 import { useTarefas } from '../tarefas/useTarefas';
 import { comprovantesApi } from '../comprovantes/api';
 import type { Cliente, ClienteInput, ClienteOrigem, PreferenciaContato, PecaProcuradaStatus } from './types';
+import { pedidoStatusCopy } from './operacaoCopy';
 import type { Role } from '../../constants/roles';
+import { OperationalTokensContext, operationalLightTokens } from '../../components/ui/operationalTokens';
+import { ClientesHeader, type ClientesTab } from './components/ClientesHeader';
+import { ClientesPainel } from './components/ClientesPainel';
+import { ClienteFormDrawer } from './components/ClienteFormDrawer';
+import { RegistrarPedidoDrawer } from './components/RegistrarPedidoDrawer';
+import { ClientesLista } from './components/ClientesLista';
+import { ClienteDrawer } from './components/ClienteDrawer';
+import { ClientesAgenda } from './components/ClientesAgenda';
+import { useClientesOperacao } from './useClientesOperacao';
+import { linkInstagram } from '../../utils/instagram';
+import type { PedidoBuscaEstadoPersistido } from './operacaoTypes';
 
 const ORDENACAO_LABELS: Record<OrdenacaoClientes, string> = {
   recentes: 'Mais recentes',
@@ -55,8 +69,19 @@ const STATUS_FILTRO_LABELS: Record<'ativos' | 'inativos' | 'todos', string> = {
   todos: 'Todos',
 };
 
-const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = { aguardando: 'Aguardando', atendida: 'Atendida', cancelada: 'Cancelada' };
-const PECA_STATUS_TONS: Record<PecaProcuradaStatus, 'warning' | 'positive' | 'neutral'> = { aguardando: 'warning', atendida: 'positive', cancelada: 'neutral' };
+const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = pedidoStatusCopy;
+const PECA_STATUS_TONS: Record<PecaProcuradaStatus, StatusTone> = {
+  nova: 'accent',
+  em_busca: 'warning',
+  peca_disponivel: 'positive',
+  aguardando_cliente: 'warning',
+  vendida: 'positive',
+  nao_encontrada: 'neutral',
+  cliente_desistiu: 'neutral',
+  cancelada: 'neutral',
+  aguardando: 'warning',
+  atendida: 'positive',
+};
 
 
 
@@ -64,6 +89,232 @@ const formatCurrency = (value: number) => new Intl.NumberFormat('pt-BR', { style
 
 function formatarData(data: string) {
   return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
+}
+
+export function ClientesView({
+  pendingClienteId,
+  setPendingClienteId,
+  pendingFiltroSumidos,
+  setPendingFiltroSumidos,
+}: {
+  pendingClienteId?: string | null;
+  setPendingClienteId?: (id: string | null) => void;
+  pendingFiltroSumidos?: boolean;
+  setPendingFiltroSumidos?: (v: boolean) => void;
+}) {
+  const { pode } = usePermissao();
+  const { refreshData, vendas, orcamentos } = useData();
+  const { categorias, modelos } = useCatalogos();
+  const operacao = useClientesOperacao();
+  const agenda = useTarefas();
+  const reduzirMovimento = useReducedMotion();
+  const [tab, setTab] = useState<ClientesTab>('painel');
+  const [pedidoAberto, setPedidoAberto] = useState(false);
+  const [clienteParaPedido, setClienteParaPedido] = useState<Cliente | null>(null);
+  const [novoClienteAberto, setNovoClienteAberto] = useState(false);
+  const [clienteDetalhe, setClienteDetalhe] = useState<Cliente | null>(null);
+  const [clienteEditandoNovoFluxo, setClienteEditandoNovoFluxo] = useState<Cliente | null>(null);
+  const [filtrarSemPendencias, setFiltrarSemPendencias] = useState(Boolean(pendingFiltroSumidos));
+  const [pedidoStatuses, setPedidoStatuses] = useState<PedidoBuscaEstadoPersistido[] | null>(null);
+  const [pedidoStatusLabel, setPedidoStatusLabel] = useState<string | null>(null);
+  const podeCriar = pode('clientes.criar');
+  const podeRegistrarPedido = podeCriar || pode('clientes.editar');
+  const usuarioId = typeof window === 'undefined' ? '' : localStorage.getItem('user_id') || '';
+  const usuarioNome = typeof window === 'undefined' ? 'Você' : localStorage.getItem('user_name') || 'Você';
+  const responsaveis = usuarioId ? [{ id: usuarioId, nome: usuarioNome }] : [];
+
+  const recarregarTudo = async () => {
+    await Promise.all([refreshData(), operacao.refresh(), agenda.refetch()]);
+  };
+
+  const buscarCliente = async (id: string) => {
+    const respostaOperacional = await clientesApi.buscarOperacao(id);
+    if (respostaOperacional.success) return respostaOperacional.data;
+
+    const respostaCadastro = await clientesApi.buscar(id);
+    if (respostaCadastro.success) return respostaCadastro.data;
+
+    throw new Error(respostaCadastro.error || respostaOperacional.error || 'Não foi possível carregar o cliente.');
+  };
+
+  const abrirCliente = async (id: string, mostrarLista = false) => {
+    if (mostrarLista) setTab('todos');
+    try {
+      setClienteDetalhe(await buscarCliente(id));
+    } catch (erro) {
+      aviso.falha(erro, 'Erro ao carregar cliente');
+    }
+  };
+
+  useEffect(() => {
+    if (!pendingClienteId) return;
+    void abrirCliente(pendingClienteId, true);
+    setPendingClienteId?.(null);
+    // A abertura é disparada apenas para o deep-link pendente recebido do App.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingClienteId, setPendingClienteId]);
+
+  useEffect(() => {
+    if (!pendingFiltroSumidos) return;
+    setFiltrarSemPendencias(true);
+    setTab('todos');
+    setPendingFiltroSumidos?.(false);
+  }, [pendingFiltroSumidos, setPendingFiltroSumidos]);
+
+  const abrirContato = (cliente: import('./operacaoTypes').ClienteOperacaoListaItem) => {
+    const href = cliente.preferencia_contato === 'instagram'
+      ? linkInstagram(cliente.instagram_usuario) || linkWhatsapp(cliente.telefone)
+      : linkWhatsapp(cliente.telefone) || linkInstagram(cliente.instagram_usuario);
+    if (href) window.open(href, '_blank', 'noopener,noreferrer');
+  };
+
+  const iniciarPedidoParaCliente = async (clienteId: string) => {
+    try {
+      setClienteParaPedido(await buscarCliente(clienteId));
+      setPedidoAberto(true);
+    } catch (erro) {
+      aviso.falha(erro, 'Erro ao iniciar pedido');
+    }
+  };
+
+  const clienteInicialDoPedido = clienteParaPedido ? {
+    id: clienteParaPedido.id,
+    nome: clienteParaPedido.nome,
+    telefone: clienteParaPedido.telefone,
+    instagram_usuario: clienteParaPedido.instagram_usuario,
+    preferencia_contato: clienteParaPedido.preferencia_contato === 'instagram' ? 'instagram' as const : 'whatsapp' as const,
+    origem: ['whatsapp', 'facebook', 'mercado_livre', 'instagram', 'indicacao', 'balcao'].includes(clienteParaPedido.origem || '')
+      ? clienteParaPedido.origem as 'whatsapp' | 'facebook' | 'mercado_livre' | 'instagram' | 'indicacao' | 'balcao'
+      : 'balcao' as const,
+    cidade: clienteParaPedido.cidade || '', estado: clienteParaPedido.estado || '', cep: clienteParaPedido.cep,
+    logradouro: clienteParaPedido.logradouro, numero: clienteParaPedido.numero,
+    complemento: clienteParaPedido.complemento, bairro: clienteParaPedido.bairro,
+  } : null;
+
+  return (
+    <OperationalTokensContext.Provider value={operationalLightTokens}>
+      <main style={operationalLightTokens} className="min-h-[100dvh] bg-surface-page px-3 pb-24 pt-0 font-[Geist,Inter,ui-sans-serif,system-ui,sans-serif] sm:px-6 sm:pb-6 sm:pt-0">
+        <div className="mx-auto max-w-[1440px] space-y-5">
+          <ClientesHeader
+            tab={tab}
+            onTabChange={(next) => {
+              if (next !== 'todos') setFiltrarSemPendencias(false);
+              setTab(next);
+            }}
+            canCreate={podeCriar}
+            canRegisterPedido={podeRegistrarPedido}
+            onNovoCliente={() => setNovoClienteAberto(true)}
+            onRegistrarPedido={() => { setClienteParaPedido(null); setPedidoAberto(true); }}
+          />
+
+          <AnimatePresence mode="wait" initial={false}>
+            <motion.div
+              key={tab}
+              initial={reduzirMovimento ? false : { opacity: 0, y: 6 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={reduzirMovimento ? undefined : { opacity: 0, y: -4 }}
+              transition={reduzirMovimento ? { duration: 0 } : { type: 'spring', stiffness: 300, damping: 30, bounce: 0 }}
+            >
+              {tab === 'painel' ? (
+                <ClientesPainel
+                  resumo={operacao.resumo}
+                  itens={operacao.itens}
+                  loading={operacao.loading}
+                  error={operacao.error}
+                  capabilityUnavailable={operacao.capabilityUnavailable}
+                  onRetry={() => void operacao.refresh()}
+                  onSelectMetric={(filter) => {
+                    const recortes = filter === 'busca'
+                      ? { statuses: ['nova', 'em_busca', 'aguardando'] as PedidoBuscaEstadoPersistido[], label: 'Pedidos em busca' }
+                      : filter === 'peca_disponivel'
+                        ? { statuses: ['peca_disponivel'] as PedidoBuscaEstadoPersistido[], label: 'Peças disponíveis' }
+                        : null;
+                    if (!recortes) return;
+                    setPedidoStatuses(recortes.statuses);
+                    setPedidoStatusLabel(recortes.label);
+                    setTab('todos');
+                  }}
+                  onSelectCliente={abrirCliente}
+                />
+              ) : null}
+
+              {tab === 'todos' ? (
+                <ClientesLista
+                  itens={operacao.itens}
+                  initialSemPendencias={filtrarSemPendencias}
+                  loading={operacao.loading}
+                  loadingMore={operacao.loadingMore}
+                  hasMore={operacao.hasMore}
+                  error={operacao.error}
+                  onRetry={() => void operacao.refresh()}
+                  onLoadMore={() => void operacao.loadMore()}
+                  pedidoStatuses={pedidoStatuses}
+                  pedidoStatusLabel={pedidoStatusLabel}
+                  onClearPedidoStatus={() => { setPedidoStatuses(null); setPedidoStatusLabel(null); }}
+                  vendas={vendas}
+                  orcamentos={orcamentos}
+                  onOpenCliente={(id) => void abrirCliente(id)}
+                  onRegistrarPedido={podeRegistrarPedido ? (cliente) => void iniciarPedidoParaCliente(cliente.id) : undefined}
+                  onOpenContato={abrirContato}
+                />
+              ) : null}
+
+              {tab === 'agenda' ? (
+                <ClientesAgenda
+                  tarefas={agenda.tarefas}
+                  loading={agenda.loading}
+                  error={agenda.error}
+                  onRetry={() => void agenda.refetch()}
+                  onOpenCliente={(id) => void abrirCliente(id)}
+                />
+              ) : null}
+            </motion.div>
+          </AnimatePresence>
+        </div>
+      </main>
+
+      <RegistrarPedidoDrawer
+        open={pedidoAberto}
+        onOpenChange={(open) => { setPedidoAberto(open); if (!open) setClienteParaPedido(null); }}
+        responsaveis={responsaveis}
+        categorias={categorias.map(({ id, nome }) => ({ id, nome }))}
+        modelos={modelos.map(({ id, nome }) => ({ id, nome }))}
+        clientes={operacao.itens}
+        hasMoreClientes={operacao.hasMore}
+        loadingMoreClientes={operacao.loadingMore}
+        onLoadMoreClientes={() => void operacao.loadMore()}
+        onRefresh={recarregarTudo}
+        onSaved={() => { setClienteParaPedido(null); }}
+        initialCliente={clienteInicialDoPedido}
+      />
+      <ClienteFormDrawer
+        {...(clienteEditandoNovoFluxo ? {
+          mode: 'edit' as const,
+          clienteId: clienteEditandoNovoFluxo.id,
+          initialValue: {
+            nome: clienteEditandoNovoFluxo.nome,
+            telefone: clienteEditandoNovoFluxo.telefone || '',
+            instagram_usuario: clienteEditandoNovoFluxo.instagram_usuario || '',
+            preferencia_contato: clienteEditandoNovoFluxo.preferencia_contato === 'instagram' ? 'instagram' as const : 'whatsapp' as const,
+            origem: ['whatsapp', 'facebook', 'mercado_livre', 'instagram', 'indicacao', 'balcao'].includes(clienteEditandoNovoFluxo.origem || '') ? clienteEditandoNovoFluxo.origem as any : '',
+            cidade: clienteEditandoNovoFluxo.cidade || '', estado: clienteEditandoNovoFluxo.estado || '', cep: clienteEditandoNovoFluxo.cep || '',
+            logradouro: clienteEditandoNovoFluxo.logradouro || '', numero: clienteEditandoNovoFluxo.numero || '', complemento: clienteEditandoNovoFluxo.complemento || '', bairro: clienteEditandoNovoFluxo.bairro || '',
+            documento: clienteEditandoNovoFluxo.documento || '', data_nascimento: clienteEditandoNovoFluxo.data_nascimento || '', observacoes: clienteEditandoNovoFluxo.observacoes || '',
+          },
+        } : { mode: 'create' as const })}
+        open={novoClienteAberto || Boolean(clienteEditandoNovoFluxo)}
+        onOpenChange={(open) => { if (!open) { setNovoClienteAberto(false); setClienteEditandoNovoFluxo(null); } }}
+        onSaved={() => recarregarTudo()}
+      />
+      {clienteDetalhe ? <ClienteDrawer
+        open
+        onOpenChange={(open) => { if (!open) setClienteDetalhe(null); }}
+        cliente={clienteDetalhe}
+        onRegistrarPedido={podeRegistrarPedido ? (cliente) => { setClienteDetalhe(null); setClienteParaPedido(cliente); setPedidoAberto(true); } : undefined}
+        onEdit={pode('clientes.editar') ? (cliente) => { setClienteDetalhe(null); setClienteEditandoNovoFluxo(cliente); } : undefined}
+      /> : null}
+    </OperationalTokensContext.Provider>
+  );
 }
 
 const EMPTY_FORM: ClienteFormData = {
@@ -86,10 +337,14 @@ const ORIGEM_LABELS: Record<ClienteOrigem, string> = {
   mercado_livre: 'Mercado Livre',
   redes_sociais: 'Redes sociais',
   outro: 'Outro',
+  whatsapp: 'WhatsApp',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
 };
 
 const CONTATO_LABELS: Record<PreferenciaContato, string> = {
   whatsapp: 'WhatsApp',
+  instagram: 'Instagram',
   ligacao: 'Ligação',
   sms: 'SMS',
   nenhuma: 'Nenhuma',
@@ -103,16 +358,18 @@ function textoParaTags(texto: string): string[] {
   return Array.from(new Set(texto.split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)));
 }
 
-export function ClientesView({
+function ClientesLegacyView({
   pendingClienteId,
   setPendingClienteId,
   pendingFiltroSumidos,
   setPendingFiltroSumidos,
+  embedded = false,
 }: {
   pendingClienteId?: string | null;
   setPendingClienteId?: (id: string | null) => void;
   pendingFiltroSumidos?: boolean;
   setPendingFiltroSumidos?: (v: boolean) => void;
+  embedded?: boolean;
 }) {
   const { pode } = usePermissao();
   const podeExcluirComprovante = pode('vendas.excluir_comprovante');
@@ -289,8 +546,8 @@ export function ClientesView({
       telefone: onlyDigits(form.telefone || '') || null,
       documento: onlyDigits(form.documento || '') || null,
       data_nascimento: form.data_nascimento || null,
-      origem: form.origem || null,
-      preferencia_contato: form.preferencia_contato || null,
+      origem: (form.origem as ClienteOrigem) || null,
+      preferencia_contato: (form.preferencia_contato as PreferenciaContato) || null,
       tags: textoParaTags(tagsTexto),
       observacoes: form.observacoes?.trim() || null,
       cidade: form.cidade?.trim() || null,
@@ -420,8 +677,11 @@ export function ClientesView({
     try {
       const result = await clientesApi.removerPecaProcurada(clienteAberto.id, pedidoId);
       if (!result.success) throw new Error(result.error);
-      setClienteAberto((prev) => (prev ? { ...prev, pecas_procuradas: (prev.pecas_procuradas || []).filter((p) => p.id !== pedidoId) } : prev));
-      setPecasProcuradas((prev) => prev.filter((p) => p.id !== pedidoId));
+      setClienteAberto((prev) => (prev ? {
+        ...prev,
+        pecas_procuradas: (prev.pecas_procuradas || []).map((p) => (p.id === pedidoId ? result.data : p)),
+      } : prev));
+      setPecasProcuradas((prev) => prev.map((p) => (p.id === pedidoId ? { ...p, status: result.data.status } : p)));
     } catch (err: any) {
       aviso.falha(err, 'Erro ao excluir peça procurada');
     }
@@ -590,15 +850,15 @@ export function ClientesView({
 
   return (
     <div className="space-y-4 pb-24 md:pb-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-medium text-text-primary">Clientes</h1>
-          <p className="text-sm text-text-faint mt-0.5">Cadastro, histórico e atendimento</p>
-        </div>
-        <Button onClick={abrirCriar} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm self-start md:self-auto">
-          <Plus size={16} /> Novo cliente
-        </Button>
-      </div>
+      {!embedded ? <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-medium text-text-primary">Clientes</h1>
+            <p className="text-sm text-text-faint mt-0.5">Cadastro, histórico e atendimento</p>
+          </div>
+          <Button onClick={abrirCriar} className="h-10 px-5 rounded-control text-[11px] font-semibold uppercase tracking-wider shadow-sm self-start md:self-auto">
+            <Plus size={16} /> Novo cliente
+          </Button>
+        </div> : null}
 
       {segmentoFiltro === 'sumido' && (
         <AlertBar
@@ -617,46 +877,15 @@ export function ClientesView({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <select value={ordenacao} onChange={(e) => setOrdenacao(e.target.value as OrdenacaoClientes)} className={cn(inputClass, 'w-auto')} title="Ordenar por">
-            {(Object.keys(ORDENACAO_LABELS) as OrdenacaoClientes[]).map((k) => (
-              <option key={k} value={k}>
-                Ordenar: {ORDENACAO_LABELS[k]}
-              </option>
-            ))}
-          </select>
+          <Select ariaLabel="Ordenar clientes" className="w-48" size="sm" value={ordenacao} onChange={(novaOrdenacao) => setOrdenacao(novaOrdenacao as OrdenacaoClientes)} options={(Object.keys(ORDENACAO_LABELS) as OrdenacaoClientes[]).map((ordenacao) => ({ value: ordenacao, label: `Ordenar: ${ORDENACAO_LABELS[ordenacao]}` }))} />
 
-          <select value={statusFiltro} onChange={(e) => setStatusFiltro(e.target.value as typeof statusFiltro)} className={cn(inputClass, 'w-auto')} title="Filtrar por status">
-            {(Object.keys(STATUS_FILTRO_LABELS) as (keyof typeof STATUS_FILTRO_LABELS)[]).map((k) => (
-              <option key={k} value={k}>
-                {STATUS_FILTRO_LABELS[k]}
-              </option>
-            ))}
-          </select>
+          <Select ariaLabel="Filtrar clientes por status" className="w-44" size="sm" value={statusFiltro} onChange={(status) => setStatusFiltro(status as typeof statusFiltro)} options={(Object.keys(STATUS_FILTRO_LABELS) as (keyof typeof STATUS_FILTRO_LABELS)[]).map((status) => ({ value: status, label: STATUS_FILTRO_LABELS[status] }))} />
 
-          <select value={segmentoFiltro || ''} onChange={(e) => setSegmentoFiltro((e.target.value || null) as SegmentoCliente | null)} className={cn(inputClass, 'w-auto')} title="Filtrar por segmento">
-            <option value="">Todos os segmentos</option>
-            {(Object.keys(SEGMENTO_LABELS) as SegmentoCliente[]).map((k) => (
-              <option key={k} value={k}>
-                {SEGMENTO_LABELS[k]}
-              </option>
-            ))}
-          </select>
+          <Select ariaLabel="Filtrar clientes por segmento" className="w-44" size="sm" value={segmentoFiltro || ''} onChange={(segmento) => setSegmentoFiltro((segmento || null) as SegmentoCliente | null)} options={[{ value: '', label: 'Todos os segmentos' }, ...(Object.keys(SEGMENTO_LABELS) as SegmentoCliente[]).map((segmento) => ({ value: segmento, label: SEGMENTO_LABELS[segmento] }))]} />
 
 
           {motosProcuradasOpcoes.length > 0 && (
-            <select
-              value={motoProcuradaFiltro || ''}
-              onChange={(e) => setMotoProcuradaFiltro(e.target.value || null)}
-              className={cn(inputClass, 'w-auto')}
-              title="Filtrar por moto procurada (peça pendente)"
-            >
-              <option value="">Peça procurada: todas</option>
-              {motosProcuradasOpcoes.map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.nome}
-                </option>
-              ))}
-            </select>
+            <Select ariaLabel="Filtrar clientes por moto procurada" className="w-52" size="sm" value={motoProcuradaFiltro || ''} onChange={(moto) => setMotoProcuradaFiltro(moto || null)} options={[{ value: '', label: 'Peça procurada: todas' }, ...motosProcuradasOpcoes.map((moto) => ({ value: moto.id, label: moto.nome }))]} />
           )}
 
           {filtrosAtivos && (

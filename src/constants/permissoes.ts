@@ -133,7 +133,12 @@ export const CATALOGO_PERMISSOES: TelaPermissao[] = [
     acoes: [
       { chave: 'ver', rotulo: 'Ver clientes', descricao: 'Consultar a lista e a ficha dos clientes.' },
       { chave: 'criar', rotulo: 'Cadastrar cliente', descricao: 'Adicionar um novo cliente.' },
-      { chave: 'editar', rotulo: 'Editar cliente', descricao: 'Alterar cadastro, notas, motos e peças procuradas; ativar/desativar.' },
+      { chave: 'editar', rotulo: 'Editar cliente', descricao: 'Alterar cadastro, notas, motos, pedidos e visitas.' },
+      {
+        chave: 'administrar',
+        rotulo: 'Administrar clientes',
+        descricao: 'Corrigir origem histórica, bloquear, desbloquear, desativar, reativar e administrar sinônimos.',
+      },
     ],
   },
   {
@@ -261,7 +266,12 @@ export function pode(permissoes: Permissoes | null | undefined, isAdmin: boolean
 // Visão do Dono do Dashboard (só admin, ver VisaoDono.tsx). Equipe NÃO as
 // recebe no backfill, mas todas continuam GRANTÁVEIS individualmente pelo dono
 // (é o ganho do novo sistema — ex: dar só a Visão do Dono a uma pessoa).
-const SEM_EQUIPE = new Set<string>(['vendas.cancelar_fiado', 'vendas.excluir_comprovante', 'dashboard.ver_visao_dono']);
+const SEM_EQUIPE = new Set<string>([
+  'vendas.cancelar_fiado',
+  'vendas.excluir_comprovante',
+  'dashboard.ver_visao_dono',
+  'clientes.administrar',
+]);
 
 function ligar(p: Permissoes, tela: string, acao: string): void {
   (p[tela] ??= {})[acao] = true;

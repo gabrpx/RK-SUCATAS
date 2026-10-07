@@ -2,3 +2,5 @@
 // Centralizado aqui em vez de hardcoded dentro do componente.
 export const CEP_ORIGEM_LOJA = '58660-000';
 export const NOME_LOJA = 'RK Sucatas';
+export const CIDADE_ORIGEM_LOJA = 'Juazeirinho';
+export const ESTADO_ORIGEM_LOJA = 'PB';

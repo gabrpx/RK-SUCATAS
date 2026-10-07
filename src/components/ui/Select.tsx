@@ -4,10 +4,14 @@ import { ChevronDown } from 'lucide-react';
 import { cn } from '@/src/utils';
 import { SPRING_MICRO } from './motion';
 
-interface SelectOption { value: string; label: string }
+export interface SelectOption { value: string; label: string }
 interface SelectProps {
   label?: string; helper?: string; error?: string; placeholder?: string;
   ariaLabel?: string;
+  id?: string;
+  disabled?: boolean;
+  className?: string;
+  triggerClassName?: string;
   options: SelectOption[];
   value: string; onChange: (value: string) => void;
   renderOption?: (option: SelectOption, state: { selected: boolean; highlighted: boolean }) => React.ReactNode;
@@ -17,7 +21,7 @@ interface SelectProps {
 
 const heights = { sm: 'h-8', md: 'h-9', lg: 'h-11', mobile: 'h-11' } as const;
 
-export function Select({ label, helper, error, placeholder, ariaLabel, options, value, onChange, renderOption, renderValue, size = 'md' }: SelectProps) {
+export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(function Select({ label, helper, error, placeholder, ariaLabel, id, disabled = false, className, triggerClassName, options, value, onChange, renderOption, renderValue, size = 'md' }, forwardedRef) {
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -29,6 +33,8 @@ export function Select({ label, helper, error, placeholder, ariaLabel, options, 
   const activeOption = activeIndex >= 0 ? options[activeIndex] : undefined;
   const current = selectedIndex >= 0 ? options[selectedIndex] : undefined;
 
+  React.useImperativeHandle(forwardedRef, () => triggerRef.current as HTMLButtonElement);
+
   React.useEffect(() => {
     const outside = (event: MouseEvent) => {
       if (rootRef.current && !rootRef.current.contains(event.target as Node)) setOpen(false);
@@ -38,11 +44,13 @@ export function Select({ label, helper, error, placeholder, ariaLabel, options, 
   }, []);
 
   const show = (index = selectedIndex >= 0 ? selectedIndex : 0) => {
+    if (disabled) return;
     setActiveIndex(options.length ? Math.max(0, Math.min(index, options.length - 1)) : -1);
     setOpen(true);
   };
 
   const choose = (option: SelectOption) => {
+    if (disabled) return;
     onChange(option.value);
     setActiveIndex(options.findIndex((item) => item.value === option.value));
     setOpen(false);
@@ -85,24 +93,28 @@ export function Select({ label, helper, error, placeholder, ariaLabel, options, 
   };
 
   return (
-    <div className="relative flex min-w-0 flex-col gap-1.5" ref={rootRef}>
+    <div className={cn('relative flex min-w-0 flex-col gap-1.5', className)} ref={rootRef}>
       {label && <label id={labelId} className="text-xs font-medium text-text-secondary">{label}</label>}
       <button
         ref={triggerRef}
+        id={id}
         type="button"
         role="combobox"
-        aria-label={ariaLabel}
+        aria-label={label ? undefined : ariaLabel}
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
-      aria-activedescendant={open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
-        aria-labelledby={label ? `${labelId} ${valueId}` : undefined}
+        aria-activedescendant={open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
+        aria-labelledby={label ? labelId : undefined}
+        aria-invalid={error ? true : undefined}
+        disabled={disabled}
         onClick={() => open ? setOpen(false) : show()}
         onKeyDown={handleKeyDown}
         className={cn(
-          'flex w-full items-center justify-between rounded-control border bg-surface-inset px-3 text-sm text-text-primary transition-colors',
+          'flex w-full cursor-pointer items-center justify-between rounded-control border bg-surface-inset px-3 text-sm text-text-primary transition-colors disabled:cursor-not-allowed disabled:opacity-60',
           heights[size],
-          error ? 'border-danger' : open ? 'border-accent' : 'border-border-default'
+          error ? 'border-danger' : open ? 'border-accent' : 'border-border-default',
+          triggerClassName,
         )}
       >
         <span id={valueId} className={cn('flex min-w-0 flex-1 items-center gap-2 text-left', !current && 'text-text-faint')}>
@@ -153,4 +165,6 @@ export function Select({ label, helper, error, placeholder, ariaLabel, options, 
       {(helper || error) && <p className={cn('text-2xs', error ? 'text-danger' : 'text-text-faint')}>{error ?? helper}</p>}
     </div>
   );
-}
+});
+
+Select.displayName = 'Select';

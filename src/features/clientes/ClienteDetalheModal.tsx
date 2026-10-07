@@ -10,8 +10,10 @@ import { cn } from '../../utils';
 import { Modal } from '../../components/ui/Modal';
 import { StatusBadge, type StatusTone } from '../../components/ui/StatusBadge';
 import { Button } from '@/src/components/ui/button';
+import { Select } from '@/src/components/ui/Select';
 import { ClienteProfileCard } from './ClienteProfileCard';
 import type { Cliente, ClienteNota, PecaProcuradaStatus } from './types';
+import { pedidoStatusCopy } from './operacaoCopy';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30 };
 
@@ -22,12 +24,15 @@ function formatarData(data: string) {
   return new Date(`${data}T00:00:00`).toLocaleDateString('pt-BR');
 }
 
-const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = {
-  aguardando: 'Aguardando',
-  atendida: 'Atendida',
-  cancelada: 'Cancelada',
-};
+const PECA_STATUS_LABELS: Record<PecaProcuradaStatus, string> = pedidoStatusCopy;
 const PECA_STATUS_TONS: Record<PecaProcuradaStatus, StatusTone> = {
+  nova: 'accent',
+  em_busca: 'warning',
+  peca_disponivel: 'positive',
+  aguardando_cliente: 'warning',
+  vendida: 'positive',
+  nao_encontrada: 'neutral',
+  cliente_desistiu: 'neutral',
   aguardando: 'warning',
   atendida: 'positive',
   cancelada: 'neutral',
@@ -371,7 +376,7 @@ export function ClienteDetalheModal({
                   </Button>
                 )}
                 {onRemoverPeca && (
-                  <Button variant="ghost" size="icon" onClick={() => onRemoverPeca(p.id)} title="Excluir" className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
+                  <Button variant="ghost" size="icon" onClick={() => onRemoverPeca(p.id)} title="Cancelar pedido" className="shrink-0 size-6 rounded-control text-text-faint hover:text-danger">
                     <Trash2 size={12} />
                   </Button>
                 )}
@@ -390,26 +395,8 @@ export function ClienteDetalheModal({
                 className={cn(inputClass, 'text-xs py-2')}
               />
               <div className="grid grid-cols-2 gap-2">
-                <select
-                  value={novaPeca.categoria_id || ''}
-                  onChange={(e) => setNovaPeca((p) => ({ ...p, categoria_id: e.target.value || null }))}
-                  className={cn(inputClass, 'text-xs py-2')}
-                >
-                  <option value="">Categoria (opcional)</option>
-                  {opcoesCategoria.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
-                </select>
-                <select
-                  value={novaPeca.modelo_moto_id || ''}
-                  onChange={(e) => setNovaPeca((p) => ({ ...p, modelo_moto_id: e.target.value || null }))}
-                  className={cn(inputClass, 'text-xs py-2')}
-                >
-                  <option value="">Modelo (opcional)</option>
-                  {opcoesModelo.map((o) => (
-                    <option key={o.id} value={o.id}>{o.label}</option>
-                  ))}
-                </select>
+                <Select ariaLabel="Categoria da peça procurada" size="sm" value={novaPeca.categoria_id || ''} onChange={(categoria_id) => setNovaPeca((peca) => ({ ...peca, categoria_id: categoria_id || null }))} options={[{ value: '', label: 'Categoria (opcional)' }, ...opcoesCategoria.map((opcao) => ({ value: opcao.id, label: opcao.label }))]} />
+                <Select ariaLabel="Modelo da peça procurada" size="sm" value={novaPeca.modelo_moto_id || ''} onChange={(modelo_moto_id) => setNovaPeca((peca) => ({ ...peca, modelo_moto_id: modelo_moto_id || null }))} options={[{ value: '', label: 'Modelo (opcional)' }, ...opcoesModelo.map((opcao) => ({ value: opcao.id, label: opcao.label }))]} />
               </div>
               <Button
                 variant="outline"
