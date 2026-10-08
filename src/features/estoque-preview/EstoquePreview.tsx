@@ -22,7 +22,7 @@ import { Button } from "@/src/components/ui/button";
 import { Tabs as SegmentTabs, TabsList as SegmentTabsList, TabsTrigger as SegmentTabsTrigger } from "../tarefas-preview/PreviewTabs";
 import { AnimatePresence, motion } from "motion/react";
 import { categoriasApi, formasPagamentoApi, modelosMotoApi } from "../../lib/catalogApi";
-import type { ModeloMoto } from "../../types/catalog";
+import type { Categoria, ModeloMoto } from "../../types/catalog";
 import { usePermissao } from "../../hooks/usePermissao";
 import { useData } from "../../context/DataContext";
 import { TaskNotificationBell } from "../notificacoes/TaskNotificationBell";
@@ -40,7 +40,7 @@ import { InventoryPieceSummaryDrawer } from "./InventoryPieceSummaryDrawer";
 import { inventoryThumbnailUrl } from "./inventoryImageUrl";
 import { InventoryMap } from "./InventoryMap";
 import { ImageZoom } from "../../components/ui/image-zoom";
-import { enviarFotoUnidade, organizacaoApi, RECURSOS_DEMONSTRACAO, type BaixaPendente, type RecursosOrganizacao, type UnidadeFichaPayload } from "./organizacaoApi";
+import { enviarFotoUnidade, organizacaoApi, RECURSOS_DEMONSTRACAO, type BaixaPendente, type OrganizacaoResposta, type RecursosOrganizacao, type UnidadeFichaPayload } from "./organizacaoApi";
 import {
   adicionarUnidade,
   alternarCategoriaDaSecao,
@@ -331,7 +331,7 @@ export interface EstoquePreviewProps {
 
 export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroEstoqueBaixoInicial = false, onFiltroEstoqueBaixoAplicado, onOpenTaskNotification }: EstoquePreviewProps = {}) {
   const { pode } = usePermissao();
-  const { estoque: estoqueContexto } = useData();
+  const { estoque: estoqueContexto, ready: dadosProntos, loading: sincronizacaoInicial, estoqueError, refreshData } = useData();
   // O DataProvider já pode ter recebido peças reais. Exibe-as sem outra espera,
   // mas só libera escrita depois que esta tela confirmar catálogo e organização.
   const [estoque, setEstoque] = useState<EstoquePreviewState>(() => embutido
@@ -343,7 +343,10 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [erroOrganizacao, setErroOrganizacao] = useState<string | null>(() => embutido && estoqueContexto.length > 0 ? "Atualizando organização do estoque" : null);
   const [recursos, setRecursos] = useState<RecursosOrganizacao>(RECURSOS_DEMONSTRACAO);
   const [reloadKey, setReloadKey] = useState(0);
-  const estoqueRealJaCarregado = useRef(false);
+  const atualizarEstoque = useCallback(() => {
+    void refreshData();
+    setReloadKey((atual) => atual + 1);
+  }, [refreshData]);
   const [aba, setAba] = useState<Aba>("atendimento");
   const [busca, setBusca] = useState("");
   const [visualizacao, setVisualizacao] = useState<Visualizacao>("cards");
@@ -365,8 +368,10 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const buscaRef = useRef<HTMLInputElement>(null);
   const [clientesReais, setClientesReais] = useState<Cliente[]>([]);
   const [formasReais, setFormasReais] = useState<{ id: string; nome: string }[]>([]);
+  const [categoriasReais, setCategoriasReais] = useState<Categoria[]>([]);
   const [modelosMoto, setModelosMoto] = useState<ModeloMoto[]>([]);
-  const conexaoRealPronta = fonte === "real" && !carregandoReal && !erroReal && !erroOrganizacao;
+  const [organizacaoReal, setOrganizacaoReal] = useState<OrganizacaoResposta | null>(null);
+  const conexaoRealPronta = fonte === "real" && dadosProntos.estoque && !estoqueError && !carregandoReal && !erroReal && !erroOrganizacao;
   const conexaoPermiteGravar = (fonte === "demo" && !embutido) || conexaoRealPronta;
   // Permissões granulares (mesmas chaves que a API exige): sem elas a tela
   // vira consulta em vez de exibir ações que só falhariam no envio.
@@ -395,42 +400,25 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const toastTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => {
-    if (!embutido || fonte === "real" || estoqueContexto.length === 0) return;
-    setEstoque(adaptarEstoqueReal(estoqueContexto, []));
-    setErroOrganizacao("Atualizando organização do estoque");
-    setFonte("real");
-  }, [embutido, estoqueContexto, fonte]);
-
-  useEffect(() => {
     let ativo = true;
-    async function carregarEstoqueReal() {
+    async function carregarMetadadosEstoque() {
       try {
-        if (!estoqueRealJaCarregado.current) setErroOrganizacao("Carregando organização do estoque");
+        setCarregandoReal(true);
+        setErroOrganizacao("Atualizando organização do estoque");
         const organizacaoPromise = organizacaoApi.listar().catch(() => null);
         const modelosPromise = modelosMotoApi.listar().catch(() => null);
-        const [estoqueResposta, categoriasResposta] = await Promise.all([
-          estoqueApi.listar(),
+        const [organizacaoResposta, modelosResposta, categoriasResposta] = await Promise.all([
+          organizacaoPromise,
+          modelosPromise,
           categoriasApi.listar(),
         ]);
-        if (!estoqueResposta.success) throw new Error(estoqueResposta.error || "Não foi possível carregar o estoque");
         if (!categoriasResposta.success) throw new Error(categoriasResposta.error || "Não foi possível carregar as categorias");
-        if (!ativo) return;
-        // Catálogo visível assim que os dados essenciais chegam; endereços e
-        // modelos enriquecem a tela depois, sem bloquear a lista de peças.
-        if (!estoqueRealJaCarregado.current) {
-          setEstoque(adaptarEstoqueReal(estoqueResposta.data ?? [], categoriasResposta.data ?? [], [], [], [], []));
-          estoqueRealJaCarregado.current = true;
-          setFonte("real");
-          setErroReal(null);
-          setCarregandoReal(false);
-        }
-
-        const [organizacaoResposta, modelosResposta] = await Promise.all([organizacaoPromise, modelosPromise]);
         if (!ativo) return;
         const organizacao = organizacaoResposta?.success ? organizacaoResposta.data : null;
         const modelosCarregados = modelosResposta?.success ? modelosResposta.data ?? [] : [];
-        setEstoque(adaptarEstoqueReal(estoqueResposta.data ?? [], categoriasResposta.data ?? [], organizacao?.locais ?? [], organizacao?.categorias ?? [], organizacao?.reservas ?? [], modelosCarregados));
+        setCategoriasReais(categoriasResposta.data ?? []);
         setModelosMoto(modelosCarregados);
+        setOrganizacaoReal(organizacao);
         setRecursos(organizacao?.recursos ?? { clienteNaReserva: false, reservaComSinal: false });
         setBaixasPendentes(organizacao?.baixasPendentes ?? []);
         setErroOrganizacao(organizacao ? null : organizacaoResposta?.error ?? "Locais físicos indisponíveis");
@@ -441,9 +429,17 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         if (ativo) setCarregandoReal(false);
       }
     }
-    void carregarEstoqueReal();
+    if (embutido) void carregarMetadadosEstoque();
     return () => { ativo = false; };
-  }, [reloadKey]);
+  }, [embutido, reloadKey]);
+
+  useEffect(() => {
+    if (!embutido || !dadosProntos.estoque) return;
+    setEstoque(adaptarEstoqueReal(estoqueContexto, categoriasReais, organizacaoReal?.locais ?? [], organizacaoReal?.categorias ?? [], organizacaoReal?.reservas ?? [], modelosMoto));
+    setFonte("real");
+    setErroReal(null);
+    setErroOrganizacao(organizacaoReal ? null : "Locais físicos indisponíveis");
+  }, [categoriasReais, dadosProntos.estoque, embutido, estoqueContexto, modelosMoto, organizacaoReal]);
 
   // A inscrição autentica no Express; o navegador recebe apenas invalidações,
   // sem abrir conexão direta com Supabase nem receber registros pelo socket.
@@ -456,7 +452,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     const atualizarComDebounce = () => {
       if (temporizadorAtualizacao !== undefined) window.clearTimeout(temporizadorAtualizacao);
       temporizadorAtualizacao = window.setTimeout(() => {
-        if (ativo) setReloadKey((atual) => atual + 1);
+        if (ativo) atualizarEstoque();
       }, 300);
     };
     const reconectar = async () => {
@@ -499,7 +495,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       if (temporizadorAtualizacao !== undefined) window.clearTimeout(temporizadorAtualizacao);
       document.removeEventListener("visibilitychange", aoVoltarParaTela);
     };
-  }, [fonte]);
+  }, [atualizarEstoque, fonte]);
 
   useEffect(() => {
     if (fonte !== "real") return;
@@ -564,7 +560,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao reservar unidade.");
       return false;
     } finally {
-      setReloadKey((valor) => valor + 1);
+      atualizarEstoque();
     }
   }
 
@@ -586,7 +582,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao liberar reserva.");
       return false;
     } finally {
-      setReloadKey((valor) => valor + 1);
+      atualizarEstoque();
     }
   }
 
@@ -684,7 +680,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         avisar(erro instanceof Error ? erro.message : "Falha ao arquivar a unidade.");
       } finally {
         setProcessando(false);
-        setReloadKey((valor) => valor + 1);
+        atualizarEstoque();
       }
       return;
     }
@@ -709,7 +705,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao restaurar a unidade.");
     } finally {
       setRestaurando(null);
-      setReloadKey((valor) => valor + 1);
+      atualizarEstoque();
     }
   }
 
@@ -724,7 +720,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao conferir a baixa.");
       return false;
     } finally {
-      setReloadKey((valor) => valor + 1);
+      atualizarEstoque();
     }
   }
 
@@ -739,7 +735,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao baixar a ficha.");
       return false;
     } finally {
-      setReloadKey((valor) => valor + 1);
+      atualizarEstoque();
     }
   }
 
@@ -791,10 +787,11 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         {mostrarConteudo && <div className="-mx-3 flex w-[calc(100%+1.5rem)] overflow-x-auto px-3 pb-5 sm:mx-0 sm:w-full sm:justify-end sm:px-0 lg:w-auto"><SegmentTabs value={aba} onValueChange={(valor) => setAba(valor as Aba)}><SegmentTabsList className="max-w-full shrink-0 bg-surface-inset">{abas.map(([id, nome, total]) => <SegmentTabsTrigger key={id} value={id} className="shrink-0 whitespace-nowrap text-sm">{nome} <span className="ml-1 text-[11px] text-text-faint">{total}</span></SegmentTabsTrigger>)}</SegmentTabsList></SegmentTabs></div>}
       </div>
       <AnimatePresence initial={false} mode="wait">
-        {carregandoReal && fonte !== "real" ? <motion.div key="carregando" role="status" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="mt-5 flex items-center gap-2 rounded-card border border-accent/25 bg-accent-soft-bg px-4 py-3 text-sm text-accent-soft-fg"><Loader2 size={16} className="animate-spin" />Carregando categorias e itens reais do estoque…</motion.div>
-          : fonte === "real" ? (conexaoRealPronta ? null : <motion.div key="leitura" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border px-4 py-3 text-sm ${conexaoRealPronta ? "border-accent/25 bg-accent-soft-bg text-accent-soft-fg" : "border-warning/30 bg-warning-bg text-text-primary"}`}><strong>{conexaoRealPronta ? "Você está no estoque real." : "Dados antigos em modo somente leitura."}</strong><span>{conexaoRealPronta ? `Cadastros, edições, endereços, reservas e arquivamentos feitos aqui são gravados no sistema pela API.${podeEditar ? "" : " Seu usuário não tem permissão de edição: a tela está em modo consulta."}` : `Não foi possível confirmar o estado atual: ${erroReal ?? erroOrganizacao}. Não faça alterações até reconectar.`}</span>{!conexaoRealPronta && <button type="button" onClick={() => setReloadKey((valor) => valor + 1)} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button>}</motion.div>)
-          : embutido ? <motion.div key="falha" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-danger/30 bg-danger-bg px-4 py-3 text-sm text-text-primary"><strong>Não foi possível carregar o estoque.</strong><span>{erroReal ?? "Sem resposta do servidor."} Nenhuma peça é exibida para não vender com dado errado.</span><button type="button" onClick={() => setReloadKey((valor) => valor + 1)} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button></motion.div>
-          : <motion.div key="demo" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-text-primary"><strong>Dados demonstrativos.</strong><span>Não foi possível carregar o estoque real{erroReal ? `: ${erroReal}` : "."} Nada feito nesta tela será gravado enquanto a conexão não voltar.</span><button type="button" onClick={() => setReloadKey((valor) => valor + 1)} className={`${botaoSecundario} min-h-9`}>Tentar conectar</button></motion.div>}
+        {sincronizacaoInicial && !dadosProntos.estoque ? null
+          : carregandoReal && fonte !== "real" ? null
+          : fonte === "real" ? (conexaoRealPronta ? null : <motion.div key="leitura" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border px-4 py-3 text-sm ${conexaoRealPronta ? "border-accent/25 bg-accent-soft-bg text-accent-soft-fg" : "border-warning/30 bg-warning-bg text-text-primary"}`}><strong>{conexaoRealPronta ? "Você está no estoque real." : "Dados antigos em modo somente leitura."}</strong><span>{conexaoRealPronta ? `Cadastros, edições, endereços, reservas e arquivamentos feitos aqui são gravados no sistema pela API.${podeEditar ? "" : " Seu usuário não tem permissão de edição: a tela está em modo consulta."}` : `Não foi possível confirmar o estado atual: ${erroReal ?? erroOrganizacao}. Não faça alterações até reconectar.`}</span>{!conexaoRealPronta && <button type="button" onClick={atualizarEstoque} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button>}</motion.div>)
+          : embutido ? <motion.div key="falha" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-danger/30 bg-danger-bg px-4 py-3 text-sm text-text-primary"><strong>Não foi possível carregar o estoque.</strong><span>{erroReal ?? "Sem resposta do servidor."} Nenhuma peça é exibida para não vender com dado errado.</span><button type="button" onClick={atualizarEstoque} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button></motion.div>
+          : <motion.div key="demo" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-text-primary"><strong>Dados demonstrativos.</strong><span>Não foi possível carregar o estoque real{erroReal ? `: ${erroReal}` : "."} Nada feito nesta tela será gravado enquanto a conexão não voltar.</span><button type="button" onClick={atualizarEstoque} className={`${botaoSecundario} min-h-9`}>Tentar conectar</button></motion.div>}
       </AnimatePresence>
       {mostrarConteudo && <AnimatePresence initial={false} mode="wait"><motion.div key={aba} initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -5 }} transition={{ type: "spring", stiffness: 340, damping: 31, bounce: 0 }} role="tabpanel" aria-label={abas.find(([id]) => id === aba)?.[1] ?? "Estoque"} className="mt-6">
       {aba === "atendimento" && <>{fonte === "real" && recursos.baixaAutomatica && pendenciasConferencia > 0 && <div role="note" className="mb-2 flex flex-wrap items-center justify-between gap-3 rounded-card border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-text-primary"><span><strong>{pendenciasConferencia === 1 ? "1 conferência pendente." : `${pendenciasConferencia} conferências pendentes.`}</strong> {baixasPendentes.length ? `${baixasPendentes.length} ${baixasPendentes.length === 1 ? "venda saiu" : "vendas saíram"} sem escolher a unidade` : "Há fichas sobrando de vendas antigas"}; confirme qual peça física saiu.</span><button type="button" onClick={() => setConferenciaAberta(true)} className={`${botaoSecundario} min-h-9`}><ClipboardCheck size={15} />Conferir agora</button></div>}<InventoryMetricStrip metricas={metricas} /><div className="mt-6 flex flex-wrap items-center justify-between gap-3"><div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Catálogo unificado</p><h2 className="mt-1 text-lg font-semibold">Peças por categoria</h2><p className="mt-1 text-xs text-text-muted">Role dentro do painel para carregar mais itens sem perder as estatísticas.</p></div><div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">{campoBusca}<button type="button" aria-pressed={soEstoqueBaixo} onClick={() => setSoEstoqueBaixo((valor) => !valor)} className={`inline-flex min-h-11 items-center gap-1.5 rounded-control border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 ${soEstoqueBaixo ? "border-warning/40 bg-warning-bg text-warning" : "border-border-default bg-surface-card text-text-secondary hover:border-accent/40"}`}>Estoque baixo (1–2)</button><div role="group" aria-label="Modo de visualização" className="flex rounded-control border border-border-default bg-surface-card p-1">{([["cards", "Visualização em cartões", LayoutGrid], ["lista", "Visualização em lista", List]] as const).map(([valor, rotulo, Icone]) => <button key={valor} type="button" aria-label={rotulo} aria-pressed={visualizacao === valor} onClick={() => setVisualizacao(valor)} className={`grid size-10 place-items-center rounded-[6px] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 ${visualizacao === valor ? "bg-accent-soft-bg text-accent-soft-fg" : "text-text-faint hover:text-text-primary"}`}><Icone size={16} /></button>)}</div></div></div><InventoryCatalogViewport resultados={resultados} visualizacao={visualizacao} acoes={acoes} visibleCount={visiveis} setVisibleCount={setVisiveis} rolagem={rolagemCatalogo} /><aside className="mt-6 grid gap-3 sm:grid-cols-3"><div className="rounded-control border border-border-default border-l-4 border-l-accent bg-surface-card p-4"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Preços conhecidos</p><p className="mt-1 text-sm font-semibold"><span className="text-base">{metricas.unidadesComPreco}</span> de {metricas.totalAtivas} unidades</p><p className="mt-1 text-xs leading-5 text-text-muted">O valor em estoque considera apenas preços definidos.</p></div><div className="rounded-control border border-border-default border-l-4 border-l-accent bg-surface-card p-4"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Origem</p><p className="mt-1 text-sm font-semibold">Não identificada é válida</p><p className="mt-1 text-xs leading-5 text-text-muted">Não invente a moto doadora quando ela for desconhecida.</p></div><div className="rounded-control border border-border-default border-l-4 border-l-border-default bg-surface-card p-4"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Endereços físicos</p><p className="mt-1 text-sm font-semibold">{fonte === "real" ? <><span className="text-base">{enderecosReais.length}</span> locais ativos</> : "Endereços demonstrativos"}</p><p className="mt-1 text-xs leading-5 text-text-muted">Cadastre os locais reais no mapa antes de atribuí-los às unidades.</p>{fonte === "real" && podeAlterar && <button type="button" onClick={() => setAba("mapa")} className="mt-2 inline-flex min-h-9 items-center gap-1 text-xs font-semibold text-accent hover:underline"><MapPin size={13} />Abrir mapa físico</button>}</div></aside><div className="mt-6"><StockRhythmCard unidades={estoque.unidades} /></div></>}
@@ -803,13 +800,13 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         if (!conexaoRealPronta) throw new Error("Conexão indisponível. Atualize os dados antes de cadastrar locais.");
         const resposta = await estoqueApi.criarLocal(local);
         if (!resposta.success) throw new Error(resposta.error || "Não foi possível cadastrar o local.");
-        setReloadKey((valor) => valor + 1);
+        atualizarEstoque();
         avisar("Local cadastrado.");
       }} onAtualizarLocal={async (local, alteracoes) => {
         if (!conexaoRealPronta) throw new Error("Conexão indisponível. Atualize os dados antes de editar o local.");
         const resposta = await organizacaoApi.atualizarLocal(local.id, alteracoes);
         if (!resposta.success) throw new Error(resposta.error || "Não foi possível atualizar o local.");
-        setReloadKey((valor) => valor + 1);
+        atualizarEstoque();
         avisar(alteracoes.ativo === false ? `Local ${local.codigo} desativado.` : alteracoes.ativo ? `Local ${local.codigo} reativado.` : "Local atualizado.");
       }} onAlternarCategoria={async (codigo, categoriaId, adicionar) => {
         if (fonte === "demo") {
@@ -824,7 +821,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
             ? await estoqueApi.vincularCategoriaLocal(local.id, categoriaId)
             : await estoqueApi.desvincularCategoriaLocal(local.id, categoriaId);
           if (!resposta.success) throw new Error(resposta.error || "Não foi possível atualizar categorias.");
-          setReloadKey((valor) => valor + 1);
+          atualizarEstoque();
           avisar("Categorias da prateleira atualizadas.");
         } catch (erro) { avisar(erro instanceof Error ? erro.message : "Falha ao atualizar categorias."); }
       }} onDefinirPrioridade={async (codigo, categoriaId, prioridade) => {
@@ -833,7 +830,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         if (!local) { avisar("Local não encontrado."); return; }
         const resposta = await organizacaoApi.definirPrioridadeCategoria(local.id, categoriaId, prioridade).catch(() => null);
         if (!resposta?.success) { avisar(resposta?.error || "Não foi possível alterar a prioridade."); return; }
-        setReloadKey((valor) => valor + 1);
+        atualizarEstoque();
         avisar("Prioridade da categoria atualizada.");
       }} />}
       {aba === "arquivados" && <section className="rounded-card border border-border-default bg-surface-card p-5"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Histórico preservado</p><h2 className="mt-1 text-xl font-semibold">{fonte === "real" ? "Unidades fora do ativo" : "Itens arquivados"}</h2><p className="mt-1 text-sm text-text-muted">Arquivar tira do estoque ativo, mas não apaga a rastreabilidade. Vendas aparecem aqui só para consulta.</p><div className="mt-4">{campoBusca}</div><div className="mt-4 space-y-2"><AnimatePresence initial={false}>{arquivados.map((unidade) => <motion.div layout key={unidade.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-default p-3"><button type="button" onClick={() => setUnidadeDetalhando(unidade)} aria-label={`Ver ficha de ${unidade.sku}`} className="min-w-0 flex-1 rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><strong>{unidade.sku}</strong><p className="mt-1 text-xs text-text-muted">{pecaPorId(unidade.pecaId)?.nome} · {unidade.vendidaEm ? "Vendida" : unidade.motivoArquivamento ?? "Arquivada"}</p></button>{!unidade.vendidaEm && podeAlterar && <button type="button" aria-label={`Restaurar ${unidade.sku}`} disabled={restaurando === unidade.id} onClick={() => void restaurar(unidade)} className={botaoSecundario}>{restaurando === unidade.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}Restaurar</button>}</motion.div>)}</AnimatePresence>{!arquivados.length && <p className="rounded-control border border-dashed border-border-default p-6 text-center text-sm text-text-muted">Nenhuma unidade fora do ativo.</p>}</div></section>}
@@ -847,7 +844,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       }
       if (!conexaoRealPronta) throw new Error("Conexão indisponível. Atualize o estoque e confira se o cadastro já foi salvo antes de tentar novamente.");
       const resultado = await salvarUnidadeOperacional(entrada, estoque.pecas, estoque.locais ?? [], cacheFotos);
-      setReloadKey((valor) => valor + 1);
+      atualizarEstoque();
       avisar(resultado.mensagem);
       return resultado;
     }} />

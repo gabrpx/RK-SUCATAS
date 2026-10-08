@@ -521,12 +521,25 @@ export function estoqueRouter(supabase: SupabaseClient) {
     try {
       const { data, error } = await supabase.from('estoque').select(SELECT_COM_JOINS).order('criado_em', { ascending: false });
       if (error) throw error;
-      const comUnidades = await anexarUnidades(supabase, data);
-      const comCompatibilidades = await anexarCompatibilidades(supabase, comUnidades);
-      const comFamilias = await anexarFamilias(supabase, comCompatibilidades);
-      const comAnunciosMl = await anexarAnunciosMl(supabase, comFamilias);
-      const comAnunciosShopee = await anexarAnunciosShopee(supabase, comAnunciosMl);
-      const payload = { success: true, data: await anexarPromocoes(supabase, comAnunciosShopee) };
+      // Cada enriquecimento lê tabelas independentes e só anexa suas próprias
+      // chaves. Executá-los em série multiplicava a latência de rede da lista;
+      // faça as leituras em paralelo e una o resultado pela mesma posição.
+      const [comUnidades, comCompatibilidades, comFamilias, comAnunciosMl, comAnunciosShopee] = await Promise.all([
+        anexarUnidades(supabase, data),
+        anexarCompatibilidades(supabase, data ?? []),
+        anexarFamilias(supabase, data ?? []),
+        anexarAnunciosMl(supabase, data),
+        anexarAnunciosShopee(supabase, data),
+      ]);
+      const enriquecido = (data ?? []).map((item, index) => ({
+        ...item,
+        unidades: comUnidades[index]?.unidades ?? [],
+        modelos_compativeis: comCompatibilidades[index]?.modelos_compativeis ?? [],
+        familia: comFamilias[index]?.familia ?? null,
+        links_ml: comAnunciosMl[index]?.links_ml ?? [],
+        links_shopee: comAnunciosShopee[index]?.links_shopee ?? [],
+      }));
+      const payload = { success: true, data: await anexarPromocoes(supabase, enriquecido) };
       // A lista completa pode chegar perto de 1 MB. O preview embutido leva
       // muito mais tempo para recebê-la sem compressão e estoura o timeout do
       // cliente. Mantém exatamente o mesmo JSON para consumidores existentes.

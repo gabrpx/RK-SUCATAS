@@ -11,12 +11,8 @@ import { Select } from "@/src/components/ui/Select";
 import { PopoverContent, PopoverHeader, PopoverRoot, PopoverTrigger } from "@/src/components/ui/popover";
 import { SPRING_MICRO } from "@/src/components/ui/motion";
 import { podeAtual } from "@/src/hooks/usePermissao";
-import { vendasApi } from "@/src/features/vendas/api";
-import type { Venda } from "@/src/features/vendas/types";
-import { caixaApi, caixaPendenciasApi } from "@/src/features/caixa/api";
-import type { CaixaEntry, CaixaPendencia, CaixaPendenciaRecebimento, CaixaTipo } from "@/src/features/caixa/types";
-import { fiadoApi } from "@/src/features/fiado/api";
-import type { FiadoRecebimento } from "@/src/features/fiado/types";
+import { caixaApi } from "@/src/features/caixa/api";
+import type { CaixaTipo } from "@/src/features/caixa/types";
 import {
   type AbaVendasPreview, type CanalVendaDemo, type MeioPagamentoDemo, type MovimentoDemo,
   type PendenciaDemo, type PeriodoVendasPreview, parseDataLocal,
@@ -34,6 +30,7 @@ import { MercadoLivreBadge, PaymentMethodMark } from "./components/PaymentMarks"
 import { Tabs as SegmentTabs, TabsList as SegmentTabsList, TabsTrigger as SegmentTabsTrigger } from "../tarefas-preview/PreviewTabs";
 import { filtrarMovimentosPorPeriodo, type PeriodoMovimento } from "./movementFilters";
 import { buildSalesOverview } from "./overviewModel";
+import { useData } from "@/src/context/DataContext";
 
 const NovaVendaDrawer = lazy(() => import("@/src/features/vendas/VendasView").then((mod) => ({ default: mod.NovaVendaDrawer })));
 
@@ -137,6 +134,7 @@ function SectionTitle({ eyebrow, title, aside }: { eyebrow: string; title: strin
 function DataNotice({ status, area, detail }: { status: DataStatus; area: string; detail?: string }) {
   const loading = status === "carregando";
   const restricted = status === "restrito";
+  if (loading) return null;
   return <div role={loading ? "status" : "alert"} className={`${panel} flex min-h-40 flex-col items-center justify-center gap-2 border-dashed px-6 py-8 text-center`}>
     <span className="text-sm font-semibold">{loading ? `Carregando ${area}…` : restricted ? `Sem acesso aos dados de ${area}` : `Não foi possível carregar ${area}`}</span>
     <span className="max-w-lg text-xs leading-5 text-text-muted">{loading ? "Consultando os registros." : restricted ? "Seu perfil precisa da permissão correspondente para consultar esta área." : detail || "Atualize a página para tentar consultar os dados novamente."}</span>
@@ -289,19 +287,14 @@ function PendingList({ items, hasActiveFilters, onClearFilters, onEdit, canEditI
 }
 
 export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embutido?: boolean; onAbrirVendasAntigas?: () => void } = {}) {
+  const { vendas: vendasOriginais, caixa: caixaOriginal, fiadoRecebimentos: recebimentosFiado, caixaPendencias: pendenciasCaixa, caixaPendenciaRecebimentos: recebimentosPendencia, ready, loading, refreshData } = useData();
   const [aba, setAba] = useState<AbaVendasPreview>("Visão geral");
   const [periodo, setPeriodo] = useState<PeriodoVendasPreview>("30 dias");
-  const [vendasOriginais, setVendasOriginais] = useState<Venda[]>([]);
-  const [caixaOriginal, setCaixaOriginal] = useState<CaixaEntry[]>([]);
-  const [recebimentosFiado, setRecebimentosFiado] = useState<FiadoRecebimento[]>([]);
-  const [pendenciasCaixa, setPendenciasCaixa] = useState<CaixaPendencia[]>([]);
-  const [recebimentosPendencia, setRecebimentosPendencia] = useState<CaixaPendenciaRecebimento[]>([]);
-  const [statusVendas, setStatusVendas] = useState<DataStatus>("carregando");
-  const [statusCaixa, setStatusCaixa] = useState<DataStatus>("carregando");
-  const [erroVendas, setErroVendas] = useState<string | null>(null);
-  const [erroCaixa, setErroCaixa] = useState<string | null>(null);
+  const podeVerVendas = podeAtual("vendas.ver");
+  const podeVerCaixa = podeAtual("caixa.ver");
+  const statusVendas: DataStatus = !podeVerVendas ? "restrito" : ready.vendas ? "pronto" : loading ? "carregando" : "erro";
+  const statusCaixa: DataStatus = !podeVerCaixa ? "restrito" : ready.caixa ? "pronto" : loading ? "carregando" : "erro";
   const [novaVendaAberta, setNovaVendaAberta] = useState(false);
-  const [reloadKey, setReloadKey] = useState(0);
   const [busca, setBusca] = useState("");
   const [filtroSituacaoVenda, setFiltroSituacaoVenda] = useState("Todas");
   const [canaisVendaSelecionados, setCanaisVendaSelecionados] = useState<CanalVendaDemo[]>([]);
@@ -319,39 +312,6 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
   const [periodoMovimento, setPeriodoMovimento] = useState<PeriodoMovimento>("todos");
   const rootRef = useRef<HTMLDivElement>(null);
   const reduceMotion = useReducedMotion();
-
-  useEffect(() => {
-    let ativo = true;
-    const podeVerVendas = podeAtual("vendas.ver");
-    const podeVerCaixa = podeAtual("caixa.ver");
-    if (!podeVerVendas) setStatusVendas("restrito");
-    if (!podeVerCaixa) setStatusCaixa("restrito");
-
-    async function carregar<T>(request: Promise<{ success: boolean; data: T; error?: string }>) {
-      const result = await request;
-      if (!result.success || result.data == null) throw new Error(result.error || "Falha ao consultar dados.");
-      return result.data;
-    }
-
-    const requests: Promise<unknown>[] = [];
-    if (podeVerVendas) requests.push(carregar(vendasApi.listar()).then((data) => { if (ativo) { setVendasOriginais(data as Venda[]); setErroVendas(null); setStatusVendas("pronto"); } }).catch((error: unknown) => { if (ativo) { setErroVendas(error instanceof Error ? error.message : "Falha ao consultar vendas."); setStatusVendas("erro"); } }));
-    if (podeVerCaixa) requests.push(Promise.all([
-      carregar(caixaApi.listar()),
-      carregar(fiadoApi.listarRecebimentos()),
-      carregar(caixaPendenciasApi.listar()),
-      carregar(caixaPendenciasApi.listarRecebimentos()),
-    ]).then(([caixa, fiado, pendencias, recebimentos]) => {
-      if (!ativo) return;
-      setCaixaOriginal(caixa as CaixaEntry[]);
-      setRecebimentosFiado(fiado as FiadoRecebimento[]);
-      setPendenciasCaixa(pendencias as CaixaPendencia[]);
-      setRecebimentosPendencia(recebimentos as CaixaPendenciaRecebimento[]);
-      setErroCaixa(null);
-      setStatusCaixa("pronto");
-    }).catch((error: unknown) => { if (ativo) { setErroCaixa(error instanceof Error ? error.message : "Falha ao consultar o Caixa."); setStatusCaixa("erro"); } }));
-
-    return () => { ativo = false; void requests; };
-  }, [reloadKey]);
 
   useEffect(() => {
     if (reduceMotion || !rootRef.current) return;
@@ -443,7 +403,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
     try {
       const result = await caixaApi.excluir(item.id);
       if (!result.success) throw new Error(result.error || 'Não foi possível excluir a movimentação.');
-      setReloadKey((value) => value + 1);
+      void refreshData();
     } catch (cause) {
       setMutationError(cause instanceof Error ? cause.message : 'Não foi possível excluir a movimentação.');
     }
@@ -479,9 +439,9 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
 
       <AnimatePresence mode="wait" initial={false}>
         <motion.section key={aba} id="vendas-preview-panel" role="tabpanel" aria-labelledby={`vendas-tab-${abas.indexOf(aba)}`} tabIndex={0} initial={reduceMotion ? false : { opacity: 0, y: 7 }} animate={{ opacity: 1, y: 0 }} exit={reduceMotion ? undefined : { opacity: 0, y: -4 }} transition={{ duration: reduceMotion ? 0 : .18 }} className="mt-6 min-w-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
-          {aba === "Visão geral" && (statusVendas !== "pronto" ? <DataNotice status={statusVendas} area="as vendas" detail={erroVendas ?? undefined} /> : <Overview period={periodo} periodDays={intervaloResumo.dias} sales={totalVendas} salesCount={vendasDoPeriodo.length} cashIn={totalEntradas} cashInCount={statusCaixa === "pronto" ? entradasDoPeriodo.length : null} balance={saldoCaixa} receivable={totalReceber} overdue={totalVencido} pendencies={pendencias} salesRows={vendas} movementRows={movimentosDoPeriodo} financialAvailable={statusCaixa === "pronto"} onOpenTab={setAba} />)}
+          {aba === "Visão geral" && (statusVendas !== "pronto" ? <DataNotice status={statusVendas} area="as vendas" /> : <Overview period={periodo} periodDays={intervaloResumo.dias} sales={totalVendas} salesCount={vendasDoPeriodo.length} cashIn={totalEntradas} cashInCount={statusCaixa === "pronto" ? entradasDoPeriodo.length : null} balance={saldoCaixa} receivable={totalReceber} overdue={totalVencido} pendencies={pendencias} salesRows={vendas} movementRows={movimentosDoPeriodo} financialAvailable={statusCaixa === "pronto"} onOpenTab={setAba} />)}
 
-          {aba === "Vendas" && (statusVendas !== "pronto" ? <DataNotice status={statusVendas} area="as vendas" detail={erroVendas ?? undefined} /> : <div className="space-y-4">
+          {aba === "Vendas" && (statusVendas !== "pronto" ? <DataNotice status={statusVendas} area="as vendas" /> : <div className="space-y-4">
             <SectionTitle eyebrow="Registro e consulta" title="Vendas recentes" aside={<span className="font-mono text-[10px] uppercase tracking-wide text-text-faint">{vendaFiltradas.length} registros</span>} />
             <div className="space-y-2.5">
               <label className="relative block min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={15} /><input aria-label="Buscar vendas" value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar cliente, peça ou código" className={`${inputClass} pl-9`} /></label>
@@ -505,7 +465,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
             <SalesList sales={vendaFiltradas} onDetail={detalharVenda} onClearFilters={limparFiltrosVenda} hasActiveFilters={filtrosVendaAtivos.length > 0} />
           </div>)}
 
-          {aba === "Movimentações" && (statusCaixa !== "pronto" ? <DataNotice status={statusCaixa} area="as movimentações do Caixa" detail={erroCaixa ?? undefined} /> : <div className="space-y-4">
+          {aba === "Movimentações" && (statusCaixa !== "pronto" ? <DataNotice status={statusCaixa} area="as movimentações do Caixa" /> : <div className="space-y-4">
             <SectionTitle eyebrow="Histórico cronológico" title="Entradas e saídas" aside={podeAtual("caixa.criar") ? <div className="flex w-full flex-wrap gap-2 sm:w-auto"><button type="button" onClick={() => { setMutationError(null); setMovementDrawer("entrada"); }} className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-control border border-positive/30 px-3 text-xs font-semibold text-positive hover:bg-positive-bg sm:flex-none"><Plus size={14} />Nova entrada</button><button type="button" onClick={() => { setMutationError(null); setMovementDrawer("saida"); }} className="inline-flex min-h-10 flex-1 items-center justify-center gap-1.5 rounded-control border border-negative/30 px-3 text-xs font-semibold text-negative hover:bg-negative-bg sm:flex-none"><Plus size={14} />Nova saída</button></div> : undefined} />
             <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-center"><label className="relative block min-w-0 flex-1"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={15} /><input aria-label="Buscar movimentações" value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar origem, descrição ou pagamento" className={`${inputClass} pl-9`} /></label><div className="w-full sm:w-48"><Select ariaLabel="Filtrar movimentações" value={filtroMovimento} onChange={setFiltroMovimento} options={["Todos", "Entradas", "Saídas"].map((value) => ({ value, label: value }))} size="lg" /></div><SegmentTabs value={periodoMovimento} onValueChange={(value) => setPeriodoMovimento(value as PeriodoMovimento)} className="w-full sm:w-auto"><SegmentTabsList aria-label="Período das movimentações" className="w-full max-w-full shrink-0 bg-surface-inset sm:w-auto"><SegmentTabsTrigger value="todos" className="min-h-9 flex-1 whitespace-nowrap px-3 text-xs sm:flex-none">Todos os períodos</SegmentTabsTrigger><SegmentTabsTrigger value="trinta-dias" className="min-h-9 flex-1 whitespace-nowrap px-3 text-xs sm:flex-none">30 dias</SegmentTabsTrigger></SegmentTabsList></SegmentTabs></div>
             <p className="text-xs leading-5 text-text-muted">Lançamentos efetivos do livro-caixa, incluindo entradas e saídas registradas.</p>
@@ -514,7 +474,7 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
             <div className={`${panel} flex flex-wrap items-center justify-between gap-2 p-4 text-xs`}><span className="text-text-muted">Saldo líquido dos lançamentos filtrados</span><strong className="text-positive tabular-nums">{money(movimentosVisiveis.reduce((sum, item) => sum + (item.tipo === "entrada" ? item.valor : -item.valor), 0))}</strong></div>
           </div>)}
 
-          {aba === "Pendências" && (statusCaixa !== "pronto" ? <DataNotice status={statusCaixa} area="as pendências e recebimentos" detail={erroCaixa ?? undefined} /> : <div className="space-y-4">
+          {aba === "Pendências" && (statusCaixa !== "pronto" ? <DataNotice status={statusCaixa} area="as pendências e recebimentos" /> : <div className="space-y-4">
             <SectionTitle eyebrow="Recebíveis em aberto" title="Pendências" aside={podeAtual("caixa.gerenciar_pendencias") ? <button type="button" onClick={() => setPendingCreateOpen(true)} className="inline-flex min-h-10 w-full items-center justify-center gap-1.5 rounded-control bg-accent px-3 text-xs font-semibold text-white hover:bg-accent-hover sm:w-auto"><Plus size={14} />Nova pendência</button> : undefined} />
             <div className="grid gap-3 sm:grid-cols-2"><div className={`${panel} p-3.5 sm:p-4`}><p className={label}>A receber</p><p className="mt-2 text-xl font-semibold tabular-nums">{money(totalReceber ?? 0)}</p><p className="mt-1 text-[11px] text-text-muted">{contadorPendencias} {contadorPendencias === 1 ? "recebível aberto" : "recebíveis abertos"}</p></div><div className={`${panel} p-3.5 sm:p-4`}><p className={label}>Em atraso</p><p className="mt-2 text-xl font-semibold tabular-nums text-danger">{money(totalVencido ?? 0)}</p><p className="mt-1 text-[11px] text-text-muted">Em aberto há 30 dias ou mais</p></div></div>
             <label className="relative block min-w-0"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-text-faint" size={15} /><input aria-label="Buscar pendências" value={busca} onChange={(event) => setBusca(event.target.value)} placeholder="Buscar cliente ou origem" className={`${inputClass} pl-9`} /></label>
@@ -528,10 +488,10 @@ export function VendasPreview({ embutido = false, onAbrirVendasAntigas }: { embu
     </main>
 
     <SaleDetailDrawer sale={saleDetail} onClose={() => setSaleDetail(null)} />
-    <PendingEditDrawer pending={pendingEdit} canEdit={pendingEdit?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("vendas.editar")} onClose={() => setPendingEdit(null)} onSaved={() => setReloadKey((value) => value + 1)} />
-    <PendingReceivableDrawer pending={pendingReceivable} canReceive={pendingReceivable?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("caixa.receber_fiado")} onClose={() => setPendingReceivable(null)} onSaved={() => { setPendingReceivable(null); setReloadKey((value) => value + 1); }} />
-    <MovementActionDrawer isOpen={movementDrawer !== null} initialTipo={movementDrawer ?? 'entrada'} onClose={() => setMovementDrawer(null)} onSaved={() => { setMovementDrawer(null); setReloadKey((value) => value + 1); }} />
-    <PendingCreateDrawer isOpen={pendingCreateOpen} onClose={() => setPendingCreateOpen(false)} onSaved={() => { setPendingCreateOpen(false); setReloadKey((value) => value + 1); }} />
-    {embutido && novaVendaAberta && <Suspense fallback={null}><NovaVendaDrawer isOpen onClose={() => setNovaVendaAberta(false)} onSaved={() => setReloadKey((value) => value + 1)} /></Suspense>}
+    <PendingEditDrawer pending={pendingEdit} canEdit={pendingEdit?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("vendas.editar")} onClose={() => setPendingEdit(null)} onSaved={() => { void refreshData(); }} />
+    <PendingReceivableDrawer pending={pendingReceivable} canReceive={pendingReceivable?.source.kind === "caixa" ? podeAtual("caixa.gerenciar_pendencias") : podeAtual("caixa.receber_fiado")} onClose={() => setPendingReceivable(null)} onSaved={() => { setPendingReceivable(null); void refreshData(); }} />
+    <MovementActionDrawer isOpen={movementDrawer !== null} initialTipo={movementDrawer ?? 'entrada'} onClose={() => setMovementDrawer(null)} onSaved={() => { setMovementDrawer(null); void refreshData(); }} />
+    <PendingCreateDrawer isOpen={pendingCreateOpen} onClose={() => setPendingCreateOpen(false)} onSaved={() => { setPendingCreateOpen(false); void refreshData(); }} />
+    {embutido && novaVendaAberta && <Suspense fallback={null}><NovaVendaDrawer isOpen onClose={() => setNovaVendaAberta(false)} onSaved={() => { void refreshData(); }} /></Suspense>}
   </div>;
 }

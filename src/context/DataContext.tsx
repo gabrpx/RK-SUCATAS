@@ -1,7 +1,7 @@
 // Fonte única de dados do app: estoque, vendas e caixa.
 // Busca as três tabelas em paralelo, cacheia em localStorage pra pintar a tela
 // instantaneamente na próxima abertura, e faz polling silencioso a cada 10s.
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { fetchWithRetry, parseJson } from '../lib/apiClient';
 import { podeAtual } from '../hooks/usePermissao';
 import type { Role } from '../constants/roles';
@@ -15,6 +15,26 @@ import type { Envio } from '../features/frete/types';
 
 const CACHE_TIME_MS = 5 * 1000;
 const POLL_INTERVAL_MS = 10 * 1000;
+const READY_CACHE_KEY = 'rk_data_ready_v1';
+
+interface DataReadyState {
+  estoque: boolean;
+  vendas: boolean;
+  caixa: boolean;
+}
+
+function readReadyState(): DataReadyState {
+  try {
+    const cached = JSON.parse(localStorage.getItem(READY_CACHE_KEY) || '{}');
+    return {
+      estoque: cached.estoque ?? localStorage.getItem('rk_estoque_v2') !== null,
+      vendas: cached.vendas ?? localStorage.getItem('rk_vendas') !== null,
+      caixa: cached.caixa ?? localStorage.getItem('rk_caixa') !== null,
+    };
+  } catch {
+    return { estoque: false, vendas: false, caixa: false };
+  }
+}
 
 interface DataContextValue {
   estoque: Estoque[];
@@ -29,8 +49,8 @@ interface DataContextValue {
   caixaPendenciaRecebimentos: CaixaPendenciaRecebimento[];
   envios: Envio[];
   loading: boolean;
-  /** true quando a última tentativa de buscar o estoque falhou — distingue
-   *  "deu erro" de "está vazio mesmo", pra tela não mostrar uma coisa pela outra. */
+  ready: DataReadyState;
+  /** true até uma resposta atual do servidor confirmar o estoque desta sessão. */
   estoqueError: boolean;
   setEstoque: React.Dispatch<React.SetStateAction<Estoque[]>>;
   setVendas: React.Dispatch<React.SetStateAction<Venda[]>>;
@@ -61,6 +81,7 @@ export const DataContext = createContext<DataContextValue>({
   caixaPendenciaRecebimentos: [],
   envios: [],
   loading: false,
+  ready: { estoque: false, vendas: false, caixa: false },
   estoqueError: false,
   setEstoque: () => {},
   setVendas: () => {},
@@ -113,12 +134,23 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [caixaPendencias, setCaixaPendencias] = useState<CaixaPendencia[]>(() => readCache('rk_caixa_pendencias', []));
   const [caixaPendenciaRecebimentos, setCaixaPendenciaRecebimentos] = useState<CaixaPendenciaRecebimento[]>(() => readCache('rk_caixa_pendencia_recebimentos', []));
   const [envios, setEnvios] = useState<Envio[]>(() => readCache('rk_envios', []));
-  const [loading, setLoading] = useState(false);
-  const [estoqueError, setEstoqueError] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [ready, setReady] = useState<DataReadyState>(readReadyState);
+  const [estoqueError, setEstoqueError] = useState(true);
   const [showSensitiveInfo, setShowSensitiveInfo] = useState(true);
   const lastFetchRef = useRef(0);
   const inFlightRef = useRef<Promise<void> | null>(null);
   const retryTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const loadDataRef = useRef<(force?: boolean, silent?: boolean) => Promise<void>>(async () => {});
+
+  const markReady = (domain: keyof DataReadyState) => {
+    setReady((current) => {
+      if (current[domain]) return current;
+      const next = { ...current, [domain]: true };
+      try { localStorage.setItem(READY_CACHE_KEY, JSON.stringify(next)); } catch { /* cache opcional */ }
+      return next;
+    });
+  };
 
   const loadData = async (force = false, silent = false) => {
     if (inFlightRef.current) {
@@ -150,17 +182,50 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
 
     if (!silent) setLoading(true);
 
+    const vendasRequest = verVendas ? fetchWithRetry('/api/vendas') : Promise.resolve(null);
+    const caixaRequest = verCaixa ? fetchWithRetry('/api/caixa') : Promise.resolve(null);
+    const fiadoRequest = verCaixa ? fetchWithRetry('/api/fiado/recebimentos') : Promise.resolve(null);
+    const pendenciasRequest = verCaixa ? fetchWithRetry('/api/caixa-pendencias') : Promise.resolve(null);
+    const recebimentosPendenciaRequest = verCaixa ? fetchWithRetry('/api/caixa-pendencias/recebimentos') : Promise.resolve(null);
+
+    // Vendas e caixa ficam prontos assim que suas próprias respostas chegam;
+    // a lista grande do estoque não segura a primeira renderização dessas abas.
+    if (verVendas) void vendasRequest.then(async (response) => {
+      if (!response) return;
+      const data = await parseJson(response.clone());
+      if (data.success) {
+        setVendas((prev) => applyIfChanged(prev, data.data, 'rk_vendas'));
+        markReady('vendas');
+      }
+    }).catch((error) => console.error('Erro ao preparar cache de vendas:', error));
+
+    if (verCaixa) void Promise.all([
+      caixaRequest, fiadoRequest, pendenciasRequest, recebimentosPendenciaRequest,
+    ].map(async (request) => {
+      const response = await request;
+      if (!response) throw new Error('Resposta financeira ausente.');
+      const data = await parseJson(response.clone());
+      if (!data.success) throw new Error(data.error || 'Falha ao sincronizar dados financeiros.');
+      return data.data;
+    })).then(([caixaData, fiadoData, pendenciasData, recebimentosData]) => {
+      setCaixa((prev) => applyIfChanged(prev, caixaData, 'rk_caixa'));
+      setFiadoRecebimentos((prev) => applyIfChanged(prev, fiadoData, 'rk_fiado_recebimentos'));
+      setCaixaPendencias((prev) => applyIfChanged(prev, pendenciasData, 'rk_caixa_pendencias'));
+      setCaixaPendenciaRecebimentos((prev) => applyIfChanged(prev, recebimentosData, 'rk_caixa_pendencia_recebimentos'));
+      markReady('caixa');
+    }).catch((error) => console.error('Erro ao preparar cache do Caixa:', error));
+
     const results = await Promise.allSettled([
       verEstoque ? fetchWithRetry('/api/estoque') : Promise.resolve(null),
-      verVendas ? fetchWithRetry('/api/vendas') : Promise.resolve(null),
-      verCaixa ? fetchWithRetry('/api/caixa') : Promise.resolve(null),
+      vendasRequest,
+      caixaRequest,
       verOrcamentos ? fetchWithRetry('/api/orcamentos') : Promise.resolve(null),
       verClientes ? fetchWithRetry('/api/clientes?incluir_inativos=true') : Promise.resolve(null),
       verClientes ? fetchWithRetry('/api/clientes/pecas-procuradas/todas') : Promise.resolve(null),
       verClientes ? fetchWithRetry('/api/clientes/motos/todas') : Promise.resolve(null),
-      verCaixa ? fetchWithRetry('/api/fiado/recebimentos') : Promise.resolve(null),
-      verCaixa ? fetchWithRetry('/api/caixa-pendencias') : Promise.resolve(null),
-      verCaixa ? fetchWithRetry('/api/caixa-pendencias/recebimentos') : Promise.resolve(null),
+      fiadoRequest,
+      pendenciasRequest,
+      recebimentosPendenciaRequest,
       verFrete ? fetchWithRetry('/api/envios') : Promise.resolve(null),
     ]);
 
@@ -187,6 +252,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         const data = await parseJson(estoqueRes.value);
         if (data.success) {
           setEstoque(prev => applyIfChanged(prev, data.data, 'rk_estoque_v2'));
+          markReady('estoque');
         } else {
           falhouEstoque = true;
         }
@@ -211,7 +277,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (vendasRes.status === 'fulfilled' && vendasRes.value) {
       try {
         const data = await parseJson(vendasRes.value);
-        if (data.success) setVendas(prev => applyIfChanged(prev, data.data, 'rk_vendas'));
+        if (data.success) {
+          setVendas(prev => applyIfChanged(prev, data.data, 'rk_vendas'));
+          markReady('vendas');
+        }
       } catch (e) {
         console.error('Erro ao processar vendas:', e);
       }
@@ -222,7 +291,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     if (caixaRes.status === 'fulfilled' && caixaRes.value) {
       try {
         const data = await parseJson(caixaRes.value);
-        if (data.success) setCaixa(prev => applyIfChanged(prev, data.data, 'rk_caixa'));
+        if (data.success) {
+          setCaixa(prev => applyIfChanged(prev, data.data, 'rk_caixa'));
+        }
       } catch (e) {
         console.error('Erro ao processar caixa:', e);
       }
@@ -307,6 +378,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       console.error('Erro ao buscar recebimentos de pendência de caixa:', caixaPendenciaRecebimentosRes.reason);
     }
 
+    const respostasFinanceiras = [caixaRes, fiadoRecebimentosRes, caixaPendenciasRes, caixaPendenciaRecebimentosRes];
+    if (respostasFinanceiras.every((resultado) => resultado.status === 'fulfilled' && resultado.value?.ok)) markReady('caixa');
+
     if (enviosRes.status === 'fulfilled' && enviosRes.value) {
       try {
         const data = await parseJson(enviosRes.value);
@@ -328,6 +402,37 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
       if (inFlightRef.current === task) inFlightRef.current = null;
     }
   };
+
+  loadDataRef.current = loadData;
+  const refreshData = useCallback(() => loadDataRef.current(true), []);
+
+  useEffect(() => {
+    const handlers: Record<string, (value: any) => void> = {
+      rk_estoque_v2: setEstoque,
+      rk_vendas: setVendas,
+      rk_caixa: setCaixa,
+      rk_orcamentos: setOrcamentos,
+      rk_clientes: setClientes,
+      rk_pecas_procuradas: setPecasProcuradas,
+      rk_motos_clientes: setMotosClientes,
+      rk_fiado_recebimentos: setFiadoRecebimentos,
+      rk_caixa_pendencias: setCaixaPendencias,
+      rk_caixa_pendencia_recebimentos: setCaixaPendenciaRecebimentos,
+      rk_envios: setEnvios,
+    };
+    const sincronizarOutraAba = (event: StorageEvent) => {
+      if (event.storageArea !== localStorage || !event.key || event.newValue === null) return;
+      try {
+        const value = JSON.parse(event.newValue);
+        if (event.key === READY_CACHE_KEY) setReady(value);
+        else handlers[event.key]?.(value);
+      } catch {
+        // Uma cópia local inválida não deve interromper as atualizações do app.
+      }
+    };
+    window.addEventListener('storage', sincronizarOutraAba);
+    return () => window.removeEventListener('storage', sincronizarOutraAba);
+  }, []);
 
   useEffect(() => {
     loadData();
@@ -355,6 +460,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         caixaPendenciaRecebimentos,
         envios,
         loading,
+        ready,
         estoqueError,
         setEstoque,
         setVendas,
@@ -367,7 +473,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
         setCaixaPendencias,
         setCaixaPendenciaRecebimentos,
         setEnvios,
-        refreshData: () => loadData(true),
+        refreshData,
         showSensitiveInfo,
         setShowSensitiveInfo,
       }}

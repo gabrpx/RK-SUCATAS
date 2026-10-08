@@ -554,6 +554,18 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
     visitedTabs.current.add(activeTab);
   }, [activeTab]);
   useEffect(() => {
+    // Baixa os módulos das abas operacionais durante a abertura inicial. Ao
+    // navegar, o código já está no cache do navegador e não suspende a tela.
+    void Promise.allSettled([
+      import('./features/clientes/ClientesView'),
+      import('./features/tarefas/TarefasView'),
+      import('./features/estoque-preview/EstoquePreview'),
+      import('./features/caixa/CaixaView'),
+      import('./features/vendas-preview/VendasPreview'),
+      import('./features/dashboard/DashboardView'),
+    ]);
+  }, []);
+  useEffect(() => {
     // A tela ativa tem prioridade. As demais telas novas montam uma a uma em
     // segundo plano e conservam seus dados/filtros quando o usuário navegar.
     const timers = WARM_TABS.filter((tab) => tab !== activeTab && pode(permissaoDeVer(tab)))
@@ -758,7 +770,7 @@ function AppContent({ onLogout }: { onLogout: () => void }) {
                 data-tab-panel={tab}
                 className="min-h-full w-full"
               >
-                <React.Suspense fallback={<div role="status" className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-text-muted"><Loader2 size={18} className="animate-spin" />Carregando aba…</div>}>
+                <React.Suspense fallback={null}>
                   {renderTab(tab)}
                 </React.Suspense>
               </div>
