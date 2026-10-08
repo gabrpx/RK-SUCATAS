@@ -8,6 +8,7 @@ export interface SelectOption { value: string; label: string }
 interface SelectProps {
   label?: string; helper?: string; error?: string; placeholder?: string;
   ariaLabel?: string;
+  ariaDescribedBy?: string;
   id?: string;
   disabled?: boolean;
   className?: string;
@@ -21,7 +22,7 @@ interface SelectProps {
 
 const heights = { sm: 'h-8', md: 'h-9', lg: 'h-11', mobile: 'h-11' } as const;
 
-export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(function Select({ label, helper, error, placeholder, ariaLabel, id, disabled = false, className, triggerClassName, options, value, onChange, renderOption, renderValue, size = 'md' }, forwardedRef) {
+export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(function Select({ label, helper, error, placeholder, ariaLabel, ariaDescribedBy, id, disabled = false, className, triggerClassName, options, value, onChange, renderOption, renderValue, size = 'md' }, forwardedRef) {
   const [open, setOpen] = React.useState(false);
   const [activeIndex, setActiveIndex] = React.useState(-1);
   const rootRef = React.useRef<HTMLDivElement>(null);
@@ -104,6 +105,7 @@ export const Select = React.forwardRef<HTMLButtonElement, SelectProps>(function 
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-controls={listboxId}
+        aria-describedby={ariaDescribedBy}
         aria-activedescendant={open && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined}
         aria-labelledby={label ? labelId : undefined}
         aria-invalid={error ? true : undefined}

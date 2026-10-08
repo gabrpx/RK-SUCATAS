@@ -38,7 +38,8 @@ export interface Venda {
 // Payload pra registrar uma venda nova (chama a função registrar_venda no banco,
 // que baixa o estoque e lança a entrada no caixa de forma atômica).
 export interface VendaInput {
-  estoque_id: string;
+  estoque_id?: string | null;
+  nome_item?: string | null;
   quantidade: number;
   valor_unitario: number;
   forma_pagamento_id: string;

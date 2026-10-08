@@ -30,25 +30,55 @@ export function vendasRouter(supabase: SupabaseClient) {
 
   router.post('/', exigirPermissao('vendas.criar'), async (req, res) => {
     try {
-      const { estoque_id, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, cliente_id, observacoes, data, componente, unidade_id } = req.body || {};
+      const { estoque_id, nome_item, quantidade, valor_unitario, forma_pagamento_id, modelo_moto_id, cliente_nome, cliente_id, observacoes, data, componente, unidade_id } = req.body || {};
+      const estoqueId = typeof estoque_id === 'string' && estoque_id.trim() ? estoque_id.trim() : null;
+      const nomeItem = typeof nome_item === 'string' ? nome_item.trim() : '';
+      let clienteId: string | null = null;
+      if (cliente_id !== undefined && cliente_id !== null) {
+        if (typeof cliente_id !== 'string' || !cliente_id.trim()) {
+          return res.status(400).json({ success: false, error: 'Cliente inválido' });
+        }
+        clienteId = cliente_id.trim();
+      }
 
-      if (!estoque_id) return res.status(400).json({ success: false, error: 'estoque_id é obrigatório' });
-      if (!quantidade || Number(quantidade) <= 0) return res.status(400).json({ success: false, error: 'Quantidade inválida' });
-      if (valor_unitario === undefined || Number(valor_unitario) < 0) {
+      if (!estoqueId && !nomeItem) return res.status(400).json({ success: false, error: 'Informe o nome do item vendido' });
+      if (estoqueId && nomeItem) return res.status(400).json({ success: false, error: 'Selecione um item do estoque ou informe um item avulso' });
+      if (!estoqueId && (componente || unidade_id)) {
+        return res.status(400).json({ success: false, error: 'Item avulso não aceita componente ou unidade de estoque' });
+      }
+
+      const quantidadeTemTipoNumerico = typeof quantidade === 'number' || (typeof quantidade === 'string' && !!quantidade.trim());
+      const quantidadeNumerica = Number(quantidade);
+      if (!quantidadeTemTipoNumerico || !Number.isFinite(quantidadeNumerica) || !Number.isInteger(quantidadeNumerica) || quantidadeNumerica <= 0) {
+        return res.status(400).json({ success: false, error: 'Quantidade inválida' });
+      }
+      const valorTemTipoNumerico = typeof valor_unitario === 'number' || (typeof valor_unitario === 'string' && !!valor_unitario.trim());
+      const valorNumerico = Number(valor_unitario);
+      if (
+        !valorTemTipoNumerico ||
+        !Number.isFinite(valorNumerico) || valorNumerico < 0
+      ) {
         return res.status(400).json({ success: false, error: 'Valor unitário inválido' });
       }
-      if (!forma_pagamento_id) return res.status(400).json({ success: false, error: 'Forma de pagamento é obrigatória' });
+      if (typeof forma_pagamento_id !== 'string' || !forma_pagamento_id.trim()) {
+        return res.status(400).json({ success: false, error: 'Forma de pagamento é obrigatória' });
+      }
 
-      if (cliente_id) {
-        const { data: cli } = await supabase.from('clientes').select('banido').eq('id', cliente_id).maybeSingle();
+      if (clienteId) {
+        const { data: cli, error: erroCliente } = await supabase.from('clientes').select('banido').eq('id', clienteId).maybeSingle();
+        if (erroCliente) {
+          console.error('Erro ao validar cliente da venda:', erroCliente);
+          return res.status(500).json({ success: false, error: 'Não foi possível validar o cliente para esta venda' });
+        }
+        if (!cli) return res.status(400).json({ success: false, error: 'Cliente não encontrado' });
         if (cli?.banido) return res.status(400).json({ success: false, error: 'Este cliente está banido e não pode receber novas vendas' });
       }
 
       const { data: venda, error } = await supabase.rpc('registrar_venda', {
-        p_estoque_id: estoque_id,
-        p_quantidade: Number(quantidade),
-        p_valor_unitario: Number(valor_unitario),
-        p_forma_pagamento_id: forma_pagamento_id,
+        p_estoque_id: estoqueId,
+        p_quantidade: quantidadeNumerica,
+        p_valor_unitario: valorNumerico,
+        p_forma_pagamento_id: forma_pagamento_id.trim(),
         p_modelo_moto_id: modelo_moto_id || null,
         p_cliente_nome: cliente_nome || null,
         p_observacoes: observacoes || null,
@@ -56,9 +86,9 @@ export function vendasRouter(supabase: SupabaseClient) {
         // Nome de uma parte cadastrada em estoque.componentes — quando
         // informado, dá baixa só nela (ver comentário em registrar_venda).
         p_componente: componente || null,
-        p_cliente_id: cliente_id || null,
+        p_cliente_id: clienteId,
         p_unidade_id: unidade_id || null,
-        p_nome_item: null,
+        p_nome_item: estoqueId ? null : nomeItem,
         // Seleciona a assinatura vigente de 13 parâmetros sem alterar o valor da venda.
         p_valor_recebido: null,
       });
@@ -66,7 +96,7 @@ export function vendasRouter(supabase: SupabaseClient) {
       if (error) throw error;
       // Fire-and-forget: a venda já está registrada; avisar sobre o anúncio
       // não pode atrasar nem derrubar a resposta.
-      void avisarAnunciosDesatualizados(supabase, [estoque_id]);
+      if (estoqueId) void avisarAnunciosDesatualizados(supabase, [estoqueId]);
       res.json({ success: true, data: venda });
     } catch (error: any) {
       console.error('Erro ao registrar venda:', error);

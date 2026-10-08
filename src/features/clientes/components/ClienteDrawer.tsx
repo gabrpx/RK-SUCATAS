@@ -1,4 +1,4 @@
-import { Bike, CalendarPlus, Edit3, FileText, Instagram, MapPin, MessageCircle, PackageSearch, StickyNote } from 'lucide-react';
+import { Bike, CalendarPlus, Edit3, FileText, Instagram, MapPin, MessageCircle, PackageSearch, ShoppingCart, StickyNote } from 'lucide-react';
 import { OperationalDrawer } from '@/src/components/ui/OperationalDrawer';
 import { linkInstagram } from '@/src/utils/instagram';
 import { linkWhatsapp } from '@/src/utils/whatsapp';
@@ -10,6 +10,7 @@ export interface ClienteDrawerProps {
   onOpenChange: (open: boolean) => void;
   cliente: Cliente;
   onRegistrarPedido?: (cliente: Cliente) => void;
+  onRegistrarVenda?: (cliente: Cliente) => void;
   onAgendarVisita?: (cliente: Cliente) => void;
   onEdit?: (cliente: Cliente) => void;
 }
@@ -53,7 +54,7 @@ function Section({ title, icon, children }: { title: string; icon: React.ReactNo
   );
 }
 
-export function ClienteDrawer({ open, onOpenChange, cliente, onRegistrarPedido, onAgendarVisita, onEdit }: ClienteDrawerProps) {
+export function ClienteDrawer({ open, onOpenChange, cliente, onRegistrarPedido, onRegistrarVenda, onAgendarVisita, onEdit }: ClienteDrawerProps) {
   const whatsapp = linkWhatsapp(cliente.telefone);
   const instagram = linkInstagram(cliente.instagram_usuario);
   const contatoPreferido = cliente.preferencia_contato === 'instagram' ? 'instagram' : 'whatsapp';
@@ -106,6 +107,12 @@ export function ClienteDrawer({ open, onOpenChange, cliente, onRegistrarPedido, 
         <PackageSearch aria-hidden="true" size={16} />
         Registrar pedido
       </button>
+      {onRegistrarVenda ? (
+        <button type="button" className={primaryButton} onClick={() => onRegistrarVenda(cliente)}>
+          <ShoppingCart aria-hidden="true" size={16} />
+          Registrar venda
+        </button>
+      ) : null}
       {!contatoPrincipal ? (
         <span id="cliente-contato-indisponivel" className="sr-only">
           Cadastre um WhatsApp ou Instagram para abrir o contato.
@@ -220,7 +227,7 @@ export function ClienteDrawer({ open, onOpenChange, cliente, onRegistrarPedido, 
 
         <section aria-labelledby="cliente-drawer-proximas-etapas" className="rounded-card border border-border-default bg-surface-raised p-4">
           <h2 id="cliente-drawer-proximas-etapas" className="text-sm font-semibold text-text-primary">Próximas etapas</h2>
-          <p className="mt-1 text-sm leading-5 text-text-muted">Visitas e reservas serão integradas às Tarefas em uma próxima etapa. Nenhuma data ou reserva é criada por esta ficha.</p>
+          <p className="mt-1 text-sm leading-5 text-text-muted">As visitas agendadas para este cliente aparecem na Agenda e em Tarefas. Nenhuma reserva é criada por esta ficha.</p>
         </section>
       </main>
     </OperationalDrawer>

@@ -4,6 +4,7 @@ import type React from 'react';
 import { motion, useReducedMotion } from 'motion/react';
 import { SPRING_MICRO } from '@/src/components/ui/motion';
 import { calcularSituacaoCliente } from '../operacaoModel';
+import { pedidoStatusCopy } from '../operacaoCopy';
 import { calcularHistoricoCliente } from '../metricas';
 import type { ClienteOperacaoEntrada, ClienteOperacaoListaItem, PedidoBuscaEstadoPersistido, PedidoBuscaOperacional, SituacaoCliente } from '../operacaoTypes';
 import type { Venda } from '../../vendas/types';
@@ -94,6 +95,7 @@ function pedidosDoCliente(cliente: ClienteOperacaoListaItem): PedidoBuscaOperaci
       id: registro.id,
       status: registro.status as PedidoBuscaOperacional['status'],
       criadoEm: registro.criado_em,
+      descricao: typeof registro.descricao === 'string' ? registro.descricao : null,
       prometidoPara: typeof registro.prometido_para === 'string' ? registro.prometido_para : null,
       proximaAcaoEm: typeof registro.proxima_acao_em === 'string' ? registro.proxima_acao_em : null,
     }];
@@ -146,7 +148,7 @@ function contatoDoCliente(cliente: ClienteOperacaoListaItem): string {
   return 'Sem contato';
 }
 
-function AcaoRapida({ label, children, onClick, disabled = false }: { label: string; children: React.ReactNode; onClick: () => void; disabled?: boolean }) {
+function AcaoRapida({ label, children, onClick, disabled = false, compact = false }: { label: string; children: React.ReactNode; onClick: () => void; disabled?: boolean; compact?: boolean }) {
   return (
     <button
       type="button"
@@ -154,7 +156,7 @@ function AcaoRapida({ label, children, onClick, disabled = false }: { label: str
       title={label}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex min-h-11 min-w-0 cursor-pointer items-center justify-center gap-1 rounded-control border border-border-default bg-surface-card px-1.5 text-[10px] font-semibold text-text-secondary transition-colors hover:border-accent/35 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:gap-1.5 sm:px-2.5 sm:text-xs"
+      className={`inline-flex min-h-11 min-w-0 cursor-pointer items-center justify-center gap-1 rounded-control border border-border-default bg-surface-card px-1.5 text-[10px] font-semibold text-text-secondary transition-colors hover:border-accent/35 hover:bg-surface-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50 sm:min-h-9 sm:gap-1.5 sm:px-2.5 sm:text-xs ${compact ? 'md:size-9 md:min-w-9 md:px-0' : ''}`}
     >
       {children}
     </button>
@@ -232,7 +234,7 @@ export function ClientesLista({ itens, initialSemPendencias = false, loading = f
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Cadastro e atendimento</p>
-          <h2 id="todos-clientes-title" className="mt-1 text-lg font-semibold tracking-tight text-text-primary">Todos os clientes</h2>
+          <h2 id="todos-clientes-title" className="mt-1 text-lg font-semibold tracking-tight text-text-primary">Clientes</h2>
         </div>
         <p aria-live="polite" className="text-sm text-text-muted">{loading ? 'Carregando clientes…' : `${clientesFiltrados.length} ${clientesFiltrados.length === 1 ? 'cliente encontrado' : 'clientes encontrados'}`}</p>
       </div>
@@ -263,7 +265,7 @@ export function ClientesLista({ itens, initialSemPendencias = false, loading = f
         <div className="rounded-card border border-dashed border-border-default bg-surface-card px-5 py-12 text-center"><UserRound aria-hidden="true" className="mx-auto text-text-faint" size={24} /><p className="mt-3 text-sm font-semibold text-text-primary">Nenhum cliente encontrado</p><p className="mt-1 text-sm text-text-muted">Ajuste ou limpe os filtros para ver outros cadastros.</p></div>
       ) : (
         <div className="overflow-hidden rounded-card border border-border-default bg-surface-card shadow-[var(--elevation-1)]">
-          <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[980px] text-sm"><thead><tr className="border-b border-border-default text-left"><th className="px-4 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Cliente / contato</th><th className="px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Cidade</th><th className="px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Moto principal</th><th className="px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Situação</th><th className="px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Última compra</th><th className="px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Total comprado</th><th className="px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Próxima ação</th><th className="px-4 py-3 text-right font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Ações</th></tr></thead><tbody>{clientesFiltrados.map((cliente) => <LinhaDesktop key={cliente.id} cliente={cliente} vendas={vendas} orcamentos={orcamentos} onOpenCliente={onOpenCliente} onRegistrarPedido={onRegistrarPedido} onAgendarVisita={onAgendarVisita} onOpenContato={onOpenContato} />)}</tbody></table></div>
+          <div className="hidden overflow-x-auto md:block"><table className="w-full min-w-[1240px] text-sm"><thead className="bg-surface-inset/70"><tr className="border-b border-border-default text-left"><th scope="col" className="w-[14%] px-4 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Cliente & contato</th><th scope="col" className="w-[8%] px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Origem</th><th scope="col" className="w-[10%] px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Região / pátio</th><th scope="col" className="w-[15%] px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Veículos & demanda</th><th scope="col" className="w-[17%] px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Última interação / pedido</th><th scope="col" className="w-[11%] px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Status</th><th scope="col" className="w-[12%] px-3 py-3 font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Histórico / total</th><th scope="col" className="w-[13%] px-4 py-3 text-right font-mono text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Ações</th></tr></thead><tbody>{clientesFiltrados.map((cliente) => <LinhaDesktop key={cliente.id} cliente={cliente} vendas={vendas} orcamentos={orcamentos} onOpenCliente={onOpenCliente} onRegistrarPedido={onRegistrarPedido} onAgendarVisita={onAgendarVisita} onOpenContato={onOpenContato} />)}</tbody></table></div>
           <div className="divide-y divide-border-subtle md:hidden">{clientesFiltrados.map((cliente) => <CartaoMobile key={cliente.id} cliente={cliente} vendas={vendas} orcamentos={orcamentos} onOpenCliente={onOpenCliente} onRegistrarPedido={onRegistrarPedido} onAgendarVisita={onAgendarVisita} onOpenContato={onOpenContato} />)}</div>
         </div>
       )}
@@ -275,18 +277,34 @@ export function ClientesLista({ itens, initialSemPendencias = false, loading = f
 
 type LinhaProps = Pick<ClientesListaProps, 'onOpenCliente' | 'onRegistrarPedido' | 'onAgendarVisita' | 'onOpenContato' | 'vendas' | 'orcamentos'> & { cliente: ClienteOperacaoListaItem };
 
-function AcoesRapidas({ cliente, onRegistrarPedido, onAgendarVisita, onOpenContato }: Omit<LinhaProps, 'onOpenCliente'>) {
+function AcoesRapidas({ cliente, onRegistrarPedido, onAgendarVisita, onOpenContato, compact = false }: Omit<LinhaProps, 'onOpenCliente'> & { compact?: boolean }) {
   const canalDisponivel = Boolean(cliente.telefone || cliente.instagram_usuario);
   const pedidoDisponivel = Boolean(onRegistrarPedido);
   const visitaDisponivel = Boolean(onAgendarVisita);
-  return <div data-testid="cliente-acoes-rapidas" className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:justify-end"><AcaoRapida label={`Abrir contato de ${cliente.nome}`} disabled={!canalDisponivel || !onOpenContato} onClick={() => onOpenContato?.(cliente)}><MessageCircle aria-hidden="true" size={14} /><span>Contato</span></AcaoRapida><AcaoRapida label={pedidoDisponivel ? `Registrar pedido para ${cliente.nome}` : 'Você não tem permissão para registrar pedidos'} disabled={!pedidoDisponivel} onClick={() => onRegistrarPedido?.(cliente)}><ClipboardPlus aria-hidden="true" size={14} /><span>Pedido</span></AcaoRapida><AcaoRapida label={visitaDisponivel ? `Agendar visita para ${cliente.nome}` : 'Agenda de visitas ainda não está disponível'} disabled={!visitaDisponivel} onClick={() => onAgendarVisita?.(cliente)}><CalendarPlus aria-hidden="true" size={14} /><span>Visita</span></AcaoRapida></div>;
+  return <div data-testid="cliente-acoes-rapidas" className="grid grid-cols-3 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:justify-end"><AcaoRapida compact={compact} label={`Abrir contato de ${cliente.nome}`} disabled={!canalDisponivel || !onOpenContato} onClick={() => onOpenContato?.(cliente)}><MessageCircle aria-hidden="true" size={14} /><span className={compact ? 'md:sr-only' : undefined}>Contato</span></AcaoRapida><AcaoRapida compact={compact} label={pedidoDisponivel ? `Registrar pedido para ${cliente.nome}` : 'Você não tem permissão para registrar pedidos'} disabled={!pedidoDisponivel} onClick={() => onRegistrarPedido?.(cliente)}><ClipboardPlus aria-hidden="true" size={14} /><span className={compact ? 'md:sr-only' : undefined}>Pedido</span></AcaoRapida><AcaoRapida compact={compact} label={visitaDisponivel ? `Agendar visita para ${cliente.nome}` : 'Agenda de visitas ainda não está disponível'} disabled={!visitaDisponivel} onClick={() => onAgendarVisita?.(cliente)}><CalendarPlus aria-hidden="true" size={14} /><span className={compact ? 'md:sr-only' : undefined}>Visita</span></AcaoRapida></div>;
 }
 
 function LinhaDesktop({ cliente, vendas = [], orcamentos = [], onOpenCliente, onRegistrarPedido, onAgendarVisita, onOpenContato }: LinhaProps) {
   const motos = motosDoCliente(cliente);
   const situacao = situacaoDoCliente(cliente);
   const historico = calcularHistoricoCliente(cliente.id, vendas, orcamentos);
-  return <tr className="cursor-pointer border-b border-border-subtle transition hover:bg-surface-raised last:border-b-0"><td className="px-4 py-3"><button type="button" onClick={() => onOpenCliente(cliente.id)} aria-label={`Abrir cadastro de ${cliente.nome}`} className="group cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><strong className="block max-w-48 truncate text-sm text-text-primary group-hover:text-accent">{cliente.nome}</strong><span className="mt-0.5 block text-xs text-text-muted">{contatoDoCliente(cliente)}</span></button></td><td className="px-3 py-3 text-text-secondary">{cliente.cidade ? `${cliente.cidade}${cliente.estado ? `, ${cliente.estado}` : ''}` : 'Não informado'}</td><td className="max-w-40 px-3 py-3 text-text-secondary"><span className="block truncate">{motos[0] ?? 'Não informada'}</span>{motos.length > 1 ? <span className="text-xs text-text-muted">+{motos.length - 1} moto{motos.length > 2 ? 's' : ''}</span> : null}</td><td className="px-3 py-3"><span className={`inline-flex rounded-badge px-2 py-1 text-xs font-medium ${tomSituacao(situacao)}`}>{situacao.rotulo}</span></td><td className="px-3 py-3 text-text-muted">{dataDaUltimaCompra(historico.ultimaCompraEm)}</td><td className="px-3 py-3 text-text-muted">{valorTotalComprado(historico.totalGasto, historico.quantidadeCompras)}</td><td className="px-3 py-3 text-text-secondary">{proximaAcao(situacao)}</td><td className="px-4 py-3"><AcoesRapidas cliente={cliente} onRegistrarPedido={onRegistrarPedido} onAgendarVisita={onAgendarVisita} onOpenContato={onOpenContato} /></td></tr>;
+  const pedidosAtivos = pedidosDoCliente(cliente).filter((pedido) => !PEDIDOS_ENCERRADOS.has(pedido.status));
+  const pedidoMaisRecente = [...pedidosAtivos].sort((a, b) => Date.parse(b.criadoEm) - Date.parse(a.criadoEm))[0];
+  const contato = contatoDoCliente(cliente);
+  const origem = cliente.origem ? (ORIGENS[cliente.origem] ?? cliente.origem) : 'Não informada';
+  const motosVisiveis = motos.slice(0, 2);
+  return (
+    <tr className="border-b border-border-subtle align-top transition-colors hover:bg-surface-raised last:border-b-0">
+      <td className="px-4 py-3.5"><button type="button" onClick={() => onOpenCliente(cliente.id)} aria-label={`Abrir cadastro de ${cliente.nome}`} className="group cursor-pointer text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><strong className="block whitespace-normal text-sm font-semibold text-text-primary group-hover:text-accent">{cliente.nome}</strong><span className="mt-1 block break-words text-xs text-text-muted">{contato}</span></button></td>
+      <td className="px-3 py-3.5"><span className="inline-flex rounded-badge bg-surface-inset px-2 py-1 text-xs font-medium text-text-secondary">{origem}</span></td>
+      <td className="px-3 py-3.5"><span className="inline-flex max-w-full whitespace-normal rounded-badge border border-border-default bg-surface-card px-2 py-1 text-xs leading-4 text-text-secondary">{cliente.cidade ? `${cliente.cidade}${cliente.estado ? ` / ${cliente.estado}` : ''}` : 'Região não informada'}</span></td>
+      <td className="px-3 py-3.5"><div className="flex flex-wrap gap-1.5">{motosVisiveis.length ? motosVisiveis.map((moto) => <span key={moto} className="rounded-badge bg-accent-soft-bg px-2 py-1 text-xs leading-4 text-accent-soft-fg">{moto}</span>) : <span className="text-xs text-text-muted">Moto não informada</span>}{motos.length > 2 ? <span className="rounded-badge bg-surface-inset px-2 py-1 text-xs leading-4 text-text-muted">+{motos.length - 2}</span> : null}</div>{pedidoMaisRecente ? <span className="mt-2 block text-xs font-medium text-positive">Com pedido</span> : <span className="mt-2 block text-xs text-text-muted">Sem pedido ativo</span>}</td>
+      <td className="px-3 py-3.5">{pedidoMaisRecente ? <div className="space-y-1"><p className="font-medium leading-5 text-text-primary">{pedidoMaisRecente.descricao || 'Peça em busca'}</p><p className="text-xs leading-4 text-text-muted">{pedidoStatusCopy[pedidoMaisRecente.status]} · {dataDaUltimaCompra(pedidoMaisRecente.criadoEm.slice(0, 10))}</p></div> : <div className="space-y-1"><p className="font-medium text-text-secondary">{historico.ultimaCompraEm ? 'Última compra' : 'Sem interação recente'}</p><p className="text-xs text-text-muted">{dataDaUltimaCompra(historico.ultimaCompraEm)}</p></div>}</td>
+      <td className="px-3 py-3.5"><span className={`inline-flex whitespace-normal rounded-badge px-2 py-1 text-xs font-medium ${tomSituacao(situacao)}`}>{situacao.rotulo}</span>{situacao.proximaAcaoEm ? <span className="mt-1.5 block text-xs text-text-muted">Próxima ação: {proximaAcao(situacao)}</span> : null}</td>
+      <td className="px-3 py-3.5"><strong className="block whitespace-nowrap text-sm font-semibold tabular-nums text-text-primary">{valorTotalComprado(historico.totalGasto, historico.quantidadeCompras)}</strong><span className="mt-1 block text-xs text-text-muted">{historico.quantidadeCompras} {historico.quantidadeCompras === 1 ? 'compra' : 'compras'}</span></td>
+      <td className="px-4 py-3.5"><AcoesRapidas compact cliente={cliente} onRegistrarPedido={onRegistrarPedido} onAgendarVisita={onAgendarVisita} onOpenContato={onOpenContato} /></td>
+    </tr>
+  );
 }
 
 function CartaoMobile({ cliente, vendas = [], orcamentos = [], onOpenCliente, onRegistrarPedido, onAgendarVisita, onOpenContato }: LinhaProps) {

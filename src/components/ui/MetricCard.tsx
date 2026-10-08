@@ -55,9 +55,11 @@ export interface MetricCardProps {
   tendencia?: MetricTendencia;
   /** Ajusta o feedback de hover para painéis operacionais sem deslocar o card. */
   hoverStyle?: 'lift' | 'subtle';
+  /** Peso opcional do valor para destaques locais, sem alterar outros dashboards. */
+  valorPeso?: 'semibold' | 'bold';
 }
 
-export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto, tom = 'neutral', tendencia, hoverStyle = 'lift' }: MetricCardProps) {
+export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto, tom = 'neutral', tendencia, hoverStyle = 'lift', valorPeso = 'semibold' }: MetricCardProps) {
   const mostraBadge = tendencia && tendencia.pct != null;
   const hoverClasses = hoverStyle === 'subtle'
     ? 'transition-[border-color,box-shadow] duration-200 hover:border-accent/35 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]'
@@ -78,7 +80,7 @@ export function MetricCard({ icone: Icone, label, valor, formatarValor, contexto
           label (regra do design system: número > label). Quando vem como
           número, conta até o valor final — reforça que ali está o dado. */}
       <div className="flex flex-wrap items-center gap-2.5 mt-3">
-        <span className="min-w-0 max-w-full text-xl sm:text-3xl font-semibold text-text-primary leading-tight tabular-nums tracking-tight break-words">
+        <span className={cn('min-w-0 max-w-full text-xl sm:text-3xl text-text-primary leading-tight tabular-nums tracking-tight break-words', valorPeso === 'bold' ? 'font-bold' : 'font-semibold')}>
           {typeof valor === 'number' ? (
             formatarValor ? (
               // O primitivo `CountingNumber` do animate-ui não aceita uma

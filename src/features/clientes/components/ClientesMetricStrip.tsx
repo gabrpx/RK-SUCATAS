@@ -1,70 +1,153 @@
-import { CalendarClock, PackageSearch, SearchCheck, ShieldAlert } from 'lucide-react';
-import type { ClientesResumoOperacional } from '../operacaoTypes';
+import type { ClienteOperacaoListaItem, ClientesResumoOperacional } from '../operacaoTypes';
+import type { Tarefa } from '../../tarefas/types';
 
-export type ClientesMetricFilter = 'busca' | 'peca_disponivel' | 'visitas' | 'reservas';
+export type ClientesMetricFilter = 'busca' | 'peca_disponivel' | 'visitas' | 'todos';
 
 interface ClientesMetricStripProps {
-  resumo: ClientesResumoOperacional;
+  resumo: ClientesResumoOperacional | null;
+  itens: ClienteOperacaoListaItem[];
+  tarefas: Tarefa[];
+  tarefasLoading: boolean;
   onSelect: (filter: ClientesMetricFilter) => void;
 }
 
-const cards = (resumo: ClientesResumoOperacional) => [
-  {
-    id: 'busca' as const,
-    label: 'Pedidos em busca',
-    value: (resumo.pedidos_por_status.nova ?? 0) + (resumo.pedidos_por_status.em_busca ?? 0) + (resumo.pedidos_por_status.aguardando ?? 0),
-    detail: 'Pedidos novos ou sendo procurados',
-    Icon: SearchCheck,
-    tone: 'text-accent-soft-fg bg-accent-soft-bg',
-    disabled: false,
-  },
-  {
-    id: 'peca_disponivel' as const,
-    label: 'Peças disponíveis',
-    value: resumo.pedidos_por_status.peca_disponivel ?? 0,
-    detail: 'Clientes que precisam ser avisados',
-    Icon: PackageSearch,
-    tone: 'text-positive bg-positive-bg',
-    disabled: false,
-  },
-  {
-    id: 'visitas' as const,
-    label: 'Próximas visitas',
-    value: '—',
-    detail: resumo.capabilities.visitas ? 'Agenda será exibida nesta etapa' : 'Ative a etapa de visitas para acompanhar',
-    Icon: CalendarClock,
-    tone: 'text-info bg-info-bg',
-    disabled: !resumo.capabilities.visitas,
-  },
-  {
-    id: 'reservas' as const,
-    label: 'Reservas vencendo',
-    value: '—',
-    detail: resumo.capabilities.reservas ? 'Reservas serão exibidas nesta etapa' : 'Ative a etapa de reservas para acompanhar',
-    Icon: ShieldAlert,
-    tone: 'text-warning bg-warning-bg',
-    disabled: !resumo.capabilities.reservas,
-  },
-];
+function dataLocal(data: Date): string {
+  const ano = data.getFullYear();
+  const mes = String(data.getMonth() + 1).padStart(2, '0');
+  const dia = String(data.getDate()).padStart(2, '0');
+  return `${ano}-${mes}-${dia}`;
+}
 
-export function ClientesMetricStrip({ resumo, onSelect }: ClientesMetricStripProps) {
+function diaDaTarefa(prazo: string | null): string | null {
+  if (!prazo) return null;
+  const data = new Date(prazo);
+  return Number.isNaN(data.getTime()) ? null : dataLocal(data);
+}
+
+function contarOrigens(itens: ClienteOperacaoListaItem[]): string {
+  const nomes: Record<string, string> = {
+    whatsapp: 'WhatsApp',
+    balcao: 'Balcão',
+    indicacao: 'Indicação',
+    instagram: 'Instagram',
+    facebook: 'Facebook',
+    mercado_livre: 'Mercado Livre',
+  };
+  const totais = new Map<string, number>();
+  for (const item of itens) {
+    const nome = nomes[item.origem || ''] || 'Não informada';
+    totais.set(nome, (totais.get(nome) || 0) + 1);
+  }
+  return [...totais.entries()].sort((a, b) => b[1] - a[1]).slice(0, 2).map(([nome, total]) => `${nome} ${total}`).join(' · ');
+}
+
+function statusDosItens(itens: ClienteOperacaoListaItem[]): Record<string, number> {
+  const status: Record<string, number> = {};
+  for (const item of itens) {
+    for (const pedido of item.pedidos) {
+      if (!pedido || typeof pedido !== 'object') continue;
+      const registro = pedido as Record<string, unknown>;
+      if (typeof registro.status !== 'string') continue;
+      status[registro.status] = (status[registro.status] || 0) + 1;
+    }
+  }
+  return status;
+}
+
+function calcularIndicadores(resumo: ClientesResumoOperacional | null, itens: ClienteOperacaoListaItem[], tarefas: Tarefa[], tarefasLoading: boolean) {
+  const agora = new Date();
+  const status = resumo?.pedidos_por_status ?? statusDosItens(itens);
+  const emBusca = (status.nova ?? 0) + (status.em_busca ?? 0) + (status.aguardando ?? 0);
+  const buscasEmAndamento = (status.em_busca ?? 0) + (status.aguardando ?? 0);
+  const disponiveis = status.peca_disponivel ?? 0;
+  const esperandoCliente = status.aguardando_cliente ?? 0;
+  const pedidosAtivos = emBusca + disponiveis + esperandoCliente;
+  const pedidosAtrasados = resumo?.pendencias_por_idade.mais_de_7_dias ?? itens.reduce((total, item) => total + item.pedidos.filter((pedido) => {
+    if (!pedido || typeof pedido !== 'object') return false;
+    const registro = pedido as Record<string, unknown>;
+    if (typeof registro.status !== 'string' || !['nova', 'em_busca', 'aguardando', 'peca_disponivel', 'aguardando_cliente'].includes(registro.status)) return false;
+    const criadoEm = typeof registro.criado_em === 'string' ? new Date(registro.criado_em).getTime() : Number.NaN;
+    return Number.isFinite(criadoEm) && agora.getTime() - criadoEm > 7 * 86_400_000;
+  }).length, 0);
+  const hoje = dataLocal(agora);
+  const semana = new Date(agora);
+  semana.setDate(semana.getDate() + 7);
+  const diaLimiteSemana = dataLocal(semana);
+  const visitasPendentes = tarefas.filter((tarefa) => tarefa.tipo === 'visita' && tarefa.status === 'pendente');
+  const visitasHoje = visitasPendentes.filter((tarefa) => diaDaTarefa(tarefa.prazo) === hoje).length;
+  const visitasNaSemana = visitasPendentes.filter((tarefa) => {
+    const dia = diaDaTarefa(tarefa.prazo);
+    return dia !== null && dia >= hoje && dia <= diaLimiteSemana;
+  }).length;
+  const visitasAtrasadas = visitasPendentes.filter((tarefa) => {
+    const dia = diaDaTarefa(tarefa.prazo);
+    return dia !== null && dia < hoje;
+  }).length;
+  const origemLabel = contarOrigens(itens);
+
+  return [
+    {
+      id: 'todos' as const,
+      label: 'Total de clientes',
+      value: resumo?.total_clientes ?? itens.length,
+      description: 'cadastros no sistema',
+      footnote: origemLabel || 'origem não informada',
+      sublabel: null,
+      badgeTone: 'text-accent-soft-fg bg-accent-soft-bg',
+    },
+    {
+      id: 'todos' as const,
+      label: 'Com encomendas',
+      value: pedidosAtivos,
+      description: 'pedidos em andamento',
+      footnote: `${status.nova ?? 0} novos · ${buscasEmAndamento} em busca · ${esperandoCliente} aguardando cliente`,
+      sublabel: pedidosAtrasados > 0 ? `${pedidosAtrasados} há mais de 7 dias` : null,
+      badgeTone: 'text-warning bg-warning-bg',
+    },
+    {
+      id: 'visitas' as const,
+      label: 'Visitas & agenda',
+      value: tarefasLoading ? '—' : visitasNaSemana,
+      description: 'visitas nos próximos 7 dias',
+      footnote: tarefasLoading ? 'Atualizando agenda' : `${visitasHoje} hoje · ${visitasAtrasadas} atrasadas`,
+      sublabel: tarefasLoading ? null : `Hoje: ${visitasHoje}`,
+      badgeTone: 'text-accent-soft-fg bg-accent-soft-bg',
+    },
+    {
+      id: 'busca' as const,
+      label: 'Procurando peças',
+      value: emBusca,
+      description: 'pedidos de busca',
+      footnote: `${disponiveis} ${disponiveis === 1 ? 'peça encontrada' : 'peças encontradas'}`,
+      sublabel: disponiveis > 0 ? `${disponiveis} achadas` : null,
+      badgeTone: 'text-positive bg-positive-bg',
+    },
+  ];
+}
+
+export function ClientesMetricStrip({ resumo, itens, tarefas, tarefasLoading, onSelect }: ClientesMetricStripProps) {
   return (
     <section aria-label="Indicadores de clientes" className="relative snap-x snap-mandatory overflow-x-auto overflow-y-hidden pr-3 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden after:pointer-events-none after:absolute after:inset-y-0 after:right-0 after:w-8 after:bg-gradient-to-l after:from-surface-page after:to-transparent sm:overflow-visible sm:pr-0 sm:after:hidden">
-      <div className="flex min-w-0 gap-3 sm:grid sm:grid-cols-2 lg:grid-cols-4">
-        {cards(resumo).map(({ id, label, value, detail, Icon, tone, disabled }) => (
+      <div className="flex min-w-0 gap-3 sm:grid sm:grid-cols-2 xl:grid-cols-4">
+        {calcularIndicadores(resumo, itens, tarefas, tarefasLoading).map(({ id, label, value, description, footnote, badgeTone, sublabel }) => (
           <button
-            key={id}
+            key={label}
             type="button"
-            disabled={disabled}
             onClick={() => onSelect(id)}
-            className="min-h-[132px] min-w-[84%] snap-start cursor-pointer rounded-card border border-border-default bg-surface-card p-4 text-left shadow-[var(--elevation-1)] transition-[border-color,box-shadow] duration-200 hover:border-accent/35 hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:border-border-default disabled:hover:shadow-[var(--elevation-1)] sm:min-w-0"
+            className="min-h-[146px] min-w-[84%] snap-start cursor-pointer rounded-card border border-border-default bg-surface-card px-4 py-3.5 text-left shadow-[var(--elevation-1)] transition-[border-color,box-shadow] duration-200 hover:border-accent/35 hover:shadow-[0_8px_24px_rgba(15,23,42,0.06)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 sm:min-w-0"
           >
-            <span className="flex items-start justify-between gap-2">
-              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">{label}</span>
-              <span className={`grid size-8 place-items-center rounded-control ${tone}`}><Icon aria-hidden="true" size={16} /></span>
+            <span className="flex min-h-5 items-center justify-between gap-2">
+              <span className="font-mono text-[10px] font-semibold uppercase tracking-[0.13em] text-text-muted">{label}</span>
+              {sublabel ? <span className={`inline-flex min-h-5 shrink-0 items-center gap-1 rounded-full px-2 text-[9px] font-semibold ${badgeTone}`}><span aria-hidden="true" className="size-1 rounded-full bg-current" />{sublabel}</span> : <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${badgeTone.split(' ')[0].replace('text-', 'bg-')}`} />}
             </span>
-            <strong className="mt-3 block text-[28px] font-semibold leading-none tracking-tight text-text-primary tabular-nums">{value}</strong>
-            <span className="mt-3 block border-t border-border-subtle pt-2 text-xs leading-4 text-text-muted">{detail}</span>
+            <span className="mt-2 flex min-w-0 items-baseline gap-2">
+              <strong className="shrink-0 text-[30px] font-bold leading-none tracking-tight text-text-primary tabular-nums">{value}</strong>
+              <span className="min-w-0 text-xs leading-4 text-text-secondary">{description}</span>
+            </span>
+            <span className="mt-3 flex min-h-7 items-center gap-1.5 border-t border-border-subtle pt-2 text-[11px] leading-4 text-text-muted">
+              <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${badgeTone.split(' ')[0].replace('text-', 'bg-')}`} />
+              <span className="truncate">{footnote}</span>
+            </span>
           </button>
         ))}
       </div>

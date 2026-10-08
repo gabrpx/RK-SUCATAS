@@ -50,10 +50,13 @@ import { ClienteFormDrawer } from './components/ClienteFormDrawer';
 import { RegistrarPedidoDrawer } from './components/RegistrarPedidoDrawer';
 import { ClientesLista } from './components/ClientesLista';
 import { ClienteDrawer } from './components/ClienteDrawer';
+import { NovaVendaDrawer } from '../vendas/VendasView';
+import { AgendarVisitaModal } from './components/AgendarVisitaModal';
 import { ClientesAgenda } from './components/ClientesAgenda';
 import { useClientesOperacao } from './useClientesOperacao';
 import { linkInstagram } from '../../utils/instagram';
 import type { PedidoBuscaEstadoPersistido } from './operacaoTypes';
+import type { Tarefa } from '../tarefas/types';
 
 const ORDENACAO_LABELS: Record<OrdenacaoClientes, string> = {
   recentes: 'Mais recentes',
@@ -111,6 +114,9 @@ export function ClientesView({
   const [tab, setTab] = useState<ClientesTab>('painel');
   const [pedidoAberto, setPedidoAberto] = useState(false);
   const [clienteParaPedido, setClienteParaPedido] = useState<Cliente | null>(null);
+  const [clienteParaVisita, setClienteParaVisita] = useState<Cliente | null>(null);
+  const [vendaClienteAberta, setVendaClienteAberta] = useState(false);
+  const [clienteParaVendaId, setClienteParaVendaId] = useState<string | null>(null);
   const [novoClienteAberto, setNovoClienteAberto] = useState(false);
   const [clienteDetalhe, setClienteDetalhe] = useState<Cliente | null>(null);
   const [clienteEditandoNovoFluxo, setClienteEditandoNovoFluxo] = useState<Cliente | null>(null);
@@ -119,9 +125,21 @@ export function ClientesView({
   const [pedidoStatusLabel, setPedidoStatusLabel] = useState<string | null>(null);
   const podeCriar = pode('clientes.criar');
   const podeRegistrarPedido = podeCriar || pode('clientes.editar');
+  const podeAgendarVisita = pode('tarefas.criar');
   const usuarioId = typeof window === 'undefined' ? '' : localStorage.getItem('user_id') || '';
   const usuarioNome = typeof window === 'undefined' ? 'Você' : localStorage.getItem('user_name') || 'Você';
   const responsaveis = usuarioId ? [{ id: usuarioId, nome: usuarioNome }] : [];
+
+  const mensagemDeErro = (erro: string | null) => {
+    if (!erro) return null;
+    const detalhe = erro.toLocaleLowerCase('pt-BR');
+    if (detalhe.includes('aborted') || detalhe.includes('aborterror') || detalhe.includes('failed to fetch') || detalhe.includes('fetch failed') || detalhe.includes('eacces') || detalhe.includes('timeout')) {
+      return 'Não foi possível atualizar os dados agora. Confira a conexão e tente novamente.';
+    }
+    return erro;
+  };
+  const erroOperacao = mensagemDeErro(operacao.error);
+  const erroAgenda = mensagemDeErro(agenda.error);
 
   const recarregarTudo = async () => {
     await Promise.all([refreshData(), operacao.refresh(), agenda.refetch()]);
@@ -177,6 +195,35 @@ export function ClientesView({
     }
   };
 
+  const iniciarVisitaParaCliente = async (clienteId: string) => {
+    try {
+      setClienteParaVisita(await buscarCliente(clienteId));
+    } catch (erro) {
+      aviso.falha(erro, 'Erro ao carregar cliente');
+    }
+  };
+
+  const iniciarVisitaDaFicha = (cliente: Cliente) => {
+    setClienteDetalhe(null);
+    setClienteParaVisita(cliente);
+  };
+
+  const iniciarVendaDaFicha = (cliente: Cliente) => {
+    setClienteDetalhe(null);
+    setClienteParaVendaId(cliente.id);
+    setVendaClienteAberta(true);
+  };
+
+  const fecharVendaDaFicha = () => {
+    setVendaClienteAberta(false);
+    setClienteParaVendaId(null);
+  };
+
+  const adicionarVisitaCriada = (tarefa: Tarefa) => {
+    agenda.setTarefas((atuais) => atuais.some((atual) => atual.id === tarefa.id) ? atuais : [tarefa, ...atuais]);
+    setClienteParaVisita(null);
+  };
+
   const clienteInicialDoPedido = clienteParaPedido ? {
     id: clienteParaPedido.id,
     nome: clienteParaPedido.nome,
@@ -193,10 +240,11 @@ export function ClientesView({
 
   return (
     <OperationalTokensContext.Provider value={operationalLightTokens}>
-      <main style={operationalLightTokens} className="min-h-[100dvh] bg-surface-page px-3 pb-24 pt-0 font-[Geist,Inter,ui-sans-serif,system-ui,sans-serif] sm:px-6 sm:pb-6 sm:pt-0">
+      <main style={operationalLightTokens} className="min-h-[100dvh] bg-surface-page px-3 pb-24 pt-0 font-[Geist,Inter,ui-sans-serif,system-ui,sans-serif] sm:px-6 sm:pb-24 sm:pt-0">
         <div className="mx-auto max-w-[1440px] space-y-5">
           <ClientesHeader
             tab={tab}
+            syncState={operacao.loading ? 'syncing' : erroOperacao ? 'error' : 'ready'}
             onTabChange={(next) => {
               if (next !== 'todos') setFiltrarSemPendencias(false);
               setTab(next);
@@ -219,11 +267,19 @@ export function ClientesView({
                 <ClientesPainel
                   resumo={operacao.resumo}
                   itens={operacao.itens}
+                  tarefas={agenda.tarefas}
                   loading={operacao.loading}
-                  error={operacao.error}
+                  agendaLoading={agenda.loading}
+                  agendaError={erroAgenda}
+                  error={erroOperacao}
                   capabilityUnavailable={operacao.capabilityUnavailable}
                   onRetry={() => void operacao.refresh()}
+                  onRetryAgenda={() => void agenda.refetch()}
+                  onViewClientes={() => setTab('todos')}
+                  onViewAgenda={() => setTab('agenda')}
                   onSelectMetric={(filter) => {
+                    if (filter === 'visitas') { setTab('agenda'); return; }
+                    if (filter === 'todos') { setPedidoStatuses(null); setPedidoStatusLabel(null); setTab('todos'); return; }
                     const recortes = filter === 'busca'
                       ? { statuses: ['nova', 'em_busca', 'aguardando'] as PedidoBuscaEstadoPersistido[], label: 'Pedidos em busca' }
                       : filter === 'peca_disponivel'
@@ -235,6 +291,7 @@ export function ClientesView({
                     setTab('todos');
                   }}
                   onSelectCliente={abrirCliente}
+                  onOpenContato={abrirContato}
                 />
               ) : null}
 
@@ -245,7 +302,7 @@ export function ClientesView({
                   loading={operacao.loading}
                   loadingMore={operacao.loadingMore}
                   hasMore={operacao.hasMore}
-                  error={operacao.error}
+                  error={erroOperacao}
                   onRetry={() => void operacao.refresh()}
                   onLoadMore={() => void operacao.loadMore()}
                   pedidoStatuses={pedidoStatuses}
@@ -255,6 +312,7 @@ export function ClientesView({
                   orcamentos={orcamentos}
                   onOpenCliente={(id) => void abrirCliente(id)}
                   onRegistrarPedido={podeRegistrarPedido ? (cliente) => void iniciarPedidoParaCliente(cliente.id) : undefined}
+                  onAgendarVisita={podeAgendarVisita ? (cliente) => void iniciarVisitaParaCliente(cliente.id) : undefined}
                   onOpenContato={abrirContato}
                 />
               ) : null}
@@ -263,7 +321,7 @@ export function ClientesView({
                 <ClientesAgenda
                   tarefas={agenda.tarefas}
                   loading={agenda.loading}
-                  error={agenda.error}
+                  error={erroAgenda}
                   onRetry={() => void agenda.refetch()}
                   onOpenCliente={(id) => void abrirCliente(id)}
                 />
@@ -311,8 +369,27 @@ export function ClientesView({
         onOpenChange={(open) => { if (!open) setClienteDetalhe(null); }}
         cliente={clienteDetalhe}
         onRegistrarPedido={podeRegistrarPedido ? (cliente) => { setClienteDetalhe(null); setClienteParaPedido(cliente); setPedidoAberto(true); } : undefined}
+        onRegistrarVenda={pode('vendas.criar') ? iniciarVendaDaFicha : undefined}
+        onAgendarVisita={podeAgendarVisita ? iniciarVisitaDaFicha : undefined}
         onEdit={pode('clientes.editar') ? (cliente) => { setClienteDetalhe(null); setClienteEditandoNovoFluxo(cliente); } : undefined}
       /> : null}
+      <NovaVendaDrawer
+        isOpen={vendaClienteAberta}
+        initialClienteId={clienteParaVendaId}
+        onClose={fecharVendaDaFicha}
+        onSaved={() => {
+          fecharVendaDaFicha();
+          void operacao.refresh();
+        }}
+      />
+      {clienteParaVisita ? (
+        <AgendarVisitaModal
+          cliente={{ id: clienteParaVisita.id, nome: clienteParaVisita.nome }}
+          open
+          onOpenChange={(open) => { if (!open) setClienteParaVisita(null); }}
+          onCreated={adicionarVisitaCriada}
+        />
+      ) : null}
     </OperationalTokensContext.Provider>
   );
 }

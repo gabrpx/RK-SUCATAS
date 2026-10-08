@@ -390,7 +390,7 @@ function MovimentoAvulsoModal({ isOpen, onClose, onSaved }: { isOpen: boolean; o
   );
 }
 
-export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean; onClose: () => void; onSaved?: () => void }) {
+export function NovaVendaDrawer({ isOpen, onClose, onSaved, initialClienteId }: { isOpen: boolean; onClose: () => void; onSaved?: () => void; initialClienteId?: string | null }) {
   const { estoque, vendas, clientes, motosClientes, refreshData } = useData();
   const { formasPagamento } = useCatalogos();
   const { abrir: abrirSincronizacao } = useSincronizacaoMl();
@@ -403,6 +403,10 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
     return '';
   });
   const [itemSelecionado, setItemSelecionado] = useState<Estoque | null>(null);
+  const [modoVenda, setModoVenda] = useState<'estoque' | 'manual'>('estoque');
+  const [nomeItemManual, setNomeItemManual] = useState('');
+  const [quantidadeManual, setQuantidadeManual] = useState('1');
+  const [valorUnitarioManual, setValorUnitarioManual] = useState('');
   const [componenteSelecionado, setComponenteSelecionado] = useState<string | null>(null);
   // Ficha específica (unidade física) escolhida pra vender, em vez de uma
   // unidade genérica do lote — sempre opcional, mutuamente exclusivo com
@@ -417,11 +421,29 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
   const [data, setData] = useState(() => new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (!isOpen || !initialClienteId) return;
+    const clienteInicial = clientes.find((cliente) => cliente.id === initialClienteId);
+    setClienteId(initialClienteId);
+    setClienteNome(clienteInicial?.nome ?? '');
+  }, [isOpen, initialClienteId, clientes]);
+
   const disponiveis = useMemo(() => estoque.filter((e) => e.quantidade > 0), [estoque]);
-  const opcoesClientes = useMemo(() => [
-    { value: '', label: 'Venda no balcão' },
-    ...clientes.filter((cliente) => cliente.ativo && !cliente.banido).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((cliente) => ({ value: cliente.id, label: cliente.nome })),
-  ], [clientes]);
+  const clienteInicial = initialClienteId ? clientes.find((cliente) => cliente.id === initialClienteId) ?? null : null;
+  const clienteSelecionado = clienteId ? clientes.find((cliente) => cliente.id === clienteId) ?? null : null;
+  const clienteSelecionadoValido = !!clienteSelecionado && clienteSelecionado.ativo && !clienteSelecionado.banido;
+  const vinculoObrigatorioAusente = !!initialClienteId && (!clienteId || !clienteSelecionadoValido);
+  const opcoesClientes = useMemo(() => {
+    const opcoes = [
+      ...(!initialClienteId ? [{ value: '', label: 'Venda no balcão' }] : []),
+      ...clientes.filter((cliente) => cliente.ativo && !cliente.banido).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR')).map((cliente) => ({ value: cliente.id, label: cliente.nome })),
+    ];
+    if (clienteId && !opcoes.some((opcao) => opcao.value === clienteId)) {
+      const cliente = clientes.find((item) => item.id === clienteId);
+      opcoes.push({ value: clienteId, label: cliente ? `${cliente.nome} (indisponível)` : 'Cliente selecionado (indisponível)' });
+    }
+    return opcoes;
+  }, [clientes, clienteId, initialClienteId]);
   const motosPorCliente = useMemo(() => {
     const mapa = new Map<string, string[]>();
     for (const moto of motosClientes) {
@@ -440,6 +462,10 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
   const reset = useCallback(() => {
     setBusca('');
     setItemSelecionado(null);
+    setModoVenda('estoque');
+    setNomeItemManual('');
+    setQuantidadeManual('1');
+    setValorUnitarioManual('');
     setComponenteSelecionado(null);
     setUnidadeSelecionadaId(null);
     setQuantidade('1');
@@ -473,6 +499,23 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
     setBusca('');
   };
 
+  const alternarModo = (modo: 'estoque' | 'manual') => {
+    if (modo === modoVenda) return;
+    if (modo === 'manual') {
+      setBusca('');
+      setItemSelecionado(null);
+      setComponenteSelecionado(null);
+      setUnidadeSelecionadaId(null);
+      setQuantidade('1');
+      setValorUnitario('');
+    } else {
+      setNomeItemManual('');
+      setQuantidadeManual('1');
+      setValorUnitarioManual('');
+    }
+    setModoVenda(modo);
+  };
+
   const selecionarComponente = (nome: string | null) => {
     setComponenteSelecionado(nome);
     setUnidadeSelecionadaId(null);
@@ -503,44 +546,75 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
   };
 
   const handleSubmit = async () => {
-    if (!itemSelecionado) return;
-    const qtd = componenteSelecionado || unidadeSelecionadaId ? 1 : Number(quantidade);
-    if (!qtd || qtd <= 0) return aviso.atencao('Quantidade inválida');
-    if (!componenteSelecionado && qtd > itemSelecionado.quantidade) {
-      return aviso.atencao(`Só há ${itemSelecionado.quantidade} unidade(s) em estoque`, { descricao: itemSelecionado.nome });
+    if (modoVenda === 'estoque' && !itemSelecionado) return;
+    const nomeManual = nomeItemManual.trim();
+    const qtdManual = Number(quantidadeManual);
+    const valorManual = Number(valorUnitarioManual);
+    if (modoVenda === 'manual') {
+      if (!nomeManual) return aviso.atencao('Informe o nome do item');
+      if (!Number.isFinite(qtdManual) || !Number.isInteger(qtdManual) || qtdManual <= 0) return aviso.atencao('Informe uma quantidade inteira maior que zero');
+      if (!valorUnitarioManual.trim() || !Number.isFinite(valorManual) || valorManual < 0) return aviso.atencao('Informe um valor unitário válido');
+    } else {
+      const qtd = componenteSelecionado || unidadeSelecionadaId ? 1 : Number(quantidade);
+      if (!qtd || qtd <= 0) return aviso.atencao('Quantidade inválida');
+      if (!componenteSelecionado && qtd > itemSelecionado!.quantidade) {
+        return aviso.atencao(`Só há ${itemSelecionado!.quantidade} unidade(s) em estoque`, { descricao: itemSelecionado!.nome });
+      }
     }
+    if (vinculoObrigatorioAusente) return aviso.atencao('O cliente selecionado está indisponível', { descricao: 'Selecione um cliente ativo para manter a venda vinculada.' });
     if (!formaPagamentoId) return aviso.atencao('Selecione a forma de pagamento');
 
     setSaving(true);
     try {
-      const result = await vendasApi.registrar({
-        estoque_id: itemSelecionado.id,
-        quantidade: qtd,
-        valor_unitario: Number(valorUnitario) || 0,
-        forma_pagamento_id: formaPagamentoId,
-        modelo_moto_id: itemSelecionado.modelo_moto_id,
-        cliente_nome: clienteNome || null,
-        cliente_id: clienteId,
-        observacoes: observacoes || null,
-        data,
-        componente: componenteSelecionado,
-        unidade_id: unidadeSelecionadaId,
-      });
+      const result = modoVenda === 'manual'
+        ? await vendasApi.registrar({
+          estoque_id: null,
+          nome_item: nomeManual,
+          quantidade: qtdManual,
+          valor_unitario: valorManual,
+          forma_pagamento_id: formaPagamentoId,
+          cliente_nome: clienteNome || null,
+          cliente_id: clienteId,
+          observacoes: observacoes || null,
+          data,
+        })
+        : await vendasApi.registrar({
+          estoque_id: itemSelecionado!.id,
+          quantidade: componenteSelecionado || unidadeSelecionadaId ? 1 : Number(quantidade),
+          valor_unitario: Number(valorUnitario) || 0,
+          forma_pagamento_id: formaPagamentoId,
+          modelo_moto_id: itemSelecionado!.modelo_moto_id,
+          cliente_nome: clienteNome || null,
+          cliente_id: clienteId,
+          observacoes: observacoes || null,
+          data,
+          componente: componenteSelecionado,
+          unidade_id: unidadeSelecionadaId,
+        });
       if (!result.success) throw new Error(result.error);
-      // Registrar mexe em vendas + estoque + caixa — resincroniza tudo de uma vez.
+      // A RPC mantém venda e Caixa atômicos; estoque só é alterado no modo estoque.
       await refreshData();
       onSaved?.();
-      const temAnuncio = (itemSelecionado.links_ml?.length ?? 0) > 0;
-      const estoqueIdVendido = itemSelecionado.id;
+      const temAnuncio = modoVenda === 'estoque' && (itemSelecionado!.links_ml?.length ?? 0) > 0;
+      const estoqueIdVendido = modoVenda === 'estoque' ? itemSelecionado!.id : null;
       handleClose();
-      if (temAnuncio) {
+      if (temAnuncio && estoqueIdVendido) {
         aviso.info('Este item tem anúncio no Mercado Livre', {
           descricao: 'Sincronize pra atualizar preço e quantidade por lá também.',
           acao: { label: 'Sincronizar agora', onClick: () => abrirSincronizacao([estoqueIdVendido]) },
         });
       }
-    } catch (err: any) {
-      aviso.falha(err, 'Erro ao registrar venda');
+    } catch (err: unknown) {
+      const mensagem = err instanceof Error ? err.message : typeof err === 'string' ? err : '';
+      const nomeErro = err instanceof Error ? err.name : '';
+      const erroTexto = `${nomeErro} ${mensagem}`;
+      if (/abort|cancel|network|fetch failed|failed to fetch|load failed|connection|offline|timeout/i.test(erroTexto)) {
+        aviso.erro(/network|fetch failed|failed to fetch|load failed|connection|offline|timeout/i.test(erroTexto)
+          ? 'Não foi possível conectar para registrar a venda. Verifique sua conexão e tente novamente.'
+          : 'A solicitação foi interrompida. Tente registrar a venda novamente.');
+      } else {
+        aviso.falha(err, 'Erro ao registrar venda');
+      }
     } finally {
       setSaving(false);
     }
@@ -553,9 +627,21 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
   const labelClass = cn('text-xs font-bold uppercase tracking-wider mb-1.5 block', 'text-text-muted');
 
   return (
-    <InventoryDrawer isOpen={isOpen} onClose={handleClose} title="Nova venda" footer={<div className="flex gap-2"><Button type="button" variant="ghost" onClick={handleClose} className="min-h-11 rounded-control">Cancelar</Button>{itemSelecionado && <Button onClick={handleSubmit} disabled={saving || !formaPagamentoId} className="min-h-11 flex-1 rounded-control font-semibold">{saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}</Button>}</div>}>
+    <InventoryDrawer isOpen={isOpen} onClose={handleClose} title="Nova venda" footer={<div className="flex gap-2"><Button type="button" variant="ghost" onClick={handleClose} className="min-h-11 rounded-control">Cancelar</Button>{(modoVenda === 'manual' || itemSelecionado) && <Button onClick={handleSubmit} disabled={saving || !formaPagamentoId || vinculoObrigatorioAusente || (modoVenda === 'manual' && !nomeItemManual.trim())} className="min-h-11 flex-1 rounded-control font-semibold">{saving ? <Loader2 size={18} className="animate-spin" /> : 'Confirmar venda'}</Button>}</div>}>
       <div className="space-y-4">
-        {!itemSelecionado ? (
+        <div className="flex justify-end gap-2">
+          <button type="button" aria-pressed={modoVenda === 'estoque'} onClick={() => alternarModo('estoque')} className={cn('rounded-control border px-3 py-2 text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', modoVenda === 'estoque' ? 'border-accent bg-accent text-white' : 'border-border-default text-text-muted hover:bg-surface-raised')}>Estoque</button>
+          <button type="button" aria-pressed={modoVenda === 'manual'} onClick={() => alternarModo('manual')} className={cn('rounded-control border px-3 py-2 text-xs font-semibold transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent', modoVenda === 'manual' ? 'border-accent bg-accent text-white' : 'border-border-default text-text-muted hover:bg-surface-raised')}>Item sem estoque</button>
+        </div>
+        {initialClienteId && (vinculoObrigatorioAusente
+          ? <p role="alert" className="text-xs text-danger">{clienteInicial ? (clienteInicial.ativo && !clienteInicial.banido ? 'Selecione um cliente ativo para manter a venda vinculada.' : `O cadastro de ${clienteInicial.nome} está inativo ou indisponível.`) : 'O cliente pré-selecionado não está disponível na lista carregada.'} Recarregue os clientes antes de registrar esta venda.</p>
+          : <p className="text-xs text-text-muted">Venda vinculada a {clienteSelecionado?.nome}.</p>)}
+        {modoVenda === 'manual' ? (
+          <div>
+            <label className={labelClass} htmlFor="venda-item-manual">Nome do item</label>
+            <input id="venda-item-manual" value={nomeItemManual} onChange={(e) => setNomeItemManual(e.target.value)} placeholder="Ex.: retrovisor esquerdo" className={inputClass} autoFocus />
+          </div>
+        ) : !itemSelecionado ? (
           <div>
             <label className={labelClass}>Buscar item no estoque</label>
             <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Nome ou código..." className={inputClass} autoFocus />
@@ -608,7 +694,7 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
           </div>
         )}
 
-        {itemSelecionado && !unidadeSelecionadaId && itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && (
+        {modoVenda === 'estoque' && itemSelecionado && !unidadeSelecionadaId && itemSelecionado.componentes && itemSelecionado.componentes.length > 0 && (
           <div>
             <label className={labelClass}>O que está sendo vendido?</label>
             <div className="flex flex-wrap gap-2">
@@ -650,7 +736,7 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
 
         {/* Ficha específica: sempre opcional — vender por quantidade
             genérica sem apontar ficha continua funcionando normalmente. */}
-        {itemSelecionado && !componenteSelecionado && fichasDisponiveis.length > 0 && (
+        {modoVenda === 'estoque' && itemSelecionado && !componenteSelecionado && fichasDisponiveis.length > 0 && (
           <div>
             <label className={labelClass}>Vender uma ficha específica? (opcional)</label>
             <div className="flex flex-wrap gap-2">
@@ -688,7 +774,7 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
           </div>
         )}
 
-        {itemSelecionado && (
+        {(modoVenda === 'manual' || itemSelecionado) && (
           <>
             <div className="grid grid-cols-2 gap-3">
               <div>
@@ -696,15 +782,17 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
                 <input
                   type="number"
                   min="1"
-                  max={componenteSelecionado || unidadeSelecionadaId ? 1 : itemSelecionado.quantidade}
-                  value={quantidade}
-                  disabled={!!componenteSelecionado || !!unidadeSelecionadaId}
-                  onChange={(e) => setQuantidade(e.target.value)}
-                  className={cn(inputClass, (componenteSelecionado || unidadeSelecionadaId) && 'opacity-50')}
+                  max={modoVenda === 'estoque' ? (componenteSelecionado || unidadeSelecionadaId ? 1 : itemSelecionado?.quantidade) : undefined}
+                  value={modoVenda === 'manual' ? quantidadeManual : quantidade}
+                  disabled={modoVenda === 'estoque' && (!!componenteSelecionado || !!unidadeSelecionadaId)}
+                  onChange={(e) => modoVenda === 'manual' ? setQuantidadeManual(e.target.value) : setQuantidade(e.target.value)}
+                  className={cn(inputClass, modoVenda === 'estoque' && (componenteSelecionado || unidadeSelecionadaId) && 'opacity-50')}
                 />
               </div>
               <div>
-                <CurrencyInput label="Valor unitário" size="lg" value={valorUnitario ? Math.round(Number(valorUnitario) * 100) : null} onChange={(centavos) => setValorUnitario(centavos == null ? '' : String(centavos / 100))} />
+                {modoVenda === 'manual'
+                  ? <CurrencyInput label="Valor unitário" size="lg" value={valorUnitarioManual ? Math.round(Number(valorUnitarioManual) * 100) : null} onChange={(centavos) => setValorUnitarioManual(centavos == null ? '' : String(centavos / 100))} />
+                  : <CurrencyInput label="Valor unitário" size="lg" value={valorUnitario ? Math.round(Number(valorUnitario) * 100) : null} onChange={(centavos) => setValorUnitario(centavos == null ? '' : String(centavos / 100))} />}
               </div>
             </div>
 
@@ -742,7 +830,7 @@ export function NovaVendaDrawer({ isOpen, onClose, onSaved }: { isOpen: boolean;
 
             <div className={cn('flex items-center justify-between p-4 rounded-xl', 'bg-surface-card')}>
               <span className="text-xs font-bold uppercase text-text-muted">Total</span>
-              <span className="text-xl font-black text-text-primary">{formatCurrency(Number(valorUnitario || 0) * Number(quantidade || 0))}</span>
+              <span className="text-xl font-black text-text-primary">{formatCurrency(Number(modoVenda === 'manual' ? valorUnitarioManual || 0 : valorUnitario || 0) * Number(modoVenda === 'manual' ? quantidadeManual || 0 : quantidade || 0))}</span>
             </div>
           </>
         )}
