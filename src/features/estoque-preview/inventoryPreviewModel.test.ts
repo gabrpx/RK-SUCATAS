@@ -7,6 +7,7 @@ import {
   diasRestantesReserva,
   editarUnidade,
   filtrarEstoqueBaixo,
+  filtrarSemPreco,
   getMetricas,
   getSecoesDaPrateleira,
   liberarReservaUnidade,
@@ -251,5 +252,19 @@ describe("fichas sobrando e estoque baixo", () => {
       expect(quantidade).toBeLessThanOrEqual(2);
     }
     expect(baixo.some((resultado) => resultado.unidades.length === 0)).toBe(false);
+  });
+});
+
+describe("filtro de preço", () => {
+  it("mantém apenas peças com ao menos uma unidade sem preço definido", () => {
+    const estoque = criarEstoqueDemo();
+    const semPreco = estoque.unidades[0];
+    const comPreco = estoque.unidades.find((unidade) => unidade.pecaId !== semPreco.pecaId)!;
+    semPreco.preco = 0;
+
+    const filtrados = filtrarSemPreco(buscarPecas(estoque, ""));
+
+    expect(filtrados.map((resultado) => resultado.peca.id)).toContain(semPreco.pecaId);
+    expect(filtrados.map((resultado) => resultado.peca.id)).not.toContain(comPreco.pecaId);
   });
 });

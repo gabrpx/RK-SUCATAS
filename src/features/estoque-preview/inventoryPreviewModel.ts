@@ -325,6 +325,11 @@ export function filtrarEstoqueBaixo(resultados: ResultadoBuscaEstoque[]) {
   });
 }
 
+/** Peças que ainda têm ao menos uma unidade ativa sem valor de venda definido. */
+export function filtrarSemPreco(resultados: ResultadoBuscaEstoque[]) {
+  return resultados.filter((resultado) => resultado.unidades.some((unidade) => !(Number(unidade.preco) > 0)));
+}
+
 export function getMetricas(estoque: EstoquePreviewState) {
   const ativas = estoque.unidades.filter((item) => item.estado !== "arquivada");
   const fichasExcedentes = estoque.pecas.reduce((total, peca) => total + (peca.fichasExcedentes ?? 0), 0);

@@ -14,7 +14,15 @@ const mocks = vi.hoisted(() => ({
   estoqueContexto: [] as unknown[],
 }));
 
-vi.mock("../../context/DataContext", () => ({ useData: () => ({ estoque: mocks.estoqueContexto }) }));
+vi.mock("../../context/DataContext", () => ({
+  useData: () => ({
+    estoque: mocks.estoqueContexto,
+    ready: { estoque: true },
+    loading: false,
+    estoqueError: false,
+    refreshData: vi.fn(),
+  }),
+}));
 
 vi.mock("../estoque/api", () => ({
   estoqueApi: { listar: mocks.listarEstoque, atualizarUnidade: mocks.atualizarUnidade, organizarUnidade: mocks.organizarUnidade },
@@ -108,8 +116,26 @@ describe("EstoquePreview dentro do app (dados reais)", () => {
     const aplicado = vi.fn();
     render(<EstoquePreview embutido filtroEstoqueBaixoInicial onFiltroEstoqueBaixoAplicado={aplicado} />);
     await screen.findByText("Estoque real · sincronizado");
-    expect(screen.getByRole("button", { name: "Estoque baixo (1–2)" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: /Filtros/ }).textContent).toContain("1");
     expect(aplicado).toHaveBeenCalled();
+  });
+
+  it("substitui o atalho de estoque baixo por filtros animados e mostra somente unidades sem preço", async () => {
+    mocks.estoqueContexto = [
+      peca("peca-1", "RK-900", "Farol com preço", 1, [ficha("u1", 901, { valor: 120 })]),
+      { ...peca("peca-2", "RK-901", "Pisca sem preço", 1, [ficha("u2", 902, { valor: null })]), valor: 0 },
+    ];
+
+    render(<EstoquePreview embutido />);
+    await screen.findByText("Estoque real · sincronizado");
+
+    expect(screen.queryByRole("button", { name: "Estoque baixo (1–2)" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Filtros/ }));
+    const filtroSemPreco = screen.getByRole("checkbox", { name: "Sem preço" });
+    fireEvent.click(filtroSemPreco);
+    expect(filtroSemPreco.getAttribute("data-state")).toBe("checked");
+
+    expect(screen.getByRole("button", { name: /Filtros/ }).textContent).toContain("1");
   });
 
   it("mostra a conferência pendente e confirma a baixa automática", async () => {
