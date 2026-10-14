@@ -89,6 +89,7 @@ describe("EstoquePreview dentro do app (dados reais)", () => {
     expect(screen.getByText("Farol CG 160")).toBeTruthy();
     expect((screen.getByRole("button", { name: "Nova peça" }) as HTMLButtonElement).disabled).toBe(true);
     expect(screen.queryByText("Estoque real · sincronizado")).toBeNull();
+    expect(screen.queryByText("Dados antigos em modo somente leitura.")).toBeNull();
   });
 
   it("mostra peças sem aguardar a organização auxiliar", async () => {

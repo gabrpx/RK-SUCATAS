@@ -347,7 +347,14 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [erroOrganizacao, setErroOrganizacao] = useState<string | null>(() => embutido && estoqueContexto.length > 0 ? "Atualizando organização do estoque" : null);
   const [recursos, setRecursos] = useState<RecursosOrganizacao>(RECURSOS_DEMONSTRACAO);
   const [reloadKey, setReloadKey] = useState(0);
+  const organizacaoConfirmadaRef = useRef(false);
   const atualizarEstoque = useCallback(() => {
+    void refreshData();
+  }, [refreshData]);
+  // A organização (locais, reservas e capacidades) só precisa ser relida
+  // quando uma ação altera esses metadados. Uma edição de preço, ou o evento
+  // SSE de uma peça, não pode revogar uma conexão já confirmada.
+  const atualizarOrganizacao = useCallback(() => {
     void refreshData();
     setReloadKey((atual) => atual + 1);
   }, [refreshData]);
@@ -376,7 +383,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [categoriasReais, setCategoriasReais] = useState<Categoria[]>([]);
   const [modelosMoto, setModelosMoto] = useState<ModeloMoto[]>([]);
   const [organizacaoReal, setOrganizacaoReal] = useState<OrganizacaoResposta | null>(null);
-  const conexaoRealPronta = fonte === "real" && dadosProntos.estoque && !estoqueError && !carregandoReal && !erroReal && !erroOrganizacao;
+  const conexaoRealPronta = fonte === "real" && dadosProntos.estoque && !estoqueError && !erroReal && !erroOrganizacao;
   const conexaoPermiteGravar = (fonte === "demo" && !embutido) || conexaoRealPronta;
   // Permissões granulares (mesmas chaves que a API exige): sem elas a tela
   // vira consulta em vez de exibir ações que só falhariam no envio.
@@ -412,8 +419,13 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     let ativo = true;
     async function carregarMetadadosEstoque() {
       try {
-        setCarregandoReal(true);
-        setErroOrganizacao("Atualizando organização do estoque");
+        // Na primeira carga, a tela aguarda a confirmação. Nas próximas,
+        // conserva os dados já confirmados enquanto revalida em segundo plano.
+        const primeiraCarga = !organizacaoConfirmadaRef.current;
+        if (primeiraCarga) {
+          setCarregandoReal(true);
+          setErroOrganizacao("Atualizando organização do estoque");
+        }
         const organizacaoPromise = organizacaoApi.listar().catch(() => null);
         const modelosPromise = modelosMotoApi.listar().catch(() => null);
         const [organizacaoResposta, modelosResposta, categoriasResposta] = await Promise.all([
@@ -428,6 +440,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         setCategoriasReais(categoriasResposta.data ?? []);
         setModelosMoto(modelosCarregados);
         setOrganizacaoReal(organizacao);
+        if (organizacao) organizacaoConfirmadaRef.current = true;
         setRecursos(organizacao?.recursos ?? { clienteNaReserva: false, reservaComSinal: false });
         setBaixasPendentes(organizacao?.baixasPendentes ?? []);
         setErroOrganizacao(organizacao ? null : organizacaoResposta?.error ?? "Locais físicos indisponíveis");
@@ -569,7 +582,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao reservar unidade.");
       return false;
     } finally {
-      atualizarEstoque();
+      atualizarOrganizacao();
     }
   }
 
@@ -591,7 +604,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao liberar reserva.");
       return false;
     } finally {
-      atualizarEstoque();
+      atualizarOrganizacao();
     }
   }
 
@@ -729,7 +742,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao conferir a baixa.");
       return false;
     } finally {
-      atualizarEstoque();
+      atualizarOrganizacao();
     }
   }
 
@@ -744,7 +757,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao baixar a ficha.");
       return false;
     } finally {
-      atualizarEstoque();
+      atualizarOrganizacao();
     }
   }
 
@@ -797,8 +810,8 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       </div>
       <AnimatePresence initial={false} mode="wait">
         {sincronizacaoInicial && !dadosProntos.estoque ? null
-          : carregandoReal && fonte !== "real" ? null
-          : fonte === "real" ? (conexaoRealPronta ? null : <motion.div key="leitura" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className={`mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border px-4 py-3 text-sm ${conexaoRealPronta ? "border-accent/25 bg-accent-soft-bg text-accent-soft-fg" : "border-warning/30 bg-warning-bg text-text-primary"}`}><strong>{conexaoRealPronta ? "Você está no estoque real." : "Dados antigos em modo somente leitura."}</strong><span>{conexaoRealPronta ? `Cadastros, edições, endereços, reservas e arquivamentos feitos aqui são gravados no sistema pela API.${podeEditar ? "" : " Seu usuário não tem permissão de edição: a tela está em modo consulta."}` : `Não foi possível confirmar o estado atual: ${erroReal ?? erroOrganizacao}. Não faça alterações até reconectar.`}</span>{!conexaoRealPronta && <button type="button" onClick={atualizarEstoque} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button>}</motion.div>)
+          : carregandoReal ? null
+          : fonte === "real" ? (conexaoRealPronta ? null : <motion.div key="leitura" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mb-4 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-text-primary"><strong>Não foi possível confirmar a conexão com o estoque.</strong><span>{`A última atualização não foi confirmada: ${erroReal ?? erroOrganizacao}. Não faça alterações até reconectar.`}</span><button type="button" onClick={atualizarOrganizacao} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button></motion.div>)
           : embutido ? <motion.div key="falha" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-danger/30 bg-danger-bg px-4 py-3 text-sm text-text-primary"><strong>Não foi possível carregar o estoque.</strong><span>{erroReal ?? "Sem resposta do servidor."} Nenhuma peça é exibida para não vender com dado errado.</span><button type="button" onClick={atualizarEstoque} className={`${botaoSecundario} min-h-9`}>Tentar novamente</button></motion.div>
           : <motion.div key="demo" role="alert" initial={{ opacity: 0, y: -4 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} className="mt-5 flex flex-wrap items-center gap-x-2 gap-y-2 rounded-card border border-warning/30 bg-warning-bg px-4 py-3 text-sm text-text-primary"><strong>Dados demonstrativos.</strong><span>Não foi possível carregar o estoque real{erroReal ? `: ${erroReal}` : "."} Nada feito nesta tela será gravado enquanto a conexão não voltar.</span><button type="button" onClick={atualizarEstoque} className={`${botaoSecundario} min-h-9`}>Tentar conectar</button></motion.div>}
       </AnimatePresence>
@@ -809,13 +822,13 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         if (!conexaoRealPronta) throw new Error("Conexão indisponível. Atualize os dados antes de cadastrar locais.");
         const resposta = await estoqueApi.criarLocal(local);
         if (!resposta.success) throw new Error(resposta.error || "Não foi possível cadastrar o local.");
-        atualizarEstoque();
+        atualizarOrganizacao();
         avisar("Local cadastrado.");
       }} onAtualizarLocal={async (local, alteracoes) => {
         if (!conexaoRealPronta) throw new Error("Conexão indisponível. Atualize os dados antes de editar o local.");
         const resposta = await organizacaoApi.atualizarLocal(local.id, alteracoes);
         if (!resposta.success) throw new Error(resposta.error || "Não foi possível atualizar o local.");
-        atualizarEstoque();
+        atualizarOrganizacao();
         avisar(alteracoes.ativo === false ? `Local ${local.codigo} desativado.` : alteracoes.ativo ? `Local ${local.codigo} reativado.` : "Local atualizado.");
       }} onAlternarCategoria={async (codigo, categoriaId, adicionar) => {
         if (fonte === "demo") {
@@ -830,7 +843,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
             ? await estoqueApi.vincularCategoriaLocal(local.id, categoriaId)
             : await estoqueApi.desvincularCategoriaLocal(local.id, categoriaId);
           if (!resposta.success) throw new Error(resposta.error || "Não foi possível atualizar categorias.");
-          atualizarEstoque();
+          atualizarOrganizacao();
           avisar("Categorias da prateleira atualizadas.");
         } catch (erro) { avisar(erro instanceof Error ? erro.message : "Falha ao atualizar categorias."); }
       }} onDefinirPrioridade={async (codigo, categoriaId, prioridade) => {
@@ -839,7 +852,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         if (!local) { avisar("Local não encontrado."); return; }
         const resposta = await organizacaoApi.definirPrioridadeCategoria(local.id, categoriaId, prioridade).catch(() => null);
         if (!resposta?.success) { avisar(resposta?.error || "Não foi possível alterar a prioridade."); return; }
-        atualizarEstoque();
+        atualizarOrganizacao();
         avisar("Prioridade da categoria atualizada.");
       }} />}
       {aba === "arquivados" && <section className="rounded-card border border-border-default bg-surface-card p-5"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Histórico preservado</p><h2 className="mt-1 text-xl font-semibold">{fonte === "real" ? "Unidades fora do ativo" : "Itens arquivados"}</h2><p className="mt-1 text-sm text-text-muted">Arquivar tira do estoque ativo, mas não apaga a rastreabilidade. Vendas aparecem aqui só para consulta.</p><div className="mt-4">{campoBusca}</div><div className="mt-4 space-y-2"><AnimatePresence initial={false}>{arquivados.map((unidade) => <motion.div layout key={unidade.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-default p-3"><button type="button" onClick={() => setUnidadeDetalhando(unidade)} aria-label={`Ver ficha de ${unidade.sku}`} className="min-w-0 flex-1 rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><strong>{unidade.sku}</strong><p className="mt-1 text-xs text-text-muted">{pecaPorId(unidade.pecaId)?.nome} · {unidade.vendidaEm ? "Vendida" : unidade.motivoArquivamento ?? "Arquivada"}</p></button>{!unidade.vendidaEm && podeAlterar && <button type="button" aria-label={`Restaurar ${unidade.sku}`} disabled={restaurando === unidade.id} onClick={() => void restaurar(unidade)} className={botaoSecundario}>{restaurando === unidade.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}Restaurar</button>}</motion.div>)}</AnimatePresence>{!arquivados.length && <p className="rounded-control border border-dashed border-border-default p-6 text-center text-sm text-text-muted">Nenhuma unidade fora do ativo.</p>}</div></section>}
