@@ -7,19 +7,21 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { VarianteCard } from './VarianteCard';
 import type { Estoque } from '../types';
 
-const { atualizarParcial, refreshData } = vi.hoisted(() => ({
+const { atualizarParcial, refreshData, setEstoque } = vi.hoisted(() => ({
   atualizarParcial: vi.fn(),
   refreshData: vi.fn(),
+  setEstoque: vi.fn(),
 }));
 
 afterEach(() => {
   cleanup();
   atualizarParcial.mockReset();
   refreshData.mockReset();
+  setEstoque.mockReset();
 });
 
 vi.mock('../../../context/DataContext', () => ({
-  useData: () => ({ refreshData }),
+  useData: () => ({ refreshData, setEstoque }),
 }));
 vi.mock('../api', () => ({ estoqueApi: { atualizarParcial } }));
 vi.mock('./UnidadeForm', () => ({ UnidadeForm: () => null }));

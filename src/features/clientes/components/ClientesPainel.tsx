@@ -66,28 +66,6 @@ function formatarHorario(prazo: string | null): string {
   return new Intl.DateTimeFormat('pt-BR', { hour: '2-digit', minute: '2-digit' }).format(data);
 }
 
-function formatarPrazoVisita(prazo: string | null, hoje: string): string {
-  if (!prazo) return 'Sem horário';
-  const data = new Date(prazo);
-  if (Number.isNaN(data.getTime())) return 'Sem horário';
-  if (dataLocal(data) === hoje) return formatarHorario(prazo);
-  return new Intl.DateTimeFormat('pt-BR', {
-    weekday: 'short',
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(data);
-}
-
-function formatarPrazoCompacto(prazo: string | null): string {
-  if (!prazo) return 'Sem prazo';
-  const data = new Date(prazo);
-  if (Number.isNaN(data.getTime())) return 'Sem prazo';
-  const diaMes = `${String(data.getDate()).padStart(2, '0')}/${String(data.getMonth() + 1).padStart(2, '0')}`;
-  return `${diaMes} ${formatarHorario(prazo)}`;
-}
-
 function entradaDoCliente(item: ClienteOperacaoListaItem): ClienteOperacaoEntrada {
   return { id: item.id, pedidos: pedidosDoCliente(item), visitas: [], reservas: [] };
 }
@@ -138,7 +116,9 @@ export function ClientesPainel({
     const dia = diaDaTarefa(tarefa.prazo)!;
     return dia >= hoje && dia <= ultimoDiaAgenda;
   });
-  const visitasDaAgenda = [...visitasAtrasadas, ...visitasNoPeriodo]
+  const visitasHoje = visitasPendentes.filter((tarefa) => diaDaTarefa(tarefa.prazo) === hoje);
+  const visitasProximosSeteDias = visitasNoPeriodo.filter((tarefa) => diaDaTarefa(tarefa.prazo)! > hoje);
+  const visitasDaAgenda = visitasHoje
     .sort((a, b) => new Date(a.prazo!).getTime() - new Date(b.prazo!).getTime())
     .slice(0, 4);
   const totalClientes = resumo?.total_clientes ?? itens.length;
@@ -175,22 +155,25 @@ export function ClientesPainel({
       ) : null}
       {capabilityUnavailable ? <p role="status" className="text-sm text-text-muted">O cadastro segue disponível; alguns indicadores operacionais ainda não estão ativados.</p> : null}
 
-      <div className="grid items-start gap-5 xl:grid-cols-2">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(620px,1.2fr)_minmax(360px,0.8fr)]">
         <section aria-labelledby="atendimento-pedidos-title" className="min-w-0 rounded-card border border-border-default bg-surface-card shadow-[var(--elevation-1)]">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-default px-4 py-4 sm:px-5">
             <div className="min-w-0">
               <p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Clientes recentes</p>
               <h2 id="atendimento-pedidos-title" className="mt-1 text-lg font-semibold tracking-tight text-text-primary">Atendimento e pedidos</h2>
             </div>
-            <button type="button" onClick={onViewClientes} className="inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-2.5 text-sm font-semibold text-accent-soft-fg transition hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">Ver todos <ArrowRight aria-hidden="true" size={15} /></button>
+            <div className="ml-auto flex items-center gap-2">
+              <span className="inline-flex min-h-6 items-center rounded-control border border-border-default bg-surface-inset px-2 text-[10px] font-medium text-text-muted">{clientesRecentes.length} listados</span>
+              <button type="button" onClick={onViewClientes} className="inline-flex min-h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-control px-2.5 text-sm font-semibold text-accent-soft-fg transition hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">Ver todos <ArrowRight aria-hidden="true" size={15} /></button>
+            </div>
           </div>
           {clientesRecentes.length === 0 ? (
             <div className="px-5 py-10 text-center"><UsersRound aria-hidden="true" className="mx-auto text-text-faint" size={24} /><p className="mt-3 text-sm font-semibold text-text-primary">{loading ? 'Carregando clientes…' : 'Nenhum cliente para exibir'}</p><p className="mt-1 text-sm text-text-muted">{error ? 'A lista aparecerá assim que a conexão for restabelecida.' : 'Os clientes cadastrados aparecerão nesta área.'}</p></div>
           ) : (
             <>
-              <div className="hidden overflow-x-auto md:block">
-                <table className="w-full min-w-[580px] text-left text-sm">
-                  <thead><tr className="border-b border-border-subtle font-sans text-[10px] uppercase tracking-[0.12em] text-text-faint"><th scope="col" className="px-4 py-3 font-semibold">Cliente</th><th scope="col" className="px-3 py-3 font-semibold">Local</th><th scope="col" className="px-3 py-3 font-semibold">Veículo</th><th scope="col" className="px-3 py-3 font-semibold">Status</th><th scope="col" className="px-3 py-3 text-right font-semibold">Ação</th></tr></thead>
+              <div className="hidden overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden md:block">
+                <table className="w-full min-w-[680px] text-left text-sm">
+                  <thead><tr className="border-b border-border-subtle font-sans text-[10px] uppercase tracking-[0.12em] text-text-faint"><th scope="col" className="whitespace-nowrap px-4 py-3 font-semibold">Cliente</th><th scope="col" className="whitespace-nowrap px-3 py-3 font-semibold">Local</th><th scope="col" className="whitespace-nowrap px-3 py-3 font-semibold">Veículo</th><th scope="col" className="whitespace-nowrap px-3 py-3 font-semibold">Status</th><th scope="col" className="whitespace-nowrap px-3 py-3 text-right font-semibold">Ação</th></tr></thead>
                   <tbody className="divide-y divide-border-subtle">
                     {clientesRecentes.map(({ item, entrada }) => {
                       const situacao = situacoesPorCliente.get(item.id)!;
@@ -199,11 +182,11 @@ export function ClientesPainel({
                       const tone = pedido ? 'border-accent/20 text-accent-soft-fg' : tonsStatus[situacao.nivel];
                       return (
                         <tr key={item.id} className="group transition-colors hover:bg-surface-inset/70">
-                          <td className="max-w-[230px] px-4 py-3"><div className="flex min-w-0 items-center gap-2.5"><span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-control border border-border-subtle bg-surface-inset text-[10px] font-bold text-text-secondary">{iniciais(item.nome)}</span><span className="min-w-0"><button type="button" title={item.nome} onClick={() => onSelectCliente(item.id)} className="line-clamp-2 max-w-full cursor-pointer whitespace-normal break-words text-left text-[13px] font-semibold text-text-primary hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{item.nome}</button><span className="mt-0.5 block truncate text-[11px] text-text-muted">{item.telefone || 'Sem telefone cadastrado'}</span></span></div></td>
-                          <td className="max-w-[170px] px-3 py-3.5"><span className="block whitespace-normal break-words text-text-secondary">{local}</span></td>
-                          <td className="max-w-[160px] px-3 py-3.5"><span className="block whitespace-normal break-words text-text-secondary">{nomeVeiculo(item)}</span></td>
-                          <td className="px-3 py-3.5"><Tooltip side="top" wrapperClassName="inline-flex" className="!border-slate-200 !bg-white !text-slate-900 !shadow-lg !backdrop-blur-none" content={pedido ? <span><strong className="block">{pedido.descricao || 'Pedido de peça'}</strong><span className="block text-slate-600">{pedidoStatusCopy[pedido.status]} · {tempoDecorrido(pedido.criadoEm)}</span></span> : null}><span className={`inline-flex max-w-[150px] items-center gap-1.5 truncate whitespace-nowrap rounded-full border bg-surface-card px-2 py-1 text-[10px] font-semibold ${tone}`}><span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />{pedido ? 'Com pedido' : situacao.rotulo}</span></Tooltip></td>
-                          <td className="px-3 py-3 text-right"><button type="button" aria-label={`Abrir contato de ${item.nome}`} title="Contato" onClick={() => onOpenContato(item)} disabled={!item.telefone && !item.instagram_usuario} className="ml-auto grid size-8 cursor-pointer place-items-center rounded-control border border-border-default bg-surface-card text-text-muted transition hover:border-accent/30 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50"><MessageCircle aria-hidden="true" size={14} /></button></td>
+                          <td className="max-w-[240px] px-4 py-3"><div className="flex min-w-0 items-center gap-2.5"><span aria-hidden="true" className="grid size-8 shrink-0 place-items-center rounded-control border border-border-subtle bg-surface-inset text-[10px] font-bold text-text-secondary">{iniciais(item.nome)}</span><span className="min-w-0"><button type="button" title={item.nome} onClick={() => onSelectCliente(item.id)} className="block max-w-full cursor-pointer truncate whitespace-nowrap text-left text-[13px] font-semibold text-text-primary hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">{item.nome}</button><span className="mt-0.5 block truncate text-[11px] text-text-muted">{item.telefone || 'Sem telefone cadastrado'}</span></span></div></td>
+                          <td className="max-w-[190px] whitespace-nowrap px-3 py-3.5"><span className="text-text-secondary">{local}</span></td>
+                          <td className="max-w-[190px] whitespace-nowrap px-3 py-3.5"><span className="text-text-secondary">{nomeVeiculo(item)}</span></td>
+                          <td className="whitespace-nowrap px-3 py-3.5"><Tooltip side="top" wrapperClassName="inline-flex" className="!border-slate-200 !bg-white !text-slate-900 !shadow-lg !backdrop-blur-none" content={pedido ? <span><strong className="block">{pedido.descricao || 'Pedido de peça'}</strong><span className="block text-slate-600">{pedidoStatusCopy[pedido.status]} · {tempoDecorrido(pedido.criadoEm)}</span></span> : null}><span className={`inline-flex max-w-[150px] items-center gap-1.5 truncate whitespace-nowrap rounded-full border bg-surface-card px-2 py-1 text-[10px] font-semibold ${tone}`}><span aria-hidden="true" className="size-1.5 shrink-0 rounded-full bg-current" />{pedido ? 'Com pedido' : situacao.rotulo}</span></Tooltip></td>
+                          <td className="whitespace-nowrap px-3 py-3 text-right"><button type="button" aria-label={`Abrir contato de ${item.nome}`} title="Contato" onClick={() => onOpenContato(item)} disabled={!item.telefone && !item.instagram_usuario} className="ml-auto grid size-8 cursor-pointer place-items-center rounded-control border border-border-default bg-surface-card text-text-muted transition hover:border-accent/30 hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 disabled:cursor-not-allowed disabled:opacity-50"><MessageCircle aria-hidden="true" size={14} /></button></td>
                         </tr>
                       );
                     })}
@@ -226,18 +209,18 @@ export function ClientesPainel({
 
         <section aria-labelledby="agenda-hoje-title" className="min-w-0 rounded-card border border-border-default bg-surface-card shadow-[var(--elevation-1)]">
           <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border-subtle px-4 py-4 sm:px-5">
-            <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Pendências gerais da loja</p><h2 id="agenda-hoje-title" className="mt-1 text-sm font-semibold uppercase tracking-wide text-text-primary">Agenda · hoje e próximos 7 dias</h2></div>
-            <span className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/15 bg-accent-soft-bg px-2.5 text-[11px] font-semibold text-accent-soft-fg"><CalendarClock aria-hidden="true" size={13} />{agendaLoading ? 'Atualizando agenda' : `${visitasNoPeriodo.length} ${visitasNoPeriodo.length === 1 ? 'visita no período' : 'visitas no período'}`}</span>
+            <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.14em] text-text-muted">Pendências gerais da loja</p><h2 id="agenda-hoje-title" className="mt-1 text-sm font-semibold uppercase tracking-wide text-text-primary">Agenda de hoje</h2></div>
+            <span className="inline-flex min-h-7 items-center gap-1.5 whitespace-nowrap rounded-full border border-accent/15 bg-accent-soft-bg px-2.5 text-[11px] font-semibold text-accent-soft-fg"><CalendarClock aria-hidden="true" size={13} />{agendaLoading ? 'Atualizando agenda' : agendaError ? 'Agenda indisponível' : `${visitasHoje.length} ${visitasHoje.length === 1 ? 'visita programada' : 'visitas programadas'}`}</span>
           </div>
-          {agendaError ? <div role="status" className="px-4 py-5 sm:px-5"><p className="text-sm text-text-secondary">Não foi possível carregar a agenda agora.</p><button type="button" onClick={onRetryAgenda} className="mt-2 inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-control px-2 text-xs font-semibold text-accent-soft-fg hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><RefreshCw aria-hidden="true" size={13} />Tentar novamente</button></div> : agendaLoading ? <p role="status" className="px-4 py-5 text-sm text-text-muted sm:px-5">Carregando visitas…</p> : visitasDaAgenda.length === 0 ? <div className="px-4 py-8 text-center sm:px-5"><CalendarDays aria-hidden="true" className="mx-auto text-text-faint" size={21} /><p className="mt-2 text-sm font-semibold text-text-primary">Nenhuma visita pendente para hoje e próximos 7 dias</p><p className="mt-1 text-xs text-text-muted">A agenda mostra visitas atrasadas e as programadas nesse período.</p></div> : (
-            <ul className="space-y-2.5 px-4 py-3 sm:px-5">{visitasDaAgenda.map((visita) => {
-              const atrasada = Boolean(diaDaTarefa(visita.prazo) && diaDaTarefa(visita.prazo)! < hoje);
+          {agendaError ? <div role="status" className="px-4 py-5 sm:px-5"><p className="text-sm text-text-secondary">Não foi possível carregar a agenda agora.</p><button type="button" onClick={onRetryAgenda} className="mt-2 inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-control px-2 text-xs font-semibold text-accent-soft-fg hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><RefreshCw aria-hidden="true" size={13} />Tentar novamente</button></div> : agendaLoading ? <p role="status" className="px-4 py-5 text-sm text-text-muted sm:px-5">Carregando visitas…</p> : visitasDaAgenda.length === 0 ? <div className="px-4 py-8 text-center sm:px-5"><CalendarDays aria-hidden="true" className="mx-auto text-text-faint" size={21} /><p className="mt-2 text-sm font-semibold text-text-primary">Nenhuma visita programada para hoje</p><p className="mt-1 text-xs text-text-muted">As próximas visitas continuam nos indicadores do período.</p></div> : (
+            <ul aria-label="Visitas de hoje" className="space-y-2 px-4 py-3 sm:px-5">{visitasDaAgenda.map((visita) => {
               const nomeVisita = visita.cliente?.nome || visita.titulo || 'Visita sem título';
               const clienteId = visita.cliente_id || visita.cliente?.id;
               const detalheVisita = visita.cliente?.nome ? visita.titulo || 'Visita' : 'Cliente não vinculado';
-              return <li key={visita.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-control border border-border-subtle bg-surface-card px-3 py-3 sm:flex-nowrap"><span className={`inline-flex min-h-7 shrink-0 rounded-control border px-2 py-1 font-mono font-semibold tabular-nums ${atrasada ? 'min-w-[72px] flex-col items-start justify-center text-[10px] leading-tight border-danger/15 bg-danger-bg text-danger' : 'min-w-[52px] items-center justify-center text-xs border-accent/15 bg-accent-soft-bg text-accent-soft-fg'}`}>{atrasada ? <><span>Atrasada</span><span>{formatarPrazoCompacto(visita.prazo)}</span></> : formatarPrazoVisita(visita.prazo, hoje)}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{nomeVisita}</p><p className="mt-0.5 truncate text-xs text-text-muted">{detalheVisita}{visita.atribuido?.nome_exibicao ? ` · ${visita.atribuido.nome_exibicao}` : ''}</p></div><span className={`inline-flex min-h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-semibold ${atrasada ? 'bg-danger-bg text-danger' : 'bg-warning-bg text-warning'}`}><span aria-hidden="true" className="size-1.5 rounded-full bg-current" />{atrasada ? 'Requer retorno' : 'Pendente'}</span>{clienteId && visita.cliente ? <button type="button" aria-label={`Abrir cliente ${nomeVisita}`} onClick={() => onSelectCliente(clienteId)} className="ml-auto grid size-8 shrink-0 cursor-pointer place-items-center rounded-control text-text-muted transition hover:bg-surface-inset hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><UserRound aria-hidden="true" size={14} /></button> : null}</li>;
+              return <li key={visita.id} className="flex min-w-0 items-center gap-3 rounded-control border border-border-subtle bg-surface-card px-3 py-2.5"><span className="inline-flex min-h-7 min-w-[52px] shrink-0 items-center justify-center rounded-control border border-accent/15 bg-accent-soft-bg px-2 py-1 font-mono text-xs font-semibold tabular-nums text-accent-soft-fg">{formatarHorario(visita.prazo)}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{nomeVisita}</p><p className="mt-0.5 truncate text-xs text-text-muted">{detalheVisita}{visita.atribuido?.nome_exibicao ? ` · ${visita.atribuido.nome_exibicao}` : ''}</p></div><span className="inline-flex min-h-6 shrink-0 items-center gap-1 rounded-full bg-warning-bg px-2 text-[10px] font-semibold text-warning"><span aria-hidden="true" className="size-1.5 rounded-full bg-current" />Agendada</span>{clienteId && visita.cliente ? <button type="button" aria-label={`Abrir cliente ${nomeVisita}`} onClick={() => onSelectCliente(clienteId)} className="grid size-8 shrink-0 cursor-pointer place-items-center rounded-control text-text-muted transition hover:bg-surface-inset hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><UserRound aria-hidden="true" size={14} /></button> : null}</li>;
             })}</ul>
           )}
+          {!agendaError && visitasProximosSeteDias.length > 0 ? <p className="mx-4 border-t border-border-subtle py-2.5 text-xs text-text-muted sm:mx-5"><span className="font-semibold text-text-secondary">{visitasProximosSeteDias.length}</span> {visitasProximosSeteDias.length === 1 ? 'visita nos próximos 7 dias' : 'visitas nos próximos 7 dias'}</p> : null}
           {!agendaError && resumo && pendencias.some(({ label, valor }) => label !== 'Visitas vencidas em Tarefas' && typeof valor === 'number' && valor > 0) ? <div className="mx-4 border-t border-border-subtle py-3 sm:mx-5"><p className="mb-2 font-mono text-[9px] font-semibold uppercase tracking-[0.14em] text-text-muted">Outros acompanhamentos</p><ul className="space-y-1.5">{pendencias.filter(({ label, valor }) => label !== 'Visitas vencidas em Tarefas' && typeof valor === 'number' && valor > 0).map(({ label, valor }) => <li key={label} className="flex items-center justify-between gap-3 text-xs"><span className="text-text-secondary">{label}</span><span className="font-semibold tabular-nums text-text-primary">{valor}</span></li>)}</ul></div> : null}
           {visitasAtrasadas.length > 0 && !agendaError ? <p className="mx-4 mt-1 rounded-control bg-danger-bg px-3 py-2 text-xs font-medium text-danger sm:mx-5">{visitasAtrasadas.length} {visitasAtrasadas.length === 1 ? 'visita atrasada' : 'visitas atrasadas'} · requer contato de reagendamento.</p> : null}
           <div className="border-t border-border-subtle px-4 py-2.5 text-right sm:px-5"><button type="button" onClick={onViewAgenda} className="inline-flex min-h-9 cursor-pointer items-center gap-1.5 rounded-control px-2 text-xs font-semibold text-accent-soft-fg transition hover:bg-accent-soft-bg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">Ver agenda completa <ArrowRight aria-hidden="true" size={14} /></button></div>

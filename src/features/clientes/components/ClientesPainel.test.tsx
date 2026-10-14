@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { ClientesPainel } from './ClientesPainel';
 import type { ClientesResumoOperacional, ClienteOperacaoListaItem } from '../operacaoTypes';
+import type { Tarefa } from '../../tarefas/types';
 
 const resumo: ClientesResumoOperacional = {
   total_clientes: 28,
@@ -26,6 +27,16 @@ const itens: ClienteOperacaoListaItem[] = [
     motos: [{ id: 'moto-1', principal: true, modelo_moto: { nome: 'Honda CG 160' } }], pedidos: [{ id: 'pedido-1', status: 'peca_disponivel', descricao: 'Par de rodas', criado_em: '2026-10-01T12:00:00.000Z' }],
   },
 ];
+
+function tarefaVisita(id: string, prazo: string, status: Tarefa['status'] = 'pendente'): Tarefa {
+  return {
+    id, titulo: 'Avaliação de peça', descricao: null, prazo, atribuido_para: 'usuario-1', criado_por: 'usuario-1',
+    status, prioridade: 'media', tipo: 'visita', cliente_id: 'cliente-1', concluida_em: null,
+    criado_em: prazo, atualizado_em: prazo, atribuido: { id: 'usuario-1', nome_exibicao: 'Roberto Martins' },
+    criador: { id: 'usuario-1', nome_exibicao: 'Roberto Martins' },
+    cliente: { id: 'cliente-1', nome: 'Oficina Dois Irmãos', telefone: null }, itens: [],
+  };
+}
 
 describe('ClientesPainel', () => {
   afterEach(() => { cleanup(); vi.useRealTimers(); vi.unstubAllGlobals(); });
@@ -58,6 +69,34 @@ describe('ClientesPainel', () => {
     expect(screen.getByRole('button', { name: /Reservas vencendo/i })).toBeTruthy();
     fireEvent.click(screen.getByRole('button', { name: /Peças disponíveis/i }));
     expect(onSelectMetric).toHaveBeenCalledWith('peca_disponivel');
+  });
+
+  it('resume as visitas de hoje ao lado da tabela e mantém o total dos próximos sete dias', () => {
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(2026, 9, 9, 8, 0, 0));
+    const data = (dia: number, hora: number) => {
+      const valor = new Date(2026, 9, dia, hora, 0, 0);
+      return valor.toISOString();
+    };
+    const tarefas = [
+      tarefaVisita('visita-hoje-1', data(9, 9)),
+      tarefaVisita('visita-hoje-2', data(9, 14)),
+      tarefaVisita('visita-futura', data(10, 11)),
+      tarefaVisita('visita-atrasada', data(8, 11)),
+      tarefaVisita('visita-concluida', data(9, 16), 'concluida'),
+    ];
+
+    render(<ClientesPainel resumo={resumo} itens={itens} tarefas={tarefas} onRetry={() => {}} onSelectMetric={() => {}} onSelectCliente={() => {}} />);
+
+    expect(screen.getByRole('heading', { name: 'Agenda de hoje' })).toBeTruthy();
+    expect(screen.getByText('2 visitas programadas')).toBeTruthy();
+    expect(screen.getAllByText('Oficina Dois Irmãos')).toHaveLength(2);
+    expect(screen.getAllByText('Agendada')).toHaveLength(2);
+    const agenda = screen.getByRole('heading', { name: 'Agenda de hoje' }).closest('section');
+    expect(agenda?.textContent).toContain('1 visita nos próximos 7 dias');
+    expect(screen.getByText(/1 visita atrasada/)).toBeTruthy();
+    expect(screen.queryByText('11:00')).toBeNull();
+    vi.useRealTimers();
   });
 
   it('lista o cliente, sua moto e os status em badges, incluindo clientes sem pedido ativo', () => {

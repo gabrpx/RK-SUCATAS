@@ -51,7 +51,7 @@ interface VarianteCardProps {
 }
 
 export function VarianteCard({ item }: VarianteCardProps) {
-  const { refreshData } = useData();
+  const { refreshData, setEstoque } = useData();
   const { modelos } = useCatalogos();
   const [editandoNome, setEditandoNome] = useState(false);
   const [nomeRascunho, setNomeRascunho] = useState(() => nomeVarianteExibicao(item.nome));
@@ -125,15 +125,40 @@ export function VarianteCard({ item }: VarianteCardProps) {
     }
   };
 
-  const aoSalvarUnidade = async () => {
+  const aoSalvarUnidade = async (unidadeAtualizada: EstoqueUnidade) => {
     setNovaUnidadeAberta(false);
     setUnidadeEditando(null);
-    await refreshData();
+    // A API já devolve a unidade persistida. Atualize somente o item afetado
+    // no cache compartilhado para que o preço/faixa apareça imediatamente,
+    // sem reativar o loading global do estoque.
+    setEstoque((prev) => prev.map((atual) => {
+      if (atual.id !== item.id) return atual;
+      const unidades = atual.unidades ?? [];
+      const existe = unidades.some((u) => u.id === unidadeAtualizada.id);
+      return {
+        ...atual,
+        unidades: existe
+          ? unidades.map((u) => (u.id === unidadeAtualizada.id ? unidadeAtualizada : u))
+          : [...unidades, unidadeAtualizada],
+        quantidade: existe ? atual.quantidade : Math.max(Number(atual.quantidade) || 0, unidades.length + 1),
+      };
+    }));
   };
 
   // Salvar e continuar: atualiza os dados mas mantém o form aberto e limpo.
-  const aoSalvarEContinuar = async () => {
-    await refreshData();
+  const aoSalvarEContinuar = async (unidadeAtualizada: EstoqueUnidade) => {
+    setEstoque((prev) => prev.map((atual) => {
+      if (atual.id !== item.id) return atual;
+      const unidades = atual.unidades ?? [];
+      const existe = unidades.some((u) => u.id === unidadeAtualizada.id);
+      return {
+        ...atual,
+        unidades: existe
+          ? unidades.map((u) => (u.id === unidadeAtualizada.id ? unidadeAtualizada : u))
+          : [...unidades, unidadeAtualizada],
+        quantidade: existe ? atual.quantidade : Math.max(Number(atual.quantidade) || 0, unidades.length + 1),
+      };
+    }));
   };
 
   const inputAnoClass =
