@@ -53,8 +53,6 @@ import { TasksNavigationDock } from "../../components/TasksNavigationDock";
 import { useTaskOverlayScrollLock } from "./useTaskOverlayScrollLock";
 import type { Tab } from "../../constants/navigation";
 
-type PreviewScreen = "turno" | "abertas";
-type PreviewFilter = "todas" | PreviewTaskStatus;
 type QueueFilter = "todas" | "abertas" | "pendencias" | "grupo";
 type WorkspaceTab = "turno" | "lembretes";
 
@@ -557,7 +555,12 @@ function TaskCard({
   const taskProgress = progress(task);
 
   return (
-    <article className="rounded-lg border border-slate-200 bg-white p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]">
+    <article className={cn(
+      "rounded-lg border p-4 shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition-shadow hover:shadow-[0_10px_28px_rgba(15,23,42,0.08)]",
+      task.status === "concluida"
+        ? "border-emerald-200 bg-emerald-50/40"
+        : "border-slate-200 bg-white"
+    )}>
       <div className="flex flex-wrap items-center gap-2">
         <span
           className={cn(
@@ -589,7 +592,10 @@ function TaskCard({
       </div>
 
       <button onClick={onOpen} className="mt-3 w-full cursor-pointer text-left">
-        <h3 className="text-base font-semibold tracking-tight text-slate-900 hover:text-blue-700">
+        <h3 className={cn(
+          "text-base font-semibold tracking-tight text-slate-900 hover:text-blue-700",
+          task.status === "concluida" && "line-through opacity-60"
+        )}>
           {task.title}
         </h3>
         <div className="mt-2 flex items-center gap-3 text-xs text-slate-500">
@@ -1540,9 +1546,7 @@ export function TasksPreview({
   const [activeReminderCount, setActiveReminderCount] = useState(5);
   const [reminderComposerOpen, setReminderComposerOpen] = useState(false);
   const [reminders, setReminders] = useState<Reminder[]>(initialReminders ?? demoInitialReminders);
-  const [screen, setScreen] = useState<PreviewScreen>("turno");
   const [tasks, setTasks] = useState<PreviewTask[]>(initialTasks ?? demoInitialTasks);
-  const [filter, setFilter] = useState<PreviewFilter>("todas");
   const [activePrimaryTab, setActivePrimaryTab] =
     useState<PrimaryTaskTab>("turno");
   const [query, setQuery] = useState("");
@@ -1630,7 +1634,7 @@ export function TasksPreview({
     return () => { media.removeEventListener("change", update); document.removeEventListener("visibilitychange", update); };
   }, []);
 
-  useEffect(() => setVisibleTaskLimit(40), [activePrimaryTab]);
+  useEffect(() => setVisibleTaskLimit(40), [activePrimaryTab, query]);
 
   useEffect(() => {
     if (prefersReducedMotion || !rootRef.current) return;
@@ -1668,9 +1672,17 @@ export function TasksPreview({
   }, [tasks]);
 
   const summary = useMemo(() => getPreviewSummary(tasks), [tasks]);
+  const primaryTabCounts = useMemo(() => ({
+    open: summary.open,
+    pending: tasks.filter((task) => task.status === "aguardando" && !task.paused).length,
+    completed: tasks.filter((task) => task.status === "concluida").length,
+  }), [summary.open, tasks]);
   const visibleTasks = useMemo(
-    () => sortPreviewTasksForQueue(filterPreviewTasksByPrimaryTab(tasks, activePrimaryTab)),
-    [tasks, activePrimaryTab]
+    () => sortPreviewTasksForQueue(filterPreviewTasks(
+      filterPreviewTasksByPrimaryTab(tasks, activePrimaryTab),
+      { query, status: "todas" }
+    )),
+    [tasks, activePrimaryTab, query]
   );
   const queueTasks = useMemo(() => {
     if (queueFilter === "abertas") {
@@ -1689,8 +1701,6 @@ export function TasksPreview({
     tasks.find((task) => !task.paused) ?? tasks[0];
   const setPrimaryTab = (value: PrimaryTaskTab) => {
     setActivePrimaryTab(value);
-    setScreen("turno");
-    setFilter("todas");
   };
   const toggleChecklist = async (taskId: string, checklistId: string) => {
     const updated = await onToggleChecklist?.(taskId, checklistId);
@@ -1773,7 +1783,6 @@ export function TasksPreview({
     setTasks((current) => [task, ...current]);
     setIsComposerOpen(false);
     setActivePrimaryTab("abertas");
-    setScreen("turno");
   };
 
   const updateTask = async (input: TaskComposerInput) => {
@@ -1915,7 +1924,6 @@ export function TasksPreview({
       </header>
 
       <main className="mx-auto w-full min-w-0 max-w-[1440px] overflow-x-hidden px-3 pb-[calc(6rem_+_env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-7 lg:py-10">
-        <style>{'[aria-label="Alternar tela"] { display: none; }'}</style>
         <div
           data-preview-reveal
           className="flex flex-col gap-5 border-b border-slate-200 pb-0 lg:flex-row lg:items-end lg:justify-between"
@@ -1961,85 +1969,17 @@ export function TasksPreview({
               </TabsList>
             </Tabs>
           </div>
-          <nav
-            aria-label="Alternar tela"
-            className="flex max-w-full overflow-x-auto"
-          >
-            <button
-              onClick={() => {
-                setScreen("turno");
-                setFilter("todas");
-              }}
-              className={cn(
-                "cursor-pointer shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
-                screen === "turno"
-                  ? "border-blue-600 text-blue-700"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              )}
-            >
-              Meu turno{" "}
-              <span
-                className={cn(
-                  "ml-1 font-mono text-[10px]",
-                  screen === "turno" ? "text-blue-600" : "text-slate-400"
-                )}
-              >
-                {summary.open}
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                setScreen("abertas");
-                setFilter("todas");
-              }}
-              className={cn(
-                "shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
-                screen === "abertas" && filter === "todas"
-                  ? "border-blue-600 text-blue-700"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              )}
-            >
-              Tarefas abertas{" "}
-              <span className="ml-1 font-mono text-[10px] text-slate-400">
-                {summary.open}
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                setScreen("abertas");
-                setFilter("aguardando");
-              }}
-              className={cn(
-                "shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
-                screen === "abertas" && filter === "aguardando"
-                  ? "border-amber-500 text-amber-700"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              )}
-            >
-              Pendências{" "}
-              <span className="ml-1 font-mono text-[10px] text-slate-400">
-                {tasks.filter((task) => task.status === "aguardando").length}
-              </span>
-            </button>
-            <button
-              onClick={() => {
-                setScreen("abertas");
-                setFilter("concluida");
-              }}
-              className={cn(
-                "shrink-0 border-b-2 px-3 py-3 text-sm font-medium transition-colors",
-                screen === "abertas" && filter === "concluida"
-                  ? "border-emerald-600 text-emerald-700"
-                  : "border-transparent text-slate-500 hover:text-slate-800"
-              )}
-            >
-              Concluídas{" "}
-              <span className="ml-1 font-mono text-[10px] text-slate-400">
-                {tasks.filter((task) => task.status === "concluida").length}
-              </span>
-            </button>
-          </nav>
         </div>
+
+        {workspaceTab === "turno" && (
+          <div data-preview-reveal className="mt-4 max-w-full overflow-x-auto pb-1">
+            <PrimaryTaskTabs
+              value={activePrimaryTab}
+              onValueChange={setPrimaryTab}
+              counts={primaryTabCounts}
+            />
+          </div>
+        )}
 
         <AnimatePresence initial={false} mode="wait">
           <motion.div
@@ -2053,9 +1993,9 @@ export function TasksPreview({
           <RemindersPanel reminders={reminders} onRemindersChange={updateReminders} onActiveCountChange={setActiveReminderCount} composerOpen={reminderComposerOpen} onComposerOpenChange={setReminderComposerOpen} />
         ) : (
           <>
-        {screen === "abertas" && <OpenScreenInsights tasks={tasks} />}
+        {activePrimaryTab !== "turno" && <OpenScreenInsights tasks={tasks} />}
 
-        {screen === "turno" ? (
+        {activePrimaryTab === "turno" ? (
           <>
             <div data-preview-reveal>
               <TurnMetricStrip summary={summary} />
@@ -2292,41 +2232,16 @@ export function TasksPreview({
           </>
         ) : (
           <>
-            <section
-              data-preview-reveal
-              className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]"
-            >
+            <section data-preview-reveal className="mt-6">
               <label className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5">
                 <Search size={16} className="text-slate-400" />
                 <input
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Filtrar tarefas abertas"
+                  placeholder={activePrimaryTab === "concluidas" ? "Filtrar tarefas concluídas" : "Filtrar tarefas"}
                   className="min-w-0 flex-1 text-sm outline-none placeholder:text-slate-400"
                 />
               </label>
-              <div className="flex overflow-x-auto rounded-lg border border-slate-200 bg-white p-1">
-                {(
-                  [
-                    ["todas", "Todas"],
-                    ["em-andamento", "Em andamento"],
-                    ["aguardando", "Aguardando"],
-                  ] as const
-                ).map(([id, label]) => (
-                  <button
-                    key={id}
-                    onClick={() => setFilter(id)}
-                    className={cn(
-                      "cursor-pointer shrink-0 rounded-md px-3 py-2 text-xs font-medium",
-                      filter === id
-                        ? "bg-slate-900 text-white"
-                        : "text-slate-500 hover:bg-slate-50"
-                    )}
-                  >
-                    {label}
-                  </button>
-                ))}
-              </div>
             </section>
             <div className="mt-6 grid gap-5 xl:grid-cols-[minmax(0,1.6fr)_340px]">
               <section
