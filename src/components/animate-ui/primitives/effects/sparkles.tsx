@@ -157,7 +157,6 @@ const SparklesCoreInner = (props: ParticlesProps) => {
               },
               effect: {
                 close: true,
-                fill: true,
                 options: {},
                 type: {} as SingleOrMultiple<string> | undefined,
               },
@@ -166,14 +165,6 @@ const SparklesCoreInner = (props: ParticlesProps) => {
                 angle: {
                   offset: 0,
                   value: 90,
-                },
-                attract: {
-                  distance: 200,
-                  enable: false,
-                  rotate: {
-                    x: 3000,
-                    y: 3000,
-                  },
                 },
                 center: {
                   x: 50,
@@ -214,11 +205,6 @@ const SparklesCoreInner = (props: ParticlesProps) => {
                   enable: false,
                 },
                 straight: false,
-                trail: {
-                  enable: false,
-                  length: 10,
-                  fill: {},
-                },
                 vibrate: false,
                 warp: false,
               },
@@ -265,7 +251,6 @@ const SparklesCoreInner = (props: ParticlesProps) => {
               },
               shape: {
                 close: true,
-                fill: true,
                 options: {},
                 type: "circle",
               },

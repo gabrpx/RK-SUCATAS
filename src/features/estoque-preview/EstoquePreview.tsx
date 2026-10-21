@@ -348,8 +348,8 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [recursos, setRecursos] = useState<RecursosOrganizacao>(RECURSOS_DEMONSTRACAO);
   const [reloadKey, setReloadKey] = useState(0);
   const organizacaoConfirmadaRef = useRef(false);
-  const atualizarEstoque = useCallback(() => {
-    void refreshData();
+  const atualizarEstoque = useCallback(async () => {
+    await refreshData();
   }, [refreshData]);
   // A organização (locais, reservas e capacidades) só precisa ser relida
   // quando uma ação altera esses metadados. Uma edição de preço, ou o evento
@@ -702,7 +702,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         avisar(erro instanceof Error ? erro.message : "Falha ao arquivar a unidade.");
       } finally {
         setProcessando(false);
-        atualizarEstoque();
+        await atualizarEstoque();
       }
       return;
     }
@@ -727,7 +727,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(erro instanceof Error ? erro.message : "Falha ao restaurar a unidade.");
     } finally {
       setRestaurando(null);
-      atualizarEstoque();
+      await atualizarEstoque();
     }
   }
 
@@ -866,7 +866,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       }
       if (!conexaoRealPronta) throw new Error("Conexão indisponível. Atualize o estoque e confira se o cadastro já foi salvo antes de tentar novamente.");
       const resultado = await salvarUnidadeOperacional(entrada, estoque.pecas, estoque.locais ?? [], cacheFotos);
-      atualizarEstoque();
+      await atualizarEstoque();
       avisar(resultado.mensagem);
       return resultado;
     }} />

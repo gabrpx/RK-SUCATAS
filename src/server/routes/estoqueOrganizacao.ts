@@ -5,6 +5,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { exigirAlguma, exigirPermissao, temPermissao } from '../../../middleware/auth.js';
 import type { AuthenticatedRequest } from '../../../middleware/auth.js';
 import { excluirImagemPorUrl, uploadImagem } from '../../services/storageService.js';
+import { fotoEstoqueEmUso } from '../fotoEstoque.js';
 
 const VER = exigirPermissao('estoque.ver');
 const EDITAR = exigirPermissao('estoque.editar');
@@ -358,21 +359,7 @@ export function estoqueOrganizacaoRouter(supabase: SupabaseClient) {
   }
 
   /** true = usada; false = livre; null = não deu para conferir (nada é apagado). */
-  async function fotoEmUso(url: string): Promise<boolean | null> {
-    if ((await detectarRecursos()).baixaAutomatica) {
-      // migration_069: procura em todas as colunas de peça/unidade e anúncios.
-      const { data, error } = await supabase.rpc('foto_estoque_em_uso', { p_url: url });
-      return error ? null : Boolean(data);
-    }
-    // Sem a 069: jsonb precisa do literal JSON no operador "cs" do PostgREST.
-    const [emUnidade, emPeca, emCapa] = await Promise.all([
-      supabase.from('estoque_unidades').select('id').filter('fotos', 'cs', JSON.stringify([url])).limit(1),
-      supabase.from('estoque').select('id').filter('imagens', 'cs', JSON.stringify([url])).limit(1),
-      supabase.from('estoque').select('id').eq('imagem_url', url).limit(1),
-    ]);
-    if (emUnidade.error || emPeca.error || emCapa.error) return null;
-    return Boolean(emUnidade.data?.length || emPeca.data?.length || emCapa.data?.length);
-  }
+  const fotoEmUso = (url: string) => fotoEstoqueEmUso(supabase, url);
 
   let ultimaLimpeza = 0;
   async function limparFotosOrfas(agora = Date.now()) {

@@ -51,7 +51,7 @@ describe('ClienteFormDrawer', () => {
     apiMocks.buscarDuplicidades.mockResolvedValue({ success: true, data: [] });
     apiMocks.criarCliente.mockResolvedValue({ success: true, data: clienteCriado });
     apiMocks.editarCliente.mockResolvedValue({ success: true, data: clienteCriado });
-    global.fetch = vi.fn().mockRejectedValue(new Error('ViaCEP indisponível'));
+    global.fetch = vi.fn().mockRejectedValue(new Error('ViaCEP indisponível')) as unknown as typeof fetch;
   });
 
   afterEach(() => cleanup());
@@ -125,7 +125,7 @@ describe('ClienteFormDrawer', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ uf: 'PB', localidade: 'Juazeirinho', bairro: 'Centro', logradouro: 'Rua da Matriz' }),
-    });
+    }) as unknown as typeof fetch;
     const onSaved = vi.fn();
     renderCreate({
       initialValue: { ...dadosValidos, cidade: '', estado: '', cep: '58660000' },

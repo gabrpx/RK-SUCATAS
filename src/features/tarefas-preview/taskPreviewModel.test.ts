@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mapParticipantReadReceipts, startPreviewTask } from "./taskPreviewModel";
+import { mapParticipantReadReceipts, mergePreviewTasksFromServer, startPreviewTask } from "./taskPreviewModel";
 import type { PreviewTask } from "./taskPreviewModel";
 
 const pendingTask: PreviewTask = {
@@ -21,6 +21,24 @@ describe("startPreviewTask", () => {
 
     expect(started.status).toBe("em-andamento");
     expect(started).not.toBe(pendingTask);
+  });
+});
+
+describe("mergePreviewTasksFromServer", () => {
+  it("preserva em-andamento durante o polling quando o servidor ainda retorna aguardando", () => {
+    const local = [{ ...pendingTask, status: "em-andamento" as const }];
+    const incoming = [{ ...pendingTask, title: "Título atualizado" }];
+
+    expect(mergePreviewTasksFromServer(local, incoming)).toEqual([
+      { ...incoming[0], status: "em-andamento" },
+    ]);
+  });
+
+  it("aceita a conclusão persistida pelo servidor", () => {
+    const local = [{ ...pendingTask, status: "em-andamento" as const }];
+    const incoming = [{ ...pendingTask, status: "concluida" as const }];
+
+    expect(mergePreviewTasksFromServer(local, incoming)).toEqual(incoming);
   });
 });
 

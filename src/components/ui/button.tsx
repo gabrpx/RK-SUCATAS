@@ -1,4 +1,5 @@
 import * as React from "react"
+import type { HTMLMotionProps } from "motion/react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
 
@@ -74,7 +75,7 @@ function Button({
           data-variant={variant}
           data-size={size}
           className={cn(buttonVariants({ variant, size, className }))}
-          {...props}
+          {...(props as unknown as Omit<HTMLMotionProps<"button">, "children">)}
         >
           {children}
           <RippleButtonRipples color="var(--text-primary)" />

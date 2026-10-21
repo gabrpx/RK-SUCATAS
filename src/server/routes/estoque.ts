@@ -3,7 +3,7 @@
 import { Router } from 'express';
 import { brotliCompressSync, constants as zlibConstants, gzipSync } from 'node:zlib';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { excluirImagemPorUrl } from '../../services/storageService.js';
+import { excluirFotoEstoqueSeOrfa } from '../fotoEstoque.js';
 import { categoriaExigeNota } from '../../features/estoque/categoriaMotor.js';
 import type { Categoria } from '../../types/catalog.js';
 import { anexarPromocoes } from '../../features/promocoes/calculo.js';
@@ -650,7 +650,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (erroCompat) return res.status(400).json({ success: false, error: erroCompat });
 
       for (const url of imagensRemovidas) {
-        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar imagem antiga:', e));
+        excluirFotoEstoqueSeOrfa(supabase, url).catch((e) => console.error('Erro ao limpar imagem antiga:', e));
       }
 
       // Sem isso o item volta pro frontend sem as fichas de unidade e o aviso
@@ -680,7 +680,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (error) throw error;
 
       for (const url of item?.imagens ?? []) {
-        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar imagem:', e));
+        excluirFotoEstoqueSeOrfa(supabase, url).catch((e) => console.error('Erro ao limpar imagem:', e));
       }
 
       res.json({ success: true });
@@ -702,7 +702,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
       for (const item of itens || []) {
         for (const url of item.imagens ?? []) {
-          excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar imagem:', e));
+          excluirFotoEstoqueSeOrfa(supabase, url).catch((e) => console.error('Erro ao limpar imagem:', e));
         }
       }
 
@@ -850,7 +850,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (error) throw error;
 
       for (const url of fotosRemovidas) {
-        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar foto de avaria:', e));
+        excluirFotoEstoqueSeOrfa(supabase, url).catch((e) => console.error('Erro ao limpar foto de avaria:', e));
       }
 
       res.json({ success: true, data });
@@ -868,7 +868,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
       if (error) throw error;
 
       for (const url of unidade?.fotos ?? []) {
-        excluirImagemPorUrl(url).catch((e) => console.error('Erro ao limpar foto de avaria:', e));
+        excluirFotoEstoqueSeOrfa(supabase, url).catch((e) => console.error('Erro ao limpar foto de avaria:', e));
       }
 
       res.json({ success: true });

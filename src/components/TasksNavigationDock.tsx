@@ -191,13 +191,13 @@ export function TasksNavigationDock({
         className="pointer-events-none fixed inset-x-2 bottom-[max(0.65rem,env(safe-area-inset-bottom))] z-[120] flex justify-center"
       >
         <div
+          data-testid="tasks-navigation-desktop"
           data-dock-scroll-region
           className="pointer-events-auto hidden max-w-[calc(100vw-1rem)] items-end gap-1 overflow-x-auto overscroll-x-contain rounded-[1.35rem] border border-slate-200/90 bg-white/80 p-1.5 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:flex sm:gap-1.5 sm:p-2"
         >
-          {mobileMainItems.map((item) => (
+          {items.map((item) => (
             <DockIcon key={item.id} item={item} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
           ))}
-          <PlainDockButton item={{ id: 'more', label: 'Mais opções de navegação', active: mobileMoreActive, icon: mobileMoreOpen ? X : MoreHorizontal, onClick: () => setMobileMoreOpen((open) => !open) }} onTooltipShow={showTooltip} onTooltipHide={() => setTooltip(null)} />
         </div>
 
         <div data-testid="tasks-navigation-mobile" className="pointer-events-auto flex items-end gap-1.5 rounded-[1.35rem] border border-slate-200/90 bg-white/85 p-2 shadow-[0_16px_45px_rgba(15,23,42,0.16)] backdrop-blur-xl lg:hidden">

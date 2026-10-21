@@ -28,7 +28,8 @@ export async function excluirImagemPorUrl(url: string | null | undefined): Promi
   if (!url || !url.includes(`/${BUCKET}/`)) return;
   const path = url.split(`/${BUCKET}/`)[1]?.split('?')[0];
   if (!path) return;
-  await supabase.storage.from(BUCKET).remove([path]);
+  const { error } = await supabase.storage.from(BUCKET).remove([path]);
+  if (error) throw error;
 }
 
 // Comprovantes de PIX — bucket dedicado e PRIVADO (diferente de "estoque"):

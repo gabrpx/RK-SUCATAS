@@ -259,6 +259,27 @@ export function startPreviewTask(task: PreviewTask): PreviewTask {
   return { ...task, status: "em-andamento" };
 }
 
+/**
+ * O backend persiste apenas pendente/concluida. Enquanto uma tarefa sem
+ * checklist está em execução, "em-andamento" é um estado local da interface.
+ * Preservá-lo durante o polling evita que a tarefa volte visualmente para
+ * "aguardando" antes de o usuário concluir a execução.
+ */
+export function mergePreviewTasksFromServer(
+  current: PreviewTask[],
+  incoming: PreviewTask[]
+): PreviewTask[] {
+  const currentById = new Map(current.map((task) => [task.id, task]));
+
+  return incoming.map((task) => {
+    const localTask = currentById.get(task.id);
+    if (task.status === "aguardando" && localTask?.status === "em-andamento") {
+      return { ...task, status: "em-andamento" };
+    }
+    return task;
+  });
+}
+
 export function isCollaborativePreviewTask(task: PreviewTask) {
   return (task.operatorIds?.length ?? 0) > 1;
 }

@@ -44,6 +44,16 @@ describe('<TasksNavigationDock>', () => {
     expect(within(dialog).getByRole('button', { name: 'Sair' })).toBeInTheDocument();
   });
 
+  it('exibe todos os atalhos diretamente na dock desktop e não usa o botão Mais', () => {
+    render(<TasksNavigationDock activeTab="tarefas" onTabChange={vi.fn()} onLogoutClick={vi.fn()} />);
+
+    const desktop = screen.getByTestId('tasks-navigation-desktop');
+    expect(within(desktop).getByRole('button', { name: 'Dashboard' })).toBeInTheDocument();
+    expect(within(desktop).getByRole('button', { name: 'Clientes' })).toBeInTheDocument();
+    expect(within(desktop).getByRole('button', { name: 'Sair' })).toBeInTheDocument();
+    expect(within(desktop).queryByRole('button', { name: 'Mais opções de navegação' })).not.toBeInTheDocument();
+  });
+
   it('renderiza o tooltip fora da região que pode rolar horizontalmente', () => {
     render(<TasksNavigationDock activeTab="tarefas" onTabChange={vi.fn()} onLogoutClick={vi.fn()} />);
 

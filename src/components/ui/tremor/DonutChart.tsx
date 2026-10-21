@@ -178,8 +178,9 @@ const DonutChart = React.forwardRef<HTMLDivElement, DonutChartProps>(
               nameKey={category}
               isAnimationActive={false}
               onClick={handleShapeClick}
-              activeIndex={activeIndex}
-              inactiveShape={renderInactiveShape}
+              shape={(shapeProps: any) => activeIndex === undefined || shapeProps.index === activeIndex
+                ? <Sector {...shapeProps} style={{ outline: 'none' }} />
+                : renderInactiveShape(shapeProps)}
               style={{ outline: 'none' }}
             />
             {showTooltip && (

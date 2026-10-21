@@ -12,14 +12,8 @@ interface AccordionProps {
 }
 
 export function Accordion({ items, type = 'single', defaultValue }: AccordionProps) {
-  const Root = A.Root as React.ComponentType<Record<string, unknown>>;
-  return (
-    <Root
-      type={type}
-      collapsible={type === 'single' ? true : undefined}
-      defaultValue={defaultValue}
-      className="divide-y divide-border-subtle rounded-card border border-border-default overflow-hidden"
-    >
+  const content = (
+    <>
       {items.map((it) => (
         <A.Item key={it.key} value={it.key}>
           <A.Header>
@@ -33,6 +27,17 @@ export function Accordion({ items, type = 'single', defaultValue }: AccordionPro
           </A.Content>
         </A.Item>
       ))}
-    </Root>
+    </>
+  );
+  const className = 'divide-y divide-border-subtle rounded-card border border-border-default overflow-hidden';
+
+  return type === 'multiple' ? (
+    <A.Root type="multiple" defaultValue={Array.isArray(defaultValue) ? defaultValue : undefined} className={className}>
+      {content}
+    </A.Root>
+  ) : (
+    <A.Root type="single" collapsible defaultValue={typeof defaultValue === 'string' ? defaultValue : undefined} className={className}>
+      {content}
+    </A.Root>
   );
 }

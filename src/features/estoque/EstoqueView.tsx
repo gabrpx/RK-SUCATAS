@@ -151,7 +151,7 @@ function AnuncioBadge({ label, canal, count, onAbrir }: { label: string; canal: 
 // Cabeçalho clicável reaproveitado pelas colunas Peça/Valor/Qtd — 3 estados
 // do próprio TanStack (asc -> desc -> nenhum) em vez do sortKey único-sentido
 // de antes.
-function SortableHead({ column, label, align }: { column: Column<Estoque, unknown>; label: string; align?: 'right' }) {
+function SortableHead<TData>({ column, label, align }: { column: Column<TData, unknown>; label: string; align?: 'right' }) {
   const ordenado = column.getIsSorted();
   return (
     <button

@@ -222,10 +222,11 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
     return mapUpdatedTask(taskId, tarefasApi.alternarItem(taskId, checklistId));
   }, [mapUpdatedTask]);
 
-  const onAdvanceTask = useCallback(async (task: PreviewTask) => {
+  const onAdvanceTask = useCallback(async (task: PreviewTask, nextStatus: PreviewTask['status']) => {
     const real = taskList.find((item) => item.id === task.id);
     if (!real) return null;
-    const result = real.status === 'concluida' ? tarefasApi.reabrir(real.id) : tarefasApi.concluir(real.id);
+    if (nextStatus === 'em-andamento') return tarefaParaPreview(real);
+    const result = nextStatus === 'concluida' ? tarefasApi.concluir(real.id) : tarefasApi.reabrir(real.id);
     return mapUpdatedTask(real.id, result);
   }, [mapUpdatedTask, taskList]);
 

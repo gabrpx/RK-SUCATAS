@@ -37,6 +37,7 @@ import {
   getPreviewTaskDeadline,
   getPreviewTaskExecutionSummary,
   getPreviewSummary,
+  mergePreviewTasksFromServer,
   sortPreviewTasksForQueue,
   startPreviewTask,
   type PreviewTask,
@@ -1565,8 +1566,20 @@ export function TasksPreview({
   useEffect(() => {
     // Não sobrescreve tasks enquanto o composer estiver aberto — evita perda
     // do progresso de criação de tarefa quando o poll de 20s retorna novos dados.
-    if (initialTasks && !composerOpenRef.current) setTasks(initialTasks);
+    if (initialTasks && !composerOpenRef.current) {
+      setTasks((current) => mergePreviewTasksFromServer(current, initialTasks));
+    }
   }, [initialTasks]);
+
+  useEffect(() => {
+    if (!selectedTask) return;
+    const latestTask = tasks.find((task) => task.id === selectedTask.id);
+    if (!latestTask) {
+      setSelectedTask(null);
+      return;
+    }
+    if (latestTask !== selectedTask) setSelectedTask(latestTask);
+  }, [selectedTask, tasks]);
 
   useEffect(() => {
     if (initialReminders) setReminders(initialReminders);
@@ -1700,7 +1713,9 @@ export function TasksPreview({
     const task = tasks.find((item) => item.id === taskId);
     if (!task || task.paused) return;
     if (task.status === "aguardando") {
-      setTasks((current) => current.map((item) => item.id === taskId ? startPreviewTask(item) : item));
+      const startedTask = startPreviewTask(task);
+      setTasks((current) => current.map((item) => item.id === taskId ? startedTask : item));
+      setSelectedTask((current) => current?.id === taskId ? startedTask : current);
       return;
     }
     const nextStatus = getNextPreviewTaskStatus(task.status);

@@ -71,7 +71,7 @@ describe('ClienteFormModal', () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       json: async () => ({ uf: 'PB', localidade: 'Juazeirinho', bairro: 'Centro', logradouro: 'Rua A' }),
-    });
+    }) as unknown as typeof fetch;
     const onFormChange = vi.fn();
     const { rerender } = render(<ClienteFormModal aberto {...baseProps} onFormChange={onFormChange} />);
     rerender(<ClienteFormModal aberto {...baseProps} form={{ ...baseProps.form, cep: '58500000' }} onFormChange={onFormChange} />);
