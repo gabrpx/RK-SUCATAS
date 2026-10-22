@@ -19,6 +19,7 @@ vi.mock("@/src/components/ui/Combobox", () => ({
 
 const categorias = [{ id: "cat-farol", nome: "Farol", parent_id: null, ordem: 0 }];
 const modelos = [{ id: "moto-cg", nome: "CG 160", parent_id: null, ordem: 0, ano: null, imagem_url: null }];
+const pecas = [{ id: "peca-farol", codigoLegado: "RK-001", nome: "Farol CG 160", categoriaId: "cat-farol", compatibilidades: ["CG 160"], detalhes: "", origemDado: "real" as const }];
 
 function preencher(nome: string) {
   fireEvent.change(screen.getByLabelText("Nome da peça"), { target: { value: nome } });
@@ -28,7 +29,7 @@ function preencher(nome: string) {
 
 describe("BulkInventoryComposer", () => {
   it("enfileira peças, permite remover uma e mostra a quantidade no botão final", () => {
-    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} onFechar={() => {}} onSalvarItem={vi.fn()} />);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={vi.fn()} />);
 
     preencher("Farol CG 160");
     fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
@@ -41,7 +42,7 @@ describe("BulkInventoryComposer", () => {
 
   it("salva a fila e exibe o resumo de sucesso", async () => {
     const onSalvarItem = vi.fn().mockResolvedValue(undefined);
-    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} onFechar={() => {}} onSalvarItem={onSalvarItem} />);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);
 
     preencher("Farol CG 160");
     fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
@@ -52,5 +53,18 @@ describe("BulkInventoryComposer", () => {
     await waitFor(() => expect(onSalvarItem).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("Tudo salvo no estoque")).toBeTruthy();
     expect(screen.getByText(/2 peças foram adicionadas/i)).toBeTruthy();
+  });
+
+  it("enfileira uma unidade de peça existente sem transformar o cadastro em peça nova", async () => {
+    const onSalvarItem = vi.fn().mockResolvedValue(undefined);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);
+
+    fireEvent.click(screen.getByRole("button", { name: "Adicionar existente" }));
+    fireEvent.click(screen.getByRole("option", { name: /Farol CG 160/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    fireEvent.click(screen.getByRole("button", { name: /concluir adições \(1\)/i }));
+
+    await waitFor(() => expect(onSalvarItem).toHaveBeenCalledWith(expect.objectContaining({ modo: "existente", pecaId: "peca-farol", nome: "Farol CG 160" })));
+    expect(await screen.findByText("Tudo salvo no estoque")).toBeTruthy();
   });
 });
