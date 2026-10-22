@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.16',
+    data: '2026-10-22',
+    titulo: 'Conclusão de tarefas alinhada ao checklist',
+    itens: [
+      { tipo: 'fix', texto: 'Tarefas com checklist agora deixam claro que a conclusão acontece ao marcar todos os itens, evitando o botão manual que fazia a tarefa parecer pendente novamente.' },
+      { tipo: 'melhoria', texto: 'A aba Concluídas continua disponível com a contagem e o filtro das tarefas já finalizadas.' },
+    ],
+  },
+  {
     versao: '1.7.15',
     data: '2026-10-05',
     titulo: 'Clientes pensado para o celular',

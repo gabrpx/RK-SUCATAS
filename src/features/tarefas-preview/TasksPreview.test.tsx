@@ -104,4 +104,22 @@ describe('<TasksPreview>', () => {
       ?.closest('article');
     expect(article).toHaveClass('border-emerald-200', 'bg-emerald-50/40');
   });
+
+  it('não oferece conclusão manual para tarefas com checklist', () => {
+    render(
+      <TasksPreview
+        integrated
+        initialTasks={[{
+          ...tarefa('checklist-1', 'Conferir peça', 'em-andamento'),
+          checklist: [{ id: 'item-1', label: 'Conferir fotos', completed: false, owner: 'ayrton' }],
+        }]}
+        initialReminders={[]}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: /Conferir peça Instruções/i }));
+
+    expect(screen.queryByRole('button', { name: /Concluir tarefa/i })).not.toBeInTheDocument();
+    expect(screen.getByText('Marque todos os itens do checklist para concluir a tarefa.')).toBeInTheDocument();
+  });
 });

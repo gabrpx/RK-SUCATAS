@@ -800,6 +800,7 @@ function TaskInspector({
   if (!task) return null;
   const taskProgress = progress(task);
   const execution = getPreviewTaskExecutionSummary(task);
+  const checklistDriven = task.checklist.length > 0;
   const elapsedMinutes = Math.min(
     task.estimateMinutes,
     Math.max(
@@ -1126,6 +1127,12 @@ function TaskInspector({
         </div>
         {task.paused ? (
           <p className="text-xs font-medium text-orange-700">Retome a tarefa para continuar a execução.</p>
+        ) : checklistDriven ? (
+          <p className="max-w-[280px] text-right text-xs font-medium text-slate-600">
+            {task.status === "concluida"
+              ? "Desmarque um item do checklist para reabrir a tarefa."
+              : "Marque todos os itens do checklist para concluir a tarefa."}
+          </p>
         ) : (
           <Button
             onClick={() => onAdvanceStatus(task.id)}
@@ -1721,21 +1728,29 @@ export function TasksPreview({
 
   const advanceTaskStatus = async (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId);
-    if (!task || task.paused) return;
+    // Tarefas com checklist não têm transição manual: o backend deriva o
+    // status a partir dos itens e rejeita /concluir e /reabrir nesse caso.
+    if (!task || task.paused || task.checklist.length > 0) return;
+    setActionError(null);
     if (task.status === "aguardando") {
       const startedTask = startPreviewTask(task);
       setTasks((current) => current.map((item) => item.id === taskId ? startedTask : item));
       setSelectedTask((current) => current?.id === taskId ? startedTask : current);
       return;
     }
-    const nextStatus = getNextPreviewTaskStatus(task.status);
-    const updated = await onAdvanceTask?.(task, nextStatus);
-    if (updated) {
-      setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));
-      return;
+    try {
+      const nextStatus = getNextPreviewTaskStatus(task.status);
+      const updated = await onAdvanceTask?.(task, nextStatus);
+      if (updated) {
+        setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));
+        setSelectedTask((current) => current?.id === updated.id ? updated : current);
+        return;
+      }
+      if (onAdvanceTask) return;
+      setTasks((current) => current.map((item) => item.id === taskId ? { ...item, status: nextStatus } : item));
+    } catch (error: unknown) {
+      setActionError(error instanceof Error ? error.message : "Não foi possível atualizar a tarefa");
     }
-    if (onAdvanceTask) return;
-    setTasks((current) => current.map((item) => item.id === taskId ? { ...item, status: nextStatus } : item));
   };
 
   const pauseTask = async (taskId: string, reason: string) => {
