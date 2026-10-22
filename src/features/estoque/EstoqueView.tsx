@@ -1421,7 +1421,7 @@ export function EstoqueView({
               editingItem ? (
                 <button
                   onClick={() => handleSave(false)}
-                  disabled={isSaving || isUploadingImagem}
+                  disabled={isSaving || isUploadingImagem || Number(formData.valor) === Number(editingItem.valor)}
                   className="w-full h-12 rounded-control bg-accent text-white font-semibold text-xs uppercase tracking-[0.2em] shadow-sm flex items-center justify-center gap-2 hover:opacity-90 disabled:opacity-50"
                 >
                   {isSaving ? <Loader2 size={18} className="animate-spin" /> : 'Salvar alterações'}
@@ -1698,6 +1698,8 @@ export function EstoqueView({
                       inputMode="decimal"
                       value={formatCurrencyInput(String(Math.round((formData.valor || 0) * 100)))}
                       onChange={(e) => setFormData({ ...formData, valor: parseCurrencyInput(e.target.value) })}
+                      onKeyDown={(e) => { if (e.key === 'Enter' && editingItem && Number(formData.valor) !== Number(editingItem.valor)) { e.preventDefault(); void handleSave(false); } }}
+                      aria-label="Valor da peça"
                       className={inputClass}
                     />
                   </div>
