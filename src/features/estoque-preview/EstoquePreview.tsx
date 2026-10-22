@@ -582,7 +582,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
   }
 
-  async function salvarPecaEmLote(item: BulkPieceDraft) {
+  async function salvarPecaEmLote(item: BulkPieceDraft, recarregar = true, pecasDisponiveis = estoque.pecas): Promise<string> {
     if (!conexaoPermiteGravar && fonte === "real") throw new Error("Conexão indisponível. Atualize o estoque antes de adicionar peças.");
 
     if (item.modo === "existente") {
@@ -598,12 +598,12 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       };
       if (fonte === "demo") {
         setEstoque((atual) => adicionarUnidade(atual, entradaExistente));
-        return;
+        return item.pecaId;
       }
-      const resultado = await salvarUnidadeOperacional(entradaExistente, estoque.pecas, estoque.locais ?? []);
+      const resultado = await salvarUnidadeOperacional(entradaExistente, pecasDisponiveis, estoque.locais ?? []);
       if (!resultado.completo) throw new Error(`${resultado.mensagem} Não repita a adição: confira a ficha criada no estoque.`);
-      await atualizarEstoque();
-      return;
+      if (recarregar) await atualizarEstoque();
+      return resultado.pecaId;
     }
 
     const chaveMoto = item.motoNome.trim().toLocaleLowerCase("pt-BR");
@@ -639,12 +639,43 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
 
     if (fonte === "demo") {
       setEstoque((atual) => adicionarUnidade(atual, entrada));
-      return;
+      return `demo-${item.nome}`;
     }
 
-    const resultado = await salvarUnidadeOperacional(entrada, estoque.pecas, estoque.locais ?? []);
+    const resultado = await salvarUnidadeOperacional(entrada, pecasDisponiveis, estoque.locais ?? []);
     if (!resultado.completo) throw new Error(`${resultado.mensagem} Não repita o cadastro: confira a ficha criada no estoque.`);
-    await atualizarEstoque();
+    if (recarregar) await atualizarEstoque();
+    return resultado.pecaId;
+  }
+
+  async function salvarPecasEmLote(itens: BulkPieceDraft[]) {
+    let pecasDaSessao = estoque.pecas;
+    for (const item of itens) {
+      let pecaId = item.modo === "existente" ? item.pecaId : undefined;
+      for (let indice = 0; indice < item.quantidade; indice += 1) {
+        const fotos = item.fotosPorUnidade?.[indice] ?? item.fotos;
+        const modoAntesDoCadastro = pecaId ? "existente" : item.modo;
+        pecaId = await salvarPecaEmLote({
+          ...item,
+          modo: modoAntesDoCadastro,
+          pecaId,
+          quantidade: 1,
+          fotos,
+        }, false, pecasDaSessao);
+        if (modoAntesDoCadastro === "nova" && fonte === "real") {
+          pecasDaSessao = [...pecasDaSessao, {
+            id: pecaId,
+            codigoLegado: "",
+            nome: item.nome,
+            categoriaId: item.categoriaId,
+            compatibilidades: [item.motoNome],
+            detalhes: "",
+            origemDado: "real",
+          }];
+        }
+      }
+    }
+    if (fonte === "real") await atualizarEstoque();
   }
 
   async function reservar(reserva: ReservaUnidadeInput): Promise<boolean> {
@@ -1035,7 +1066,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       {aba === "arquivados" && <section className="rounded-card border border-border-default bg-surface-card p-5"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Histórico preservado</p><h2 className="mt-1 text-xl font-semibold">{fonte === "real" ? "Unidades fora do ativo" : "Itens arquivados"}</h2><p className="mt-1 text-sm text-text-muted">Arquivar tira do estoque ativo, mas não apaga a rastreabilidade. Vendas aparecem aqui só para consulta.</p><div className="mt-4">{campoBusca}</div><div className="mt-4 space-y-2"><AnimatePresence initial={false}>{arquivados.map((unidade) => <motion.div layout key={unidade.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-default p-3"><button type="button" onClick={() => setUnidadeDetalhando(unidade)} aria-label={`Ver ficha de ${unidade.sku}`} className="min-w-0 flex-1 rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><strong>{unidade.sku}</strong><p className="mt-1 text-xs text-text-muted">{pecaPorId(unidade.pecaId)?.nome} · {unidade.vendidaEm ? "Vendida" : unidade.motivoArquivamento ?? "Arquivada"}</p></button>{!unidade.vendidaEm && podeAlterar && <button type="button" aria-label={`Restaurar ${unidade.sku}`} disabled={restaurando === unidade.id} onClick={() => void restaurar(unidade)} className={botaoSecundario}>{restaurando === unidade.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}Restaurar</button>}</motion.div>)}</AnimatePresence>{!arquivados.length && <p className="rounded-control border border-dashed border-border-default p-6 text-center text-sm text-text-muted">Nenhuma unidade fora do ativo.</p>}</div></section>}
       </motion.div></AnimatePresence>}
     </main>
-    <BulkInventoryComposer aberto={bulkComposerAberto} categorias={categoriasReais.length ? categoriasReais : estoque.categorias.map((categoria, ordem) => ({ id: categoria.id, nome: categoria.nome, parent_id: null, ordem }))} modelos={modelosMoto} pecas={estoque.pecas} onFechar={() => setBulkComposerAberto(false)} onSalvarItem={salvarPecaEmLote} />
+    <BulkInventoryComposer aberto={bulkComposerAberto} categorias={categoriasReais.length ? categoriasReais : estoque.categorias.map((categoria, ordem) => ({ id: categoria.id, nome: categoria.nome, parent_id: null, ordem }))} modelos={modelosMoto} pecas={estoque.pecas} onFechar={() => setBulkComposerAberto(false)} onSalvarItem={(item) => salvarPecaEmLote(item).then(() => undefined)} onSalvarItens={salvarPecasEmLote} />
     <InventoryComposer aberto={composerAberto} pecaInicialId={pecaParaUnidade} categorias={estoque.categorias} pecas={estoque.pecas} unidades={estoque.unidades} modelos={modelosMoto} enderecos={fonte === "real" ? enderecosReais : undefined} operacional={fonte === "real"} onFechar={() => { setComposerAberto(false); setPecaParaUnidade(null); }} onDescartarFotos={(urls) => { if (fonte === "real") void organizacaoApi.descartarFotos(urls).catch(() => undefined); }} onSalvar={async (entrada, cacheFotos) => {
       if (fonte === "demo") {
         setEstoque((atual) => adicionarUnidade(atual, entrada));

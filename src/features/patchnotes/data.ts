@@ -18,6 +18,16 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.20',
+    data: '2026-10-22',
+    titulo: 'Adição em massa agrupada e mais rápida',
+    itens: [
+      { tipo: 'fix', texto: 'Peças novas idênticas na mesma fila agora são agrupadas como unidades da mesma peça, evitando cadastros espalhados.' },
+      { tipo: 'melhoria', texto: 'O envio em lote atualiza o estoque uma única vez ao final e mantém a peça criada disponível para as próximas unidades.' },
+      { tipo: 'melhoria', texto: 'Fotos da mesma unidade são processadas em paralelo para reduzir o tempo total do cadastro.' },
+    ],
+  },
+  {
     versao: '1.7.19',
     data: '2026-10-22',
     titulo: 'Fila de cadastro em massa mais segura',

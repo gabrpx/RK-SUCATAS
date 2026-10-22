@@ -56,6 +56,22 @@ describe("BulkInventoryComposer", () => {
     expect(screen.getByText(/2 peças foram adicionadas/i)).toBeTruthy();
   });
 
+  it("agrega peças novas idênticas na fila e mantém a quantidade de unidades", async () => {
+    const onSalvarItem = vi.fn().mockResolvedValue(undefined);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);
+
+    preencher("Banco CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    preencher(" banco   cg 160 ");
+    expect(screen.getByText(/será agregada automaticamente/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+
+    expect(screen.getByText(/2 unidades/i)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /concluir adições \(2\)/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /concluir adições \(2\)/i }));
+    await waitFor(() => expect(onSalvarItem).toHaveBeenCalledTimes(2));
+  });
+
   it("enfileira uma unidade de peça existente sem transformar o cadastro em peça nova", async () => {
     const onSalvarItem = vi.fn().mockResolvedValue(undefined);
     render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);

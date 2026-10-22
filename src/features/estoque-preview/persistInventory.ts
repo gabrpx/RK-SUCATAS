@@ -30,17 +30,15 @@ function notaDoGrau(grau: NovaUnidadeInput['grau']) {
  * chegaram a ser gravadas (ver `organizacaoApi.descartarFotos`).
  */
 export async function enviarFotosComCache(fotos: File[], cache: Map<File, string>): Promise<string[]> {
-  const urls: string[] = [];
-  for (const foto of fotos) {
+  return Promise.all(fotos.map(async (foto) => {
     const existente = cache.get(foto);
-    if (existente) { urls.push(existente); continue; }
+    if (existente) return existente;
     const { arquivo } = await comprimirImagem(foto);
     const resposta = await enviarFotoUnidade(arquivo);
     if (!resposta.success || !resposta.url) throw new Error(resposta.error || `Falha ao enviar ${foto.name}. Nenhuma peça foi criada.`);
     cache.set(foto, resposta.url);
-    urls.push(resposta.url);
-  }
-  return urls;
+    return resposta.url;
+  }));
 }
 
 export async function salvarUnidadeOperacional(
