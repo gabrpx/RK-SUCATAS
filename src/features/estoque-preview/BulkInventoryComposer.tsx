@@ -1,5 +1,5 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Check, CheckCircle2, ImagePlus, ListPlus, Loader2, Plus, Sparkles, Trash2, X } from "lucide-react";
+import { Check, CheckCircle2, ImagePlus, ListPlus, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Combobox } from "@/src/components/ui/Combobox";
 import { EstoqueUploadFotos } from "../estoque/EstoqueUploadFotos";
@@ -7,8 +7,8 @@ import { encontrarCategoriaPorNome } from "../estoque/matchCategoria";
 import { encontrarModeloPorNome } from "../estoque/matchModelo";
 import { formatarNomeModeloMoto } from "../motos/nomeModelo";
 import type { Categoria, ModeloMoto } from "@/src/types/catalog";
-import { InventoryDrawer } from "./InventoryDrawer";
-import type { PecaEstoque } from "./inventoryPreviewModel";
+import { InventoryDialog, InventoryDrawer } from "./InventoryDrawer";
+import type { GrauUnidade, PecaEstoque } from "./inventoryPreviewModel";
 
 type BulkPieceMode = "nova" | "existente";
 
@@ -18,6 +18,7 @@ export interface BulkPieceDraft {
   nome: string;
   categoriaId: string;
   motoNome: string;
+  grau: GrauUnidade;
   fotos: File[];
 }
 
@@ -54,6 +55,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
   const [nome, setNome] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [motoNome, setMotoNome] = useState("");
+  const [grau, setGrau] = useState<GrauUnidade>("B");
   const [fotos, setFotos] = useState<File[]>([]);
   const [categoriaEditada, setCategoriaEditada] = useState(false);
   const [motoEditada, setMotoEditada] = useState(false);
@@ -61,6 +63,8 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
   const [salvando, setSalvando] = useState(false);
   const [concluido, setConcluido] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
+  const [indiceEditando, setIndiceEditando] = useState<number | null>(null);
+  const [confirmandoSaida, setConfirmandoSaida] = useState(false);
 
   const pecaEscolhida = useMemo(() => pecas.find((peca) => peca.id === pecaId), [pecas, pecaId]);
   const pecasEncontradas = useMemo(() => {
@@ -92,6 +96,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setBuscaPeca("");
       setCategoriaId("");
       setMotoNome("");
+      setGrau("B");
       setFotos([]);
       setCategoriaEditada(false);
       setMotoEditada(false);
@@ -99,6 +104,8 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setSalvando(false);
       setConcluido(false);
       setErro(null);
+      setIndiceEditando(null);
+      setConfirmandoSaida(false);
     }
   }, [aberto]);
 
@@ -122,6 +129,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
     setNome("");
     setCategoriaId("");
     setMotoNome("");
+    setGrau("B");
     setFotos([]);
     setCategoriaEditada(false);
     setMotoEditada(false);
@@ -142,8 +150,37 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setErro(mensagem);
       return;
     }
-    setFila((atual) => [...atual, { modo, pecaId: modo === "existente" ? pecaId : undefined, nome: nome.trim(), categoriaId, motoNome: motoNome.trim(), fotos }]);
+    const item: BulkPieceDraft = { modo, pecaId: modo === "existente" ? pecaId : undefined, nome: nome.trim(), categoriaId, motoNome: motoNome.trim(), grau, fotos };
+    setFila((atual) => indiceEditando === null ? [...atual, item] : atual.map((anterior, index) => index === indiceEditando ? item : anterior));
+    setIndiceEditando(null);
     limparFormulario();
+  }
+
+  function editarItem(index: number) {
+    const item = fila[index];
+    if (!item || salvando) return;
+    setIndiceEditando(index);
+    setModo(item.modo);
+    setPecaId(item.pecaId ?? "");
+    setBuscaPeca(item.nome);
+    setNome(item.nome);
+    setCategoriaId(item.categoriaId);
+    setMotoNome(item.motoNome);
+    setGrau(item.grau);
+    setFotos(item.fotos);
+    setCategoriaEditada(true);
+    setMotoEditada(true);
+    setErro(null);
+  }
+
+  function solicitarFechamento() {
+    if (salvando) return;
+    const formularioPreenchido = Boolean(pecaId || nome.trim() || categoriaId || motoNome.trim() || fotos.length);
+    if (concluido || (!fila.length && !formularioPreenchido)) {
+      onFechar();
+      return;
+    }
+    setConfirmandoSaida(true);
   }
 
   async function concluirAdicoes() {
@@ -169,9 +206,10 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
   }
 
   return (
-    <InventoryDrawer
+    <>
+      <InventoryDrawer
       isOpen={aberto}
-      onClose={onFechar}
+      onClose={solicitarFechamento}
       title={concluido ? "Adições concluídas" : "Adicionar peças em massa"}
       footer={concluido ? (
         <button type="button" onClick={onFechar} className="inline-flex h-11 items-center gap-2 rounded-control bg-accent px-4 text-sm font-semibold text-white transition hover:bg-accent-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40">
@@ -179,9 +217,9 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
         </button>
       ) : (
         <div className="flex w-full items-center justify-between gap-3">
-          <button type="button" disabled={salvando} onClick={onFechar} className="h-11 rounded-control px-3 text-sm font-medium text-text-muted transition hover:bg-surface-raised hover:text-text-primary disabled:opacity-50">Cancelar</button>
+          <button type="button" disabled={salvando} onClick={solicitarFechamento} className="h-11 rounded-control px-3 text-sm font-medium text-text-muted transition hover:bg-surface-raised hover:text-text-primary disabled:opacity-50">Cancelar</button>
           <div className="flex items-center gap-2">
-            <button type="button" disabled={salvando} onClick={proxima} className="inline-flex h-11 items-center gap-2 rounded-control border border-border-default bg-surface-card px-4 text-sm font-semibold text-text-secondary transition hover:border-accent/40 hover:text-accent disabled:opacity-50"><Plus size={16} />Próxima</button>
+            <button type="button" disabled={salvando} onClick={proxima} className="inline-flex h-11 items-center gap-2 rounded-control border border-border-default bg-surface-card px-4 text-sm font-semibold text-text-secondary transition hover:border-accent/40 hover:text-accent disabled:opacity-50"><Plus size={16} />{indiceEditando === null ? "Próxima" : "Atualizar item"}</button>
             <button type="button" disabled={salvando || fila.length === 0} onClick={() => void concluirAdicoes()} className="inline-flex h-11 items-center gap-2 rounded-control bg-accent px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-accent-hover disabled:cursor-not-allowed disabled:opacity-50">{salvando ? <Loader2 size={16} className="animate-spin" /> : <Check size={16} />}Concluir adições ({fila.length})</button>
           </div>
         </div>
@@ -205,9 +243,9 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
         ) : (
           <motion.div key="formulario" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
             <div className="rounded-control border border-accent/20 bg-accent-soft-bg/50 p-4"><p className="flex items-center gap-2 text-sm font-semibold text-accent-soft-fg"><ListPlus size={16} />Cadastro rápido, complemento depois</p><p className="mt-1 text-xs leading-5 text-text-secondary">Cadastre uma peça nova ou adicione outra unidade a uma peça que já existe, sem duplicar o cadastro.</p></div>
-            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{fila.length} {fila.length === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.fotos.length ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · {categorias.find((categoria) => categoria.id === item.categoriaId)?.nome} · {item.fotos.length} {item.fotos.length === 1 ? "foto" : "fotos"}</p></div><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index))} className="grid size-9 shrink-0 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></motion.div>)}</div></section>}
+            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{fila.length} {fila.length === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.fotos.length ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · Grau {item.grau} · {item.fotos.length} {item.fotos.length === 1 ? "foto" : "fotos"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label={`Editar ${item.nome}`} disabled={salvando} onClick={() => editarItem(index)} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-accent-soft-bg hover:text-accent-soft-fg disabled:opacity-50"><Pencil size={15} /></button><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index))} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></div></motion.div>)}</div></section>}
             <section className="space-y-4" aria-labelledby="bulk-identificar">
-              <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">Próxima peça</p><h3 id="bulk-identificar" className="mt-1 text-lg font-semibold text-text-primary">O que entrou no galpão?</h3></div>
+              <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">{indiceEditando === null ? "Próxima peça" : "Editando item da fila"}</p><h3 id="bulk-identificar" className="mt-1 text-lg font-semibold text-text-primary">O que entrou no galpão?</h3></div>
               <div role="group" aria-label="Tipo de adição" className="grid grid-cols-2 gap-1 rounded-control border border-border-default bg-surface-inset p-1">
                 <button type="button" aria-pressed={modo === "nova"} onClick={() => { setModo("nova"); setPecaId(""); setBuscaPeca(""); setNome(""); setCategoriaId(""); setMotoNome(""); setMotoEditada(false); setCategoriaEditada(false); setErro(null); }} className={`min-h-10 rounded-[6px] px-3 text-sm font-semibold transition ${modo === "nova" ? "bg-surface-card text-accent-soft-fg shadow-sm" : "text-text-muted hover:text-text-primary"}`}>Peça nova</button>
                 <button type="button" aria-pressed={modo === "existente"} onClick={() => { setModo("existente"); setPecaId(""); setBuscaPeca(""); setNome(""); setCategoriaId(""); setMotoNome(""); setMotoEditada(false); setErro(null); }} className={`min-h-10 rounded-[6px] px-3 text-sm font-semibold transition ${modo === "existente" ? "bg-surface-card text-accent-soft-fg shadow-sm" : "text-text-muted hover:text-text-primary"}`}>Adicionar existente</button>
@@ -223,6 +261,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
                 {modo === "nova" ? <Combobox label="Categoria" placeholder="Sugerida pelo nome" options={categorias.map((categoria) => ({ value: categoria.id, label: categoria.nome }))} value={categoriaId} onChange={(valor) => { setCategoriaEditada(true); setCategoriaId(valor); }} size="lg" /> : <div className="rounded-control border border-border-default bg-surface-inset px-3 py-2.5"><p className="text-xs font-semibold text-text-muted">Categoria</p><p className="mt-1 truncate text-sm text-text-primary">{categorias.find((categoria) => categoria.id === categoriaId)?.nome ?? "Da peça existente"}</p></div>}
                 <label className="block text-sm font-semibold text-text-secondary">Moto compatível<input aria-label="Moto compatível" list="bulk-motos-catalogo" className={inputClass} value={motoNome} onChange={(event) => { setMotoEditada(true); setMotoNome(event.target.value); }} placeholder="Pode ser uma moto nova" /><datalist id="bulk-motos-catalogo">{modelos.map((modelo) => <option key={modelo.id} value={nomeModelo(modelo, modelos)} />)}</datalist></label>
               </div>
+              <fieldset><legend className="text-sm font-semibold text-text-secondary">Grau da unidade</legend><p className="mt-1 text-xs font-normal text-text-muted">Você pode ajustar depois na ficha da peça.</p><div className="mt-2 grid grid-cols-3 gap-2">{(["A", "B", "C"] as GrauUnidade[]).map((opcao) => <button key={opcao} type="button" aria-pressed={grau === opcao} onClick={() => setGrau(opcao)} className={`min-h-11 rounded-control border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 ${grau === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-muted hover:border-accent/30 hover:text-text-primary"}`}>Grau {opcao}</button>)}</div></fieldset>
               {modo === "nova" && (categoriaSugerida || modeloSugerido) && <p className="flex items-center gap-1.5 text-xs text-accent-soft-fg"><Sparkles size={13} />{categoriaSugerida ? `Categoria sugerida: ${categoriaSugerida.nome}.` : ""}{modeloSugerido ? ` Moto encontrada no catálogo: ${nomeModelo(modeloSugerido, modelos)}.` : ""}</p>}
               <div><p className="mb-2 text-sm font-semibold text-text-secondary">Fotos da peça <span className="font-normal text-text-faint">(até 10 agora)</span></p><EstoqueUploadFotos imagens={[]} onRemoverImagem={() => undefined} onArquivosSelecionados={(arquivos) => { if (fotos.length + arquivos.length > 10) { setErro("Cada unidade pode ter até 10 fotos."); return; } setErro(null); setFotos((atuais) => [...atuais, ...arquivos]); }} enviando={salvando} resumoCompressao={null} />{fotos.length > 0 && <ul className="mt-2 space-y-1" aria-label="Fotos selecionadas">{fotos.map((foto, indice) => <li key={`${foto.name}-${indice}`} className="flex items-center justify-between gap-3 rounded-control border border-positive/25 bg-positive-bg px-3 py-2 text-xs text-positive"><span className="flex min-w-0 items-center gap-2"><CheckCircle2 size={14} /><span className="truncate">{foto.name}</span></span><button type="button" aria-label={`Remover ${foto.name}`} disabled={salvando} onClick={() => setFotos((atuais) => atuais.filter((_, fotoIndex) => fotoIndex !== indice))} className="rounded p-1 hover:bg-white/50"><X size={14} /></button></li>)}</ul>}</div>
               {erro && <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg p-3 text-sm text-danger">{erro}</p>}
@@ -230,6 +269,8 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
           </motion.div>
         )}
       </AnimatePresence>
-    </InventoryDrawer>
+      </InventoryDrawer>
+      <InventoryDialog isOpen={confirmandoSaida} onClose={() => setConfirmandoSaida(false)} title="Sair do cadastro em massa?" description="A fila e o preenchimento atual ainda não foram salvos. Você pode continuar adicionando ou sair e descartar tudo." footer={<><button type="button" onClick={() => setConfirmandoSaida(false)} className="inline-flex min-h-11 items-center rounded-control border border-border-default bg-surface-card px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-raised">Continuar adicionando</button><button type="button" onClick={() => { setConfirmandoSaida(false); onFechar(); }} className="inline-flex min-h-11 items-center rounded-control bg-danger px-4 text-sm font-semibold text-white transition hover:opacity-90">Sair e descartar</button></>} />
+    </>
   );
 }

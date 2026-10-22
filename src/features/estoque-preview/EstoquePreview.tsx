@@ -590,7 +590,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       const entradaExistente = {
         pecaId: item.pecaId,
         preco: null,
-        grau: "B" as const,
+        grau: item.grau,
         origem: item.motoNome,
         fotoUrl: null,
         endereco: null,
@@ -630,7 +630,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         compatibilidades: [item.motoNome],
       },
       preco: null,
-      grau: "B" as const,
+      grau: item.grau,
       origem: item.motoNome,
       fotoUrl: null,
       endereco: null,

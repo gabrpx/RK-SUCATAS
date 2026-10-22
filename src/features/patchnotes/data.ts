@@ -18,6 +18,16 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.19',
+    data: '2026-10-22',
+    titulo: 'Fila de cadastro em massa mais segura',
+    itens: [
+      { tipo: 'melhoria', texto: 'Itens enfileirados agora podem ser editados antes do envio, sem duplicar ou perder os demais.' },
+      { tipo: 'fix', texto: 'Cancelar ou fechar o drawer com itens pendentes pede confirmação antes de descartar a fila.' },
+      { tipo: 'feature', texto: 'O grau A, B ou C pode ser definido para cada peça durante a adição em massa e é salvo junto com a unidade.' },
+    ],
+  },
+  {
     versao: '1.7.18',
     data: '2026-10-22',
     titulo: 'Estoque com fotos múltiplas e cadastros consolidados',

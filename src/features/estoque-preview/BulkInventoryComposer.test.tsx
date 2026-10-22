@@ -7,6 +7,7 @@ afterEach(cleanup);
 
 vi.mock("./InventoryDrawer", () => ({
   InventoryDrawer: ({ isOpen, children, footer }: { isOpen: boolean; children: React.ReactNode; footer: React.ReactNode }) => isOpen ? <div>{children}<footer>{footer}</footer></div> : null,
+  InventoryDialog: ({ isOpen, title, description, footer }: { isOpen: boolean; title: string; description: string; footer: React.ReactNode }) => isOpen ? <div role="dialog"><h2>{title}</h2><p>{description}</p>{footer}</div> : null,
 }));
 
 vi.mock("../estoque/EstoqueUploadFotos", () => ({
@@ -80,5 +81,37 @@ describe("BulkInventoryComposer", () => {
     fireEvent.click(screen.getByRole("button", { name: /concluir adições \(1\)/i }));
 
     await waitFor(() => expect(onSalvarItem).toHaveBeenCalledWith(expect.objectContaining({ fotos: expect.arrayContaining([expect.objectContaining({ name: "farol.jpg" }), expect.objectContaining({ name: "farol-lado.jpg" })]) })));
+  });
+
+  it("permite editar um item da fila sem duplicá-lo e preserva o grau", async () => {
+    const onSalvarItem = vi.fn().mockResolvedValue(undefined);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);
+
+    preencher("Farol CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Grau A" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    fireEvent.click(screen.getByRole("button", { name: "Editar Farol CG 160" }));
+    fireEvent.change(screen.getByLabelText("Nome da peça"), { target: { value: "Farol CG 160 revisado" } });
+    fireEvent.click(screen.getByRole("button", { name: "Atualizar item" }));
+    expect(screen.getByText("Farol CG 160 revisado")).toBeTruthy();
+    expect(screen.getByRole("button", { name: /concluir adições \(1\)/i })).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /concluir adições \(1\)/i }));
+
+    await waitFor(() => expect(onSalvarItem).toHaveBeenCalledWith(expect.objectContaining({ nome: "Farol CG 160 revisado", grau: "A" })));
+  });
+
+  it("protege a fila ao cancelar e só descarta após confirmação", () => {
+    const onFechar = vi.fn();
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={onFechar} onSalvarItem={vi.fn()} />);
+
+    preencher("Farol CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    expect(screen.getByRole("dialog")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Continuar adicionando" }));
+    expect(onFechar).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
+    fireEvent.click(screen.getByRole("button", { name: "Sair e descartar" }));
+    expect(onFechar).toHaveBeenCalledTimes(1);
   });
 });
