@@ -1,4 +1,4 @@
-import { BadgeDollarSign, Check, Loader2, Trash2, X } from "lucide-react";
+import { BadgeDollarSign, Check, ExternalLink, Link2, Loader2, Trash2, X } from "lucide-react";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { InventoryDrawer } from "./InventoryDrawer";
@@ -48,6 +48,8 @@ export function InventoryPieceSummaryDrawer({
   podeExcluir = false,
   onApplyPrices,
   onDeleteItem,
+  onSaveFacebook,
+  onAddMercadoLivre,
 }: {
   resultado: ResultadoBuscaEstoque | null;
   onClose: () => void;
@@ -56,6 +58,8 @@ export function InventoryPieceSummaryDrawer({
   podeExcluir?: boolean;
   onApplyPrices?: (precos: PrecosPorGrau) => Promise<boolean>;
   onDeleteItem?: () => void;
+  onSaveFacebook?: (url: string | null) => Promise<boolean>;
+  onAddMercadoLivre?: (url: string) => Promise<boolean>;
 }) {
   const scroller = useRef<HTMLDivElement>(null);
   const formId = useId();
@@ -66,6 +70,9 @@ export function InventoryPieceSummaryDrawer({
   const [erros, setErros] = useState<Partial<Record<GrauUnidade, string>>>({});
   const [erroEnvio, setErroEnvio] = useState<string | null>(null);
   const [salvando, setSalvando] = useState(false);
+  const [facebook, setFacebook] = useState(resultado?.peca.anuncioFbUrl ?? "");
+  const [novoMl, setNovoMl] = useState("");
+  const [salvandoLink, setSalvandoLink] = useState(false);
   const unidadesOrdenadas = useMemo(() => resultado
     ? [...resultado.unidades].sort((a, b) => ({ A: 0, B: 1, C: 2 })[a.grau] - ({ A: 0, B: 1, C: 2 })[b.grau])
     : [], [resultado]);
@@ -78,6 +85,8 @@ export function InventoryPieceSummaryDrawer({
     setValores({});
     setErros({});
     setErroEnvio(null);
+    setFacebook(resultado?.peca.anuncioFbUrl ?? "");
+    setNovoMl("");
   }, [resultado?.peca.id]);
 
   useEffect(() => {
@@ -93,6 +102,19 @@ export function InventoryPieceSummaryDrawer({
   }, [resultado, unidadesOrdenadas.length]);
 
   if (!resultado) return null;
+
+  async function salvarFacebook() {
+    if (!onSaveFacebook || salvandoLink) return;
+    setSalvandoLink(true);
+    try { if (await onSaveFacebook(facebook.trim() || null)) setFacebook(facebook.trim()); }
+    finally { setSalvandoLink(false); }
+  }
+  async function adicionarMl() {
+    if (!onAddMercadoLivre || !novoMl.trim() || salvandoLink) return;
+    setSalvandoLink(true);
+    try { if (await onAddMercadoLivre(novoMl.trim())) setNovoMl(""); }
+    finally { setSalvandoLink(false); }
+  }
 
   async function aplicarPrecos(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -133,6 +155,14 @@ export function InventoryPieceSummaryDrawer({
         </div>
         <span className="shrink-0 rounded-full bg-surface-inset px-2.5 py-1 text-xs font-semibold text-text-secondary">{unidadesOrdenadas.length} {unidadesOrdenadas.length === 1 ? "unidade" : "unidades"}</span>
       </div>
+
+      {(onSaveFacebook || onAddMercadoLivre) && <section className="mb-3 space-y-3 rounded-control border border-border-default bg-surface-inset/40 p-3" aria-label="Anúncios vinculados">
+        <div className="flex items-center gap-2 text-sm font-semibold text-text-primary"><Link2 size={16} /> Anúncios vinculados</div>
+        {onSaveFacebook && <div className="flex gap-2"><input aria-label="Link do Facebook" type="url" value={facebook} onChange={(event) => setFacebook(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void salvarFacebook(); } }} placeholder="Link do Facebook Marketplace" className="min-w-0 flex-1 rounded-control border border-border-default bg-surface-card px-3 py-2 text-sm" /><button type="button" onClick={() => void salvarFacebook()} disabled={salvandoLink} className="min-h-11 rounded-control bg-accent px-3 text-sm font-semibold text-white disabled:opacity-50">Salvar</button></div>}
+        {resultado.peca.anuncioFbUrl && <a href={resultado.peca.anuncioFbUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-accent-soft-fg"><ExternalLink size={12} /> Abrir Facebook</a>}
+        {onAddMercadoLivre && <div className="flex gap-2"><input aria-label="Link do Mercado Livre" type="url" value={novoMl} onChange={(event) => setNovoMl(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); void adicionarMl(); } }} placeholder="Colar link do Mercado Livre" className="min-w-0 flex-1 rounded-control border border-border-default bg-surface-card px-3 py-2 text-sm" /><button type="button" onClick={() => void adicionarMl()} disabled={salvandoLink || !novoMl.trim()} className="min-h-11 rounded-control border border-border-default px-3 text-sm font-semibold text-text-secondary disabled:opacity-50">Adicionar</button></div>}
+        {(resultado.peca.linksMl?.length ?? 0) > 0 && <div className="space-y-1">{resultado.peca.linksMl?.map((link) => <a key={link.id} href={link.url} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1 text-xs text-text-secondary hover:text-accent-soft-fg"><ExternalLink size={12} /> {link.mlb_id || link.url}</a>)}</div>}
+      </section>}
 
       {podePrecificarEmLote && <div className="mb-3 border-y border-border-subtle py-3">
         <button

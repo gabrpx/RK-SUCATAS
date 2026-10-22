@@ -129,6 +129,8 @@ export function adaptarEstoqueReal(itens: Estoque[], categoriasDisponiveis: ApiC
       compatibilidades: compatibilidadesDoItem(item, modelosDisponiveis),
       detalhes: detalhesDaPeca(item),
       fotos: item.imagens ?? [],
+      anuncioFbUrl: item.anuncio_fb_url ?? null,
+      linksMl: (item.links_ml ?? []).map((link) => ({ id: link.id, url: link.url, mlb_id: link.mlb_id ?? null })),
       origemDado: "real",
       familiaNome: item.familia?.nome ?? null,
       gavetaNome: item.gaveta?.nome ?? null,

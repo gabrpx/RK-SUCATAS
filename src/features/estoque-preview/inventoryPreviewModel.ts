@@ -22,6 +22,8 @@ export interface PecaEstoque {
   gavetaNome?: string | null;
   /** Fotos gerais do cadastro; servem como fallback visual no drawer. */
   fotos?: string[];
+  anuncioFbUrl?: string | null;
+  linksMl?: { id: string; url: string; mlb_id?: string | null }[];
   /**
    * Fichas livres acima da quantidade da peça: sobra de vendas antigas feitas
    * sem escolher a unidade (antes da migration_069). Não sabemos qual saiu,

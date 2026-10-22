@@ -214,7 +214,7 @@ function PieceCard({ resultado, acoes, priorizarImagem = false }: { resultado: R
   }, [resultado.unidades.length]);
   return <article className={`overflow-hidden rounded-card border bg-surface-card p-4 shadow-sm ${semEstoque ? "border-negative/40" : "border-border-default"}`}>
     <button type="button" aria-label={`Ver resumo de ${resultado.peca.nome} e de todas as suas ${resultado.unidades.length} unidades`} onClick={() => acoes.onOpenSummary(resultado.peca.id)} className="flex w-full cursor-pointer items-start justify-between gap-4 rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30">
-      <span className="min-w-0"><span className="block font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">{resultado.categoria.nome} · {resultado.peca.codigoLegado}</span><span className="mt-1 block break-words text-base font-semibold text-text-primary">{resultado.peca.nome}</span><span className="mt-1 block text-xs text-text-muted">{resultado.peca.compatibilidades.join(" · ") || "Moto não informada"}</span><span className="mt-2 block text-[11px] font-semibold text-accent-soft-fg">Ver resumo das unidades</span></span>
+      <span className="min-w-0"><span className="block font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent">{resultado.categoria.nome} · {resultado.peca.codigoLegado}</span><span className="mt-1 block break-words text-base font-semibold text-text-primary">{resultado.peca.nome}</span><span className="mt-1 block text-xs text-text-muted">{resultado.peca.compatibilidades.join(" · ") || "Moto não informada"}</span><span className="mt-2 flex flex-wrap items-center gap-1.5 text-[10px] font-semibold text-accent-soft-fg">Ver resumo das unidades{resultado.peca.anuncioFbUrl && <span className="rounded-full bg-accent-alt-bg px-2 py-0.5 text-accent-alt">Facebook</span>}{(resultado.peca.linksMl?.length ?? 0) > 0 && <span className="rounded-full bg-warning-bg px-2 py-0.5 text-warning">Mercado Livre</span>}</span></span>
       <span className={`shrink-0 rounded-full px-2 py-1 text-xs font-semibold ${semEstoque ? "bg-negative-bg text-negative" : "bg-surface-inset text-text-secondary"}`}>{semEstoque ? "Sem estoque" : `${quantidade} ${quantidade === 1 ? "unidade" : "unidades"}${semFicha ? ` · ${semFicha} sem ficha` : ""}${sobrandoNaPeca ? ` · ${sobrandoNaPeca} a conferir` : ""}`}</span>
     </button>
     <div className="relative mt-4">
@@ -740,6 +740,24 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     }
   }
 
+  async function salvarFacebookPeca(pecaId: string, url: string | null): Promise<boolean> {
+    if (!conexaoRealPronta) { avisar("Conexão indisponível para salvar o anúncio."); return false; }
+    const resposta = await estoqueApi.atualizarParcial(pecaId, { anuncio_fb_url: url });
+    if (!resposta.success) { avisar(resposta.error || "Não foi possível salvar o anúncio do Facebook."); return false; }
+    await atualizarEstoque();
+    avisar("Anúncio do Facebook vinculado.");
+    return true;
+  }
+
+  async function adicionarMercadoLivrePeca(pecaId: string, url: string): Promise<boolean> {
+    if (!conexaoRealPronta) { avisar("Conexão indisponível para salvar o anúncio."); return false; }
+    const resposta = await estoqueApi.criarAnuncioMl(pecaId, { url });
+    if (!resposta.success) { avisar(resposta.error || "Não foi possível vincular o anúncio do Mercado Livre."); return false; }
+    await atualizarEstoque();
+    avisar("Anúncio do Mercado Livre vinculado.");
+    return true;
+  }
+
   function abrirExclusaoPeca(peca: PecaEstoque) {
     setPecaResumoId(null);
     setPecaExclusaoId(peca.id);
@@ -959,7 +977,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(resultado.mensagem);
       return resultado;
     }} />
-    <InventoryPieceSummaryDrawer resultado={resultadoResumo} onClose={() => setPecaResumoId(null)} onOpenUnit={(unidade) => { setPecaResumoId(null); setUnidadeDetalhando(unidade); }} podeEditar={podeAlterar} podeExcluir={podeExcluir} onApplyPrices={resultadoResumo ? (precos) => aplicarPrecosPorGrau(resultadoResumo.peca.id, precos) : undefined} onDeleteItem={resultadoResumo ? () => abrirExclusaoPeca(resultadoResumo.peca) : undefined} />
+    <InventoryPieceSummaryDrawer resultado={resultadoResumo} onClose={() => setPecaResumoId(null)} onOpenUnit={(unidade) => { setPecaResumoId(null); setUnidadeDetalhando(unidade); }} podeEditar={podeAlterar} podeExcluir={podeExcluir} onApplyPrices={resultadoResumo ? (precos) => aplicarPrecosPorGrau(resultadoResumo.peca.id, precos) : undefined} onDeleteItem={resultadoResumo ? () => abrirExclusaoPeca(resultadoResumo.peca) : undefined} onSaveFacebook={resultadoResumo && podeAlterar ? (url) => salvarFacebookPeca(resultadoResumo.peca.id, url) : undefined} onAddMercadoLivre={resultadoResumo && podeAlterar ? (url) => adicionarMercadoLivrePeca(resultadoResumo.peca.id, url) : undefined} />
     <InventoryUnitDrawer unidade={unidadeAberta} peca={unidadeAberta ? pecaPorId(unidadeAberta.pecaId) : null} reservasHabilitadas={conexaoPermiteGravar} podeAlterar={podeAlterar} recursos={fonte === "real" ? recursos : RECURSOS_DEMONSTRACAO} clientes={fonte === "real" ? clientesReais : clientesDemo} formasPagamento={fonte === "real" ? formasReais : formasDemo} onReservar={reservar} onLiberarReserva={liberarReserva} carregarHistorico={carregarHistorico} abrirEmEdicao={Boolean(unidadeEditando)} operacional={fonte === "real"} podeArquivar={podeAlterar} enderecos={fonte === "real" ? enderecosReais : undefined} onFechar={() => { setUnidadeDetalhando(null); setUnidadeEditando(null); }} onSalvar={salvarEdicao} onArquivar={() => { const unidade = unidadeDetalhando ?? unidadeEditando; if (unidade) abrirArquivamento(unidade); setUnidadeDetalhando(null); setUnidadeEditando(null); }} />
     <InventoryDialog isOpen={Boolean(pecaExclusao)} onClose={() => { if (!excluindoPeca) setPecaExclusaoId(null); }} eyebrow="Exclusão definitiva" title={pecaExclusao ? `Excluir ${pecaExclusao.nome}?` : "Excluir item do estoque"} description={unidadesPecaExclusao.length ? `O cadastro e suas ${unidadesPecaExclusao.length} ${unidadesPecaExclusao.length === 1 ? "ficha física será apagada" : "fichas físicas serão apagadas"}. Esta ação não pode ser desfeita.` : "Este cadastro vazio será removido por completo e deixará de aparecer no estoque. Esta ação não pode ser desfeita."}
       footer={<><button type="button" disabled={excluindoPeca} onClick={() => setPecaExclusaoId(null)} className={`${buttonBase} text-text-secondary hover:bg-surface-inset`}>Manter item</button><button type="button" disabled={excluindoPeca} onClick={() => void excluirPecaDefinitivamente()} className={`${buttonBase} bg-danger text-white hover:opacity-90`}>{excluindoPeca ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}{excluindoPeca ? "Excluindo…" : "Excluir definitivamente"}</button></>}>

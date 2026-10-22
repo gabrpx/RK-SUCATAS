@@ -134,6 +134,7 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
   const mostrarReservar = reservasHabilitadas && podeAlterar && Boolean(onReservar) && unidade.individualizada !== false && unidade.estado !== "arquivada" && unidade.estado !== "reservada" && !unidade.vendidaEm;
   const vencimentoPrevisto = diasValidos ? vencimentoReserva(diasNumero) : null;
   const precoInvalido = operacional && (!Number.isFinite(Number(preco)) || Number(preco) <= 0);
+  const precoAlterado = Number(preco || 0) !== Number(unidade.preco || 0);
 
   const confirmarReserva = async () => {
     if (!reservaPronta || !onReservar) return;
@@ -196,7 +197,7 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
   const formularioEdicao = <section aria-labelledby="editar-unidade" className="space-y-5">
     <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-accent-soft-fg">Editar unidade</p><h3 id="editar-unidade" className="mt-1 text-lg font-semibold">Altere somente o que mudou nesta peça física</h3></div>
     <div className="grid gap-4 sm:grid-cols-2">
-      <label className="text-sm font-semibold text-text-secondary">Preço de venda<CurrencyInput aria-label="Preço da unidade" size="lg" value={preco ? Math.round(Number(preco) * 100) : null} onChange={(centavos) => setPreco(centavos == null ? "" : String(centavos / 100))} placeholder={operacional ? "Obrigatório" : "Pode definir depois"} /></label>
+      <label className="text-sm font-semibold text-text-secondary">Preço de venda<CurrencyInput aria-label="Preço da unidade" size="lg" value={preco ? Math.round(Number(preco) * 100) : null} onChange={(centavos) => setPreco(centavos == null ? "" : String(centavos / 100))} onKeyDown={(event) => { if (event.key === "Enter" && !precoInvalido && precoAlterado) { event.preventDefault(); void salvar(); } }} placeholder={operacional ? "Obrigatório" : "Pode definir depois"} /></label>
       <fieldset><legend className="text-sm font-semibold text-text-secondary">Condição</legend><div className="mt-1 grid grid-cols-3 gap-2">{(["A", "B", "C"] as const).map((opcao) => <button key={opcao} type="button" aria-pressed={grau === opcao} onClick={() => setGrau(opcao)} className={`h-11 cursor-pointer rounded-control border text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30 active:scale-[.98] ${grau === opcao ? "border-accent/40 bg-accent-soft-bg text-accent-soft-fg" : "border-border-default bg-surface-inset text-text-muted hover:border-accent/30"}`}>Grau {opcao}</button>)}</div></fieldset>
     </div>
     <label className="block text-sm font-semibold text-text-secondary">Origem <span className="font-normal text-text-faint">(opcional)</span><input className={inputClass} value={origem} onChange={(event) => setOrigem(event.target.value)} placeholder="Não identificada" /></label>
@@ -261,7 +262,7 @@ export function InventoryUnitDrawer({ unidade, peca, onFechar, onSalvar, onArqui
   const rodapeDireita = modo === "reservar"
     ? <button type="button" disabled={!reservaPronta} onClick={confirmarReserva} className={botaoPrimario}>{enviando ? <Loader2 size={16} className="animate-spin" /> : <BookmarkCheck size={16} />}{enviando ? "Reservando…" : "Confirmar reserva"}</button>
     : modo === "editar"
-      ? <button type="button" disabled={precoInvalido || enviando} onClick={() => void salvar()} className={botaoPrimario}>{enviando ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}{enviando ? "Salvando…" : "Salvar alterações"}</button>
+      ? <button type="button" disabled={precoInvalido || !precoAlterado || enviando} onClick={() => void salvar()} className={botaoPrimario}>{enviando ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}{enviando ? "Salvando…" : "Salvar alterações"}</button>
       : <div className="flex flex-wrap items-center justify-end gap-2">
         {mostrarReservar && (bloqueioReserva
           ? <span className="max-w-[16rem] text-right text-xs text-text-muted">{bloqueioReserva}{podeEditar && (unidade.preco == null || unidade.preco <= 0) && <button type="button" onClick={() => setModo("editar")} className="ml-1 cursor-pointer font-semibold text-accent underline">Definir preço</button>}</span>
