@@ -594,7 +594,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         origem: item.motoNome,
         fotoUrl: null,
         endereco: null,
-        fotos: item.foto ? [item.foto] : [],
+        fotos: item.fotos,
       };
       if (fonte === "demo") {
         setEstoque((atual) => adicionarUnidade(atual, entradaExistente));
@@ -634,7 +634,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       origem: item.motoNome,
       fotoUrl: null,
       endereco: null,
-      fotos: item.foto ? [item.foto] : [],
+      fotos: item.fotos,
     };
 
     if (fonte === "demo") {

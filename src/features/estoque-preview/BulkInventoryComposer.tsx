@@ -18,7 +18,7 @@ export interface BulkPieceDraft {
   nome: string;
   categoriaId: string;
   motoNome: string;
-  foto?: File;
+  fotos: File[];
 }
 
 interface BulkInventoryComposerProps {
@@ -54,7 +54,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
   const [nome, setNome] = useState("");
   const [categoriaId, setCategoriaId] = useState("");
   const [motoNome, setMotoNome] = useState("");
-  const [foto, setFoto] = useState<File | undefined>();
+  const [fotos, setFotos] = useState<File[]>([]);
   const [categoriaEditada, setCategoriaEditada] = useState(false);
   const [motoEditada, setMotoEditada] = useState(false);
   const [fila, setFila] = useState<BulkPieceDraft[]>([]);
@@ -92,7 +92,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setBuscaPeca("");
       setCategoriaId("");
       setMotoNome("");
-      setFoto(undefined);
+      setFotos([]);
       setCategoriaEditada(false);
       setMotoEditada(false);
       setFila([]);
@@ -122,7 +122,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
     setNome("");
     setCategoriaId("");
     setMotoNome("");
-    setFoto(undefined);
+    setFotos([]);
     setCategoriaEditada(false);
     setMotoEditada(false);
     setErro(null);
@@ -142,12 +142,12 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setErro(mensagem);
       return;
     }
-    setFila((atual) => [...atual, { modo, pecaId: modo === "existente" ? pecaId : undefined, nome: nome.trim(), categoriaId, motoNome: motoNome.trim(), foto }]);
+    setFila((atual) => [...atual, { modo, pecaId: modo === "existente" ? pecaId : undefined, nome: nome.trim(), categoriaId, motoNome: motoNome.trim(), fotos }]);
     limparFormulario();
   }
 
   async function concluirAdicoes() {
-    const mensagem = modo !== "nova" || nome.trim() || categoriaId || motoNome.trim() || foto ? validarAtual() : null;
+    const mensagem = modo !== "nova" || nome.trim() || categoriaId || motoNome.trim() || fotos.length ? validarAtual() : null;
     if (mensagem) {
       setErro(mensagem);
       return;
@@ -205,7 +205,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
         ) : (
           <motion.div key="formulario" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
             <div className="rounded-control border border-accent/20 bg-accent-soft-bg/50 p-4"><p className="flex items-center gap-2 text-sm font-semibold text-accent-soft-fg"><ListPlus size={16} />Cadastro rápido, complemento depois</p><p className="mt-1 text-xs leading-5 text-text-secondary">Cadastre uma peça nova ou adicione outra unidade a uma peça que já existe, sem duplicar o cadastro.</p></div>
-            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{fila.length} {fila.length === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.foto ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · {categorias.find((categoria) => categoria.id === item.categoriaId)?.nome}</p></div><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index))} className="grid size-9 shrink-0 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></motion.div>)}</div></section>}
+            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{fila.length} {fila.length === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.fotos.length ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · {categorias.find((categoria) => categoria.id === item.categoriaId)?.nome} · {item.fotos.length} {item.fotos.length === 1 ? "foto" : "fotos"}</p></div><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index))} className="grid size-9 shrink-0 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></motion.div>)}</div></section>}
             <section className="space-y-4" aria-labelledby="bulk-identificar">
               <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">Próxima peça</p><h3 id="bulk-identificar" className="mt-1 text-lg font-semibold text-text-primary">O que entrou no galpão?</h3></div>
               <div role="group" aria-label="Tipo de adição" className="grid grid-cols-2 gap-1 rounded-control border border-border-default bg-surface-inset p-1">
@@ -224,7 +224,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
                 <label className="block text-sm font-semibold text-text-secondary">Moto compatível<input aria-label="Moto compatível" list="bulk-motos-catalogo" className={inputClass} value={motoNome} onChange={(event) => { setMotoEditada(true); setMotoNome(event.target.value); }} placeholder="Pode ser uma moto nova" /><datalist id="bulk-motos-catalogo">{modelos.map((modelo) => <option key={modelo.id} value={nomeModelo(modelo, modelos)} />)}</datalist></label>
               </div>
               {modo === "nova" && (categoriaSugerida || modeloSugerido) && <p className="flex items-center gap-1.5 text-xs text-accent-soft-fg"><Sparkles size={13} />{categoriaSugerida ? `Categoria sugerida: ${categoriaSugerida.nome}.` : ""}{modeloSugerido ? ` Moto encontrada no catálogo: ${nomeModelo(modeloSugerido, modelos)}.` : ""}</p>}
-              <div><p className="mb-2 text-sm font-semibold text-text-secondary">Foto da peça <span className="font-normal text-text-faint">(opcional agora)</span></p><EstoqueUploadFotos imagens={[]} onRemoverImagem={() => setFoto(undefined)} onArquivosSelecionados={(arquivos) => setFoto(arquivos[0])} enviando={salvando} resumoCompressao={null} />{foto && <div className="mt-2 flex items-center justify-between gap-3 rounded-control border border-positive/25 bg-positive-bg px-3 py-2 text-xs text-positive"><span className="flex min-w-0 items-center gap-2"><CheckCircle2 size={14} /><span className="truncate">{foto.name}</span></span><button type="button" aria-label="Remover foto selecionada" onClick={() => setFoto(undefined)} className="rounded p-1 hover:bg-white/50"><X size={14} /></button></div>}</div>
+              <div><p className="mb-2 text-sm font-semibold text-text-secondary">Fotos da peça <span className="font-normal text-text-faint">(até 10 agora)</span></p><EstoqueUploadFotos imagens={[]} onRemoverImagem={() => undefined} onArquivosSelecionados={(arquivos) => { if (fotos.length + arquivos.length > 10) { setErro("Cada unidade pode ter até 10 fotos."); return; } setErro(null); setFotos((atuais) => [...atuais, ...arquivos]); }} enviando={salvando} resumoCompressao={null} />{fotos.length > 0 && <ul className="mt-2 space-y-1" aria-label="Fotos selecionadas">{fotos.map((foto, indice) => <li key={`${foto.name}-${indice}`} className="flex items-center justify-between gap-3 rounded-control border border-positive/25 bg-positive-bg px-3 py-2 text-xs text-positive"><span className="flex min-w-0 items-center gap-2"><CheckCircle2 size={14} /><span className="truncate">{foto.name}</span></span><button type="button" aria-label={`Remover ${foto.name}`} disabled={salvando} onClick={() => setFotos((atuais) => atuais.filter((_, fotoIndex) => fotoIndex !== indice))} className="rounded p-1 hover:bg-white/50"><X size={14} /></button></li>)}</ul>}</div>
               {erro && <p role="alert" className="rounded-control border border-danger/30 bg-danger-bg p-3 text-sm text-danger">{erro}</p>}
             </section>
           </motion.div>

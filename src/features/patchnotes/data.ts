@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.18',
+    data: '2026-10-22',
+    titulo: 'Estoque com fotos múltiplas e cadastros consolidados',
+    itens: [
+      { tipo: 'fix', texto: 'O cadastro em massa agora preserva várias fotos por unidade, com seleção acumulada, remoção individual e limite de até 10 imagens.' },
+      { tipo: 'melhoria', texto: 'Os dois registros duplicados de BANCO CG 125 FAN foram consolidados em uma única peça, mantendo as duas unidades e as duas fotos.' },
+    ],
+  },
+  {
     versao: '1.7.17',
     data: '2026-10-22',
     titulo: 'Cadastro rápido de peças e conclusão administrativa',

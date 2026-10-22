@@ -10,7 +10,7 @@ vi.mock("./InventoryDrawer", () => ({
 }));
 
 vi.mock("../estoque/EstoqueUploadFotos", () => ({
-  EstoqueUploadFotos: ({ onArquivosSelecionados }: { onArquivosSelecionados: (files: File[]) => void }) => <button type="button" onClick={() => onArquivosSelecionados([new File(["foto"], "farol.jpg", { type: "image/jpeg" })])}>Escolher foto</button>,
+  EstoqueUploadFotos: ({ onArquivosSelecionados }: { onArquivosSelecionados: (files: File[]) => void }) => <button type="button" onClick={() => onArquivosSelecionados([new File(["foto"], "farol.jpg", { type: "image/jpeg" }), new File(["foto-2"], "farol-lado.jpg", { type: "image/jpeg" })])}>Escolher foto</button>,
 }));
 
 vi.mock("@/src/components/ui/Combobox", () => ({
@@ -66,5 +66,19 @@ describe("BulkInventoryComposer", () => {
 
     await waitFor(() => expect(onSalvarItem).toHaveBeenCalledWith(expect.objectContaining({ modo: "existente", pecaId: "peca-farol", nome: "Farol CG 160" })));
     expect(await screen.findByText("Tudo salvo no estoque")).toBeTruthy();
+  });
+
+  it("mantém todas as fotos selecionadas na fila", async () => {
+    const onSalvarItem = vi.fn().mockResolvedValue(undefined);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);
+
+    preencher("Farol CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Escolher foto" }));
+    expect(screen.getByText("farol.jpg")).toBeTruthy();
+    expect(screen.getByText("farol-lado.jpg")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    fireEvent.click(screen.getByRole("button", { name: /concluir adições \(1\)/i }));
+
+    await waitFor(() => expect(onSalvarItem).toHaveBeenCalledWith(expect.objectContaining({ fotos: expect.arrayContaining([expect.objectContaining({ name: "farol.jpg" }), expect.objectContaining({ name: "farol-lado.jpg" })]) })));
   });
 });
