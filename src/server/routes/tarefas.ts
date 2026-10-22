@@ -733,7 +733,11 @@ export function tarefasRouter(supabase: SupabaseClient) {
       if (erroCompleta) throw erroCompleta;
       const atual = comItensOrdenados(completa);
 
-      if (!ehAdmin(req.usuario) && !aguardandoAprovacao(atual)) {
+      // /finalizar é a segunda etapa do fluxo colaborativo: só pode fechar a
+      // tarefa quando todos os participantes marcaram a própria parte. O
+      // admin continua podendo usar /concluir para uma baixa administrativa
+      // excepcional, mas não pode furar este contrato semântico de finalizar.
+      if (!aguardandoAprovacao(atual)) {
         return res.status(400).json({ success: false, error: 'Esta tarefa ainda não está pronta pra finalizar — falta algum participante concluir a própria parte.' });
       }
 

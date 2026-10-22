@@ -89,3 +89,34 @@ export function souParticipante(tarefa: { atribuido_para: string; participantes?
   if (tarefa.atribuido_para === usuarioId) return true;
   return (tarefa.participantes ?? []).some((p) => p.usuario_id === usuarioId);
 }
+
+export type AcaoConclusaoTarefa = 'marcar-participacao' | 'finalizar' | 'concluir' | 'reabrir' | 'bloqueada';
+
+/**
+ * Decide qual ação a tela deve disparar ao avançar o estado da tarefa.
+ *
+ * Tarefas criadas após a migração de participantes sempre têm uma linha em
+ * tarefa_participantes, inclusive quando só há um responsável. Portanto,
+ * presença de participante não significa que o usuário atual pode chamar
+ * /finalizar: ele deve marcar a própria parte; somente o criador/admin pode
+ * finalizar a tarefa inteira.
+ */
+export function decidirAcaoConclusaoTarefa(
+  tarefa: Pick<Tarefa, 'status' | 'atribuido_para' | 'criado_por' | 'participantes'>,
+  usuarioId: string | null,
+  isAdmin: boolean,
+  podeCriar: boolean,
+): AcaoConclusaoTarefa {
+  const participantes = tarefa.participantes ?? [];
+  const meuParticipante = participantes.find((p) => p.usuario_id === usuarioId);
+  const todosParticipantesConcluidos = participantes.length > 0 && participantes.every((p) => p.concluido);
+
+  if (tarefa.status === 'concluida') {
+    return isAdmin || (podeCriar && tarefa.criado_por === usuarioId) ? 'reabrir' : 'bloqueada';
+  }
+  if (isAdmin) return 'concluir';
+  if (podeCriar && tarefa.criado_por === usuarioId && todosParticipantesConcluidos) return 'finalizar';
+  if (meuParticipante && !meuParticipante.concluido) return 'marcar-participacao';
+  if (meuParticipante || participantes.length > 0) return 'bloqueada';
+  return 'concluir';
+}

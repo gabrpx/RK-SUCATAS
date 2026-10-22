@@ -9,6 +9,7 @@ import type { Lembrete } from '../lembretes/types';
 import { tarefasApi } from './api';
 import { lembretesApi } from '../lembretes/api';
 import { usePermissao } from '../../hooks/usePermissao';
+import { aguardandoAprovacao, decidirAcaoConclusaoTarefa } from './tarefaUtils';
 
 type IntegratedProps = {
   tarefas: ReturnType<typeof import('./useTarefas').useTarefas>;
@@ -50,8 +51,9 @@ function prioridadeDaTarefa(tarefa: Tarefa): PreviewTaskPriority {
   return 'normal';
 }
 
-function tarefaParaPreview(tarefa: Tarefa): PreviewTask {
+function tarefaParaPreview(tarefa: Tarefa, currentUserId?: string, canCreate = false): PreviewTask {
   const participantes = tarefa.participantes ?? [];
+  const minhaParticipacao = participantes.find((participante) => participante.usuario_id === currentUserId);
   const operatorIds = participantes.length > 0 ? participantes.map((p) => p.usuario_id) : [tarefa.atribuido_para];
   const categoria = categoriaDaTarefa(tarefa);
   const checklist = tarefa.itens.map((item) => ({
@@ -78,6 +80,10 @@ function tarefaParaPreview(tarefa: Tarefa): PreviewTask {
     instructions: tarefa.descricao || 'Nenhuma instrução adicional registrada.',
     checklist,
     readReceipts: mapParticipantReadReceipts(participantes),
+    currentUserParticipation: minhaParticipacao ? {
+      completed: minhaParticipacao.concluido,
+      canFinalize: canCreate && tarefa.criado_por === currentUserId && aguardandoAprovacao(tarefa),
+    } : undefined,
   };
 }
 
@@ -122,6 +128,7 @@ function dataParaPrazo(dueTime: string) {
 export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialTaskId, onInitialTaskHandled }: IntegratedProps) {
   const { pode, isAdmin } = usePermissao();
   const canCreate = pode('tarefas.criar');
+  const currentUserId = localStorage.getItem('user_id') || '';
   const taskList = tarefas.tarefas;
   const reminderList = lembretes.lembretes;
   const [possibleOperators, setPossibleOperators] = useState<TarefaUsuario[]>([]);
@@ -161,7 +168,7 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
     };
   }, [canCreate]);
 
-  const previewTasks = useMemo(() => taskList.map(tarefaParaPreview), [taskList]);
+  const previewTasks = useMemo(() => taskList.map((tarefa) => tarefaParaPreview(tarefa, currentUserId, canCreate)), [canCreate, currentUserId, taskList]);
   const previewReminders = useMemo(() => reminderList.map(lembreteParaPreview), [reminderList]);
   const operators = useMemo(() => {
     const users = new Map<string, TarefaUsuario>(possibleOperators.map((user) => [user.id, user]));
@@ -178,8 +185,8 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
     const response = await result;
     if (!response.success) throw new Error(response.error || 'Não foi possível atualizar a tarefa');
     tarefas.setTarefas((current) => current.map((item) => item.id === id ? response.data : item));
-    return tarefaParaPreview(response.data);
-  }, [tarefas]);
+    return tarefaParaPreview(response.data, currentUserId, canCreate);
+  }, [canCreate, currentUserId, tarefas]);
 
   const onTaskOpened = useCallback(async (id: string) => {
     const currentUserId = localStorage.getItem('user_id') || '';
@@ -196,8 +203,8 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
       ),
     };
     tarefas.setTarefas((current) => current.map((item) => item.id === id ? atualizada : item));
-    return tarefaParaPreview(atualizada);
-  }, [taskList, tarefas]);
+    return tarefaParaPreview(atualizada, currentUserId, canCreate);
+  }, [canCreate, currentUserId, taskList, tarefas]);
 
   const onCreateTask = useCallback(async (input: Parameters<NonNullable<TasksPreviewProps['onCreateTask']>>[0]) => {
     if (!canCreate) return null;
@@ -215,8 +222,8 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
     const response = await tarefasApi.criar(payload);
     if (!response.success) throw new Error(response.error || 'Não foi possível criar a tarefa');
     tarefas.setTarefas((current) => [response.data, ...current]);
-    return tarefaParaPreview(response.data);
-  }, [canCreate, tarefas]);
+    return tarefaParaPreview(response.data, currentUserId, canCreate);
+  }, [canCreate, currentUserId, tarefas]);
 
   const onToggleChecklist = useCallback(async (taskId: string, checklistId: string) => {
     return mapUpdatedTask(taskId, tarefasApi.alternarItem(taskId, checklistId));
@@ -225,16 +232,18 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
   const onAdvanceTask = useCallback(async (task: PreviewTask, nextStatus: PreviewTask['status']) => {
     const real = taskList.find((item) => item.id === task.id);
     if (!real) return null;
-    if (nextStatus === 'em-andamento') return tarefaParaPreview(real);
-    const result = nextStatus === 'concluida'
-      ? isAdmin
-        ? tarefasApi.concluir(real.id)
-        : real.participantes && real.participantes.length > 0
-          ? tarefasApi.finalizar(real.id)
-          : tarefasApi.concluir(real.id)
-      : tarefasApi.reabrir(real.id);
+    if (nextStatus === 'em-andamento') return tarefaParaPreview(real, currentUserId, canCreate);
+    const acao = decidirAcaoConclusaoTarefa(real, currentUserId, isAdmin, canCreate);
+    if (acao === 'bloqueada') throw new Error('Esta etapa da tarefa não pode ser alterada por você agora.');
+    const result = acao === 'marcar-participacao'
+      ? tarefasApi.alternarMinhaParticipacao(real.id)
+      : acao === 'finalizar'
+      ? tarefasApi.finalizar(real.id)
+      : acao === 'reabrir'
+      ? tarefasApi.reabrir(real.id)
+      : tarefasApi.concluir(real.id);
     return mapUpdatedTask(real.id, result);
-  }, [isAdmin, mapUpdatedTask, taskList]);
+  }, [canCreate, currentUserId, isAdmin, mapUpdatedTask, taskList]);
 
   const canEdit = pode('tarefas.editar');
   const onPauseTask = useCallback(async (taskId: string, motivo: string) => {
@@ -261,8 +270,8 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
     });
     if (!response.success) throw new Error(response.error || 'Não foi possível editar a tarefa');
     tarefas.setTarefas((current) => current.map((item) => item.id === taskId ? response.data : item));
-    return tarefaParaPreview(response.data);
-  }, [canEdit, tarefas]);
+    return tarefaParaPreview(response.data, currentUserId, canCreate);
+  }, [canCreate, canEdit, currentUserId, tarefas]);
 
   const canDelete = pode('tarefas.excluir');
   const onDeleteTask = useCallback(async (taskId: string) => {
@@ -316,7 +325,7 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
       onTaskOpened={onTaskOpened}
       initialTaskId={initialTaskId}
       onInitialTaskHandled={onInitialTaskHandled}
-      currentUserId={localStorage.getItem('user_id') || ''}
+      currentUserId={currentUserId}
       canCompleteAnyTask={isAdmin}
       canViewReadReceipts={canCreate}
       errorMessage={tarefas.error || lembretes.error || possibleOperatorsError}

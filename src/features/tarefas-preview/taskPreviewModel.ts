@@ -38,6 +38,11 @@ export interface PreviewTaskReadReceipt {
   read: boolean;
 }
 
+export interface PreviewTaskParticipation {
+  completed: boolean;
+  canFinalize: boolean;
+}
+
 export function mapParticipantReadReceipts(
   participants: { usuario_id: string; lida: boolean; usuario?: { nome_exibicao: string } | null }[]
 ): PreviewTaskReadReceipt[] {
@@ -63,6 +68,7 @@ export interface PreviewTask {
   operatorIds?: string[];
   instructions?: string;
   readReceipts?: PreviewTaskReadReceipt[];
+  currentUserParticipation?: PreviewTaskParticipation;
 }
 
 export interface PreviewTaskCreateInput {
@@ -92,7 +98,7 @@ export interface PreviewTaskExecutionSummary {
   completedChecklistItems: number;
   totalChecklistItems: number;
   percentage: number;
-  primaryAction: "Iniciar tarefa" | "Concluir tarefa" | "Reabrir tarefa";
+  primaryAction: "Iniciar tarefa" | "Concluir tarefa" | "Marcar minha parte" | "Finalizar tarefa" | "Parte concluída" | "Reabrir tarefa";
 }
 
 export function getPreviewTaskDeadline(
@@ -238,10 +244,20 @@ export function getPreviewTaskExecutionSummary(
       ? Math.round((completedChecklistItems / totalChecklistItems) * 100)
       : 0,
     primaryAction:
-      task.status === "em-andamento"
-        ? "Concluir tarefa"
-        : task.status === "concluida"
+      task.status === "concluida"
         ? "Reabrir tarefa"
+        : task.status === "em-andamento"
+        ? task.currentUserParticipation?.canFinalize
+          ? "Finalizar tarefa"
+          : task.currentUserParticipation?.completed
+          ? "Parte concluída"
+          : task.currentUserParticipation
+          ? "Marcar minha parte"
+          : "Concluir tarefa"
+        : task.currentUserParticipation?.canFinalize
+        ? "Finalizar tarefa"
+        : task.currentUserParticipation?.completed
+        ? "Parte concluída"
         : "Iniciar tarefa",
   };
 }

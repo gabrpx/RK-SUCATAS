@@ -1140,6 +1140,10 @@ function TaskInspector({
               ? "Desmarque um item do checklist para reabrir a tarefa."
               : "Marque todos os itens do checklist para concluir a tarefa."}
           </p>
+        ) : execution.primaryAction === "Parte concluída" ? (
+          <p className="max-w-[280px] text-right text-xs font-medium text-emerald-700">
+            Sua parte foi concluída. Aguardando o criador finalizar a tarefa.
+          </p>
         ) : (
           <Button
             onClick={() => onAdvanceStatus(task.id)}
@@ -1741,14 +1745,16 @@ export function TasksPreview({
     const checklistBloqueiaTransicao = task?.checklist.length > 0 && (!canCompleteAnyTask || task.status === "concluida");
     if (!task || task.paused || checklistBloqueiaTransicao) return;
     setActionError(null);
-    if (task.status === "aguardando") {
+    if (task.status === "aguardando" && !task.currentUserParticipation?.canFinalize) {
       const startedTask = startPreviewTask(task);
       setTasks((current) => current.map((item) => item.id === taskId ? startedTask : item));
       setSelectedTask((current) => current?.id === taskId ? startedTask : current);
       return;
     }
     try {
-      const nextStatus = getNextPreviewTaskStatus(task.status);
+      const nextStatus = task.currentUserParticipation?.canFinalize
+        ? "concluida"
+        : getNextPreviewTaskStatus(task.status);
       const updated = await onAdvanceTask?.(task, nextStatus);
       if (updated) {
         setTasks((current) => current.map((item) => item.id === updated.id ? updated : item));

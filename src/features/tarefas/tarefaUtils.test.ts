@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatarMomentoRelativo, progressoChecklist, moverItem, elegiveisParaConcluirEmLote, ordenarTarefas, progressoParticipantes, aguardandoAprovacao, souParticipante } from './tarefaUtils';
+import { formatarMomentoRelativo, progressoChecklist, moverItem, elegiveisParaConcluirEmLote, ordenarTarefas, progressoParticipantes, aguardandoAprovacao, souParticipante, decidirAcaoConclusaoTarefa } from './tarefaUtils';
 import type { Tarefa, TarefaItem, TarefaParticipante } from './types';
 
 const AGORA = new Date('2026-08-24T18:00:00').getTime();
@@ -155,5 +155,41 @@ describe('souParticipante', () => {
   });
   it('false quando não sou nenhum dos dois', () => {
     expect(souParticipante({ atribuido_para: 'outro', participantes: [participante({ usuario_id: 'u2' })] }, 'u1')).toBe(false);
+  });
+});
+
+describe('decidirAcaoConclusaoTarefa', () => {
+  it('faz o executor marcar a própria parte, sem chamar finalização', () => {
+    expect(decidirAcaoConclusaoTarefa({
+      status: 'pendente', atribuido_para: 'kaua', criado_por: 'gestor',
+      participantes: [participante({ usuario_id: 'kaua' })],
+    }, 'kaua', false, false)).toBe('marcar-participacao');
+  });
+
+  it('permite ao criador finalizar quando todos os participantes concluíram', () => {
+    expect(decidirAcaoConclusaoTarefa({
+      status: 'pendente', atribuido_para: 'kaua', criado_por: 'gestor',
+      participantes: [participante({ usuario_id: 'kaua', concluido: true })],
+    }, 'gestor', false, true)).toBe('finalizar');
+  });
+
+  it('mantém conclusão direta para tarefa legada sem participantes', () => {
+    expect(decidirAcaoConclusaoTarefa({
+      status: 'pendente', atribuido_para: 'kaua', criado_por: 'gestor', participantes: [],
+    }, 'kaua', false, false)).toBe('concluir');
+  });
+
+  it('não oferece reabertura de tarefa colaborativa para participante', () => {
+    expect(decidirAcaoConclusaoTarefa({
+      status: 'concluida', atribuido_para: 'kaua', criado_por: 'gestor',
+      participantes: [participante({ usuario_id: 'kaua', concluido: true })],
+    }, 'kaua', false, false)).toBe('bloqueada');
+  });
+
+  it('não tenta concluir diretamente uma tarefa colaborativa enquanto aguarda participantes', () => {
+    expect(decidirAcaoConclusaoTarefa({
+      status: 'pendente', atribuido_para: 'kaua', criado_por: 'gestor',
+      participantes: [participante({ usuario_id: 'kaua' }), participante({ id: 'p2', usuario_id: 'outra' })],
+    }, 'gestor', false, true)).toBe('bloqueada');
   });
 });
