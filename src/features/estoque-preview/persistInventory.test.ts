@@ -118,6 +118,25 @@ describe('salvarUnidadeOperacional', () => {
     expect(atualizarUnidade).not.toHaveBeenCalled();
   });
 
+  it('peça nova: preserva as fotos no cadastro principal antes de completar a ficha', async () => {
+    enviarFotoUnidade.mockResolvedValue({ success: true, url: 'https://x/estoque/farol.jpg' });
+    criar.mockResolvedValue({ success: true, data: { id: 'peca-nova' } });
+    listarUnidades.mockResolvedValue({ success: true, data: [{ id: 'ficha-1', vendida_em: null }] });
+    editarUnidade.mockResolvedValue({ success: false, error: 'Falha temporária ao completar a ficha' });
+    const foto = new File(['farol'], 'farol.jpg', { type: 'image/jpeg' });
+
+    const resultado = await salvarUnidadeOperacional(
+      { ...entrada, pecaId: undefined, fotos: [foto], novaPeca: { nome: 'Farol novo', categoriaId: 'cat-1' } },
+      [peca],
+      [local],
+    );
+
+    expect(criar).toHaveBeenCalledWith(expect.objectContaining({
+      imagens: ['https://x/estoque/farol.jpg'],
+    }));
+    expect(resultado).toMatchObject({ completo: false, fotosAnexadas: true });
+  });
+
   it('peça nova: se a ficha não gravar, avisa sem recriar a peça', async () => {
     criar.mockResolvedValue({ success: true, data: { id: 'peca-nova' } });
     listarUnidades.mockResolvedValue({ success: true, data: [{ id: 'ficha-1', vendida_em: null }] });

@@ -76,10 +76,15 @@ export async function salvarUnidadeOperacional(
     const peca = exigirSucesso(await estoqueApi.criar({
       nome: nova.nome.trim(), categoria_id: nova.categoriaId,
       condicao: nova.condicao ?? 'original', nota_cadastro: nova.notaCadastro ?? null,
-      valor: entrada.preco, quantidade: 1, condicao_nota: nota, imagens: [],
+      // A criação da peça e a complementação da primeira ficha ainda são
+      // duas chamadas HTTP. Preserve as fotos também no cadastro principal:
+      // se a segunda chamada falhar, a imagem continua referenciada e volta
+      // a aparecer como foto geral, em vez de ficar invisível no Storage.
+      valor: entrada.preco, quantidade: 1, condicao_nota: nota, imagens: urls,
       modelo_moto_id: nova.modeloMotoId || null, modelo_moto_compativel_ids: [], ano: nova.ano?.trim() || null, ativo: true, componentes: null, anuncio_fb_url: null, descricao: nova.detalhes?.trim() || null,
     }), 'Não foi possível criar a peça.');
     pecaId = peca.id;
+    fotosAnexadas = true;
     try {
       const fichas = exigirSucesso(await estoqueApi.listarUnidades(pecaId), 'A peça foi salva, mas a unidade não pôde ser carregada.');
       unidade = fichas.find((item) => !item.vendida_em);
