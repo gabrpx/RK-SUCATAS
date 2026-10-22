@@ -18,6 +18,16 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.17',
+    data: '2026-10-22',
+    titulo: 'Cadastro rápido de peças e conclusão administrativa',
+    itens: [
+      { tipo: 'feature', texto: 'O estoque agora permite adicionar várias peças em sequência pelo drawer, com foto, match inteligente de categoria e moto existente ou criada na hora.' },
+      { tipo: 'melhoria', texto: 'Após concluir as adições, o sistema mostra um resumo com total, categorias e motos; as fichas ficam sinalizadas para completar preço, condição e localização.' },
+      { tipo: 'melhoria', texto: 'Administradores podem concluir qualquer tarefa, inclusive tarefas com checklist ou participantes, com a exceção visível no fluxo de execução.' },
+    ],
+  },
+  {
     versao: '1.7.16',
     data: '2026-10-22',
     titulo: 'Conclusão de tarefas alinhada ao checklist',

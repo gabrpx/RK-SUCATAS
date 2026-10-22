@@ -120,7 +120,7 @@ function dataParaPrazo(dueTime: string) {
 }
 
 export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialTaskId, onInitialTaskHandled }: IntegratedProps) {
-  const { pode } = usePermissao();
+  const { pode, isAdmin } = usePermissao();
   const canCreate = pode('tarefas.criar');
   const taskList = tarefas.tarefas;
   const reminderList = lembretes.lembretes;
@@ -226,9 +226,15 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
     const real = taskList.find((item) => item.id === task.id);
     if (!real) return null;
     if (nextStatus === 'em-andamento') return tarefaParaPreview(real);
-    const result = nextStatus === 'concluida' ? tarefasApi.concluir(real.id) : tarefasApi.reabrir(real.id);
+    const result = nextStatus === 'concluida'
+      ? isAdmin
+        ? tarefasApi.concluir(real.id)
+        : real.participantes && real.participantes.length > 0
+          ? tarefasApi.finalizar(real.id)
+          : tarefasApi.concluir(real.id)
+      : tarefasApi.reabrir(real.id);
     return mapUpdatedTask(real.id, result);
-  }, [mapUpdatedTask, taskList]);
+  }, [isAdmin, mapUpdatedTask, taskList]);
 
   const canEdit = pode('tarefas.editar');
   const onPauseTask = useCallback(async (taskId: string, motivo: string) => {
@@ -311,6 +317,7 @@ export function TarefasPreviewIntegrated({ tarefas, lembretes, Preview, initialT
       initialTaskId={initialTaskId}
       onInitialTaskHandled={onInitialTaskHandled}
       currentUserId={localStorage.getItem('user_id') || ''}
+      canCompleteAnyTask={isAdmin}
       canViewReadReceipts={canCreate}
       errorMessage={tarefas.error || lembretes.error || possibleOperatorsError}
       loading={tarefas.loading || lembretes.loading || possibleOperatorsLoading}

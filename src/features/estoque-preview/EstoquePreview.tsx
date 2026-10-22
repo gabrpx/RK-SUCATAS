@@ -5,6 +5,7 @@ import {
   Filter,
   LayoutGrid,
   List,
+  ListPlus,
   Loader2,
   MapPin,
   MoreHorizontal,
@@ -36,6 +37,7 @@ import { clientesApi } from "../clientes/api";
 import type { Cliente } from "../clientes/types";
 import { adaptarEstoqueReal } from "./realInventoryAdapter";
 import { salvarUnidadeOperacional } from "./persistInventory";
+import { BulkInventoryComposer, type BulkPieceDraft } from "./BulkInventoryComposer";
 import { InventoryComposer } from "./InventoryComposer";
 import { InventoryDialog, InventoryTokensContext, lightInventoryTokens } from "./InventoryDrawer";
 import { InventoryConferencia, pecasComFichasSobrando } from "./InventoryConferencia";
@@ -67,6 +69,7 @@ import {
   type PecaEstoque,
   type UnidadeEstoque,
 } from "./inventoryPreviewModel";
+import { encontrarModeloPorNome } from "../estoque/matchModelo";
 
 type Aba = "atendimento" | "organizar" | "mapa" | "arquivados";
 type Visualizacao = "cards" | "lista";
@@ -369,6 +372,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [busca, setBusca] = useState("");
   const [visualizacao, setVisualizacao] = useState<Visualizacao>("cards");
   const [composerAberto, setComposerAberto] = useState(false);
+  const [bulkComposerAberto, setBulkComposerAberto] = useState(false);
   const [pecaParaUnidade, setPecaParaUnidade] = useState<string | null>(null);
   const [unidadeDetalhando, setUnidadeDetalhando] = useState<UnidadeEstoque | null>(null);
   const [pecaResumoId, setPecaResumoId] = useState<string | null>(null);
@@ -391,6 +395,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [formasReais, setFormasReais] = useState<{ id: string; nome: string }[]>([]);
   const [categoriasReais, setCategoriasReais] = useState<Categoria[]>([]);
   const [modelosMoto, setModelosMoto] = useState<ModeloMoto[]>([]);
+  const modelosCriadosEmLote = useRef(new Map<string, ModeloMoto>());
   const [organizacaoReal, setOrganizacaoReal] = useState<OrganizacaoResposta | null>(null);
   const conexaoRealPronta = fonte === "real" && dadosProntos.estoque && !estoqueError && !erroReal && !erroOrganizacao;
   const conexaoPermiteGravar = (fonte === "demo" && !embutido) || conexaoRealPronta;
@@ -575,6 +580,50 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     window.clearTimeout(toastTimer.current);
     setToast({ id: Date.now(), texto: mensagem });
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
+  }
+
+  async function salvarPecaEmLote(item: BulkPieceDraft) {
+    if (!conexaoPermiteGravar && fonte === "real") throw new Error("Conexão indisponível. Atualize o estoque antes de adicionar peças.");
+
+    const chaveMoto = item.motoNome.trim().toLocaleLowerCase("pt-BR");
+    const modeloExistente = modelosCriadosEmLote.current.get(chaveMoto)
+      ?? encontrarModeloPorNome(item.motoNome, modelosMoto)
+      ?? modelosMoto.find((modelo) => modelo.nome.trim().toLocaleLowerCase("pt-BR") === item.motoNome.trim().toLocaleLowerCase("pt-BR"));
+    let modelo = modeloExistente;
+    if (!modelo && fonte === "real") {
+      const criado = await modelosMotoApi.criar(item.motoNome.trim());
+      if (!criado.success || !criado.data) throw new Error(criado.error || "Não foi possível adicionar a moto ao catálogo.");
+      modelo = criado.data;
+      modelosCriadosEmLote.current.set(chaveMoto, criado.data);
+      setModelosMoto((atuais) => atuais.some((atual) => atual.id === criado.data.id) ? atuais : [...atuais, criado.data]);
+    }
+
+    const entrada = {
+      novaPeca: {
+        nome: item.nome,
+        categoriaId: item.categoriaId,
+        condicao: "original" as const,
+        notaCadastro: null,
+        modeloMotoId: modelo?.id ?? null,
+        ano: modelo?.ano ?? null,
+        compatibilidades: [item.motoNome],
+      },
+      preco: null,
+      grau: "B" as const,
+      origem: item.motoNome,
+      fotoUrl: null,
+      endereco: null,
+      fotos: item.foto ? [item.foto] : [],
+    };
+
+    if (fonte === "demo") {
+      setEstoque((atual) => adicionarUnidade(atual, entrada));
+      return;
+    }
+
+    const resultado = await salvarUnidadeOperacional(entrada, estoque.pecas, estoque.locais ?? []);
+    if (!resultado.completo) throw new Error(`${resultado.mensagem} Não repita o cadastro: confira a ficha criada no estoque.`);
+    await atualizarEstoque();
   }
 
   async function reservar(reserva: ReservaUnidadeInput): Promise<boolean> {
@@ -906,7 +955,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         {onAbrirEstoqueAntigo && <button type="button" aria-label="Anúncios e ferramentas antigas" title="Anúncios, famílias e gavetas (tela antiga)" onClick={onAbrirEstoqueAntigo} className="ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-border-default text-text-muted hover:border-accent/40 hover:bg-accent-soft-bg lg:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"><ExternalLink size={15} /><span className="hidden sm:inline">Tela antiga</span></button>}
         <button type="button" onClick={abrirBusca} aria-label="Buscar peça, moto, SKU ou endereço" className={`grid size-11 shrink-0 place-items-center rounded-lg border border-border-default text-text-muted hover:border-accent/40 hover:bg-accent-soft-bg sm:flex sm:w-auto sm:gap-2 sm:px-3 ${onAbrirEstoqueAntigo ? "" : "ml-auto lg:ml-0"}`}><Search size={15} /><span className="hidden sm:inline">Buscar</span><kbd className="hidden rounded border border-border-default px-1 font-mono text-[10px] text-text-faint sm:inline">⌘K</kbd></button>
         {embutido && pode("tarefas.ver") && <TaskNotificationBell currentUserId={localStorage.getItem('user_id') || ''} onOpenTask={(taskId) => onOpenTaskNotification?.(taskId)} />}
-        {podeCriar ? <Button variant="default" size="sm" aria-label="Nova peça" disabled={!podeCadastrar} onClick={() => { setPecaParaUnidade(null); setComposerAberto(true); }} className="size-11 shrink-0 rounded-lg bg-accent text-white hover:bg-accent-hover sm:h-9 sm:w-[154px] sm:rounded-md"><PackagePlus size={15} /><span className="hidden sm:inline">Nova peça</span></Button> : <span className="rounded-md bg-surface-inset px-3 py-1.5 text-xs font-semibold text-text-muted">Somente consulta</span>}
+        {podeCriar ? <div className="flex shrink-0 items-center gap-2"><Button variant="default" size="sm" aria-label="Nova peça" disabled={!podeCadastrar} onClick={() => { setPecaParaUnidade(null); setComposerAberto(true); }} className="size-11 rounded-lg bg-accent text-white hover:bg-accent-hover sm:h-9 sm:w-[154px] sm:rounded-md"><PackagePlus size={15} /><span className="hidden sm:inline">Nova peça</span></Button><button type="button" aria-label="Adicionar peças em massa" disabled={!podeCadastrar} onClick={() => { modelosCriadosEmLote.current.clear(); setBulkComposerAberto(true); }} className="grid size-11 shrink-0 place-items-center rounded-lg border border-accent/30 bg-accent-soft-bg text-accent-soft-fg transition hover:border-accent/60 hover:bg-accent-soft-bg disabled:cursor-not-allowed disabled:opacity-50 sm:flex sm:h-9 sm:w-[176px] sm:gap-2 sm:rounded-md"><ListPlus size={15} /><span className="hidden sm:inline">Adicionar em massa</span></button></div> : <span className="rounded-md bg-surface-inset px-3 py-1.5 text-xs font-semibold text-text-muted">Somente consulta</span>}
       </div>
     </header>
     <main className="mx-auto w-full min-w-0 max-w-[1440px] overflow-x-hidden px-3 pb-[calc(6rem_+_env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-7 lg:py-10">
@@ -965,6 +1014,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       {aba === "arquivados" && <section className="rounded-card border border-border-default bg-surface-card p-5"><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-muted">Histórico preservado</p><h2 className="mt-1 text-xl font-semibold">{fonte === "real" ? "Unidades fora do ativo" : "Itens arquivados"}</h2><p className="mt-1 text-sm text-text-muted">Arquivar tira do estoque ativo, mas não apaga a rastreabilidade. Vendas aparecem aqui só para consulta.</p><div className="mt-4">{campoBusca}</div><div className="mt-4 space-y-2"><AnimatePresence initial={false}>{arquivados.map((unidade) => <motion.div layout key={unidade.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, x: 12 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-border-default p-3"><button type="button" onClick={() => setUnidadeDetalhando(unidade)} aria-label={`Ver ficha de ${unidade.sku}`} className="min-w-0 flex-1 rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><strong>{unidade.sku}</strong><p className="mt-1 text-xs text-text-muted">{pecaPorId(unidade.pecaId)?.nome} · {unidade.vendidaEm ? "Vendida" : unidade.motivoArquivamento ?? "Arquivada"}</p></button>{!unidade.vendidaEm && podeAlterar && <button type="button" aria-label={`Restaurar ${unidade.sku}`} disabled={restaurando === unidade.id} onClick={() => void restaurar(unidade)} className={botaoSecundario}>{restaurando === unidade.id ? <Loader2 size={15} className="animate-spin" /> : <RotateCcw size={15} />}Restaurar</button>}</motion.div>)}</AnimatePresence>{!arquivados.length && <p className="rounded-control border border-dashed border-border-default p-6 text-center text-sm text-text-muted">Nenhuma unidade fora do ativo.</p>}</div></section>}
       </motion.div></AnimatePresence>}
     </main>
+    <BulkInventoryComposer aberto={bulkComposerAberto} categorias={categoriasReais.length ? categoriasReais : estoque.categorias.map((categoria, ordem) => ({ id: categoria.id, nome: categoria.nome, parent_id: null, ordem }))} modelos={modelosMoto} onFechar={() => setBulkComposerAberto(false)} onSalvarItem={salvarPecaEmLote} />
     <InventoryComposer aberto={composerAberto} pecaInicialId={pecaParaUnidade} categorias={estoque.categorias} pecas={estoque.pecas} unidades={estoque.unidades} modelos={modelosMoto} enderecos={fonte === "real" ? enderecosReais : undefined} operacional={fonte === "real"} onFechar={() => { setComposerAberto(false); setPecaParaUnidade(null); }} onDescartarFotos={(urls) => { if (fonte === "real") void organizacaoApi.descartarFotos(urls).catch(() => undefined); }} onSalvar={async (entrada, cacheFotos) => {
       if (fonte === "demo") {
         setEstoque((atual) => adicionarUnidade(atual, entrada));

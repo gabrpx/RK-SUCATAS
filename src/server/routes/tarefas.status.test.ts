@@ -79,4 +79,28 @@ describe('status de tarefas sem checklist', () => {
     expect(response.body.error).toMatch(/checklist/i);
     expect(fake._tabelas.tarefas[0].status).toBe('pendente');
   });
+
+  it('permite ao administrador concluir qualquer tarefa, inclusive com checklist e participantes', async () => {
+    const admin = { id: 'admin-1', roles: ['admin'], permissoes: {} };
+    const fake = criarSupabaseFake([admin, USUARIO]);
+    fake._tabelas.tarefas.push({ ...tarefaBase(), atribuido_para: 'outro-usuario', criado_por: 'outro-usuario' });
+    fake._tabelas.tarefa_itens.push({
+      id: 'item-admin', tarefa_id: 'tarefa-1', texto: 'Conferir foto', concluido: false, ordem: 0, concluido_em: null, concluido_por: null,
+    });
+    fake._tabelas.tarefa_participantes.push({
+      id: 'participante-admin', tarefa_id: 'tarefa-1', usuario_id: 'outro-usuario', concluido: false, concluido_em: null, lida: false,
+    });
+    const router = tarefasRouter(fake as any);
+
+    const response = await dispatch(router, criarReq({
+      method: 'PATCH',
+      url: '/tarefa-1/concluir',
+      params: { id: 'tarefa-1' },
+      usuario: admin,
+    }));
+
+    expect(response.statusCode).toBe(200);
+    expect(response.body.data.status).toBe('concluida');
+    expect(fake._tabelas.tarefas[0].status).toBe('concluida');
+  });
 });

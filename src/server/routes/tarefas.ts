@@ -95,6 +95,19 @@ export function souParticipante(tarefa: { atribuido_para: string; participantes?
   return (tarefa.participantes ?? []).some((p) => p.usuario_id === usuarioId);
 }
 
+/**
+ * Concluir é uma ação diferente de editar a tarefa: executores só podem
+ * concluir tarefas do próprio circuito, enquanto o administrador é uma
+ * exceção explícita e pode dar baixa em qualquer tarefa.
+ */
+export function podeConcluirTarefa(
+  usuario: AuthenticatedRequest['usuario'],
+  tarefa: { atribuido_para: string; participantes?: { usuario_id: string }[] },
+): boolean {
+  if (!usuario || !temPermissao(usuario, 'tarefas.concluir')) return false;
+  return ehAdmin(usuario) || temPermissao(usuario, 'tarefas.criar') || souParticipante(tarefa, usuario.id);
+}
+
 // Progresso "X/Y concluídos" pra barra visual na lista — null quando a
 // tarefa não tem participantes (modelo antigo, sem barra pra mostrar).
 export function progressoParticipantes(participantes: { concluido: boolean }[] | undefined): { feitos: number; total: number } | null {
@@ -548,17 +561,17 @@ export function tarefasRouter(supabase: SupabaseClient) {
       if (erroBusca) throw erroBusca;
       if (!tarefa) return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
 
-      const podeConcluir = temPermissao(req.usuario, 'tarefas.concluir') && (temPermissao(req.usuario, 'tarefas.criar') || souParticipante(tarefa, req.usuario!.id));
+      const podeConcluir = podeConcluirTarefa(req.usuario, tarefa);
       if (!podeConcluir) {
         return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode dar baixa' });
       }
 
-      if ((tarefa.participantes ?? []).length > 0) {
+      if (!ehAdmin(req.usuario) && (tarefa.participantes ?? []).length > 0) {
         return res.status(400).json({ success: false, error: 'Esta tarefa tem participantes — cada um marca sua parte e quem criou finaliza (PATCH /finalizar).' });
       }
 
       const { count } = await supabase.from('tarefa_itens').select('id', { count: 'exact', head: true }).eq('tarefa_id', req.params.id);
-      if ((count ?? 0) > 0) {
+      if (!ehAdmin(req.usuario) && (count ?? 0) > 0) {
         return res.status(400).json({ success: false, error: 'Esta tarefa é controlada pelos itens do checklist — marque/desmarque os itens.' });
       }
 
@@ -586,7 +599,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
       if (erroBusca) throw erroBusca;
       if (!tarefa) return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
 
-      const podeReabrir = temPermissao(req.usuario, 'tarefas.concluir') && (temPermissao(req.usuario, 'tarefas.criar') || souParticipante(tarefa, req.usuario!.id));
+      const podeReabrir = podeConcluirTarefa(req.usuario, tarefa);
       if (!podeReabrir) {
         return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode reabri-la' });
       }
@@ -621,7 +634,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
       if (erroBusca) throw erroBusca;
       if (!tarefa) return res.status(404).json({ success: false, error: 'Tarefa não encontrada' });
 
-      const podeMarcar = temPermissao(req.usuario, 'tarefas.concluir') && (temPermissao(req.usuario, 'tarefas.criar') || souParticipante(tarefa, req.usuario!.id));
+      const podeMarcar = podeConcluirTarefa(req.usuario, tarefa);
       if (!podeMarcar) return res.status(403).json({ success: false, error: 'Só o responsável pela tarefa pode marcar os itens' });
 
       const { data: item, error: erroItem } = await supabase
@@ -720,7 +733,7 @@ export function tarefasRouter(supabase: SupabaseClient) {
       if (erroCompleta) throw erroCompleta;
       const atual = comItensOrdenados(completa);
 
-      if (!aguardandoAprovacao(atual)) {
+      if (!ehAdmin(req.usuario) && !aguardandoAprovacao(atual)) {
         return res.status(400).json({ success: false, error: 'Esta tarefa ainda não está pronta pra finalizar — falta algum participante concluir a própria parte.' });
       }
 

@@ -76,6 +76,8 @@ export type TasksPreviewProps = TaskPreviewCallbacks & {
   loading?: boolean;
   integrated?: boolean;
   currentUserId?: string;
+  /** Administrador pode concluir qualquer tarefa, inclusive com checklist/participantes. */
+  canCompleteAnyTask?: boolean;
   canViewReadReceipts?: boolean;
   initialTaskId?: string | null;
   onInitialTaskHandled?: (taskId: string) => void;
@@ -773,6 +775,7 @@ function TaskInspector({
   onEdit,
   onDelete,
   canViewReadReceipts,
+  canCompleteAnyTask = false,
 }: {
   task: PreviewTask | null;
   onClose: () => void;
@@ -783,6 +786,7 @@ function TaskInspector({
   onEdit?: () => void;
   onDelete?: () => Promise<void> | void;
   canViewReadReceipts?: boolean;
+  canCompleteAnyTask?: boolean;
 }) {
   useTaskOverlayScrollLock(Boolean(task));
   const [pauseFormOpen, setPauseFormOpen] = useState(false);
@@ -800,7 +804,10 @@ function TaskInspector({
   if (!task) return null;
   const taskProgress = progress(task);
   const execution = getPreviewTaskExecutionSummary(task);
-  const checklistDriven = task.checklist.length > 0;
+  // O administrador pode dar baixa direta em checklist pendente; depois de
+  // concluída, a reabertura continua sendo feita desmarcando um item para
+  // não deixar status e checklist divergentes.
+  const checklistDriven = task.checklist.length > 0 && (!canCompleteAnyTask || task.status === "concluida");
   const elapsedMinutes = Math.min(
     task.estimateMinutes,
     Math.max(
@@ -1543,6 +1550,7 @@ export function TasksPreview({
   loading = false,
   integrated = false,
   currentUserId = "",
+  canCompleteAnyTask = false,
   canViewReadReceipts = false,
   initialTaskId,
   onInitialTaskHandled,
@@ -1728,9 +1736,10 @@ export function TasksPreview({
 
   const advanceTaskStatus = async (taskId: string) => {
     const task = tasks.find((item) => item.id === taskId);
-    // Tarefas com checklist não têm transição manual: o backend deriva o
-    // status a partir dos itens e rejeita /concluir e /reabrir nesse caso.
-    if (!task || task.paused || task.checklist.length > 0) return;
+    // O backend deriva o status do checklist para a equipe; o administrador
+    // tem uma exceção apenas para concluir uma tarefa ainda pendente.
+    const checklistBloqueiaTransicao = task?.checklist.length > 0 && (!canCompleteAnyTask || task.status === "concluida");
+    if (!task || task.paused || checklistBloqueiaTransicao) return;
     setActionError(null);
     if (task.status === "aguardando") {
       const startedTask = startPreviewTask(task);
@@ -2349,6 +2358,7 @@ export function TasksPreview({
             onEdit={onUpdateTask || !integrated ? () => editTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
             onDelete={onDeleteTask || !integrated ? () => requestDeleteTask(tasks.find((task) => task.id === selectedTask.id) ?? selectedTask) : undefined}
             canViewReadReceipts={canViewReadReceipts}
+            canCompleteAnyTask={canCompleteAnyTask}
           />
         </>
       )}
