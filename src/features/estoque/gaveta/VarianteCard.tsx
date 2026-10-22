@@ -25,8 +25,15 @@ import { PendenciaVarianteChips } from './PendenciaBadges';
 import { obterNomeVariacaoModelo } from '../../motos/nomeModelo';
 import type { Estoque, EstoqueUnidade } from '../types';
 import { aviso } from '../../../components/ui/toast';
+import { EstoqueAnunciosMlEditor } from '../EstoqueAnunciosMlEditor';
 
 const fmtMoeda = (n: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(n || 0);
+const linkFacebookSeguro = (valor: string | null) => {
+  try {
+    const url = new URL(valor || '');
+    return url.protocol === 'https:' && !url.username && !url.password && (url.hostname === 'facebook.com' || url.hostname.endsWith('.facebook.com') || url.hostname === 'fb.com' || url.hostname.endsWith('.fb.com'));
+  } catch { return false; }
+};
 
 function FaixaPreco({ faixa }: { faixa: { min: number; max: number } | null }) {
   if (!faixa) return <span className="text-sm text-text-faint">Sem preço</span>;
@@ -51,7 +58,7 @@ interface VarianteCardProps {
 }
 
 export function VarianteCard({ item }: VarianteCardProps) {
-  const { refreshData, setEstoque } = useData();
+  const { refreshData, setEstoque, estoque } = useData();
   const { modelos } = useCatalogos();
   const [editandoNome, setEditandoNome] = useState(false);
   const [nomeRascunho, setNomeRascunho] = useState(() => nomeVarianteExibicao(item.nome));
@@ -63,6 +70,36 @@ export function VarianteCard({ item }: VarianteCardProps) {
   const [unidadeEmFicha, setUnidadeEmFicha] = useState<EstoqueUnidade | null>(null);
   const [unidadeEditando, setUnidadeEditando] = useState<EstoqueUnidade | null>(null);
   const [mostrarVendidas, setMostrarVendidas] = useState(false);
+  const [anunciosAbertos, setAnunciosAbertos] = useState(false);
+  const [facebook, setFacebook] = useState(item.anuncio_fb_url ?? '');
+  const [salvandoFacebook, setSalvandoFacebook] = useState(false);
+  const [destino, setDestino] = useState('');
+  const [movendo, setMovendo] = useState(false);
+
+  const salvarFacebook = async () => {
+    setSalvandoFacebook(true);
+    try {
+      const resultado = await estoqueApi.atualizarParcial(item.id, { anuncio_fb_url: facebook.trim() || null });
+      if (!resultado.success) throw new Error(resultado.error);
+      await refreshData();
+      aviso.sucesso('Link do Facebook atualizado');
+    } catch (error: any) { aviso.erro(error?.message || 'Não foi possível salvar o link'); }
+    finally { setSalvandoFacebook(false); }
+  };
+
+  const moverUnidade = async () => {
+    if (!unidadeEditando || !destino || movendo) return;
+    setMovendo(true);
+    try {
+      const resultado = await estoqueApi.moverUnidade(item.id, unidadeEditando.id, destino);
+      if (!resultado.success) throw new Error(resultado.error);
+      setUnidadeEditando(null);
+      setDestino('');
+      await refreshData();
+      aviso.sucesso('Unidade movida para o card selecionado');
+    } catch (error: any) { aviso.erro(error?.message || 'Não foi possível mover a unidade'); }
+    finally { setMovendo(false); }
+  };
 
   const faixa = faixaPrecoVariante(item);
   const unidadesDisponiveis = (item.unidades ?? []).filter((u) => !u.vendida_em);
@@ -220,6 +257,7 @@ export function VarianteCard({ item }: VarianteCardProps) {
                 ML
               </span>
             )}
+            {item.anuncio_fb_url && <span className="shrink-0 rounded-badge bg-accent-alt-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-accent-alt">Facebook</span>}
             {(item.links_shopee?.length ?? 0) > 0 && (
               <span className="shrink-0 rounded-badge bg-danger-bg px-1.5 py-0.5 text-[9px] font-bold uppercase tracking-wider text-danger">
                 Shopee
@@ -268,6 +306,17 @@ export function VarianteCard({ item }: VarianteCardProps) {
 
           <PendenciaVarianteChips item={item} className="mt-1.5" />
         </div>
+      </div>
+
+      <div className="border-t border-border-subtle pt-2">
+        <button type="button" onClick={() => setAnunciosAbertos(!anunciosAbertos)} aria-expanded={anunciosAbertos} className="text-sm font-semibold text-accent-soft-fg">{anunciosAbertos ? 'Ocultar anúncios' : 'Gerenciar anúncios'}</button>
+        {anunciosAbertos && <div className="mt-3 space-y-4">
+          <div><label htmlFor={`facebook-${item.id}`} className="block text-xs font-semibold text-text-muted mb-1">Link do Facebook</label>
+            <div className="flex gap-2"><input id={`facebook-${item.id}`} type="url" value={facebook} onChange={(e) => setFacebook(e.target.value)} placeholder="https://www.facebook.com/marketplace/item/..." className="min-w-0 flex-1 rounded-control border border-border-default bg-surface-inset px-3 py-2 text-sm" /><Button type="button" size="sm" disabled={salvandoFacebook} onClick={salvarFacebook}>Salvar</Button></div>
+            {item.anuncio_fb_url && linkFacebookSeguro(item.anuncio_fb_url) && <a href={item.anuncio_fb_url} target="_blank" rel="noopener noreferrer" className="text-xs text-accent-soft-fg">Abrir anúncio do Facebook</a>}
+          </div>
+          <div><p className="text-xs font-semibold text-text-muted mb-1">Mercado Livre</p><EstoqueAnunciosMlEditor item={item} onAlterado={() => { void refreshData(); }} /></div>
+        </div>}
       </div>
 
       <div>
@@ -347,6 +396,9 @@ export function VarianteCard({ item }: VarianteCardProps) {
               onSalvar={aoSalvarUnidade}
               onCancelar={() => setUnidadeEditando(null)}
             />
+            {!unidadeEditando.vendida_em && <div className="mt-3 flex flex-wrap items-end gap-2"><label className="flex-1 text-xs text-text-muted">Mover unidade para outro card
+              <select value={destino} onChange={(e) => setDestino(e.target.value)} className="mt-1 w-full rounded-control border border-border-default bg-surface-inset px-2 py-2 text-sm"><option value="">Selecione o card de destino</option>{estoque.filter((i) => i.ativo && i.id !== item.id).map((i) => <option key={i.id} value={i.id}>{i.nome}{i.ano ? ` · ${i.ano}` : ''}</option>)}</select></label>
+              <Button type="button" size="sm" disabled={!destino || movendo} onClick={moverUnidade}>Mover unidade</Button><p className="w-full text-xs text-text-muted">Salve alterações da ficha antes de mover.</p></div>}
           </div>
         )}
       </div>

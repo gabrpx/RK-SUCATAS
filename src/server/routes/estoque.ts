@@ -491,6 +491,15 @@ export function validarNovo(body: any): string | null {
   return null;
 }
 
+export function validarLinkFacebook(valor: unknown): boolean {
+  if (valor === null || valor === undefined || valor === '') return true;
+  if (typeof valor !== 'string' || valor.length > 2048) return false;
+  try {
+    const url = new URL(valor.trim());
+    return url.protocol === 'https:' && !url.username && !url.password && (url.hostname === 'facebook.com' || url.hostname.endsWith('.facebook.com') || url.hostname === 'fb.com' || url.hostname.endsWith('.fb.com'));
+  } catch { return false; }
+}
+
 export function montarPayload(body: any) {
   const payload: Record<string, any> = {};
   for (const campo of CAMPOS_EDITAVEIS) {
@@ -604,6 +613,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
 
   router.post('/', CRIAR, async (req: AuthenticatedRequest, res) => {
     try {
+      if (!validarLinkFacebook(req.body?.anuncio_fb_url)) return res.status(400).json({ success: false, error: 'Informe um link HTTPS válido do Facebook' });
       const nome = String(req.body?.nome || '').trim();
       if (!nome) return res.status(400).json({ success: false, error: 'Nome da peça é obrigatório' });
       if (!['original', 'paralela'].includes(req.body?.condicao)) {
@@ -644,6 +654,7 @@ export function estoqueRouter(supabase: SupabaseClient) {
   // usada pelas fotos de unidade, ver montarPayloadUnidade abaixo).
   const atualizarItem = async (req: any, res: any) => {
     try {
+      if (!validarLinkFacebook(req.body?.anuncio_fb_url)) return res.status(400).json({ success: false, error: 'Informe um link HTTPS válido do Facebook' });
       const erroNovo = validarNovo(req.body);
       if (erroNovo) return res.status(400).json({ success: false, error: erroNovo });
       const payload = montarPayload(req.body);

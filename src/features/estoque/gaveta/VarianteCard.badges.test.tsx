@@ -76,6 +76,22 @@ describe('VarianteCard — badges', () => {
     expect(badge.className).toContain('text-accent-soft-fg');
     expect(badge.className).not.toContain('text-info');
   });
+
+  it('identifica anúncios vinculados ao Facebook e Mercado Livre', () => {
+    render(<VarianteCard item={itemBase({ anuncio_fb_url: 'https://www.facebook.com/marketplace/item/123', links_ml: [{ id: 'l1', url: 'https://mercadolivre.com.br/MLB123456', mlb_id: 'MLB123456' }] as Estoque['links_ml'] })} />);
+    expect(screen.getByText('Facebook')).toBeTruthy();
+    expect(screen.getByText('ML')).toBeTruthy();
+  });
+
+  it('permite vincular o Facebook pelo card', async () => {
+    atualizarParcial.mockResolvedValue({ success: true, data: {} });
+    refreshData.mockResolvedValue(undefined);
+    render(<VarianteCard item={itemBase()} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Gerenciar anúncios' }));
+    fireEvent.change(screen.getByLabelText('Link do Facebook'), { target: { value: 'https://www.facebook.com/marketplace/item/123' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Salvar' }));
+    await vi.waitFor(() => expect(atualizarParcial).toHaveBeenCalledWith('e1', { anuncio_fb_url: 'https://www.facebook.com/marketplace/item/123' }));
+  });
 });
 
 describe('VarianteCard — nome organizacional', () => {

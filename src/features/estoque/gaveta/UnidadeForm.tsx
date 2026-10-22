@@ -55,8 +55,8 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
   const [enviandoFotos, setEnviandoFotos] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const precoValido = form.valor !== null && form.valor !== undefined && form.valor > 0;
-  const fotoValida = form.fotos.length > 0;
+  const precoValido = unidade ? form.valor == null || form.valor > 0 : form.valor != null && form.valor > 0;
+  const fotoValida = !!unidade || form.fotos.length > 0;
   const fotosCheias = form.fotos.length >= MAX_FOTOS;
 
   const enviarFotos = async (files: FileList) => {
@@ -112,7 +112,7 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
     'w-full border rounded-control py-2.5 px-4 text-sm outline-none transition-all focus:ring-2 focus:ring-accent/50 bg-surface-inset border-border-default text-text-primary placeholder:text-text-faint';
 
   return (
-    <div className="rounded-card border border-accent bg-surface-card p-4 space-y-4">
+    <form className="rounded-card border border-accent bg-surface-card p-4 space-y-4" onSubmit={(event) => { event.preventDefault(); if (!salvando && !enviandoFotos) void salvar(false); }}>
       <h5 className="text-[11px] font-semibold uppercase tracking-[0.08em] text-accent">
         {unidade ? 'Editar unidade' : 'Nova unidade'}
       </h5>
@@ -191,7 +191,7 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
       )}
 
       <div>
-        <label className={labelClass}>Anexar ao menos uma foto própria — até {MAX_FOTOS} fotos</label>
+        <label className={labelClass}>{unidade ? 'Fotos próprias (opcional)' : 'Anexar ao menos uma foto própria'} — até {MAX_FOTOS} fotos</label>
 
         {form.fotos.length > 0 && (
           <div className="flex flex-wrap gap-2 mb-3">
@@ -247,11 +247,10 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
       <div className="flex flex-col gap-2">
         <div className="flex gap-3">
           <Button
-            type="button"
+            type="submit"
             variant="accent-cta"
             size="mobile"
             className="flex-1 sm:h-9 sm:text-sm"
-            onClick={() => salvar(false)}
             disabled={!precoValido || !fotoValida || salvando || enviandoFotos}
           >
             {salvando ? <Loader2 size={16} className="animate-spin" /> : 'Salvar'}
@@ -273,6 +272,6 @@ export function UnidadeForm({ estoqueId, unidade, nomeSugerido, onSalvar, onCanc
           </Button>
         )}
       </div>
-    </div>
+    </form>
   );
 }
