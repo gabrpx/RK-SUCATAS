@@ -480,6 +480,18 @@ export function editarPeca(
   };
 }
 
+/** Remove o cadastro da peça e todas as unidades filhas no estado local. */
+export function removerPeca(
+  estoque: EstoquePreviewState,
+  pecaId: string
+): EstoquePreviewState {
+  return {
+    ...estoque,
+    pecas: estoque.pecas.filter((item) => item.id !== pecaId),
+    unidades: estoque.unidades.filter((item) => item.pecaId !== pecaId),
+  };
+}
+
 export function definirCategoriaDaSecao(
   estoque: EstoquePreviewState,
   endereco: string,

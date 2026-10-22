@@ -9,9 +9,11 @@ const mocks = vi.hoisted(() => ({
   organizarUnidade: vi.fn(),
   listarOrganizacao: vi.fn(),
   editarUnidade: vi.fn(),
+  excluirPeca: vi.fn(),
   conferirBaixa: vi.fn(),
   baixarFichaExcedente: vi.fn(),
   estoqueContexto: [] as unknown[],
+  estoqueError: false,
 }));
 
 vi.mock("../../context/DataContext", () => ({
@@ -19,13 +21,13 @@ vi.mock("../../context/DataContext", () => ({
     estoque: mocks.estoqueContexto,
     ready: { estoque: true },
     loading: false,
-    estoqueError: false,
+    estoqueError: mocks.estoqueError,
     refreshData: vi.fn(),
   }),
 }));
 
 vi.mock("../estoque/api", () => ({
-  estoqueApi: { listar: mocks.listarEstoque, atualizarUnidade: mocks.atualizarUnidade, organizarUnidade: mocks.organizarUnidade },
+  estoqueApi: { listar: mocks.listarEstoque, atualizarUnidade: mocks.atualizarUnidade, organizarUnidade: mocks.organizarUnidade, excluir: mocks.excluirPeca },
 }));
 vi.mock("../../lib/catalogApi", () => ({
   categoriasApi: { listar: async () => ({ success: true, data: [{ id: "cat-1", nome: "Iluminação", parent_id: null, ordem: 1 }] }) },
@@ -62,13 +64,15 @@ const peca = (id: string, codigo: string, nome: string, quantidade: number, unid
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.estoqueContexto = [];
-  mocks.listarEstoque.mockResolvedValue({ success: true, data: [
+  const estoquePadrao = [
     // Farol: 1 unidade vendida por baixa automática + 1 livre.
     peca("peca-1", "RK-900", "Farol CG 160", 1, [ficha("u1", 901, { vendida_em: "2026-09-24T10:00:00Z" }), ficha("u2", 902)]),
     // Pisca: quantidade 1, mas 2 fichas livres (venda antiga sem unidade).
     peca("peca-2", "RK-901", "Pisca Titan", 1, [ficha("s1", 911, { estoque_id: "peca-2" }), ficha("s2", 912, { estoque_id: "peca-2" })]),
-  ] });
+  ];
+  mocks.estoqueContexto = estoquePadrao;
+  mocks.estoqueError = false;
+  mocks.listarEstoque.mockResolvedValue({ success: true, data: estoquePadrao });
   mocks.listarOrganizacao.mockResolvedValue({ success: true, data: {
     locais: [{ id: "local-1", codigo: "A-01", deposito: "Principal", zona: "A", prateleira: "P1", secao: "S1", descricao: null, ativo: true }],
     categorias: [], reservas: [],
@@ -78,6 +82,7 @@ beforeEach(() => {
   mocks.editarUnidade.mockResolvedValue({ success: true, data: { id: "u2" } });
   mocks.conferirBaixa.mockResolvedValue({ success: true, data: { id: "b1" } });
   mocks.baixarFichaExcedente.mockResolvedValue({ success: true, data: { id: "s2" } });
+  mocks.excluirPeca.mockResolvedValue({ success: true, data: null });
 });
 afterEach(cleanup);
 
@@ -184,6 +189,70 @@ describe("EstoquePreview dentro do app (dados reais)", () => {
     await waitFor(() => expect(document.body.textContent).not.toContain("175,00"));
   });
 
+  it("define preços em lote somente para os graus sem valor", async () => {
+    mocks.estoqueContexto = [{
+      ...peca("peca-1", "RK-900", "Banco Fazer 250", 3, [
+        ficha("u-a", 901, { valor: 0, condicao_nota: 9 }),
+        ficha("u-b", 902, { valor: null, condicao_nota: 6 }),
+        ficha("u-c", 903, { valor: 95, condicao_nota: 3 }),
+      ]),
+      valor: 0,
+    }];
+
+    render(<EstoquePreview embutido />);
+    await screen.findByText("Estoque real · sincronizado");
+    fireEvent.click(screen.getByRole("button", { name: /Ver resumo de Banco Fazer 250/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Definir preços em lote/i }));
+    fireEvent.change(screen.getByLabelText("Preço do Grau A"), { target: { value: "180" } });
+    fireEvent.change(screen.getByLabelText("Preço do Grau B"), { target: { value: "130" } });
+    expect(screen.queryByLabelText("Preço do Grau C")).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar em 2 unidades" }));
+
+    await waitFor(() => expect(mocks.editarUnidade).toHaveBeenCalledTimes(2));
+    expect(mocks.editarUnidade).toHaveBeenCalledWith("u-a", { valor: 180 });
+    expect(mocks.editarUnidade).toHaveBeenCalledWith("u-b", { valor: 130 });
+    expect(mocks.editarUnidade).not.toHaveBeenCalledWith("u-c", expect.anything());
+    expect(await screen.findByText(/R\$\s*180,00/)).toBeTruthy();
+    expect(screen.getByText(/R\$\s*130,00/)).toBeTruthy();
+    expect(screen.getAllByText(/R\$\s*95,00/).length).toBeGreaterThan(0);
+  });
+
+  it("permite excluir definitivamente um cadastro sem unidades", async () => {
+    mocks.estoqueContexto = [peca("peca-vazia", "RK-999", "Cadastro vazio", 0, [])];
+
+    render(<EstoquePreview embutido />);
+    await screen.findByText("Estoque real · sincronizado");
+    fireEvent.click(screen.getByRole("button", { name: "Excluir RK-999 do estoque" }));
+    const dialogo = await screen.findByRole("dialog", { name: "Excluir Cadastro vazio?" });
+    fireEvent.click(within(dialogo).getByRole("button", { name: "Excluir definitivamente" }));
+
+    await waitFor(() => expect(mocks.excluirPeca).toHaveBeenCalledWith("peca-vazia"));
+    await waitFor(() => expect(screen.queryByText("Cadastro vazio")).toBeNull());
+  });
+
+  it("informa falha parcial ao salvar preços sem anunciar sucesso completo", async () => {
+    mocks.estoqueContexto = [{
+      ...peca("peca-1", "RK-900", "Banco Fazer 250", 2, [
+        ficha("u-a", 901, { valor: 0, condicao_nota: 9 }),
+        ficha("u-c", 903, { valor: 0, condicao_nota: 3 }),
+      ]),
+      valor: 0,
+    }];
+    mocks.editarUnidade.mockResolvedValueOnce({ success: true }).mockResolvedValueOnce({ success: false });
+
+    render(<EstoquePreview embutido />);
+    await screen.findByText("Estoque real · sincronizado");
+    fireEvent.click(screen.getByRole("button", { name: /Ver resumo de Banco Fazer 250/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Definir preços em lote/i }));
+    fireEvent.change(screen.getByLabelText("Preço do Grau A"), { target: { value: "180" } });
+    fireEvent.change(screen.getByLabelText("Preço do Grau C"), { target: { value: "90" } });
+    fireEvent.click(screen.getByRole("button", { name: "Aplicar em 2 unidades" }));
+
+    expect(await screen.findByText(/1 de 2 unidades foram atualizadas/)).toBeTruthy();
+    expect(screen.getByText(/Não foi possível concluir todos os preços/)).toBeTruthy();
+    expect(screen.queryByText(/Preços aplicados em 2 unidades/)).toBeNull();
+  });
+
   it("volta ao catálogo na mesma posição depois de trocar de aba", async () => {
     render(<EstoquePreview embutido />);
     await screen.findByText("Estoque real · sincronizado");
@@ -198,11 +267,13 @@ describe("EstoquePreview dentro do app (dados reais)", () => {
   });
 
   it("sem conexão, não mostra peças de demonstração dentro do app", async () => {
+    mocks.estoqueContexto = [];
+    mocks.estoqueError = true;
     mocks.listarEstoque.mockResolvedValue({ success: false, error: "Servidor fora do ar" });
     render(<EstoquePreview embutido />);
-    expect(await screen.findByText("Não foi possível carregar o estoque.")).toBeTruthy();
+    expect(await screen.findByText("Somente leitura")).toBeTruthy();
     expect(screen.queryByText(/Rabeta/)).toBeNull();
-    expect(screen.queryByRole("tab", { name: /Atendimento/ })).toBeNull();
+    expect(screen.queryByText(/Farol CG 160/)).toBeNull();
     expect((screen.getByRole("button", { name: "Nova peça" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });

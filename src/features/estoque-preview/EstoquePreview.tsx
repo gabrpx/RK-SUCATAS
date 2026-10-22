@@ -12,6 +12,7 @@ import {
   Plus,
   RotateCcw,
   Search,
+  Trash2,
 } from "lucide-react";
 import { DotMatrix } from "dot-anime-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -39,7 +40,7 @@ import { InventoryComposer } from "./InventoryComposer";
 import { InventoryDialog, InventoryTokensContext, lightInventoryTokens } from "./InventoryDrawer";
 import { InventoryConferencia, pecasComFichasSobrando } from "./InventoryConferencia";
 import { InventoryUnitDrawer, type HistoricoCarregado, type UnidadeAlteracoes } from "./InventoryUnitDrawer";
-import { InventoryPieceSummaryDrawer } from "./InventoryPieceSummaryDrawer";
+import { InventoryPieceSummaryDrawer, type PrecosPorGrau } from "./InventoryPieceSummaryDrawer";
 import { inventoryThumbnailUrl } from "./inventoryImageUrl";
 import { InventoryMap } from "./InventoryMap";
 import { ImageZoom } from "../../components/ui/image-zoom";
@@ -59,6 +60,7 @@ import {
   liberarReservaUnidade,
   ordenarUnidadesPorCondicao,
   reservarUnidade,
+  removerPeca,
   restaurarUnidade,
   type EstoquePreviewState,
   type ReservaUnidadeInput,
@@ -78,7 +80,7 @@ function SurfaceLabel({ children, className = "" }: { children: ReactNode; class
 }
 
 function moeda(valor: number | null) {
-  return valor === null ? "Preço a definir" : valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+  return !(Number(valor) > 0) ? "Preço a definir" : Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function estadoLabel(unidade: UnidadeEstoque) {
@@ -108,9 +110,11 @@ interface AcoesUnidade {
   onEdit: (unidade: UnidadeEstoque) => void;
   onArchive: (unidade: UnidadeEstoque) => void;
   onAddUnit: (peca: PecaEstoque) => void;
+  onDeletePiece: (peca: PecaEstoque) => void;
   podeArquivar: boolean;
   podeEditar: boolean;
   podeCriar: boolean;
+  podeExcluir: boolean;
   /** Abre a conferência (fichas sobrando / vendas sem unidade). */
   onConferir?: () => void;
 }
@@ -163,8 +167,11 @@ function UnitRow({ unidade, acoes, fotoReferencia, priorizarImagem = false }: { 
 
 function RupturaAviso({ peca, acoes, compacto = false }: { peca: PecaEstoque; acoes: AcoesUnidade; compacto?: boolean }) {
   return <div className={`flex w-full flex-wrap items-center justify-between gap-3 rounded-control border border-dashed border-negative/40 bg-negative-bg px-4 ${compacto ? "py-2" : "min-h-24 py-3"} text-sm text-text-primary`}>
-    <span><strong>0 unidades físicas.</strong> Cadastre ou vincule uma unidade para liberar este item.</span>
-    {acoes.podeCriar && <button type="button" onClick={() => acoes.onAddUnit(peca)} aria-label={`Adicionar unidade a ${peca.codigoLegado}`} className={`${botaoSecundario} border-negative/30`}><Plus size={15} />Adicionar unidade</button>}
+    <span><strong>Cadastro sem unidades físicas.</strong> Adicione uma unidade ou remova este item vazio.</span>
+    <span className="flex flex-wrap gap-2">
+      {acoes.podeExcluir && <button type="button" onClick={() => acoes.onDeletePiece(peca)} aria-label={`Excluir ${peca.codigoLegado} do estoque`} className={`${buttonBase} text-danger hover:bg-danger-bg`}><Trash2 size={15} />Excluir item</button>}
+      {acoes.podeCriar && <button type="button" onClick={() => acoes.onAddUnit(peca)} aria-label={`Adicionar unidade a ${peca.codigoLegado}`} className={`${botaoSecundario} border-negative/30`}><Plus size={15} />Adicionar unidade</button>}
+    </span>
   </div>;
 }
 
@@ -286,7 +293,7 @@ function StockRhythmCard({ unidades }: { unidades: UnidadeEstoque[] }) {
 }
 
 function StockListRow({ unidade, resultado, acoes }: { unidade: UnidadeEstoque | null; resultado: ReturnType<typeof buscarPecas>[number]; acoes: AcoesUnidade }) {
-  if (!unidade) return <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-negative/40 bg-negative-bg p-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-text-primary">{resultado.peca.codigoLegado}</strong><span className="rounded-badge border border-negative/30 bg-surface-card px-1.5 py-0.5 text-[10px] font-semibold text-negative">Sem estoque</span></div><p className="mt-1 truncate text-sm font-semibold text-text-secondary">{resultado.peca.nome}</p><p className="mt-1 text-xs text-negative">0 unidades físicas cadastradas</p></div>{acoes.podeCriar ? <button type="button" onClick={() => acoes.onAddUnit(resultado.peca)} aria-label={`Adicionar unidade a ${resultado.peca.codigoLegado}`} className={botaoSecundario}><Plus size={15} />Adicionar unidade</button> : <span className="text-xs text-text-muted">Sem permissão para cadastrar</span>}</motion.div>;
+  if (!unidade) return <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex flex-wrap items-center justify-between gap-3 rounded-control border border-negative/40 bg-negative-bg p-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-text-primary">{resultado.peca.codigoLegado}</strong><span className="rounded-badge border border-negative/30 bg-surface-card px-1.5 py-0.5 text-[10px] font-semibold text-negative">Sem estoque</span></div><p className="mt-1 truncate text-sm font-semibold text-text-secondary">{resultado.peca.nome}</p><p className="mt-1 text-xs text-negative">Cadastro vazio · nenhuma unidade física</p></div><div className="flex flex-wrap gap-2">{acoes.podeExcluir && <button type="button" onClick={() => acoes.onDeletePiece(resultado.peca)} aria-label={`Excluir ${resultado.peca.codigoLegado} do estoque`} className={`${buttonBase} text-danger hover:bg-danger-bg`}><Trash2 size={15} />Excluir item</button>}{acoes.podeCriar ? <button type="button" onClick={() => acoes.onAddUnit(resultado.peca)} aria-label={`Adicionar unidade a ${resultado.peca.codigoLegado}`} className={botaoSecundario}><Plus size={15} />Adicionar unidade</button> : !acoes.podeExcluir && <span className="text-xs text-text-muted">Sem permissão para alterar</span>}</div></motion.div>;
   return <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -4 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3 transition hover:border-accent/35 hover:shadow-md"><button type="button" aria-label={`Ver detalhes de ${unidade.sku}`} onClick={() => acoes.onOpen(unidade)} className="min-w-0 flex-1 cursor-pointer rounded-control text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/30"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-text-primary">{unidade.sku}</strong><span className="rounded-badge border border-border-default bg-surface-inset px-1.5 py-0.5 text-[10px] font-semibold text-text-muted">{resultado.categoria.nome}</span><span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${estadoClass(unidade)}`}>{estadoLabel(unidade)}</span></div><p className="mt-1 truncate text-sm font-semibold text-text-secondary">{resultado.peca.nome}</p><p className="mt-1 truncate text-xs text-text-muted">{unidade.endereco ?? "Sem endereço"} · <strong className="text-text-primary">{moeda(unidade.preco)}</strong></p></button><ActionMenu unidade={unidade} acoes={acoes} /></motion.div>;
 }
 
@@ -367,8 +374,10 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [pecaResumoId, setPecaResumoId] = useState<string | null>(null);
   const [unidadeEditando, setUnidadeEditando] = useState<UnidadeEstoque | null>(null);
   const [archiveTarget, setArchiveTarget] = useState<UnidadeEstoque | null>(null);
+  const [pecaExclusaoId, setPecaExclusaoId] = useState<string | null>(null);
   const [motivoArquivamento, setMotivoArquivamento] = useState("");
   const [processando, setProcessando] = useState(false);
+  const [excluindoPeca, setExcluindoPeca] = useState(false);
   const [restaurando, setRestaurando] = useState<string | null>(null);
   const [toast, setToast] = useState<{ id: number; texto: string } | null>(null);
   const [baixasPendentes, setBaixasPendentes] = useState<BaixaPendente[]>([]);
@@ -389,8 +398,10 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   // vira consulta em vez de exibir ações que só falhariam no envio.
   const podeEditar = pode("estoque.editar");
   const podeCriar = pode("estoque.criar");
+  const podeDeletar = pode("estoque.deletar");
   const podeAlterar = conexaoPermiteGravar && podeEditar;
   const podeCadastrar = conexaoPermiteGravar && podeCriar;
+  const podeExcluir = conexaoPermiteGravar && podeDeletar;
   const metricas = useMemo(() => getMetricas(estoque), [estoque]);
   const todosResultados = useMemo(() => buscarPecas(estoque, busca), [estoque, busca]);
   const resultadoResumo = useMemo(() => pecaResumoId ? buscarPecas(estoque, "").find((item) => item.peca.id === pecaResumoId) ?? null : null, [estoque, pecaResumoId]);
@@ -408,6 +419,8 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const triagem = useMemo(() => estoque.unidades.filter((unidade) => unidade.estado !== "arquivada" && unidade.estado !== "reservada" && (unidade.estado === "organizar" || !unidade.endereco)), [estoque]);
   const pecasPorId = useMemo(() => new Map(estoque.pecas.map((peca) => [peca.id, peca])), [estoque.pecas]);
   const pecaPorId = (id: string) => pecasPorId.get(id) ?? null;
+  const pecaExclusao = pecaExclusaoId ? pecasPorId.get(pecaExclusaoId) ?? null : null;
+  const unidadesPecaExclusao = pecaExclusaoId ? estoque.unidades.filter((unidade) => unidade.pecaId === pecaExclusaoId) : [];
   // O drawer lê a unidade atualizada do estado (após reservar/liberar/recarregar),
   // não a cópia guardada no clique que o abriu.
   const unidadeSelecionada = unidadeDetalhando ?? unidadeEditando;
@@ -680,6 +693,80 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     return true;
   }
 
+  async function aplicarPrecosPorGrau(pecaId: string, precos: PrecosPorGrau): Promise<boolean> {
+    const alvos = estoque.unidades.filter((unidade) =>
+      unidade.pecaId === pecaId
+      && unidade.individualizada !== false
+      && unidade.estado !== "arquivada"
+      && !unidade.vendidaEm
+      && !(Number(unidade.preco) > 0)
+      && Number(precos[unidade.grau]) > 0
+    );
+    if (alvos.length < 2) {
+      avisar("Não há duas unidades sem preço para atualizar em lote.");
+      return false;
+    }
+    if (fonte === "demo") {
+      setEstoque((atual) => alvos.reduce((proximo, unidade) => editarUnidade(proximo, unidade.id, { preco: precos[unidade.grau] ?? null }), atual));
+      avisar(`Preços aplicados em ${alvos.length} unidades da demonstração.`);
+      return true;
+    }
+    if (!conexaoRealPronta) {
+      avisar("Conexão indisponível. Atualize o estoque antes de definir os preços.");
+      return false;
+    }
+    try {
+      const resultados = await Promise.allSettled(alvos.map(async (unidade) => {
+        const valor = precos[unidade.grau];
+        if (!(Number(valor) > 0)) throw new Error(`Preço inválido para o Grau ${unidade.grau}.`);
+        const resposta = await organizacaoApi.editarUnidade(unidade.id, { valor });
+        if (!resposta.success) throw new Error(`Não foi possível atualizar ${unidade.sku}.`);
+      }));
+      const falhas = resultados.filter((resultado) => resultado.status === "rejected");
+      if (falhas.length) {
+        await atualizarEstoque();
+        const motivo = falhas[0].status === "rejected" && falhas[0].reason instanceof Error ? falhas[0].reason.message : "Falha ao aplicar os preços em lote.";
+        avisar(`${motivo} ${alvos.length - falhas.length} de ${alvos.length} unidades foram atualizadas; os dados foram recarregados.`);
+        return false;
+      }
+      setEstoque((atual) => alvos.reduce((proximo, unidade) => editarUnidade(proximo, unidade.id, { preco: precos[unidade.grau] ?? null }), atual));
+      avisar(`Preços aplicados em ${alvos.length} unidades, respeitando cada grau.`);
+      void atualizarEstoque();
+      return true;
+    } catch (erro) {
+      await atualizarEstoque();
+      avisar(erro instanceof Error ? erro.message : "Falha ao aplicar os preços em lote.");
+      return false;
+    }
+  }
+
+  function abrirExclusaoPeca(peca: PecaEstoque) {
+    setPecaResumoId(null);
+    setPecaExclusaoId(peca.id);
+  }
+
+  async function excluirPecaDefinitivamente() {
+    if (!pecaExclusao || excluindoPeca) return;
+    const id = pecaExclusao.id;
+    const nome = pecaExclusao.nome;
+    setExcluindoPeca(true);
+    try {
+      if (fonte === "real") {
+        if (!conexaoRealPronta) throw new Error("Conexão indisponível. Atualize o estoque antes de excluir.");
+        const resposta = await estoqueApi.excluir(id);
+        if (!resposta.success) throw new Error(resposta.error || "Não foi possível excluir o item do estoque.");
+      }
+      setEstoque((atual) => removerPeca(atual, id));
+      setPecaExclusaoId(null);
+      avisar(`${nome} foi removido definitivamente do estoque.`);
+      if (fonte === "real") void atualizarEstoque();
+    } catch (erro) {
+      avisar(erro instanceof Error ? erro.message : "Falha ao excluir o item do estoque.");
+    } finally {
+      setExcluindoPeca(false);
+    }
+  }
+
   function abrirArquivamento(unidade: UnidadeEstoque) {
     setMotivoArquivamento("");
     setArchiveTarget(unidade);
@@ -774,9 +861,11 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     onEdit: setUnidadeEditando,
     onArchive: abrirArquivamento,
     onAddUnit: (peca) => { setPecaParaUnidade(peca.id); setComposerAberto(true); },
+    onDeletePiece: abrirExclusaoPeca,
     podeArquivar: podeAlterar,
     podeEditar: podeAlterar,
     podeCriar: podeCadastrar,
+    podeExcluir,
     onConferir: fonte === "real" && recursos.baixaAutomatica ? () => setConferenciaAberta(true) : undefined,
   };
 
@@ -870,8 +959,12 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       avisar(resultado.mensagem);
       return resultado;
     }} />
-    <InventoryPieceSummaryDrawer resultado={resultadoResumo} onClose={() => setPecaResumoId(null)} onOpenUnit={(unidade) => { setPecaResumoId(null); setUnidadeDetalhando(unidade); }} />
+    <InventoryPieceSummaryDrawer resultado={resultadoResumo} onClose={() => setPecaResumoId(null)} onOpenUnit={(unidade) => { setPecaResumoId(null); setUnidadeDetalhando(unidade); }} podeEditar={podeAlterar} podeExcluir={podeExcluir} onApplyPrices={resultadoResumo ? (precos) => aplicarPrecosPorGrau(resultadoResumo.peca.id, precos) : undefined} onDeleteItem={resultadoResumo ? () => abrirExclusaoPeca(resultadoResumo.peca) : undefined} />
     <InventoryUnitDrawer unidade={unidadeAberta} peca={unidadeAberta ? pecaPorId(unidadeAberta.pecaId) : null} reservasHabilitadas={conexaoPermiteGravar} podeAlterar={podeAlterar} recursos={fonte === "real" ? recursos : RECURSOS_DEMONSTRACAO} clientes={fonte === "real" ? clientesReais : clientesDemo} formasPagamento={fonte === "real" ? formasReais : formasDemo} onReservar={reservar} onLiberarReserva={liberarReserva} carregarHistorico={carregarHistorico} abrirEmEdicao={Boolean(unidadeEditando)} operacional={fonte === "real"} podeArquivar={podeAlterar} enderecos={fonte === "real" ? enderecosReais : undefined} onFechar={() => { setUnidadeDetalhando(null); setUnidadeEditando(null); }} onSalvar={salvarEdicao} onArquivar={() => { const unidade = unidadeDetalhando ?? unidadeEditando; if (unidade) abrirArquivamento(unidade); setUnidadeDetalhando(null); setUnidadeEditando(null); }} />
+    <InventoryDialog isOpen={Boolean(pecaExclusao)} onClose={() => { if (!excluindoPeca) setPecaExclusaoId(null); }} eyebrow="Exclusão definitiva" title={pecaExclusao ? `Excluir ${pecaExclusao.nome}?` : "Excluir item do estoque"} description={unidadesPecaExclusao.length ? `O cadastro e suas ${unidadesPecaExclusao.length} ${unidadesPecaExclusao.length === 1 ? "ficha física será apagada" : "fichas físicas serão apagadas"}. Esta ação não pode ser desfeita.` : "Este cadastro vazio será removido por completo e deixará de aparecer no estoque. Esta ação não pode ser desfeita."}
+      footer={<><button type="button" disabled={excluindoPeca} onClick={() => setPecaExclusaoId(null)} className={`${buttonBase} text-text-secondary hover:bg-surface-inset`}>Manter item</button><button type="button" disabled={excluindoPeca} onClick={() => void excluirPecaDefinitivamente()} className={`${buttonBase} bg-danger text-white hover:opacity-90`}>{excluindoPeca ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}{excluindoPeca ? "Excluindo…" : "Excluir definitivamente"}</button></>}>
+      <div role="note" className="mt-4 rounded-control bg-danger-bg px-3 py-3 text-sm text-danger"><strong>{pecaExclusao?.codigoLegado}</strong> será removido do catálogo, das buscas e das listas operacionais. Fichas e registros vinculados também podem ser apagados.</div>
+    </InventoryDialog>
     <InventoryDialog isOpen={Boolean(archiveTarget)} onClose={() => { if (!processando) setArchiveTarget(null); }} eyebrow="Arquivar unidade" title={archiveTarget ? `Retirar ${archiveTarget.sku} do ativo?` : "Arquivar unidade"} description="Ela sai dos resultados, do mapa e da quantidade da peça, mas o histórico permanece e ela pode ser restaurada na aba Arquivados."
       footer={<><button type="button" disabled={processando} onClick={() => setArchiveTarget(null)} className={`${buttonBase} text-text-secondary hover:bg-surface-inset`}>Cancelar</button><button type="button" disabled={processando || !motivoValido} onClick={() => void arquivar()} className={`${buttonBase} bg-danger text-white hover:opacity-90`}>{processando ? <Loader2 size={16} className="animate-spin" /> : <Archive size={16} />}Confirmar arquivamento</button></>}>
       <label className="mt-4 block text-sm font-semibold text-text-secondary">Motivo {fonte === "real" ? <span className="font-normal text-text-faint">(obrigatório, 3 a 240 caracteres)</span> : <span className="font-normal text-text-faint">(opcional na demonstração)</span>}<textarea aria-label="Motivo do arquivamento" rows={3} maxLength={240} value={motivoArquivamento} onChange={(event) => setMotivoArquivamento(event.target.value)} placeholder="Ex.: peça danificada no galpão, cadastro duplicado" className="mt-1 w-full rounded-control border border-border-default bg-surface-inset px-3 py-2 font-normal text-base text-text-primary outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/20 sm:text-sm" /></label>

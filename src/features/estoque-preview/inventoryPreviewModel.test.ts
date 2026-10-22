@@ -14,6 +14,7 @@ import {
   ordenarUnidadesPorCondicao,
   podeReservar,
   reservarUnidade,
+  removerPeca,
   restaurarUnidade,
   motivoBloqueioReserva,
   sinalMinimo,
@@ -230,6 +231,16 @@ describe("inventoryPreviewModel", () => {
     const estoque = criarEstoqueDemo();
     const farol = estoque.pecas.find((peca) => peca.codigoLegado === "RK-825")!;
     expect(estoque.categorias.find((categoria) => categoria.id === farol.categoriaId)?.nome).toBe("Iluminação");
+  });
+
+  it("remove o cadastro da peça e todas as unidades filhas do estado local", () => {
+    const estoque = criarEstoqueDemo();
+    const peca = estoque.pecas.find((item) => estoque.unidades.some((unidade) => unidade.pecaId === item.id))!;
+    const restante = removerPeca(estoque, peca.id);
+
+    expect(restante.pecas.some((item) => item.id === peca.id)).toBe(false);
+    expect(restante.unidades.some((unidade) => unidade.pecaId === peca.id)).toBe(false);
+    expect(estoque.pecas.some((item) => item.id === peca.id)).toBe(true);
   });
 });
 
