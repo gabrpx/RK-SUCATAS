@@ -47,13 +47,38 @@ export const SELECT_COM_JOINS =
 // produção a tabela não existe, e um join pra tabela inexistente derruba a
 // listagem inteira do estoque. Assim a aba continua funcionando normalmente
 // e as avarias simplesmente aparecem vazias até a migração ser aplicada.
-async function anexarUnidades(supabase: SupabaseClient, itens: any[] | null): Promise<any[]> {
+const TAMANHO_PAGINA_SUPABASE = 1000;
+
+/**
+ * O Data API limita respostas a 1.000 linhas por padrão. O estoque já passa
+ * desse volume, então uma leitura única truncava as últimas fichas e fazia o
+ * frontend recriá-las como unidades virtuais ("Sem ficha individual").
+ */
+export async function listarTodasUnidadesEstoque(supabase: SupabaseClient): Promise<{ data: any[] | null; error: any }> {
+  const todas: any[] = [];
+  let ultimoId: string | null = null;
+
+  for (;;) {
+    let consulta = supabase
+      .from('estoque_unidades')
+      .select('*')
+      .order('id', { ascending: true });
+    if (ultimoId) consulta = consulta.gt('id', ultimoId);
+    const { data, error } = await consulta.limit(TAMANHO_PAGINA_SUPABASE);
+
+    if (error) return { data: null, error };
+    const pagina = data ?? [];
+    if (pagina.length === 0) return { data: todas, error: null };
+    todas.push(...pagina);
+    ultimoId = String(pagina[pagina.length - 1].id);
+  }
+}
+
+export async function anexarUnidades(supabase: SupabaseClient, itens: any[] | null): Promise<any[]> {
   const lista = itens ?? [];
   if (lista.length === 0) return lista;
 
-  // Sem filtro por id: a tabela só tem linha pra unidade sinalizada, então é
-  // pequena por construção — e evita montar um `in(...)` com milhares de ids.
-  const { data, error } = await supabase.from('estoque_unidades').select('*');
+  const { data, error } = await listarTodasUnidadesEstoque(supabase);
 
   if (error) {
     // 42P01 = tabela não existe; PGRST205 = PostgREST ainda não a conhece.

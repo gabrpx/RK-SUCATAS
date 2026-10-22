@@ -4,7 +4,7 @@
 // Mercado Livre (o toggle salvava, mas o valor nunca voltava pro formulário).
 import { describe, it, expect, vi } from 'vitest';
 import express from 'express';
-import { SELECT_COM_JOINS, estoqueRouter, montarPayload } from './estoque.js';
+import { anexarUnidades, SELECT_COM_JOINS, estoqueRouter, montarPayload } from './estoque.js';
 import { criarReq, dispatch } from './tarefasFakeSupabase';
 
 describe('SELECT_COM_JOINS', () => {
@@ -18,6 +18,43 @@ describe('SELECT_COM_JOINS', () => {
 });
 
 describe('transferência da listagem de estoque', () => {
+  it('pagina e anexa todas as fichas com fotos depois de 1.000 unidades', async () => {
+    const unidades = Array.from({ length: 1041 }, (_, indice) => ({
+      id: `unidade-${String(indice + 1).padStart(4, '0')}`,
+      estoque_id: indice < 1000 ? 'peca-1' : 'peca-2',
+      fotos: [`foto-${indice + 1}.jpg`],
+      sku: indice + 1,
+    }));
+    const cursores: Array<string | null> = [];
+    const supabase = {
+      from: (tabela: string) => {
+        expect(tabela).toBe('estoque_unidades');
+        let cursor: string | null = null;
+        const consulta: any = {
+          select: () => consulta,
+          order: () => consulta,
+          gt: (_campo: string, valor: string) => { cursor = valor; return consulta; },
+          limit: async (limite: number) => {
+            cursores.push(cursor);
+            const pagina = unidades.filter((unidade) => !cursor || unidade.id > cursor).slice(0, limite);
+            return { data: pagina, error: null };
+          },
+        };
+        return consulta;
+      },
+    };
+
+    const resultado = await anexarUnidades(supabase as any, [
+      { id: 'peca-1', imagens: ['referencia-1.jpg'] },
+      { id: 'peca-2', imagens: ['referencia-2.jpg'] },
+    ]);
+
+    expect(resultado[0].unidades).toHaveLength(1000);
+    expect(resultado[1].unidades).toHaveLength(41);
+    expect(resultado[1].unidades.at(-1)).toMatchObject({ id: 'unidade-1041', sku: 1041, fotos: ['foto-1041.jpg'] });
+    expect(cursores).toEqual([null, 'unidade-1000', 'unidade-1041']);
+  });
+
   it('entrega Brotli quando o cliente aceita Brotli e gzip, preservando o JSON', async () => {
     const app = express();
     app.use((req, _res, next) => { (req as any).usuario = { id: 'admin-1', roles: ['admin'], permissoes: {} }; next(); });
@@ -129,6 +166,13 @@ function criarSupabaseMatchLegado() {
       },
       order() {
         return query;
+      },
+      gt(campo: string, valor: any) {
+        filtros.push([campo, valor]);
+        return query;
+      },
+      limit(limite: number) {
+        return Promise.resolve({ data: filtrar(tabelas[tabela] ?? [], filtros).slice(0, limite), error: null });
       },
       single() {
         return Promise.resolve({ data: filtrar(tabelas[tabela] ?? [], filtros)[0] ?? null, error: null });
