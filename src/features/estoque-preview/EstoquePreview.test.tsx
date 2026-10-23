@@ -174,6 +174,38 @@ describe("EstoquePreview", () => {
     expect(screen.getByText(/Role dentro do painel/)).toBeTruthy();
   });
 
+  it("prioriza a busca e mantém filtros e visualização na linha de ações abaixo", () => {
+    render(<EstoquePreview />);
+
+    const busca = screen.getByRole("searchbox", { name: /Buscar no estoque/i });
+    const filtros = screen.getByRole("button", { name: /^Filtros/ });
+
+    expect(busca.parentElement?.className).toContain("w-full");
+    expect(busca.compareDocumentPosition(filtros) & Node.DOCUMENT_POSITION_FOLLOWING).not.toBe(0);
+  });
+
+  it("converte a roda vertical em rolagem horizontal das unidades", () => {
+    render(<EstoquePreview />);
+
+    const faixa = screen.getByRole("region", { name: "Unidades de RK-792" });
+    let scrollLeft = 0;
+    Object.defineProperties(faixa, {
+      clientWidth: { configurable: true, value: 300 },
+      scrollWidth: { configurable: true, value: 620 },
+      scrollLeft: {
+        configurable: true,
+        get: () => scrollLeft,
+        set: (valor: number) => { scrollLeft = valor; },
+      },
+    });
+
+    const evento = new WheelEvent("wheel", { bubbles: true, cancelable: true, deltaY: 120 });
+    faixa.dispatchEvent(evento);
+
+    expect(evento.defaultPrevented).toBe(true);
+    expect(scrollLeft).toBe(120);
+  });
+
   it("abre o cadastro, salva uma unidade e mostra a nova unidade", async () => {
     render(<EstoquePreview />);
 

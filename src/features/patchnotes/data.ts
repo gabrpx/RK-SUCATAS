@@ -18,6 +18,15 @@ export interface PatchNoteEntrada {
 
 export const PATCH_NOTES: PatchNoteEntrada[] = [
   {
+    versao: '1.7.21',
+    data: '2026-10-23',
+    titulo: 'Catálogo com busca e unidades mais fáceis de percorrer',
+    itens: [
+      { tipo: 'melhoria', texto: 'A busca do catálogo agora ocupa a primeira linha, deixando filtros e modo de visualização como ações secundárias logo abaixo.' },
+      { tipo: 'melhoria', texto: 'Cards com várias unidades continuam revelando as próximas peças pela roda do mouse, pelas setas do teclado ou pelo gesto horizontal.' },
+    ],
+  },
+  {
     versao: '1.7.20',
     data: '2026-10-22',
     titulo: 'Adição em massa agrupada e mais rápida',
