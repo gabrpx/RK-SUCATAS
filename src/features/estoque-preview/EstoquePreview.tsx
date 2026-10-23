@@ -70,6 +70,7 @@ import {
   type UnidadeEstoque,
 } from "./inventoryPreviewModel";
 import { encontrarModeloPorNome } from "../estoque/matchModelo";
+import { mapComConcorrencia } from "./bulkSave";
 
 type Aba = "atendimento" | "organizar" | "mapa" | "arquivados";
 type Visualizacao = "cards" | "lista";
@@ -84,6 +85,10 @@ function SurfaceLabel({ children, className = "" }: { children: ReactNode; class
 
 function moeda(valor: number | null) {
   return !(Number(valor) > 0) ? "Preço a definir" : Number(valor).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+}
+
+function chaveDuplicataEstoque(valor: string) {
+  return valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
 }
 
 function estadoLabel(unidade: UnidadeEstoque) {
@@ -396,6 +401,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
   const [categoriasReais, setCategoriasReais] = useState<Categoria[]>([]);
   const [modelosMoto, setModelosMoto] = useState<ModeloMoto[]>([]);
   const modelosCriadosEmLote = useRef(new Map<string, ModeloMoto>());
+  const modelosEmCriacaoEmLote = useRef(new Map<string, Promise<ModeloMoto>>());
   const [organizacaoReal, setOrganizacaoReal] = useState<OrganizacaoResposta | null>(null);
   const conexaoRealPronta = fonte === "real" && dadosProntos.estoque && !estoqueError && !erroReal && !erroOrganizacao;
   const conexaoPermiteGravar = (fonte === "demo" && !embutido) || conexaoRealPronta;
@@ -582,7 +588,41 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
     toastTimer.current = window.setTimeout(() => setToast(null), 3200);
   }
 
-  async function salvarPecaEmLote(item: BulkPieceDraft, recarregar = true, pecasDisponiveis = estoque.pecas): Promise<string> {
+  async function obterModeloEmLote(nome: string): Promise<ModeloMoto | undefined> {
+    const chaveMoto = nome.trim().toLocaleLowerCase("pt-BR");
+    const modeloExistente = modelosCriadosEmLote.current.get(chaveMoto)
+      ?? encontrarModeloPorNome(nome, modelosMoto)
+      ?? modelosMoto.find((modelo) => modelo.nome.trim().toLocaleLowerCase("pt-BR") === chaveMoto);
+    if (modeloExistente || fonte !== "real") return modeloExistente;
+
+    const criacaoEmAndamento = modelosEmCriacaoEmLote.current.get(chaveMoto);
+    if (criacaoEmAndamento) return criacaoEmAndamento;
+
+    const criacao = modelosMotoApi.criar(nome.trim()).then((criado) => {
+      if (!criado.success || !criado.data) throw new Error(criado.error || "Não foi possível adicionar a moto ao catálogo.");
+      modelosCriadosEmLote.current.set(chaveMoto, criado.data);
+      setModelosMoto((atuais) => atuais.some((atual) => atual.id === criado.data.id) ? atuais : [...atuais, criado.data]);
+      return criado.data;
+    }).finally(() => {
+      modelosEmCriacaoEmLote.current.delete(chaveMoto);
+    });
+    modelosEmCriacaoEmLote.current.set(chaveMoto, criacao);
+    return criacao;
+  }
+
+  function encontrarPecaExataEmLote(item: BulkPieceDraft, pecasDisponiveis: PecaEstoque[]) {
+    if (fonte !== "real") return undefined;
+    const nome = chaveDuplicataEstoque(item.nome);
+    const moto = chaveDuplicataEstoque(item.motoNome);
+    return pecasDisponiveis.find((peca) =>
+      peca.origemDado === "real"
+      && chaveDuplicataEstoque(peca.nome) === nome
+      && peca.categoriaId === item.categoriaId
+      && peca.compatibilidades.some((compatibilidade) => chaveDuplicataEstoque(compatibilidade) === moto)
+    );
+  }
+
+  async function salvarPecaEmLote(item: BulkPieceDraft, recarregar = true, pecasDisponiveis = estoque.pecas, cacheFotos = new Map<File, string>()): Promise<string> {
     if (!conexaoPermiteGravar && fonte === "real") throw new Error("Conexão indisponível. Atualize o estoque antes de adicionar peças.");
 
     if (item.modo === "existente") {
@@ -600,24 +640,29 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         setEstoque((atual) => adicionarUnidade(atual, entradaExistente));
         return item.pecaId;
       }
-      const resultado = await salvarUnidadeOperacional(entradaExistente, pecasDisponiveis, estoque.locais ?? []);
+      const resultado = await salvarUnidadeOperacional(entradaExistente, pecasDisponiveis, estoque.locais ?? [], cacheFotos);
       if (!resultado.completo) throw new Error(`${resultado.mensagem} Não repita a adição: confira a ficha criada no estoque.`);
       if (recarregar) await atualizarEstoque();
       return resultado.pecaId;
     }
 
-    const chaveMoto = item.motoNome.trim().toLocaleLowerCase("pt-BR");
-    const modeloExistente = modelosCriadosEmLote.current.get(chaveMoto)
-      ?? encontrarModeloPorNome(item.motoNome, modelosMoto)
-      ?? modelosMoto.find((modelo) => modelo.nome.trim().toLocaleLowerCase("pt-BR") === item.motoNome.trim().toLocaleLowerCase("pt-BR"));
-    let modelo = modeloExistente;
-    if (!modelo && fonte === "real") {
-      const criado = await modelosMotoApi.criar(item.motoNome.trim());
-      if (!criado.success || !criado.data) throw new Error(criado.error || "Não foi possível adicionar a moto ao catálogo.");
-      modelo = criado.data;
-      modelosCriadosEmLote.current.set(chaveMoto, criado.data);
-      setModelosMoto((atuais) => atuais.some((atual) => atual.id === criado.data.id) ? atuais : [...atuais, criado.data]);
+    const pecaExistente = encontrarPecaExataEmLote(item, pecasDisponiveis);
+    if (pecaExistente) {
+      const resultado = await salvarUnidadeOperacional({
+        pecaId: pecaExistente.id,
+        preco: null,
+        grau: item.grau,
+        origem: item.motoNome,
+        fotoUrl: null,
+        endereco: null,
+        fotos: item.fotos,
+      }, pecasDisponiveis, estoque.locais ?? [], cacheFotos);
+      if (!resultado.completo) throw new Error(`${resultado.mensagem} Não repita a adição: confira a ficha criada no estoque.`);
+      if (recarregar) await atualizarEstoque();
+      return resultado.pecaId;
     }
+
+    const modelo = await obterModeloEmLote(item.motoNome);
 
     const entrada = {
       novaPeca: {
@@ -642,17 +687,19 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
       return `demo-${item.nome}`;
     }
 
-    const resultado = await salvarUnidadeOperacional(entrada, pecasDisponiveis, estoque.locais ?? []);
+    const resultado = await salvarUnidadeOperacional(entrada, pecasDisponiveis, estoque.locais ?? [], cacheFotos);
     if (!resultado.completo) throw new Error(`${resultado.mensagem} Não repita o cadastro: confira a ficha criada no estoque.`);
     if (recarregar) await atualizarEstoque();
     return resultado.pecaId;
   }
 
   async function salvarPecasEmLote(itens: BulkPieceDraft[]) {
-    let pecasDaSessao = estoque.pecas;
-    for (const item of itens) {
+    const pecasDaSessao = estoque.pecas;
+    const cacheFotos = new Map<File, string>();
+    await mapComConcorrencia(itens, async (item) => {
       let pecaId = item.modo === "existente" ? item.pecaId : undefined;
-      for (let indice = 0; indice < item.quantidade; indice += 1) {
+      let pecasDaSessaoDoItem = pecasDaSessao;
+      const salvarUnidade = async (indice: number) => {
         const fotos = item.fotosPorUnidade?.[indice] ?? item.fotos;
         const modoAntesDoCadastro = pecaId ? "existente" : item.modo;
         pecaId = await salvarPecaEmLote({
@@ -663,9 +710,9 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
           grau: item.grausPorUnidade?.[indice] ?? item.grau,
           grausPorUnidade: undefined,
           fotos,
-        }, false, pecasDaSessao);
+        }, false, pecasDaSessaoDoItem, cacheFotos);
         if (modoAntesDoCadastro === "nova" && fonte === "real") {
-          pecasDaSessao = [...pecasDaSessao, {
+          pecasDaSessaoDoItem = [...pecasDaSessaoDoItem, {
             id: pecaId,
             codigoLegado: "",
             nome: item.nome,
@@ -675,8 +722,17 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
             origemDado: "real",
           }];
         }
-      }
-    }
+      };
+
+      // A primeira unidade de uma peça nova cria o cadastro-mãe. As demais,
+      // e todas as unidades de uma peça existente, são independentes e podem
+      // aproveitar a concorrência controlada sem uma cascata de requests.
+      const primeiroIndice = 0;
+      if (item.quantidade > 0 && item.modo === "nova") await salvarUnidade(primeiroIndice);
+      const indicesRestantes = Array.from({ length: item.quantidade }, (_, indice) => item.modo === "nova" ? indice + 1 : indice)
+        .filter((indice) => indice < item.quantidade);
+      await mapComConcorrencia(indicesRestantes, (indice) => salvarUnidade(indice), 2);
+    });
     if (fonte === "real") await atualizarEstoque();
   }
 
@@ -1009,7 +1065,7 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
         {onAbrirEstoqueAntigo && <button type="button" aria-label="Anúncios e ferramentas antigas" title="Anúncios, famílias e gavetas (tela antiga)" onClick={onAbrirEstoqueAntigo} className="ml-auto grid size-11 shrink-0 place-items-center rounded-lg border border-border-default text-text-muted hover:border-accent/40 hover:bg-accent-soft-bg lg:ml-0 sm:flex sm:w-auto sm:gap-2 sm:px-3"><ExternalLink size={15} /><span className="hidden sm:inline">Tela antiga</span></button>}
         <button type="button" onClick={abrirBusca} aria-label="Buscar peça, moto, SKU ou endereço" className={`grid size-11 shrink-0 place-items-center rounded-lg border border-border-default text-text-muted hover:border-accent/40 hover:bg-accent-soft-bg sm:flex sm:w-auto sm:gap-2 sm:px-3 ${onAbrirEstoqueAntigo ? "" : "ml-auto lg:ml-0"}`}><Search size={15} /><span className="hidden sm:inline">Buscar</span><kbd className="hidden rounded border border-border-default px-1 font-mono text-[10px] text-text-faint sm:inline">⌘K</kbd></button>
         {embutido && pode("tarefas.ver") && <TaskNotificationBell currentUserId={localStorage.getItem('user_id') || ''} onOpenTask={(taskId) => onOpenTaskNotification?.(taskId)} />}
-        {podeCriar ? <div className="flex shrink-0 items-center gap-2"><Button variant="default" size="mobile" aria-label="Nova peça" title="Nova peça" disabled={!podeCadastrar} onClick={() => { setPecaParaUnidade(null); setComposerAberto(true); }} className="h-11 w-11 rounded-lg bg-accent text-white hover:bg-accent-hover sm:h-9 sm:w-[154px] sm:rounded-md"><PackagePlus size={15} /><span className="hidden sm:inline">Nova peça</span></Button><Button type="button" variant="soft" size="mobile" aria-label="Adicionar peças em massa" title="Adicionar peças em massa" disabled={!podeCadastrar} onClick={() => { modelosCriadosEmLote.current.clear(); setBulkComposerAberto(true); }} className="h-11 w-11 rounded-lg border border-accent/30 bg-accent-soft-bg text-accent-soft-fg hover:border-accent/60 hover:bg-accent-soft-bg sm:h-9 sm:w-[176px] sm:rounded-md"><ListPlus size={15} /><span className="hidden sm:inline">Adicionar em massa</span></Button></div> : <span className="rounded-md bg-surface-inset px-3 py-1.5 text-xs font-semibold text-text-muted">Somente consulta</span>}
+        {podeCriar ? <div className="flex shrink-0 items-center gap-2"><Button variant="default" size="mobile" aria-label="Nova peça" title="Nova peça" disabled={!podeCadastrar} onClick={() => { setPecaParaUnidade(null); setComposerAberto(true); }} className="h-11 w-11 rounded-lg bg-accent text-white hover:bg-accent-hover sm:h-9 sm:w-[154px] sm:rounded-md"><PackagePlus size={15} /><span className="hidden sm:inline">Nova peça</span></Button><Button type="button" variant="soft" size="mobile" aria-label="Adicionar peças em massa" title="Adicionar peças em massa" disabled={!podeCadastrar} onClick={() => { modelosCriadosEmLote.current.clear(); modelosEmCriacaoEmLote.current.clear(); setBulkComposerAberto(true); }} className="h-11 w-11 rounded-lg border border-accent/30 bg-accent-soft-bg text-accent-soft-fg hover:border-accent/60 hover:bg-accent-soft-bg sm:h-9 sm:w-[176px] sm:rounded-md"><ListPlus size={15} /><span className="hidden sm:inline">Adicionar em massa</span></Button></div> : <span className="rounded-md bg-surface-inset px-3 py-1.5 text-xs font-semibold text-text-muted">Somente consulta</span>}
       </div>
     </header>
     <main className="mx-auto w-full min-w-0 max-w-[1440px] overflow-x-hidden px-3 pb-[calc(6rem_+_env(safe-area-inset-bottom))] pt-5 sm:px-6 sm:py-7 lg:py-10">

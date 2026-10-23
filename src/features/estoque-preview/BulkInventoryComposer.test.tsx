@@ -3,7 +3,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { BulkInventoryComposer } from "./BulkInventoryComposer";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.localStorage.clear();
+});
 
 vi.mock("./InventoryDrawer", () => ({
   InventoryDrawer: ({ isOpen, children, footer }: { isOpen: boolean; children: React.ReactNode; footer: React.ReactNode }) => isOpen ? <div>{children}<footer>{footer}</footer></div> : null,
@@ -166,5 +169,17 @@ describe("BulkInventoryComposer", () => {
     fireEvent.click(screen.getByRole("button", { name: "Cancelar" }));
     fireEvent.click(screen.getByRole("button", { name: "Sair e descartar" }));
     expect(onFechar).toHaveBeenCalledTimes(1);
+  });
+
+  it("restaura a fila depois que o compositor é recriado", async () => {
+    const primeira = render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={vi.fn()} />);
+    preencher("Farol CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    await waitFor(() => expect(window.localStorage.length).toBeGreaterThan(0));
+    primeira.unmount();
+
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={vi.fn()} />);
+    expect(await screen.findByText("Fila restaurada automaticamente. Você pode continuar de onde parou.")).toBeTruthy();
+    expect(await screen.findByText("Farol CG 160")).toBeTruthy();
   });
 });

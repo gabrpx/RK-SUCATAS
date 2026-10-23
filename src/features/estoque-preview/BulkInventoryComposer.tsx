@@ -1,6 +1,6 @@
 import { AnimatePresence, motion } from "motion/react";
 import { Check, CheckCircle2, ImagePlus, ListPlus, Loader2, Pencil, Plus, Sparkles, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Combobox } from "@/src/components/ui/Combobox";
 import { EstoqueUploadFotos } from "../estoque/EstoqueUploadFotos";
 import { encontrarCategoriaPorNome } from "../estoque/matchCategoria";
@@ -9,6 +9,7 @@ import { formatarNomeModeloMoto } from "../motos/nomeModelo";
 import type { Categoria, ModeloMoto } from "@/src/types/catalog";
 import { InventoryDialog, InventoryDrawer } from "./InventoryDrawer";
 import type { GrauUnidade, PecaEstoque } from "./inventoryPreviewModel";
+import { clearBulkQueue, getBulkQueueStorageKey, loadBulkQueue, saveBulkQueue } from "./bulkQueueStorage";
 
 type BulkPieceMode = "nova" | "existente";
 
@@ -74,11 +75,22 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
   const [categoriaEditada, setCategoriaEditada] = useState(false);
   const [motoEditada, setMotoEditada] = useState(false);
   const [fila, setFila] = useState<BulkPieceDraft[]>([]);
+  const [filaCarregada, setFilaCarregada] = useState(false);
+  const [filaRestaurada, setFilaRestaurada] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [concluido, setConcluido] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [indiceEditando, setIndiceEditando] = useState<number | null>(null);
   const [confirmandoSaida, setConfirmandoSaida] = useState(false);
+  const storageKey = useMemo(() => getBulkQueueStorageKey(), []);
+  const persistenciaFila = useRef(Promise.resolve());
+  const filaAlteradaDuranteCarregamento = useRef(false);
+
+  function enfileirarPersistencia(tarefa: () => Promise<void>) {
+    const proxima = persistenciaFila.current.then(tarefa, tarefa);
+    persistenciaFila.current = proxima.catch(() => undefined);
+    return proxima;
+  }
 
   const pecaEscolhida = useMemo(() => pecas.find((peca) => peca.id === pecaId), [pecas, pecaId]);
   const pecasEncontradas = useMemo(() => {
@@ -124,7 +136,8 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setFotos([]);
       setCategoriaEditada(false);
       setMotoEditada(false);
-      setFila([]);
+      setFilaCarregada(false);
+      setFilaRestaurada(false);
       setSalvando(false);
       setConcluido(false);
       setErro(null);
@@ -132,6 +145,30 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setConfirmandoSaida(false);
     }
   }, [aberto]);
+
+  useEffect(() => {
+    if (!aberto) return;
+    let ativo = true;
+    filaAlteradaDuranteCarregamento.current = false;
+    setFilaCarregada(false);
+    void loadBulkQueue(storageKey).then((filaSalva) => {
+      if (!ativo) return;
+      if (!filaAlteradaDuranteCarregamento.current) {
+        setFila(filaSalva);
+        setFilaRestaurada(filaSalva.length > 0);
+      }
+      setFilaCarregada(true);
+    }).catch(() => {
+      if (!ativo) return;
+      setFilaCarregada(true);
+    });
+    return () => { ativo = false; };
+  }, [aberto, storageKey]);
+
+  useEffect(() => {
+    if (!aberto || !filaCarregada) return;
+    void enfileirarPersistencia(() => saveBulkQueue(fila, storageKey));
+  }, [aberto, fila, filaCarregada, storageKey]);
 
   useEffect(() => {
     if (modo !== "nova") return;
@@ -175,6 +212,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       return;
     }
     const item: BulkPieceDraft = { modo, pecaId: modo === "existente" ? pecaId : undefined, nome: nome.trim(), categoriaId, motoNome: motoNome.trim(), grau, grausPorUnidade: [grau], fotos, quantidade: 1, fotosPorUnidade: [fotos] };
+    filaAlteradaDuranteCarregamento.current = true;
     setFila((atual) => {
       if (indiceEditando !== null) {
         return atual.map((anterior, index) => index === indiceEditando ? {
@@ -225,6 +263,13 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
     setConfirmandoSaida(true);
   }
 
+  function descartarFila() {
+    filaAlteradaDuranteCarregamento.current = true;
+    setFila([]);
+    setFilaRestaurada(false);
+    void enfileirarPersistencia(() => clearBulkQueue(storageKey));
+  }
+
   async function concluirAdicoes() {
     const mensagem = modo !== "nova" || nome.trim() || categoriaId || motoNome.trim() || fotos.length ? validarAtual() : null;
     if (mensagem) {
@@ -247,6 +292,8 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
           }
         }
       }
+      await enfileirarPersistencia(() => clearBulkQueue(storageKey));
+      setFilaRestaurada(false);
       setConcluido(true);
     } catch (error: unknown) {
       setErro(error instanceof Error ? error.message : "Não foi possível concluir as adições.");
@@ -292,8 +339,8 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
           </motion.section>
         ) : (
           <motion.div key="formulario" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
-            <div className="rounded-control border border-accent/20 bg-accent-soft-bg/50 p-4"><p className="flex items-center gap-2 text-sm font-semibold text-accent-soft-fg"><ListPlus size={16} />Cadastro rápido, complemento depois</p><p className="mt-1 text-xs leading-5 text-text-secondary">Cadastre uma peça nova ou adicione outra unidade a uma peça que já existe, sem duplicar o cadastro.</p></div>
-            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{totalNaFila} {totalNaFila === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.fotos.length ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · {rotuloGraus(item)} · {item.quantidade} {item.quantidade === 1 ? "unidade" : "unidades"} · {item.fotos.length} {item.fotos.length === 1 ? "foto" : "fotos"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label={`Editar ${item.nome}`} disabled={salvando} onClick={() => editarItem(index)} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-accent-soft-bg hover:text-accent-soft-fg disabled:opacity-50"><Pencil size={15} /></button><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index))} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></div></motion.div>)}</div></section>}
+            <div className="rounded-control border border-accent/20 bg-accent-soft-bg/50 p-4"><p className="flex items-center gap-2 text-sm font-semibold text-accent-soft-fg"><ListPlus size={16} />Cadastro rápido, complemento depois</p><p className="mt-1 text-xs leading-5 text-text-secondary">Cadastre uma peça nova ou adicione outra unidade a uma peça que já existe, sem duplicar o cadastro.</p>{!filaCarregada ? <p role="status" className="mt-2 text-xs font-semibold text-accent-soft-fg">Restaurando a fila deste aparelho…</p> : filaRestaurada && <p role="status" className="mt-2 text-xs font-semibold text-positive">Fila restaurada automaticamente. Você pode continuar de onde parou.</p>}</div>
+            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{totalNaFila} {totalNaFila === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.fotos.length ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · {rotuloGraus(item)} · {item.quantidade} {item.quantidade === 1 ? "unidade" : "unidades"} · {item.fotos.length} {item.fotos.length === 1 ? "foto" : "fotos"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label={`Editar ${item.nome}`} disabled={salvando} onClick={() => editarItem(index)} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-accent-soft-bg hover:text-accent-soft-fg disabled:opacity-50"><Pencil size={15} /></button><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => { filaAlteradaDuranteCarregamento.current = true; setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index)); }} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></div></motion.div>)}</div></section>}
             <section className="space-y-4" aria-labelledby="bulk-identificar">
               <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">{indiceEditando === null ? "Próxima peça" : "Editando item da fila"}</p><h3 id="bulk-identificar" className="mt-1 text-lg font-semibold text-text-primary">O que entrou no galpão?</h3></div>
               <div role="group" aria-label="Tipo de adição" className="grid grid-cols-2 gap-1 rounded-control border border-border-default bg-surface-inset p-1">
@@ -321,7 +368,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
         )}
       </AnimatePresence>
       </InventoryDrawer>
-      <InventoryDialog isOpen={confirmandoSaida} onClose={() => setConfirmandoSaida(false)} title="Sair do cadastro em massa?" description="A fila e o preenchimento atual ainda não foram salvos. Você pode continuar adicionando ou sair e descartar tudo." footer={<><button type="button" onClick={() => setConfirmandoSaida(false)} className="inline-flex min-h-11 items-center rounded-control border border-border-default bg-surface-card px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-raised">Continuar adicionando</button><button type="button" onClick={() => { setConfirmandoSaida(false); onFechar(); }} className="inline-flex min-h-11 items-center rounded-control bg-danger px-4 text-sm font-semibold text-white transition hover:opacity-90">Sair e descartar</button></>} />
+      <InventoryDialog isOpen={confirmandoSaida} onClose={() => setConfirmandoSaida(false)} title="Sair do cadastro em massa?" description="A fila já fica salva neste aparelho. Se você sair, poderá retomá-la depois; use a opção de descarte apenas se quiser apagar a fila." footer={<><button type="button" onClick={() => setConfirmandoSaida(false)} className="inline-flex min-h-11 items-center rounded-control border border-border-default bg-surface-card px-4 text-sm font-semibold text-text-secondary transition hover:bg-surface-raised">Continuar adicionando</button><button type="button" onClick={() => { setConfirmandoSaida(false); descartarFila(); onFechar(); }} className="inline-flex min-h-11 items-center rounded-control bg-danger px-4 text-sm font-semibold text-white transition hover:opacity-90">Sair e descartar</button></>} />
     </>
   );
 }
