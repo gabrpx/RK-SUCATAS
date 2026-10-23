@@ -72,6 +72,43 @@ describe("BulkInventoryComposer", () => {
     await waitFor(() => expect(onSalvarItem).toHaveBeenCalledTimes(2));
   });
 
+  it("mescla a mesma peça mesmo quando as unidades têm graus diferentes", async () => {
+    const onSalvarItem = vi.fn().mockResolvedValue(undefined);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);
+
+    preencher("Retrovisor CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Grau A" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+
+    preencher(" retrovisor   cg 160 ");
+    fireEvent.click(screen.getByRole("button", { name: "Grau C" }));
+    expect(screen.getByText(/será agregada automaticamente/i)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+
+    expect(screen.getByText(/Graus A\/C/)).toBeTruthy();
+    expect(screen.getByText(/2 unidades/)).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: /concluir adições \(2\)/i }));
+
+    await waitFor(() => expect(onSalvarItem).toHaveBeenCalledTimes(2));
+    expect(onSalvarItem.mock.calls.map(([item]) => item.grau)).toEqual(["A", "C"]);
+  });
+
+  it("entrega um único rascunho ao salvamento em lote e conserva os graus por unidade", async () => {
+    const onSalvarItens = vi.fn().mockResolvedValue(undefined);
+    render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={vi.fn()} onSalvarItens={onSalvarItens} />);
+
+    preencher("Manete CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Grau A" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    preencher("Manete CG 160");
+    fireEvent.click(screen.getByRole("button", { name: "Grau B" }));
+    fireEvent.click(screen.getByRole("button", { name: "Próxima" }));
+    fireEvent.click(screen.getByRole("button", { name: /concluir adições \(2\)/i }));
+
+    await waitFor(() => expect(onSalvarItens).toHaveBeenCalledTimes(1));
+    expect(onSalvarItens.mock.calls[0][0]).toEqual([expect.objectContaining({ quantidade: 2, grau: "A", grausPorUnidade: ["A", "B"] })]);
+  });
+
   it("enfileira uma unidade de peça existente sem transformar o cadastro em peça nova", async () => {
     const onSalvarItem = vi.fn().mockResolvedValue(undefined);
     render(<BulkInventoryComposer aberto categorias={categorias} modelos={modelos} pecas={pecas} onFechar={() => {}} onSalvarItem={onSalvarItem} />);

@@ -19,6 +19,8 @@ export interface BulkPieceDraft {
   categoriaId: string;
   motoNome: string;
   grau: GrauUnidade;
+  /** Grau de cada unidade na fila; `grau` permanece como compatibilidade/primeiro grau. */
+  grausPorUnidade?: GrauUnidade[];
   fotos: File[];
   quantidade: number;
   fotosPorUnidade?: File[][];
@@ -42,6 +44,15 @@ function nomeModelo(modelo: ModeloMoto, modelos: ModeloMoto[]) {
 
 function normalizar(valor: string) {
   return valor.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase("pt-BR").replace(/\s+/g, " ").trim();
+}
+
+function grausDoItem(item: Pick<BulkPieceDraft, "grau" | "quantidade" | "grausPorUnidade">): GrauUnidade[] {
+  return Array.from({ length: item.quantidade }, (_, indice) => item.grausPorUnidade?.[indice] ?? item.grau);
+}
+
+function rotuloGraus(item: Pick<BulkPieceDraft, "grau" | "quantidade" | "grausPorUnidade">): string {
+  const graus = Array.from(new Set(grausDoItem(item)));
+  return graus.length === 1 ? `Grau ${graus[0]}` : `Graus ${graus.join("/")}`;
 }
 
 function resolverModeloPorTexto(texto: string, modelos: ModeloMoto[]) {
@@ -92,10 +103,14 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
   }, [fila]);
   const totalNaFila = useMemo(() => fila.reduce((total, item) => total + item.quantidade, 0), [fila]);
   const itemAgrupavel = useMemo(() => {
-    const alvo = { nome: normalizar(nome), categoriaId, moto: normalizar(motoNome), grau };
-    if (!alvo.nome || !alvo.categoriaId || !alvo.moto) return null;
-    return fila.find((item, index) => index !== indiceEditando && item.modo === "nova" && normalizar(item.nome) === alvo.nome && item.categoriaId === alvo.categoriaId && normalizar(item.motoNome) === alvo.moto && item.grau === alvo.grau) ?? null;
-  }, [categoriaId, fila, grau, indiceEditando, motoNome, nome]);
+    const alvo = { nome: normalizar(nome), categoriaId, moto: normalizar(motoNome), modo, pecaId };
+    if (!alvo.nome || !alvo.moto || (alvo.modo === "nova" && !alvo.categoriaId) || (alvo.modo === "existente" && !alvo.pecaId)) return null;
+    return fila.find((item, index) => {
+      if (index === indiceEditando || item.modo !== alvo.modo) return false;
+      if (alvo.modo === "existente") return item.pecaId === alvo.pecaId;
+      return normalizar(item.nome) === alvo.nome && item.categoriaId === alvo.categoriaId && normalizar(item.motoNome) === alvo.moto;
+    }) ?? null;
+  }, [categoriaId, fila, indiceEditando, modo, motoNome, nome, pecaId]);
 
   useEffect(() => {
     if (!aberto) {
@@ -159,12 +174,25 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       setErro(mensagem);
       return;
     }
-    const item: BulkPieceDraft = { modo, pecaId: modo === "existente" ? pecaId : undefined, nome: nome.trim(), categoriaId, motoNome: motoNome.trim(), grau, fotos, quantidade: 1, fotosPorUnidade: [fotos] };
+    const item: BulkPieceDraft = { modo, pecaId: modo === "existente" ? pecaId : undefined, nome: nome.trim(), categoriaId, motoNome: motoNome.trim(), grau, grausPorUnidade: [grau], fotos, quantidade: 1, fotosPorUnidade: [fotos] };
     setFila((atual) => {
-      if (indiceEditando !== null) return atual.map((anterior, index) => index === indiceEditando ? { ...item, quantidade: anterior.quantidade, fotosPorUnidade: [fotos, ...(anterior.fotosPorUnidade ?? []).slice(1)] } : anterior);
-      const indiceAgrupavel = atual.findIndex((anterior) => anterior.modo === item.modo && (item.modo === "existente" ? anterior.pecaId === item.pecaId : normalizar(anterior.nome) === normalizar(item.nome) && anterior.categoriaId === item.categoriaId && normalizar(anterior.motoNome) === normalizar(item.motoNome)) && anterior.grau === item.grau);
+      if (indiceEditando !== null) {
+        return atual.map((anterior, index) => index === indiceEditando ? {
+          ...item,
+          quantidade: anterior.quantidade,
+          grausPorUnidade: [grau, ...grausDoItem(anterior).slice(1)],
+          fotosPorUnidade: [fotos, ...(anterior.fotosPorUnidade ?? []).slice(1)],
+        } : anterior);
+      }
+      const indiceAgrupavel = atual.findIndex((anterior) => anterior.modo === item.modo && (item.modo === "existente" ? anterior.pecaId === item.pecaId : normalizar(anterior.nome) === normalizar(item.nome) && anterior.categoriaId === item.categoriaId && normalizar(anterior.motoNome) === normalizar(item.motoNome)));
       if (indiceAgrupavel < 0) return [...atual, item];
-      return atual.map((anterior, index) => index === indiceAgrupavel ? { ...anterior, quantidade: anterior.quantidade + 1, fotos: [...anterior.fotos, ...item.fotos], fotosPorUnidade: [...(anterior.fotosPorUnidade ?? [anterior.fotos]), item.fotos] } : anterior);
+      return atual.map((anterior, index) => index === indiceAgrupavel ? {
+        ...anterior,
+        quantidade: anterior.quantidade + item.quantidade,
+        grausPorUnidade: [...grausDoItem(anterior), ...grausDoItem(item)],
+        fotos: [...anterior.fotos, ...item.fotos],
+        fotosPorUnidade: [...(anterior.fotosPorUnidade ?? [anterior.fotos]), ...(item.fotosPorUnidade ?? [item.fotos])],
+      } : anterior);
     });
     setIndiceEditando(null);
     limparFormulario();
@@ -180,7 +208,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
     setNome(item.nome);
     setCategoriaId(item.categoriaId);
     setMotoNome(item.motoNome);
-    setGrau(item.grau);
+    setGrau(grausDoItem(item)[0] ?? item.grau);
     setFotos(item.fotosPorUnidade?.[0] ?? item.fotos);
     setCategoriaEditada(true);
     setMotoEditada(true);
@@ -215,7 +243,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
       } else {
         for (const item of fila) {
           for (let indice = 0; indice < item.quantidade; indice += 1) {
-            await onSalvarItem({ ...item, quantidade: 1, fotos: item.fotosPorUnidade?.[indice] ?? item.fotos });
+            await onSalvarItem({ ...item, quantidade: 1, grau: item.grausPorUnidade?.[indice] ?? item.grau, grausPorUnidade: undefined, fotos: item.fotosPorUnidade?.[indice] ?? item.fotos });
           }
         }
       }
@@ -265,7 +293,7 @@ export function BulkInventoryComposer({ aberto, categorias, modelos, pecas, onFe
         ) : (
           <motion.div key="formulario" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} className="space-y-5">
             <div className="rounded-control border border-accent/20 bg-accent-soft-bg/50 p-4"><p className="flex items-center gap-2 text-sm font-semibold text-accent-soft-fg"><ListPlus size={16} />Cadastro rápido, complemento depois</p><p className="mt-1 text-xs leading-5 text-text-secondary">Cadastre uma peça nova ou adicione outra unidade a uma peça que já existe, sem duplicar o cadastro.</p></div>
-            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{totalNaFila} {totalNaFila === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.fotos.length ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · Grau {item.grau} · {item.quantidade} {item.quantidade === 1 ? "unidade" : "unidades"} · {item.fotos.length} {item.fotos.length === 1 ? "foto" : "fotos"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label={`Editar ${item.nome}`} disabled={salvando} onClick={() => editarItem(index)} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-accent-soft-bg hover:text-accent-soft-fg disabled:opacity-50"><Pencil size={15} /></button><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index))} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></div></motion.div>)}</div></section>}
+            {fila.length > 0 && <section aria-label="Peças na fila" className="space-y-2"><div className="flex items-center justify-between"><p className="text-xs font-semibold uppercase tracking-[0.12em] text-text-muted">Na fila</p><span className="font-mono text-xs text-text-muted">{totalNaFila} {totalNaFila === 1 ? "item" : "itens"}</span></div><div className="space-y-2">{fila.map((item, index) => <motion.div layout key={`${item.nome}-${index}`} initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex items-center gap-3 rounded-control border border-border-default bg-surface-card p-3"><div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-control bg-surface-inset text-text-faint">{item.fotos.length ? <ImagePlus size={16} /> : <ImagePlus size={16} className="opacity-40" />}</div><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-text-primary">{item.nome}</p><p className="truncate text-xs text-text-muted">{item.motoNome} · {rotuloGraus(item)} · {item.quantidade} {item.quantidade === 1 ? "unidade" : "unidades"} · {item.fotos.length} {item.fotos.length === 1 ? "foto" : "fotos"}</p></div><div className="flex shrink-0 items-center gap-1"><button type="button" aria-label={`Editar ${item.nome}`} disabled={salvando} onClick={() => editarItem(index)} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-accent-soft-bg hover:text-accent-soft-fg disabled:opacity-50"><Pencil size={15} /></button><button type="button" aria-label={`Remover ${item.nome}`} disabled={salvando} onClick={() => setFila((atual) => atual.filter((_, itemIndex) => itemIndex !== index))} className="grid size-9 place-items-center rounded-control text-text-faint transition hover:bg-danger-bg hover:text-danger disabled:opacity-50"><Trash2 size={15} /></button></div></motion.div>)}</div></section>}
             <section className="space-y-4" aria-labelledby="bulk-identificar">
               <div><p className="font-mono text-[10px] font-semibold uppercase tracking-[0.16em] text-text-faint">{indiceEditando === null ? "Próxima peça" : "Editando item da fila"}</p><h3 id="bulk-identificar" className="mt-1 text-lg font-semibold text-text-primary">O que entrou no galpão?</h3></div>
               <div role="group" aria-label="Tipo de adição" className="grid grid-cols-2 gap-1 rounded-control border border-border-default bg-surface-inset p-1">

@@ -660,6 +660,8 @@ export function EstoquePreview({ embutido = false, onAbrirEstoqueAntigo, filtroE
           modo: modoAntesDoCadastro,
           pecaId,
           quantidade: 1,
+          grau: item.grausPorUnidade?.[indice] ?? item.grau,
+          grausPorUnidade: undefined,
           fotos,
         }, false, pecasDaSessao);
         if (modoAntesDoCadastro === "nova" && fonte === "real") {
